@@ -1,0 +1,838 @@
+{
+ "about": "Every identifier family in the public tree (release/keep-public.txt) that carries the internal name (BC250 XeFG, XeMFG, bc250-xefg, xemfg), with its current value, where it appears, what renaming it does to existing installations (Restore of their records) and the recommended policy. release/rename.py reads this file: 'scan' lists each occurrence by family (patterns are tried in this order; an earlier family claims a span first), 'apply' rewrites the families it selects with their replacements. Classes: 'user-visible' (apply rewrites those with default true; the others with --family), 'compat' (with --include-compat when they need neither an alias nor a rebuild; otherwise only by --family), 'internal' (never rewritten: an interface, a record value or a build switch; scan lists them), 'review' (the old name left in prose and messages: rewrite by hand). Templates: {name} (the product name), {holder} (the MIT copyright holder: '{name} contributors' unless apply --holder), {slug} (lower case, hyphens), {slug_} (lower case, underscores), {SLUG} (upper case, underscores); \\1 refers to a group of the replacement's pattern. 'XeFG', 'XeSS' and 'XeLL' on their own name Intel's software (nominative use) and are no rename item. 'chosen' holds the decided public name (empty until it is decided), which release/export_tree.py --public applies to its copies.",
+ "schema": 1,
+ "placeholder": "[PRODUCT]",
+ "file_list": "release/keep-public.txt",
+ "public_variant": "intel-free-2x",
+ "chosen": {
+  "about": "The decided public name, empty (null) until it is decided: name (the product name), slug (its lower-case, hyphenated form), holder (the MIT copyright holder; null: '{name} contributors') and families (user-visible families to rewrite besides the defaults: launcher-script, licence-file, layer-description). With a name and slug here, release/export_tree.py --public applies rename.py's user-visible rewrites (the default families plus these) to the exported copies only: this tree keeps the internal names, and the public package.json's name follows package-name's public_template. Compatibility families are not rewritten by the export (rename.py apply --include-compat or --family in an export, deliberately). rename.py chosen_name() checks this block like apply's arguments. Fill it in only with the decided name; a test or trial uses a scratch copy.",
+  "name": "FreeFG",
+  "slug": "freefg",
+  "holder": null,
+  "families": [
+   "launcher-script",
+   "licence-file",
+   "layer-description"
+  ]
+ },
+ "public_root_files": {
+  "about": "Files release/export_tree.py --public writes at the top of a public export besides the keep list (export_tree.py PUBLIC_ROOT: copies of packaging/public/ with their links adjusted). rename.py includes them only in a public tree (one without release/keep.txt); the private tree's own README.md is research text.",
+  "files": [
+   "README.md",
+   "LICENSE",
+   "NOTICE.md",
+   ".github/SECURITY.md",
+   ".github/CONTRIBUTING.md"
+  ]
+ },
+ "exclude": {
+  "release/names.json": "this list: its patterns spell every old identifier",
+  "release/rename.py": "the rename tool",
+  "release/test_release_tools.py": "the release tools' tests, whose fixtures spell the old identifiers",
+  "packaging/public/check_public_docs.py": "the document checker's own list of identifiers that follow the rename (its RENAME and OLD_NAMES patterns): update it by hand after a rename"
+ },
+ "library_owner": {
+  "about": "The private library owner (outside this tree) deploys only packages whose manifest name ends in private-test-NN and reads their receipt qualification/xemfg-vNN-package.json. apply never changes the private names (package.json 'name' and the private variants): only the public variant's name, which must not match this pattern.",
+  "pattern": "private-test-(\\d+)$"
+ },
+ "name_rules": {
+  "about": "A product name or slug is refused when one of its words, after splitting at spaces, hyphens, dots, digits and camel-case boundaries, is one of refused_words (case-insensitive): 'Xe Pace', 'XeBoost', 'FSR4 Plus', 'DLSS-lite' and 'Intel Pacer' are refused. Nominative use in the documents ('works with Intel XeSS Frame Generation') is not affected. A refused word inside a longer word ('Xenon', 'Intellect') and the hardware name are warnings.",
+  "name": "^[A-Za-z0-9][A-Za-z0-9 .-]{0,38}[A-Za-z0-9]$",
+  "slug": "^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$",
+  "refused_words": [
+   "xe",
+   "xess",
+   "xefg",
+   "xell",
+   "xmx",
+   "intel",
+   "amd",
+   "radeon",
+   "ryzen",
+   "fidelityfx",
+   "fsr",
+   "nvidia",
+   "geforce",
+   "rtx",
+   "dlss"
+  ],
+  "warned_patterns": {
+   "(?i)bc-?250": "names the ASRock BC-250 hardware: fine nominatively ('for the BC-250'), but in the product name it reads as ASRock's product"
+  }
+ },
+ "families": [
+  {
+   "id": "product-name",
+   "class": "user-visible",
+   "default": true,
+   "current": "[PRODUCT] (the placeholder for the undecided name; the internal names are BC250 XeFG / XeMFG)",
+   "appears_in": [
+    "packaging/public/*.md (README, NOTICE, PRIVACY, ARCHITECTURE, MEASUREMENTS, BUILDING, CHANGELOG, CONTRIBUTING, SECURITY)",
+    "release/profile/ORIGIN.md",
+    "in a public export also README.md, NOTICE.md, .github/SECURITY.md, .github/CONTRIBUTING.md (export_tree.py copies)"
+   ],
+   "patterns": [
+    "\\[PRODUCT\\]"
+   ],
+   "replacements": [
+    {
+     "pattern": "\\[PRODUCT\\]",
+     "template": "{name}",
+     "files": [
+      "*.md"
+     ]
+    }
+   ],
+   "compatibility": "None: document text.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename",
+   "recommendation": "Rename with the chosen name in every Markdown file (*.md); the tools that look for the placeholder keep it. check_public_docs.py --release then reports the remaining placeholders ([VERSION], [REPO-URL], ...)."
+  },
+  {
+   "id": "user-agent",
+   "class": "user-visible",
+   "default": true,
+   "current": "BC250-XeFG-private-test/1 (installer downloads); bc250-xemfg-release-fetch (release/fetch.py)",
+   "appears_in": [
+    "packaging/dependencies.py",
+    "release/fetch.py",
+    "packaging/public/PRIVACY.md"
+   ],
+   "patterns": [
+    "BC250-XeFG-private-test/\\d+",
+    "bc250-xemfg-release-fetch"
+   ],
+   "replacements": [
+    {
+     "pattern": "BC250-XeFG-private-test/(\\d+)",
+     "template": "{slug}-installer/\\1",
+     "files": [
+      "packaging/dependencies.py",
+      "*.md"
+     ]
+    },
+    {
+     "pattern": "bc250-xemfg-release-fetch",
+     "template": "{slug}-release-fetch",
+     "files": [
+      "release/fetch.py",
+      "*.md"
+     ]
+    }
+   ],
+   "compatibility": "None: servers see a different User-Agent; nothing reads it back.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename",
+   "recommendation": "Rename. PRIVACY.md quotes both strings and follows in the same apply."
+  },
+  {
+   "id": "mit-holder",
+   "class": "user-visible",
+   "default": true,
+   "current": "Copyright (c) 2026 [COPYRIGHT HOLDER] in packaging/public/LICENSE (the public licence text, shipped as licenses/BC250-XeFG.txt); Copyright (c) 2026 BC250 XeFG contributors in LICENSE.new-code (the maintainers' tree only)",
+   "appears_in": [
+    "packaging/public/LICENSE",
+    "LICENSE (a public export's copy)",
+    "LICENSE.new-code (not public)"
+   ],
+   "patterns": [
+    "Copyright \\(c\\) \\d{4} BC250 XeFG contributors",
+    "\\[COPYRIGHT HOLDER\\]"
+   ],
+   "replacements": [
+    {
+     "pattern": "\\[COPYRIGHT HOLDER\\]",
+     "template": "{holder}",
+     "files": [
+      "packaging/public/LICENSE",
+      "LICENSE"
+     ]
+    },
+    {
+     "pattern": "Copyright \\(c\\) (\\d{4}) BC250 XeFG contributors",
+     "template": "Copyright (c) \\1 {holder}",
+     "files": [
+      "packaging/public/LICENSE",
+      "LICENSE",
+      "LICENSE.new-code"
+     ]
+    }
+   ],
+   "compatibility": "None: the same contributors under the new name ({holder} is '{name} contributors' unless apply --holder names someone else). Packages already published keep their own licence text.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename",
+   "recommendation": "Rename; pass --holder when the holder should be a person or an organisation rather than '<name> contributors'."
+  },
+  {
+   "id": "setup-title",
+   "class": "user-visible",
+   "default": true,
+   "current": "zenity window title 'BC250 FSR4 + XeMFG' (NAME = 'FSR4 + XeMFG' for xemfg packages, which also fills 'Install … into selected games' and 'Setup will configure …')",
+   "appears_in": [
+    "packaging/mfg/setup.py (NAME and four '--title=' arguments)",
+    "scripts/test_setup_front_end.py (asserts NAME)"
+   ],
+   "patterns": [
+    "'--title=BC250 '\\+NAME",
+    "NAME='FSR4 \\+ XeMFG' if MFG else 'FSR4 \\+ XeFG 2×'",
+    "self\\.setup\\.NAME, 'FSR4 \\+ XeMFG'"
+   ],
+   "replacements": [
+    {
+     "pattern": "'--title=BC250 '\\+NAME",
+     "template": "'--title='+NAME",
+     "files": [
+      "packaging/mfg/setup.py"
+     ]
+    },
+    {
+     "pattern": "NAME='FSR4 \\+ XeMFG' if MFG else 'FSR4 \\+ XeFG 2×'",
+     "template": "NAME='{name}'",
+     "files": [
+      "packaging/mfg/setup.py"
+     ]
+    },
+    {
+     "pattern": "self\\.setup\\.NAME, 'FSR4 \\+ XeMFG'",
+     "template": "self.setup.NAME, '{name}'",
+     "files": [
+      "scripts/test_setup_front_end.py"
+     ]
+    }
+   ],
+   "compatibility": "None: window text. In a public tree setup.py serves only the public package (the private tree's setup.py, shared with the private builds, is not rewritten: apply --write refuses a tree with release/keep.txt).",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename",
+   "recommendation": "Rename. Setup's other old-name text ('XeMFG defaults to 2×.', 'Private BC250 Linux/Proton test build.') is listed under old-name for a hand rewrite."
+  },
+  {
+   "id": "package-name",
+   "class": "user-visible",
+   "default": true,
+   "current": "bc250-fsr4-xemfg-private-test-NN (private, top-level 'name'), -NN-intel-free (private variant), -NN-intel-free-2x (the public variant)",
+   "appears_in": [
+    "release/package.json ('name' and each variant's 'name')",
+    "release/assemble.py (package_naming: bc250-fsr4-xemfg-private-test-NN[-variant], or public_template)",
+    "scripts/test_game_install.py (fixture name)"
+   ],
+   "public_template": "{slug}-0.9.0",
+   "public_receipt_template": "{slug}-{version}-package.json",
+   "patterns": [
+    "(?:bc250-fsr4-xemfg-)?private-test-(?:\\d+|NN|\\(\\\\d\\+\\))(?:-[a-z0-9]+)*"
+   ],
+   "replacements": [
+    {
+     "pattern": "(\"name\": \")bc250-fsr4-xemfg-private-test-(\\d+)-intel-free-2x(\")",
+     "template": "\\1{slug}-0.9.0\\3",
+     "files": [
+      "release/package.json"
+     ]
+    }
+   ],
+   "compatibility": "The installer records the package name in state.json for Status only; Restore does not compare it. The private library owner's pattern private-test-(\\d+)$ keeps matching the private names, which apply leaves alone; the public variant never matched it (the owner does not deploy it). release/assemble.py accepts the private names as before (version vNN[-variant], receipt qualification/xemfg-vNN[-variant]-package.json) and a name of public_template's form ({slug}: name_rules slug; {number}: a build number, the integer the private builds count, or a dotted semantic version MAJOR.MINOR.PATCH such as 0.1.0): its version is 'v' + number + public_template's text after {number} (v31-2x, v0.1.0-2x), its receipt qualification/ + public_receipt_template ({slug}, {version}, {number}: lumen-pace-v31-2x-package.json); a public name the library owner's pattern would match, or whose slug carries a refused word, is refused. The package-name replacement below must produce public_template (rename.py checks it). The version is decided: 0.9.0 (the private pre-release for review; the public release that follows is 1.0.0, the same two edits), written as fixed text in public_template ({slug}-0.9.0) and in the replacement's template (\\1{slug}-0.9.0\\3), so the package is <slug>-0.9.0 (version v0.9.0, receipt <slug>-v0.9.0-package.json). Before the version was decided, public_template {slug}-{number}-2x kept the private build number (the replacement's \\2). A later version is the same two edits, the version as fixed text in place of the old one in public_template and in the replacement's template, the same in both: {slug}-0.1.0 with \\1{slug}-0.1.0\\3 gives <slug>-0.1.0 (version v0.1.0, receipt <slug>-v0.1.0-package.json); {slug}-0.1.0-2x keeps the 2x suffix (v0.1.0-2x, which semantic versioning reads as a pre-release of 0.1.0); {slug}-32-2x gives v32-2x. Nothing else changes: assemble.py accepts a template with a fixed version (a build number or MAJOR.MINOR.PATCH, then text such as -2x), rename.py compares the rewritten name with public_template, and the release tests fix their own copy of this family in the build-number form.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename the public variant only",
+   "recommendation": "Rename the public variant (dropping 'intel-free', a mark in a package name); keep every private name. A renamed public tree assembles under the public name (release/assemble.py package_naming())."
+  },
+  {
+   "id": "launcher-script",
+   "class": "user-visible",
+   "default": false,
+   "current": "Start-BC250-XeFG.sh (package root; starts Setup)",
+   "appears_in": [
+    "release/package.json (package path)",
+    "packaging/public/README.md",
+    "packaging/public/NOTICE.md"
+   ],
+   "patterns": [
+    "(?<!packaging/)Start-BC250-XeFG\\.sh",
+    "packaging/Start-BC250-XeFG\\.sh"
+   ],
+   "replacements": [
+    {
+     "pattern": "(?<!packaging/)Start-BC250-XeFG\\.sh",
+     "template": "Start-{slug}.sh",
+     "files": [
+      "release/package.json",
+      "*.md"
+     ]
+    }
+   ],
+   "compatibility": "None: a package file; installations do not record it. The tracked source keeps its name (packaging/Start-BC250-XeFG.sh; rename it with git mv and update package.json and the keep lists by hand if wanted).",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename",
+   "recommendation": "Rename with the product (--family launcher-script): it is the file a player starts."
+  },
+  {
+   "id": "licence-file",
+   "class": "user-visible",
+   "default": false,
+   "current": "licenses/BC250-XeFG.txt (the MIT text in the package)",
+   "appears_in": [
+    "release/package.json",
+    "packaging/public/NOTICE.md",
+    "release/keep-public.txt (comment)"
+   ],
+   "patterns": [
+    "licenses/BC250-XeFG\\.txt"
+   ],
+   "replacements": [
+    {
+     "pattern": "licenses/BC250-XeFG\\.txt",
+     "template": "licenses/{slug}.txt"
+    }
+   ],
+   "compatibility": "None: a package file.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename",
+   "recommendation": "Rename with the product (--family licence-file)."
+  },
+  {
+   "id": "layer-description",
+   "class": "user-visible",
+   "default": false,
+   "current": "\"Private BC250 XeFG subgroup experiment\" (layer.json description, shown by vulkaninfo)",
+   "appears_in": [
+    "release/files/layer.json"
+   ],
+   "patterns": [
+    "Private BC250 XeFG subgroup experiment"
+   ],
+   "replacements": [
+    {
+     "pattern": "(\"description\": \")Private BC250 XeFG subgroup experiment(\")",
+     "template": "\\1{name} frame pacing layer\\2",
+     "files": [
+      "release/files/layer.json"
+     ]
+    }
+   ],
+   "compatibility": "None: descriptive text (layer.json is a package file; its hash in the manifest changes).",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename",
+   "recommendation": "Rename with the product (--family layer-description)."
+  },
+  {
+   "id": "layer-name",
+   "class": "compat",
+   "current": "VK_LAYER_BC250_xefg_wave (Vulkan layer name)",
+   "appears_in": [
+    "release/files/layer.json",
+    "packaging/launcher_config.py (VK_INSTANCE_LAYERS)",
+    "packaging/mfg/run.sh",
+    "scripts/test_launcher_config.py",
+    "scripts/test_mfg_install.py"
+   ],
+   "patterns": [
+    "VK_LAYER_BC250_xefg_wave"
+   ],
+   "replacements": [
+    {
+     "pattern": "VK_LAYER_BC250_xefg_wave",
+     "template": "VK_LAYER_{SLUG}_wave"
+    }
+   ],
+   "compatibility": "The name lives in layer.json and in the launch options the installer writes; libxefg_wave.so does not contain it. Earlier installations keep the old name in their recorded launcher fields and Restore writes back exactly what it recorded, so it is unaffected. A new install refuses a game that still has an earlier record (Restore first), so the two names never meet in one game.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename-with-compat",
+   "recommendation": "Keep for the first release, as the documents name it. The maintainers' publication tool (release/publish_local.py) expects that too: it passes the XEMFG_* settings to the exported tools and accepts no payload change but the layer-description family's. --include-compat renames this family with the others if that is decided; publish_local.py then needs the same change."
+  },
+  {
+   "id": "cache-dir",
+   "class": "compat",
+   "current": "bc250-xefg-testers (download cache under $XDG_CACHE_HOME)",
+   "appears_in": [
+    "packaging/dependencies.py",
+    "scripts/test_dependencies.py",
+    "release/smoke_install.py (help text)",
+    "packaging/public/PRIVACY.md, README.md, BUILDING.md"
+   ],
+   "patterns": [
+    "bc250-xefg-testers"
+   ],
+   "replacements": [
+    {
+     "pattern": "bc250-xefg-testers",
+     "template": "{slug}"
+    }
+   ],
+   "compatibility": "A cache only: Restore never reads it. A renamed cache downloads the pinned files once more and leaves the old folder behind (README's uninstall text names the cache folder).",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename-with-compat",
+   "recommendation": "Keep for the first release, as the documents name it. The maintainers' publication tool (release/publish_local.py) expects that too: it passes the XEMFG_* settings to the exported tools and accepts no payload change but the layer-description family's. --include-compat renames this family with the others if that is decided; publish_local.py then needs the same change."
+  },
+  {
+   "id": "build-env",
+   "class": "compat",
+   "current": "XEMFG_WORK, XEMFG_PROFILE, XEMFG_ENABLER, XEMFG_OPTISCALER, XEMFG_OPTISCALER_SOURCE, XEMFG_DXC, XEMFG_CACHE, XEMFG_BUILD, XEMFG_CLANG, XEMFG_GCC, XEMFG_WINE_INCLUDE, XEMFG_WINE_LIB (release tooling settings)",
+   "appears_in": [
+    "release/config.py",
+    "release/*.py (help and messages)",
+    "release/ci/*.py",
+    ".github/workflows/ci.yml",
+    "packaging/public/BUILDING.md"
+   ],
+   "patterns": [
+    "\\bXEMFG_(?:WORK|PROFILE|ENABLER|OPTISCALER_SOURCE|OPTISCALER|DXC|CACHE|BUILD|CLANG|GCC|WINE_INCLUDE|WINE_LIB)\\b"
+   ],
+   "replacements": [
+    {
+     "pattern": "\\bXEMFG_(WORK|PROFILE|ENABLER|OPTISCALER_SOURCE|OPTISCALER|DXC|CACHE|BUILD|CLANG|GCC|WINE_INCLUDE|WINE_LIB)\\b",
+     "template": "{SLUG}_\\1"
+    }
+   ],
+   "compatibility": "Developers' settings, not installations. A consistent rewrite of the tree keeps CI working (the workflows set XEMFG_BUILD and toolchain.py writes XEMFG_DXC); scripts outside the tree that set the old names stop working.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename-with-compat",
+   "recommendation": "Keep for the first release, as the documents name it. The maintainers' publication tool (release/publish_local.py) expects that too: it passes the XEMFG_* settings to the exported tools and accepts no payload change but the layer-description family's. --include-compat renames this family with the others if that is decided; publish_local.py then needs the same change."
+  },
+  {
+   "id": "runtime-dll",
+   "class": "compat",
+   "current": "bc250_xefg_original.dll (Intel's unmodified runtime beside the proxy; the proxy's forwarders name it)",
+   "appears_in": [
+    "src/game/mfg_proxy.c",
+    "release/build_proxy.py",
+    "packaging/dependencies.json (runtime.ProxyPackage)",
+    "packaging/install.py (comment)",
+    "release/package.json (description)",
+    "packaging/public/README.md, ARCHITECTURE.md, BUILDING.md, NOTICE.md"
+   ],
+   "patterns": [
+    "bc250_xefg_original"
+   ],
+   "replacements": [
+    {
+     "pattern": "bc250_xefg_original",
+     "template": "{slug_}_original"
+    }
+   ],
+   "compatibility": "Compiled into the proxy (the file it loads and its export forwarders): a new libxess_fg.dll, a new reference hash and a new qualification. Earlier installations list the file in their record and Restore removes it by that recorded path, so they are unaffected.",
+   "rebuild": [
+    "libxess_fg.dll (proxy)"
+   ],
+   "alias_required": false,
+   "policy": "rename-with-rebuild",
+   "recommendation": "Keep for the first release unless the proxy is rebuilt anyway; then --family runtime-dll (--include-compat leaves it out because it needs a rebuild)."
+  },
+  {
+   "id": "user-env",
+   "class": "compat",
+   "current": "BC250_XEFG_ANY_GPU, BC250_XEFG_DISABLE, BC250_XEFG_OWNER_MODULE (proxy); BC250_XEFG_PACE, _PACE_NUDGE, _PACE_QUEUE, _PACE_HOLD, _PACE_TRACE (layer); BC250_XEFG_FRAME_CAP, BC250_XEFG_NO_STAGGERED_SUBMIT (run.sh, launcher_config.py)",
+   "appears_in": [
+    "src/game/mfg_proxy.c, fast_trial.h, present_pacer.h, mfg_pace_signal.h, wave_layer.c, src/probe.c and the layer tests",
+    "packaging/launcher_config.py, mfg/run.sh, doctor.py",
+    "scripts/test_*.py",
+    "release/package.json (manifest text)",
+    "packaging/public/*.md (documented switches)"
+   ],
+   "patterns": [
+    "\\bBC250_XEFG_\\w*"
+   ],
+   "replacements": [
+    {
+     "pattern": "\\bBC250_XEFG_",
+     "template": "{SLUG}_"
+    }
+   ],
+   "compatibility": "Read by both binaries (rebuild both). launcher_config.py removes BC250_XEFG_OWNER_MODULE that earlier installations wrote, and players set BC250_XEFG_DISABLE=1 / BC250_XEFG_ANY_GPU=1 by hand: a plain rename would silently ignore their settings and leave the old key behind.",
+   "rebuild": [
+    "libxess_fg.dll (proxy)",
+    "libxefg_wave.so (layer)"
+   ],
+   "alias_required": true,
+   "alias": "The binaries read the new name first and the old one as a fallback; launcher_config.py keeps removing the old keys.",
+   "policy": "keep-with-alias",
+   "recommendation": "Keep for the first release (documented switches, two rebuilds). Rename later only with the alias in place (--family user-env)."
+  },
+  {
+   "id": "xefg-env",
+   "class": "compat",
+   "current": "XEFG_WAVE_CONFIG (layer), XEFG_GAME_PROFILE, XEFG_FLOW_CAP, XEFG_SCALE_LOG (add-on)",
+   "appears_in": [
+    "src/game/wave_layer.c, fast_trial.h, src/probe.c",
+    "packaging/launcher_config.py, mfg/run.sh",
+    "release/proxy_common.py (probe-core patch text)",
+    "scripts/test_launcher_config.py, test_mfg_install.py, test_proxy_install.py"
+   ],
+   "patterns": [
+    "(?<!BC250_)\\bXEFG_(?:WAVE_CONFIG|GAME_PROFILE|FLOW_CAP|SCALE_LOG)\\b"
+   ],
+   "replacements": [
+    {
+     "pattern": "(?<!BC250_)\\bXEFG_(WAVE_CONFIG|GAME_PROFILE|FLOW_CAP|SCALE_LOG)\\b",
+     "template": "{SLUG}_\\1"
+    }
+   ],
+   "compatibility": "XEFG here names Intel's XeFG (the settings of this project's work on XeFG), not the product. The installer writes XEFG_WAVE_CONFIG into launch options and removes XEFG_GAME_PROFILE / XEFG_FLOW_CAP left by earlier installations; build_addon.py patches the probe core by its exact text.",
+   "rebuild": [
+    "libxess_fg.dll (proxy)",
+    "libxefg_wave.so (layer)"
+   ],
+   "alias_required": true,
+   "alias": "launcher_config.py and run.sh keep removing the old keys; the binaries read the old names as a fallback.",
+   "policy": "keep",
+   "recommendation": "Keep: nominative use of Intel's name, and no user benefit."
+  },
+  {
+   "id": "log-names",
+   "class": "compat",
+   "current": "BC250-MFG.log, BC250-XeFG-fast.log (the proxy's logs beside the game executable)",
+   "appears_in": [
+    "src/game/mfg_proxy.c, fast_trial.h",
+    "packaging/install.py (PROXY_LOGS, Status)",
+    "packaging/doctor.py",
+    "packaging/public/README.md, ARCHITECTURE.md, CONTRIBUTING.md, PRIVACY.md"
+   ],
+   "patterns": [
+    "BC250-MFG\\.log",
+    "BC250-XeFG-fast\\.log"
+   ],
+   "replacements": [
+    {
+     "pattern": "BC250-MFG\\.log",
+     "template": "{slug}.log"
+    },
+    {
+     "pattern": "BC250-XeFG-fast\\.log",
+     "template": "{slug}-fast.log"
+    }
+   ],
+   "compatibility": "Compiled into the proxy. Restore removes the proxy's logs by these names (install.py PROXY_LOGS) and Status reads the fast log: after a plain rename, Restore of an earlier installation leaves its logs behind.",
+   "rebuild": [
+    "libxess_fg.dll (proxy)"
+   ],
+   "alias_required": true,
+   "alias": "install.py PROXY_LOGS keeps the old names beside the new ones; Status looks for both.",
+   "policy": "keep-with-alias",
+   "recommendation": "Keep for the first release (players quote these names in reports)."
+  },
+  {
+   "id": "game-folder",
+   "class": "compat",
+   "current": "BC250-XeFG/ in the game folder (layer/, shaders/, settings.ini, run.sh of wrapper builds); 'bc250-xefg' (its lower-case form in install.py IGNORED_DIRS)",
+   "appears_in": [
+    "src/game/fast_trial.h, mfg_settings.h (BC250-XeFG\\shaders, BC250-XeFG\\settings.ini)",
+    "packaging/install.py, launcher_config.py, mfg/run.sh, doctor.py",
+    "release/package.json (payload paths)",
+    "scripts/test_*.py",
+    "packaging/public/*.md"
+   ],
+   "patterns": [
+    "BC250-XeFG(?=[/\\\\']| folder)",
+    "'bc250-xefg'"
+   ],
+   "replacements": [
+    {
+     "pattern": "BC250-XeFG(?=[/\\\\']| folder)",
+     "template": "{slug}"
+    },
+    {
+     "pattern": "'bc250-xefg'",
+     "template": "'{slug}'"
+    }
+   ],
+   "compatibility": "The proxy finds its shaders and settings under this folder (compiled in). Earlier installations' files are removed by their recorded paths, but install.py also removes launch wrappers of earlier installs (BC250-XeFG/run.sh) from launch options, carries the settings an earlier Restore saved under BC250-XeFG/settings.ini into the next install, and ignores the folder when it looks for a game's own DLLs.",
+   "rebuild": [
+    "libxess_fg.dll (proxy)"
+   ],
+   "alias_required": true,
+   "alias": "launcher_config.py keeps the old wrapper paths in its removal list, install.py maps carried settings from the old path and keeps 'bc250-xefg' in IGNORED_DIRS.",
+   "policy": "keep-with-alias",
+   "recommendation": "Keep for the first release."
+  },
+  {
+   "id": "state-dir",
+   "class": "compat",
+   "current": ".bc250-xefg-experimental (installation record and backups in the game folder; .bc250-xefg-experimental-restored-<id> after a reinstall)",
+   "appears_in": [
+    "packaging/install.py (STATE)",
+    "scripts/test_*.py (through m.STATE)",
+    "packaging/public/README.md"
+   ],
+   "patterns": [
+    "\\.?bc250-xefg-experimental"
+   ],
+   "replacements": [
+    {
+     "pattern": "(\\.?)bc250-xefg-experimental",
+     "template": "\\1{slug}"
+    }
+   ],
+   "compatibility": "Restore, Status and the 'an installation record already exists' refusal find earlier installations by this folder; the private library owner reads it through each package's install.py STATE. A plain rename makes earlier installations invisible: a new install would then save the earlier build's files as the 'originals'.",
+   "rebuild": [],
+   "alias_required": true,
+   "alias": "install.py looks for the old folder too (Restore, Status, refusal) and writes new records under the new name.",
+   "policy": "keep",
+   "recommendation": "Keep (a hidden folder). Rename only with the alias, never by text alone."
+  },
+  {
+   "id": "temp-prefix",
+   "class": "compat",
+   "current": ".bc250-xefg- (install.py temporary files beside a target), bc250-xefg-setup- (Setup's temporary folder)",
+   "appears_in": [
+    "packaging/install.py (write)",
+    "packaging/mfg/setup.py"
+   ],
+   "patterns": [
+    "\\.bc250-xefg-(?=')",
+    "bc250-xefg-setup-"
+   ],
+   "replacements": [
+    {
+     "pattern": "\\.bc250-xefg-(?=')",
+     "template": ".{slug}-"
+    },
+    {
+     "pattern": "bc250-xefg-setup-",
+     "template": "{slug}-setup-"
+    }
+   ],
+   "compatibility": "None: temporary names that nothing looks up.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rename-with-compat",
+   "recommendation": "Keep for the first release with the other compatibility families; --include-compat renames it with them."
+  },
+  {
+   "id": "extras-hook",
+   "class": "compat",
+   "current": "bc250-xemfg-gamescope-cap (pacman hook /etc/pacman.d/hooks/bc250-xemfg-gamescope-cap.hook and saved capability /var/lib/bc250-xemfg-gamescope-cap/previous)",
+   "appears_in": [
+    "packaging/extras/gamescope-cap-sys-nice/ (install.sh, uninstall.sh, README.md, the .hook file name)",
+    "release/package.json",
+    "release/keep-public.txt",
+    "packaging/public/PRIVACY.md"
+   ],
+   "patterns": [
+    "bc250-xemfg-gamescope-cap"
+   ],
+   "replacements": [
+    {
+     "pattern": "bc250-xemfg-gamescope-cap",
+     "template": "{slug}-gamescope-cap"
+    }
+   ],
+   "compatibility": "uninstall.sh finds an earlier install's hook and saved capability by these names; the tracked .hook file carries the name too (a text rename also changes its package and keep-list paths, so the file must be renamed with git mv in the same change).",
+   "rebuild": [],
+   "alias_required": true,
+   "alias": "uninstall.sh also removes the old hook and reads the old saved capability.",
+   "policy": "keep-with-alias",
+   "recommendation": "Keep for the first release."
+  },
+  {
+   "id": "pace-signal",
+   "class": "internal",
+   "current": "/dev/shm/bc250-xefg-pace-<inode>-<pid> (shared page between the proxy and the layer)",
+   "appears_in": [
+    "src/game/present_pacer.h, mfg_pace_signal.h, test_present_pacer.c",
+    "packaging/public/PRIVACY.md, SECURITY.md"
+   ],
+   "patterns": [
+    "bc250-xefg-pace-"
+   ],
+   "compatibility": "Both binaries agree on it at run time. A text rename is unsafe: present_pacer.h compares the first 16 characters of a name and mfg_pace_signal.h sizes its path buffer for this prefix. Rename by hand in both sources together (two rebuilds).",
+   "rebuild": [
+    "libxess_fg.dll (proxy)",
+    "libxefg_wave.so (layer)"
+   ],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep (players never type it)."
+  },
+  {
+   "id": "receipt-name",
+   "class": "internal",
+   "current": "qualification/xemfg-vNN[-variant]-package.json (package receipt), evidence/xemfg-* (maintainers' records)",
+   "appears_in": [
+    "release/assemble.py",
+    "release/inputs.lock.json (research record name)"
+   ],
+   "patterns": [
+    "(?:qualification|evidence)/xemfg-[\\w<>{}.-]*",
+    "xemfg-(?:v\\d+|vNN|\\{version\\}|<version>)[\\w-]*-package\\.json"
+   ],
+   "compatibility": "The private library owner reads qualification/xemfg-vNN-package.json of private builds. A package under a public name (package-name public_template) gets the receipt qualification/<package-name public_receipt_template> instead (release/assemble.py package_naming()), which carries the public slug, not the internal name.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep for private builds; public builds follow package-name public_receipt_template."
+  },
+  {
+   "id": "runtime-record",
+   "class": "internal",
+   "current": "runtime 'xemfg' / 'xemfg-proxy' (manifest.json, state.json, launcher_config runtime), preserved-ini/xemfg-<sha256>.ini",
+   "appears_in": [
+    "release/package.json (manifest runtime)",
+    "packaging/install.py",
+    "packaging/launcher_config.py",
+    "packaging/mfg/setup.py",
+    "scripts/test_*.py"
+   ],
+   "patterns": [
+    "(?<![\\w./-])xemfg(?:-proxy)?(?!\\w)",
+    "preserved-ini/xemfg-"
+   ],
+   "compatibility": "A record value: install.py refuses packages whose manifest runtime is not 'xemfg', Restore and configure test the record's runtime, the private library owner checks it, and Restore of earlier installations finds their saved settings by the xemfg- prefix.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep: never visible to players."
+  },
+  {
+   "id": "proxy-exports",
+   "class": "internal",
+   "current": "BC250MFGInitialize, BC250MFGGetFrameSettings, BC250MFGReadFrameSettings, BC250MFGSaveFrameSettings (the proxy's own exports)",
+   "appears_in": [
+    "src/game/mfg_proxy.c, mfg_settings.h",
+    "release/build_proxy.py"
+   ],
+   "patterns": [
+    "\\bBC250MFG[A-Za-z]+"
+   ],
+   "compatibility": "An interface: the OptiScaler fork's menu calls these exports by name.",
+   "rebuild": [
+    "libxess_fg.dll (proxy)",
+    "the OptiScaler fork"
+   ],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep (BC250 + MFG: no Intel mark)."
+  },
+  {
+   "id": "compile-macros",
+   "class": "internal",
+   "current": "XEFG_INTEL_FREE, XEFG_MFG_*, XEFG_GAME_CORE, XEFG_SCOPED_OBSERVER, XEFG_PROBE_*, XEFG_MODEL_*, ... (build switches and log tags)",
+   "appears_in": [
+    "src/**",
+    "release/build_proxy.py, proxy_common.py, build_addon.py, export_tree.py, unifdef.py"
+   ],
+   "patterns": [
+    "(?<!BC250_)\\bXEFG_(?!SWAPCHAIN_)[A-Z0-9_]+\\b"
+   ],
+   "compatibility": "Build configuration: export_tree.py resolves them (PROJECT_MACROS) and build_proxy.py defines them. Intel's own API constants (XEFG_SWAPCHAIN_*) are no rename item and are not listed.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep."
+  },
+  {
+   "id": "addon-asi",
+   "class": "internal",
+   "current": "BC250-MFG.asi (the private builds' OptiScaler plugin add-on)",
+   "appears_in": [
+    "packaging/install.py (comment)",
+    "release/assemble.py"
+   ],
+   "patterns": [
+    "BC250-MFG\\.asi"
+   ],
+   "compatibility": "Private builds only; the public build ships no .asi.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep."
+  },
+  {
+   "id": "layer-library",
+   "class": "internal",
+   "current": "libxefg_wave.so (the layer's file name)",
+   "appears_in": [
+    "release/build_layer.py, assemble.py, inputs.lock.json (outputs)",
+    "release/ci/*.py",
+    "release/files/layer.json",
+    "release/package.json",
+    "packaging/public/*.md"
+   ],
+   "patterns": [
+    "libxefg_wave\\.so"
+   ],
+   "compatibility": "A build output name keyed in the lock, the build records and CI; xefg names Intel's XeFG nominatively.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep."
+  },
+  {
+   "id": "settings-file-source",
+   "class": "internal",
+   "current": "release/files/BC250-XeFG-settings.ini (tracked source of the installed <folder>/settings.ini)",
+   "appears_in": [
+    "release/package.json",
+    "release/keep-public.txt"
+   ],
+   "patterns": [
+    "BC250-XeFG-settings\\.ini"
+   ],
+   "compatibility": "A path in this tree only; players see settings.ini.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "Keep (or git mv by hand)."
+  },
+  {
+   "id": "hardware-name",
+   "class": "internal",
+   "current": "BC250_PACE*, BC250_GAMESCOPE_READY_NUDGE, BC250_CAPTURE_TAG_FRAMES, bc250_fg_* / BC250_FG_* (settings contract with the OptiScaler fork), the [BC250] settings section, bc250-steam-screensaver-in-game",
+   "appears_in": [
+    "src/**",
+    "packaging/**",
+    "release/files/BC250-XeFG-settings.ini"
+   ],
+   "patterns": [],
+   "compatibility": "These carry only the hardware's name, not the internal product name; the settings contract and section are an interface with the OptiScaler fork and with players' saved settings.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "keep",
+   "recommendation": "No rename item (listed so that the survey is complete; scan does not list them)."
+  },
+  {
+   "id": "library-owner-name",
+   "class": "review",
+   "current": "bc250-xefg-library.py (the maintainers' private library owner, named in public text)",
+   "appears_in": [
+    "release/assemble.py (docstring)",
+    "release/package.json (variant descriptions)",
+    "scripts/test_recipes.py (comment)"
+   ],
+   "patterns": [
+    "bc250-xefg-library\\.py"
+   ],
+   "compatibility": "None: prose about a tool that is not part of this tree.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rewrite by hand",
+   "recommendation": "Say 'the maintainers' library tool' in public text (or drop the sentence); the tool itself keeps its name."
+  },
+  {
+   "id": "old-name",
+   "class": "review",
+   "current": "everything else that still carries the internal name: XeMFG in comments, docstrings and player messages (install.py, setup.py), 'Remove the BC250-XeFG launch wrapper', 'Private BC250 Linux/Proton test build.', test names",
+   "appears_in": [
+    "packaging/install.py, mfg/setup.py, launcher_config.py",
+    "scripts/test_*.py"
+   ],
+   "patterns": [
+    "(?i)bc250[-_ ]?xem?fg",
+    "(?i)(?<![a-z])xemfg",
+    "Private BC250\\b[^'\"\\n]*"
+   ],
+   "compatibility": "Text; two installer tests assert messages from install.py.",
+   "rebuild": [],
+   "alias_required": false,
+   "policy": "rewrite by hand",
+   "recommendation": "Rewrite the player messages with the name (and the tests that assert them); comments can say 'this installer' or 'the add-on'."
+  }
+ ]
+}

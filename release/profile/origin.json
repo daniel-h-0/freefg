@@ -1,0 +1,1208 @@
+{
+ "schema": 1,
+ "about": "Origin of every file of release/profile: the shader-profile files of this project's own origin that the Intel-free builds read (release/intel_free.json \"keep\" and \"rewrite\"; the enabler-free variant intel-free-2x drops the five mfg-finish* shaders, release/intel_free_2x.json). Each shader is compiled from HLSL under src/kernels/ with the recipe in \"build\"; release/build_profile.py check compiles it again and compares the bytes. Tables and markers are data. None of these files holds model weights: the kernels read the coefficients of the network at run time from the buffers Intel's XeSS Frame Generation runtime creates, re-laid out by the add-on's model owner. The same bytes are the files of inputs.lock.json work group \"profile-cl-wino-q33\" with origin \"own\".",
+ "profile": "cl-wino-q33 (own files)",
+ "lock_group": "profile-cl-wino-q33",
+ "toolchain": "inputs.lock.json toolchain \"profile\": Microsoft DirectX Shader Compiler v1.9.2607 for Linux (release asset, sha256 pinned there)",
+ "verified": {
+  "date": "2026-10-18",
+  "result": "33 of 33 shaders rebuilt byte-identical from src/kernels with the pinned DXC"
+ },
+ "files": {
+  "08155f47bc92811b.dxil": {
+   "sha256": "c19e7450db62ea50c32ebe77b452f6b73b3d7020a630b5e2c54fab9d463de2ec",
+   "bytes": 56888,
+   "kind": "shader",
+   "shader_model": "6.9",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "3x3 convolution 64->64 int8, clamp 2^17, dual-slope requantization, int16 products of prepared coefficients (flow refinement)",
+   "build": {
+    "pipeline": "dxc+packed16",
+    "source": "src/kernels/conv_64.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [],
+    "defines": [
+     "CHANNEL_PARTS=4",
+     "CLAMP_BITS=17"
+    ],
+    "packed16": {
+     "prefix_vectors": 11520,
+     "dot_products": 144
+    }
+   },
+   "rebuild": "byte-identical"
+  },
+  "1a3b0782583fef19.dxil": {
+   "sha256": "21f7e5628fc4d1f5a6af5bdffd0c83b62c032c8efa482edb0f15d06576cd118b",
+   "bytes": 89376,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 16->16 int8 channels with 2x2 max-pool, offset input decode, transform rows split across two waves",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_rs16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "GX=8",
+     "GY=4",
+     "WHALF=1",
+     "WINO16_BASE=2513"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1f27b449fb99a587.dxil": {
+   "sha256": "61a61c7ce26fc5177e2426916a27b4539d8d34ce221b622c8af83d667ccae1b6",
+   "bytes": 96344,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 128->64, no pooling, split over four waves per channel half",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=8",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "NOPOOL=1",
+     "FLOAT_ALL=1",
+     "KSPLIT=4",
+     "WHALF=1",
+     "WINO16_BASE=55809"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "4bb52a635e6d221a.dxil": {
+   "sha256": "415f7780c39e54f16917ef5a994d744a20f4d2e354a7375722f6ad7c65152db7",
+   "bytes": 99300,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) decoder 3x3 convolution 64->64 over skip + 2x-upsampled input, 8x16 output tiles, whole-sum FP32",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "TW=8",
+     "TILE_H=16",
+     "SLICES=4",
+     "CIN_SLICES=4",
+     "WINO_BASE=36864",
+     "WINO16_BASE=69634",
+     "FLOAT_ALL=1",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "558c3931ba6fb064.dxil": {
+   "sha256": "bf21a9bd7e992ccdea0973a9ba55ef3cd1d8764428bdffe2343e5a9861796cd7",
+   "bytes": 56888,
+   "kind": "shader",
+   "shader_model": "6.9",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "3x3 convolution 64->64 int8, clamp 2^16, dual-slope requantization, int16 products of prepared coefficients (flow refinement)",
+   "build": {
+    "pipeline": "dxc+packed16",
+    "source": "src/kernels/conv_64.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [],
+    "defines": [
+     "CHANNEL_PARTS=4",
+     "CLAMP_BITS=16"
+    ],
+    "packed16": {
+     "prefix_vectors": 11520,
+     "dot_products": 144
+    }
+   },
+   "rebuild": "byte-identical"
+  },
+  "5654aa3800432b13.dxil": {
+   "sha256": "22e59624ace8ec02851733bb46120714aadf38e02bb7ecf29f16b503adc4e60f",
+   "bytes": 99288,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) decoder 3x3 convolution 32->32 over skip + 2x-upsampled input, whole-sum FP32",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "TW=16",
+     "TILE_H=8",
+     "SLICES=2",
+     "CIN_SLICES=2",
+     "WINO_BASE=2880",
+     "WINO16_BASE=6977",
+     "FLOAT_ALL=1",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "60edebbbd2f9fb69.dxil": {
+   "sha256": "8dabc9695c886ad25e378c415e315a029569d28f0ee26081c7325d1901585ae2",
+   "bytes": 88360,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "1D Winograd F(2,3) 3x3 convolution 16->16, signed output",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_row16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": []
+   },
+   "rebuild": "byte-identical"
+  },
+  "9e0080eee00255f2.dxil": {
+   "sha256": "dd0365d3b8e4636246eee7be3341eecaefcaa914b5d307d7dee6c10db4ef5c37",
+   "bytes": 90388,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 64->128 with 2x2 max-pool, whole-sum FP32 accumulation",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=8",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "FLOAT_ALL=1",
+     "WHALF=1",
+     "WINO16_BASE=55809"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3941ac8ff95efe7.dxil": {
+   "sha256": "b8b44cc054c4e5a91fa6221c735db10930de4de71e4b2c9b8fe285c0232f8b0b",
+   "bytes": 95904,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) decoder 3x3 convolution 16->16 over skip + 2x-upsampled input, 16x8 output tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "TILE_H=8",
+     "WHALF=1",
+     "WINO16_BASE=2513",
+     "UP_SHIFT=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3ddf030f661d487.dxil": {
+   "sha256": "7cf20fbe2672aff1d60ab53101eadd35db2cf040f803eef83181cd56c0604d6b",
+   "bytes": 170276,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "1D Winograd F(2,3) 3x3 convolution 32->16, signed output",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_row16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "CIN_SLICES=2",
+     "ROW_BASE=3489"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "dispatch-scale.txt": {
+   "sha256": "ba54afcde3aa57e8ab11ac2b0166c55724caa69d6be206076aa49a3375a672b4",
+   "bytes": 232,
+   "kind": "table",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Group-count scaling of the hash replacements whose groups cover more output than the replaced pipeline's; the Intel-free builds drop the line of 437542192dd795c8 (intel_free.json \"rewrite\")",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "e83e868f8d5d2c0f.dxil": {
+   "sha256": "2dbd5a00d8e735c5a6f08c70c8a400bf208adf2a7547328435d31dcc6f7e1f3d",
+   "bytes": 90388,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 32->64 with 2x2 max-pool, whole-sum FP32 accumulation",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=2",
+     "GX=4",
+     "GY=8",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "FLOAT_ALL=1",
+     "WHALF=1",
+     "WINO16_BASE=13953"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f030948d38e74671.dxil": {
+   "sha256": "1806682df555597220c6bd205ded6050beb8497b22efec4d6449feaa3a15945e",
+   "bytes": 89188,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 16->32 with 2x2 max-pool, transform rows split across two waves",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_rs16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "GX=4",
+     "GY=8",
+     "WINO_BASE=1440",
+     "WHALF=1",
+     "WINO16_BASE=5025"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f2e2e13fea432d20.dxil": {
+   "sha256": "091067d0bc1ebc99f80b01396fc9de8de9e0fa886a4d0a95a23ecd16496a173e",
+   "bytes": 94840,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 64->32, no pooling, signed output, split over two waves per channel half",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "NOPOOL=1",
+     "CLAMP_LO=-128",
+     "FLOAT_ALL=1",
+     "KSPLIT=2",
+     "WHALF=1",
+     "WINO16_BASE=13953"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-finish224-17-n32.dxil": {
+   "sha256": "38c0c11105439b267c8e3a33850fa6fa590a808abb6bc4517a22b488814aa5cb",
+   "bytes": 8368,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3, 224 channels, clamp 2^17, 32-column tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=17"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-finish224-17.dxil": {
+   "sha256": "0196d3da8670b6da3f42ff630d6f3057c44648ed5fdda8e62a98bff7f4e23f24",
+   "bytes": 8372,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3, 224 channels, clamp 2^17, 48-column tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=48",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=17"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-finish224-n32.dxil": {
+   "sha256": "206741e941ba1fa49b723a0d097d8fa86896942d92214f89a2a679aa547fae20",
+   "bytes": 8368,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3 (inverse transform, requantization), 224 channels, clamp 2^16, 32-column tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-finish224.dxil": {
+   "sha256": "7dcd6ee2406d30a0f2beda18f994a7d7181dba217620285544a6bfc73c1cd97b",
+   "bytes": 8372,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3 (inverse transform, requantization), 224 channels, clamp 2^16, 48-column tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=48",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-finish64-16.dxil": {
+   "sha256": "bfec9523f5dc2da56fcb52a3404a8b91606b14fc880b394e0c04f2d60492b05c",
+   "bytes": 9036,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3 (inverse transform, requantization), 64 channels, clamp 2^16, padded row pitch",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "WINO_PITCH_PAD=16",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=16128",
+     "WINO_FAMILY64=1",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-finish64-17.dxil": {
+   "sha256": "5ef90eb942d2e7dd1b87e73323faec49ec09af1a182392be8d0a141ffd5353c5",
+   "bytes": 9036,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3 (inverse transform, requantization), 64 channels, clamp 2^17, padded row pitch",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "WINO_PITCH_PAD=16",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=16128",
+     "WINO_FAMILY64=1",
+     "CLAMP_BITS=17"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-matmul224-n32.dxil": {
+   "sha256": "bbd7ae1d2a26d481514d9040350be53da6a07affe6a22221dc2d52cb44dbb893",
+   "bytes": 8536,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 2 (transform-domain products), 224 channels, 32-column matrix tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_matmul.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-matmul224.dxil": {
+   "sha256": "787641cf59c729efbff7e95d12f448ae3556ce1139d29359ab158cef8a672cdf",
+   "bytes": 9744,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 2 (transform-domain products), 224 channels, 48-column matrix tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_matmul.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=48",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-matmul64.dxil": {
+   "sha256": "a8880f00c50fd4a7b0af07d764688d182cd8d88a3005d635abba48a7a7b2102a",
+   "bytes": 8540,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 2 (transform-domain products), 64 channels, padded row pitch",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_matmul.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "WINO_PITCH_PAD=16",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=16128",
+     "WINO_FAMILY64=1",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-prepare224-n32.dxil": {
+   "sha256": "0015a41463a0aa91ab0d524414e00f594897d6de6509e181e2c3de8e39d82ede",
+   "bytes": 7332,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 1 (input transform), 224 channels, 32-column matrix tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_prepare.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-prepare224.dxil": {
+   "sha256": "24c9d418a2b61f74f66ec84fcaf68b55f91f0ec6f877ac238e655dcfe99336f0",
+   "bytes": 7348,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 1 (input transform), 224 channels, 48-column matrix tiles",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_prepare.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=48",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "graph-prepare64.dxil": {
+   "sha256": "6df57dd162a90df74f366e6e897e29ae192ea52ee1aefa9b634ca435d1e351dd",
+   "bytes": 7548,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 1 (input transform), 64 channels, padded row pitch",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_prepare.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "WINO_PITCH_PAD=16",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=16128",
+     "WINO_FAMILY64=1",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "mfg-finish224-18-n32.dxil": {
+   "sha256": "af9528dcbc850403731df9e779cc0ae03754ad751ddcda68d036b0359e9465e1",
+   "bytes": 8368,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3, 224 channels, clamp 2^18, 32-column tiles (multi-frame network)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "WINO_PITCH_PAD=0",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=18"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "mfg-finish224-18-n48.dxil": {
+   "sha256": "ba59c34077bee222a74485c1c5bacd94acffb8219a5e5c529ceb086233ef4788",
+   "bytes": 8372,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3, 224 channels, clamp 2^18, 48-column tiles (multi-frame network)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=48",
+     "WINO_PITCH_PAD=0",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=18"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "mfg-finish224-19-n32.dxil": {
+   "sha256": "1f11e2c53d81153a5450e32164c93a9e02248ee41cda949b577e4e12a1963b3a",
+   "bytes": 8368,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3, 224 channels, clamp 2^19, 32-column tiles (multi-frame network)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "WINO_PITCH_PAD=0",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=19"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "mfg-finish224-19-n48.dxil": {
+   "sha256": "ea5268e0f5677f9fe4724f2c5265cb8d0b87b11b35f2e40a3c8e7b6aedd7a6a7",
+   "bytes": 8372,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3, 224 channels, clamp 2^19, 48-column tiles (multi-frame network)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=48",
+     "WINO_PITCH_PAD=0",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=84672",
+     "CLAMP_BITS=19"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "mfg-finish64-18-n32.dxil": {
+   "sha256": "df06cc3dca84aeca72c2c853f2fa26b09746382accd1ddfeed99473b3f3b82fe",
+   "bytes": 9036,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free"
+   ],
+   "description": "Winograd F(4x4,3x3) graph pass 3, 64 channels, clamp 2^18, 32-column tiles (multi-frame network)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/conv_wino4_finish.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "WINO_GRAPH=1",
+     "WINO_U24=1",
+     "COOP_VECTOR=1",
+     "WEIGHTS_I16=1",
+     "F4_MODULAR_INVERSE=1",
+     "F4_M=32",
+     "F4_N=32",
+     "WINO_PITCH_PAD=16",
+     "F4_K_UNROLL=4",
+     "F4_PREP_TILES=8",
+     "WINO_FINISH_CHANNELS=32",
+     "WINO_PREFIX=16128",
+     "CLAMP_BITS=18",
+     "WINO_FAMILY64=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "model-owner.required": {
+   "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58",
+   "bytes": 2,
+   "kind": "marker",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Marker: the model owner version the shaders need (7)",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "waves.txt": {
+   "sha256": "e2f27b957d68fb43085a8ba5af32e59423ffbf0eb81c5c01b7b443b98b79bf30",
+   "bytes": 2487,
+   "kind": "table",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Module hash (FNV-1a 64 of a shader's bytes) and wave size, one line per pipeline the add-on creates with a requested wave size. The pinned table, embedded by hash, so it also lists pipelines not in this directory (Intel's own pipelines, the full profile's Intel-derived replacements the Intel-free builds leave out, four other own shaders): hashes and wave sizes only",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "wino-enc16.required": {
+   "sha256": "9c1cf4c2cb32498eb7634d021972f35e4f2b98606ae0aabaa4b53cf36235b60f",
+   "bytes": 5,
+   "kind": "marker",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Marker: coefficient segments the model owner appends for the Winograd kernels (size mask 1535)",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "wino-ref64-16.dxil": {
+   "sha256": "b11dc2d987cd07246e68a60a62828e07acd3e3ce93890aabe63acc852ff579d6",
+   "bytes": 101392,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Fused Winograd F(2x2,3x3) 64->64 3x3 convolution, clamp 2^16, dual-slope requantization, FP16 coefficients and transformed inputs (flow refinement)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_ref64.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "FLOAT_ALL=1",
+     "STATIC_WORD=1",
+     "ROLES=4",
+     "WHALF=1",
+     "VHALF=1",
+     "REF16_BASE=77826",
+     "CLAMP_BITS=16"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "wino-ref64-17.dxil": {
+   "sha256": "0515073bc44ddf1b6d28f005638412c91b84a346756b0d526328d2670b8aa7d5",
+   "bytes": 101392,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Fused Winograd F(2x2,3x3) 64->64 3x3 convolution, clamp 2^17, dual-slope requantization, FP16 coefficients and transformed inputs (flow refinement)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_ref64.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "FLOAT_ALL=1",
+     "STATIC_WORD=1",
+     "ROLES=4",
+     "WHALF=1",
+     "VHALF=1",
+     "REF16_BASE=77826",
+     "CLAMP_BITS=17"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "wino-ref64-18.dxil": {
+   "sha256": "e80aabb71ec12fe9af3e16fbdfdba7f9faa0ffdc55bceb8e76be638ca1b7ad51",
+   "bytes": 101392,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Fused Winograd F(2x2,3x3) 64->64 3x3 convolution, clamp 2^18, dual-slope requantization, FP16 coefficients and transformed inputs (flow refinement)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_ref64.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "FLOAT_ALL=1",
+     "STATIC_WORD=1",
+     "ROLES=4",
+     "WHALF=1",
+     "VHALF=1",
+     "REF16_BASE=77826",
+     "CLAMP_BITS=18"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "wino-ref64.required": {
+   "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+   "bytes": 2,
+   "kind": "marker",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Marker: the fused refinement kernels wino-ref64-* are present",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "winograd-adaptive.required": {
+   "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+   "bytes": 2,
+   "kind": "marker",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Marker: the 224-channel graph has 48- and 32-column variants",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "winograd-coarse17.required": {
+   "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+   "bytes": 2,
+   "kind": "marker",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Marker: the 224-channel graph has clamp-2^17 finish passes",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "winograd-refine-pitch.required": {
+   "sha256": "13f35c581d557deba983f3f71dea7ba68b3de9eda013742189a1e9647d778e1f",
+   "bytes": 6,
+   "kind": "marker",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Marker: 64-channel graph matrix columns and row padding (32 16)",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  },
+  "winograd.required": {
+   "sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+   "bytes": 2,
+   "kind": "marker",
+   "variants": [
+    "intel-free-2x",
+    "intel-free"
+   ],
+   "description": "Marker: Winograd graph families present (bit mask: 1 = 224 channels, 2 = 64 channels)",
+   "build": null,
+   "rebuild": "data file (not compiled)"
+  }
+ }
+}

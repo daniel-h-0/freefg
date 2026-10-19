@@ -1,0 +1,14 @@
+{
+  "file_format_version": "1.2.0",
+  "layer": {
+    "name": "VK_LAYER_BC250_xefg_wave",
+    "type": "GLOBAL",
+    "library_path": "./libxefg_wave.so",
+    "api_version": "1.3.0",
+    "implementation_version": "1",
+    "description": "FreeFG frame pacing layer",
+    "functions": {
+      "vkNegotiateLoaderLayerInterfaceVersion": "vkNegotiateLoaderLayerInterfaceVersion"
+    }
+  }
+}

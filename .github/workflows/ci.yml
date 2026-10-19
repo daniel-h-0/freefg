@@ -1,0 +1,178 @@
+# Build and check the public tree: the pacing layer (with its sanitizer tests) and the enabler-free libxess_fg.dll
+# proxy, both against the reference hashes in release/inputs.lock.json; the installer tests; the intel-free-2x package
+# with check_intel_free.py; synthetic controls of that check; and the proxy under Wine's loader (CPU only, no GPU).
+#
+# Toolchain (release/ci/toolchain.py explains it in full): an Arch Linux container image pinned by digest, whose pacman
+# is pointed at one Arch Linux Archive snapshot; the output-relevant packages are also pinned by file sha256 in
+# release/ci/ci.lock.json. With that toolchain byte-identical output is expected, so a hash that differs from the lock
+# fails the job. The scheduled run in pins.yml calls this workflow with toolchain "current" (today's packages, best
+# effort: mismatches are warnings).
+#
+# Not built here: the maintainers' other BC250-MFG.asi add-on builds, which need private inputs that this repository
+# does not have. Not run here: check_intel_free.py self-test (it needs private material; release/ci/check_controls.py
+# covers every detector with synthetic material instead), and the byte-for-byte rebuild of release/profile
+# (release/build_profile.py check without --no-rebuild needs Microsoft's 515 MB DXC v1.9.2607 release; the other
+# profile checks run).
+# Binaries are not uploaded; the artifact holds the build records and reports only.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      toolchain:
+        description: pinned (reproduce the reference hashes) or current (today's Arch packages, best effort)
+        type: choice
+        options: [pinned, current]
+        default: pinned
+  workflow_call:
+    inputs:
+      toolchain:
+        type: string
+        default: pinned
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and check (${{ inputs.toolchain || 'pinned' }} toolchain)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    # The unpinned toolchain is informative only.
+    continue-on-error: ${{ inputs.toolchain == 'current' }}
+    concurrency:
+      group: ci-${{ github.ref }}-${{ inputs.toolchain || 'pinned' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    container:
+      # Must equal release/ci/ci.lock.json "image" (toolchain.py check-workflows); archlinux:base is the current run.
+      image: ${{ inputs.toolchain == 'current' && 'archlinux:base' || 'archlinux:base-20260830.0.582275@sha256:82b1b08faae9d61e3e7e13d562f4d09114d939105b0d59ff34140f3bd418593a' }}
+    env:
+      TOOLCHAIN: ${{ inputs.toolchain || 'pinned' }}
+      # Must equal release/ci/ci.lock.json "snapshot" (toolchain.py check-workflows).
+      ARCH_SNAPSHOT: 2026/09/03
+      PYTHONDONTWRITEBYTECODE: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Point pacman at the pinned Arch Linux Archive snapshot
+        run: |
+          # The image ships the Arch keys without a local signing key; create one so that a keyring update can sign
+          # the keys it adds (otherwise packages signed by newly added packager keys would not verify).
+          pacman-key --init
+          pacman-key --populate archlinux
+          if [ "$TOOLCHAIN" = pinned ]; then
+            # $repo and $arch are pacman's variables, not the shell's.
+            # shellcheck disable=SC2016
+            printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "$ARCH_SNAPSHOT" > /etc/pacman.d/mirrorlist
+            pacman -Syyuu --noconfirm --needed git python
+          else
+            pacman -Syu --noconfirm --needed git python
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The runner creates the workspace as its own user and this container job runs as root, so git refuses the
+      # checkout ("detected dubious ownership") once actions/checkout has removed the safe.directory entry it keeps in
+      # a temporary HOME for its own commands. release/assemble.py reads git_head and git_dirty with git.
+      - name: Let git read the checkout
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build locations
+        run: |
+          echo "XEMFG_BUILD=$GITHUB_WORKSPACE/build/ci" >> "$GITHUB_ENV"
+          echo "CI_REPORTS=$GITHUB_WORKSPACE/build/ci/reports" >> "$GITHUB_ENV"
+
+      - name: Check the CI pins against inputs.lock.json and the workflows
+        run: |
+          python3 release/ci/toolchain.py check-lock
+          python3 release/ci/toolchain.py check-workflows
+
+      - name: Restore downloaded packages and DXC
+        if: env.TOOLCHAIN == 'pinned'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            build/ci/downloads
+          key: ci-toolchain-${{ hashFiles('release/ci/ci.lock.json') }}
+
+      - name: Install and verify the toolchain
+        run: python3 release/ci/toolchain.py install --report "$CI_REPORTS/toolchain.json"
+
+      - name: Download and check DXC
+        run: python3 release/ci/toolchain.py dxc --dest build/ci/dxc --downloads build/ci/downloads --github-env
+
+      - name: Restore pinned build inputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/ci/cache
+          key: fetch-${{ hashFiles('release/inputs.lock.json') }}
+
+      - name: Fetch pinned build inputs (inputs.lock.json "fetch")
+        run: python3 release/fetch.py
+
+      - name: Unit tests of the release tools and checks of the public documents
+        run: |
+          python3 release/test_release_tools.py
+          python3 packaging/public/check_public_docs.py
+          python3 release/build_profile.py check --no-rebuild
+
+      # The builds never stop the job on a hash mismatch (--no-reference-check): report.py, the last step, compares
+      # every output with the lock and fails the pinned run, after all other checks have run.
+      - name: Build the pacing layer after its sanitizer tests
+        run: python3 release/build_layer.py --no-reference-check
+
+      - name: Stage the own shader profile from the tree
+        run: python3 release/ci/profile.py stage --dest build/ci/profile --github-env
+
+      - name: Build the enabler-free proxy
+        run: python3 release/build_proxy.py --no-reference-check
+
+      - name: Installer tests
+        run: python3 release/ci/installer_tests.py --fail-on-skip --unprivileged-user ci-tests --report "$CI_REPORTS/installer-tests.json"
+
+      - name: Assemble intel-free-2x and run check_intel_free.py
+        run: |
+          python3 release/ci/assemble_ci.py --variant intel-free-2x --summary "$CI_REPORTS/package.json" --allow-reference-mismatch
+          package=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["directory"])' "$CI_REPORTS/package.json")
+          python3 release/check_intel_free.py check "$XEMFG_BUILD/$package" --report "$CI_REPORTS/intel-free-check.json"
+          cp "$XEMFG_BUILD/$package/manifest.json" "$CI_REPORTS/package-manifest.json"
+
+      - name: Controls of check_intel_free.py (synthetic material)
+        run: python3 release/ci/check_controls.py --report "$CI_REPORTS/controls.json"
+
+      - name: Proxy under Wine's loader (CPU only)
+        run: |
+          python3 release/check_proxy_wine.py
+          cp "$XEMFG_BUILD/proxy-wine-check/result.json" "$CI_REPORTS/proxy-wine.json"
+
+      - name: Export the public tree again (strict; refuses host paths and stale build records)
+        run: python3 release/export_tree.py --public --strict --no-tests build/ci/export
+
+      - name: Compare the outputs with inputs.lock.json (fails the pinned run on any difference)
+        if: ${{ !cancelled() && env.CI_REPORTS != '' }}
+        run: python3 release/ci/report.py --report "$CI_REPORTS/outputs.json"
+
+      - name: Collect build records
+        if: ${{ always() && env.CI_REPORTS != '' }}
+        run: |
+          mkdir -p "$CI_REPORTS"
+          for kind in layer addon-intel-free-2x; do
+            if [ -f "$XEMFG_BUILD/$kind/build.json" ]; then cp "$XEMFG_BUILD/$kind/build.json" "$CI_REPORTS/$kind-build.json"; fi
+          done
+
+      - name: Upload reports (no binaries)
+        if: ${{ always() && env.CI_REPORTS != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-reports-${{ env.TOOLCHAIN }}
+          path: build/ci/reports/
+          if-no-files-found: warn
+          retention-days: 30

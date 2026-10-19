@@ -1,0 +1,753 @@
+{
+ "about": "Licence texts of the third-party code compiled or linked into the shipped opti/OptiScaler.dll, copied byte for byte from the files named below (url = the file at its commit). release/package.json ships them as licenses/OptiScaler-third-party/ (component optiscaler-fork) with README.md, the index for players; release/test_release_tools.py checks every sha256 and that package.json ships every file.",
+ "dll": {
+  "sha256": "244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d",
+  "source_commit": "a7932870f9988b86692aabf9e8908e2adc61e1f0",
+  "method": "The reference build of 18 October 2026 (tools/bc250-build.py of the fork): every file of the fork tree in ninja's dependency log (1411 files over 200 objects) and every library on the link line, read for copyright and licence statements; licence texts from each component's repository at the commit named (the pinned submodule commit where the component is a submodule)."
+ },
+ "files": {
+  "AMD-Anti-Lag-2-SDK.txt": {
+   "sha256": "020463d3b92d6d901c9b9d93a432359529be76883bb48f76eaeeecaea2f15c71",
+   "sources": [
+    {
+     "repository": "https://github.com/GPUOpen-LibrariesAndSDKs/AntiLag2-SDK",
+     "commit": "55f6ce71aaf152d8afb275096687638905ce8552",
+     "ref": "v2.0.0",
+     "path": "LICENSE.txt",
+     "url": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/AntiLag2-SDK/55f6ce71aaf152d8afb275096687638905ce8552/LICENSE.txt"
+    }
+   ]
+  },
+  "AMD-device_info.txt": {
+   "sha256": "76235687067e12f507fa447fdd82e439ee6a424fbcc843aca27278ea85085078",
+   "sources": [
+    {
+     "repository": "https://github.com/GPUOpen-Tools/device_info",
+     "commit": "dff4582fe929ae85e6224a5b4a8761eec4872d18",
+     "ref": "v1.1.0",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/GPUOpen-Tools/device_info/dff4582fe929ae85e6224a5b4a8761eec4872d18/LICENSE"
+    }
+   ]
+  },
+  "AMD-FidelityFX-FSR1.txt": {
+   "sha256": "db089274ce766da70f5b7d791029c3486f9f9e27c8c79c652689603d3192e802",
+   "sources": [
+    {
+     "repository": "https://github.com/GPUOpen-Effects/FidelityFX-FSR",
+     "commit": "a21ffb8f6c13233ba336352bdff293894c706575",
+     "ref": "v1.0.2",
+     "path": "license.txt",
+     "url": "https://raw.githubusercontent.com/GPUOpen-Effects/FidelityFX-FSR/a21ffb8f6c13233ba336352bdff293894c706575/license.txt"
+    }
+   ]
+  },
+  "AMD-FidelityFX-FSR2.1.txt": {
+   "sha256": "c58bec02908515ce62d4045db68be18bb527239e9621abea61ed8afc33731d3d",
+   "sources": [
+    {
+     "repository": "https://github.com/GPUOpen-Effects/FidelityFX-FSR2",
+     "commit": "9fd56d0dd73dee53d8daad6375b529e750423039",
+     "ref": "v2.1.2",
+     "path": "LICENSE.txt",
+     "url": "https://raw.githubusercontent.com/GPUOpen-Effects/FidelityFX-FSR2/9fd56d0dd73dee53d8daad6375b529e750423039/LICENSE.txt"
+    }
+   ]
+  },
+  "AMD-FidelityFX-FSR2.2.txt": {
+   "sha256": "6a12d0fdb5410839473f80b5395cf9493e8c007f76faed9f3fa41ab2f273803e",
+   "sources": [
+    {
+     "repository": "https://github.com/GPUOpen-Effects/FidelityFX-FSR2",
+     "commit": "1680d1edd5c034f88ebbbb793d8b88f8842cf804",
+     "ref": "v2.2.1",
+     "path": "LICENSE.txt",
+     "url": "https://raw.githubusercontent.com/GPUOpen-Effects/FidelityFX-FSR2/1680d1edd5c034f88ebbbb793d8b88f8842cf804/LICENSE.txt"
+    }
+   ]
+  },
+  "AMD-FidelityFX-SDK-1.0.txt": {
+   "sha256": "5181f1d14a6319dd5661dc032c381a7354513412b690d0692fb612417608a208",
+   "sources": [
+    {
+     "repository": "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK",
+     "commit": "d7531ae47d8b36a5d4025663e731a47a38be882f",
+     "ref": "v1.0.0",
+     "path": "LICENSE.txt",
+     "url": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/d7531ae47d8b36a5d4025663e731a47a38be882f/LICENSE.txt"
+    }
+   ]
+  },
+  "AMD-FidelityFX-SDK-1.1.txt": {
+   "sha256": "82cf74fc23885107c7f69249ac3f1dac55898ff68320eb2c753984cae6b2d78a",
+   "sources": [
+    {
+     "repository": "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK",
+     "commit": "c6efa6bf7f2027b3ec94f28578bb5965eabb9e55",
+     "ref": "v1.1.4",
+     "path": "LICENSE.txt",
+     "url": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/c6efa6bf7f2027b3ec94f28578bb5965eabb9e55/LICENSE.txt"
+    }
+   ]
+  },
+  "Apache-2.0.txt": {
+   "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+   "sources": [
+    {
+     "repository": "https://github.com/KhronosGroup/Vulkan-Headers",
+     "commit": "d64e9e156ac818c19b722ca142230b68e3daafe3",
+     "path": "LICENSES/Apache-2.0.txt",
+     "url": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/d64e9e156ac818c19b722ca142230b68e3daafe3/LICENSES/Apache-2.0.txt"
+    },
+    {
+     "repository": "https://github.com/ishitatsuyuki/LatencyFleX",
+     "commit": "0470806678d81d5b328c35f27b240c8af4f4f42b",
+     "ref": "v0.1.1",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/ishitatsuyuki/LatencyFleX/0470806678d81d5b328c35f27b240c8af4f4f42b/LICENSE"
+    }
+   ]
+  },
+  "Dear-ImGui.txt": {
+   "sha256": "c80c5789748d955c4a650562baa0d750494e2c7128c2ca66aaebe2e3c4e198bf",
+   "sources": [
+    {
+     "repository": "https://github.com/optiscaler/OptiScaler",
+     "commit": "92337ebfbf07d533eabe3731fd8de1bb19437aea",
+     "path": "OptiScaler/include/imgui/LICENSE.txt",
+     "url": "https://raw.githubusercontent.com/optiscaler/OptiScaler/92337ebfbf07d533eabe3731fd8de1bb19437aea/OptiScaler/include/imgui/LICENSE.txt"
+    }
+   ]
+  },
+  "Detours.txt": {
+   "sha256": "b301808b732cfaa60df2b4b422d78cd97d2a15058b207e7e33f0535ba5170dd6",
+   "sources": [
+    {
+     "repository": "https://github.com/microsoft/Detours",
+     "commit": "e4bfd6b03e50de46b47abfbd1e46b384f0c5f833",
+     "ref": "v4.0.1",
+     "path": "LICENSE.md",
+     "url": "https://raw.githubusercontent.com/microsoft/Detours/e4bfd6b03e50de46b47abfbd1e46b384f0c5f833/LICENSE.md"
+    }
+   ]
+  },
+  "flag-set-cpp.txt": {
+   "sha256": "9d505320a742c61e4804ff01704b02975196db0d59a91acd9e69aaf1726919f9",
+   "sources": [
+    {
+     "repository": "https://github.com/mrts/flag-set-cpp",
+     "commit": "af71fd019682ea6e296c3f008bd2f2ee8cbee94f",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/mrts/flag-set-cpp/af71fd019682ea6e296c3f008bd2f2ee8cbee94f/LICENSE"
+    }
+   ]
+  },
+  "FreeType-BDF-README.txt": {
+   "sha256": "7984455e7e5a9faba3797c8bf095fbe10cc846316b7320aff8c58402e22b82fe",
+   "sources": [
+    {
+     "repository": "https://github.com/freetype/freetype",
+     "commit": "42608f77f20749dd6ddc9e0536788eaad70ea4b5",
+     "ref": "VER-2-13-3",
+     "path": "src/bdf/README",
+     "url": "https://raw.githubusercontent.com/freetype/freetype/42608f77f20749dd6ddc9e0536788eaad70ea4b5/src/bdf/README"
+    }
+   ]
+  },
+  "FreeType-FTL.txt": {
+   "sha256": "08c135755dd589039470f1fdbb400daaabaaa50d0b366d19cebff4d22986baa1",
+   "sources": [
+    {
+     "repository": "https://github.com/freetype/freetype",
+     "commit": "42608f77f20749dd6ddc9e0536788eaad70ea4b5",
+     "ref": "VER-2-13-3",
+     "path": "docs/FTL.TXT",
+     "url": "https://raw.githubusercontent.com/freetype/freetype/42608f77f20749dd6ddc9e0536788eaad70ea4b5/docs/FTL.TXT"
+    }
+   ]
+  },
+  "FreeType-LICENSE.txt": {
+   "sha256": "2e3bbb7d7c5c396368dd0853a790ec29ce5b8647163dde42a0493fb0d6556b2b",
+   "sources": [
+    {
+     "repository": "https://github.com/freetype/freetype",
+     "commit": "42608f77f20749dd6ddc9e0536788eaad70ea4b5",
+     "ref": "VER-2-13-3",
+     "path": "LICENSE.TXT",
+     "url": "https://raw.githubusercontent.com/freetype/freetype/42608f77f20749dd6ddc9e0536788eaad70ea4b5/LICENSE.TXT"
+    }
+   ]
+  },
+  "FreeType-PCF-README.txt": {
+   "sha256": "18d9782898d9eac04476e2f744678137b2a889689ed3e923e052fc396a86f86b",
+   "sources": [
+    {
+     "repository": "https://github.com/freetype/freetype",
+     "commit": "42608f77f20749dd6ddc9e0536788eaad70ea4b5",
+     "ref": "VER-2-13-3",
+     "path": "src/pcf/README",
+     "url": "https://raw.githubusercontent.com/freetype/freetype/42608f77f20749dd6ddc9e0536788eaad70ea4b5/src/pcf/README"
+    }
+   ]
+  },
+  "ImGuiNotify.txt": {
+   "sha256": "588343120f04a0bae669d6540966bec7baadaebe0dfefc590500735c001f3a5c",
+   "sources": [
+    {
+     "repository": "https://github.com/TyomaVader/ImGuiNotify",
+     "commit": "be053d9eb60eeb2f4f5779e105775beda2a1f019",
+     "ref": "v0.0.3",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/TyomaVader/ImGuiNotify/be053d9eb60eeb2f4f5779e105775beda2a1f019/LICENSE"
+    }
+   ]
+  },
+  "Khronos-Vulkan-Headers.txt": {
+   "sha256": "ac24e5ea920e4318e4d02c4086ae51f53cfb03feed06c18df1019e7ada1ec7bc",
+   "sources": [
+    {
+     "repository": "https://github.com/KhronosGroup/Vulkan-Headers",
+     "commit": "d64e9e156ac818c19b722ca142230b68e3daafe3",
+     "path": "LICENSE.md",
+     "url": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/d64e9e156ac818c19b722ca142230b68e3daafe3/LICENSE.md"
+    }
+   ]
+  },
+  "magic_enum.txt": {
+   "sha256": "bd227b8a5586dc73012262abfc0fc4eb84c2a91ad3f93b3591f8148fe17324d3",
+   "sources": [
+    {
+     "repository": "https://github.com/Neargye/magic_enum",
+     "commit": "a733a2ea665ca5d72b7270f0334bf2e7b82bd0cc",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/Neargye/magic_enum/a733a2ea665ca5d72b7270f0334bf2e7b82bd0cc/LICENSE"
+    }
+   ]
+  },
+  "Microsoft-DirectX-Graphics-Samples.txt": {
+   "sha256": "cf248820bf1178370bb4f1670a59f8748d46bc96d0f64080cd631511c6046409",
+   "sources": [
+    {
+     "repository": "https://github.com/microsoft/DirectX-Graphics-Samples",
+     "commit": "e5975f9b0744fc5096dd593ed72bf8f5c004164f",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/microsoft/DirectX-Graphics-Samples/e5975f9b0744fc5096dd593ed72bf8f5c004164f/LICENSE"
+    }
+   ]
+  },
+  "nlohmann-json.txt": {
+   "sha256": "46a65cffd1ea955132d95a8dd921640714a8d6b537d2e4e482d31145ae95b603",
+   "sources": [
+    {
+     "repository": "https://github.com/nlohmann/json",
+     "commit": "55f93686c01528224f448c19128836e7df245f72",
+     "ref": "v3.12.0",
+     "path": "LICENSE.MIT",
+     "url": "https://raw.githubusercontent.com/nlohmann/json/55f93686c01528224f448c19128836e7df245f72/LICENSE.MIT"
+    }
+   ]
+  },
+  "NVIDIA-NVAPI.txt": {
+   "sha256": "bab44777f0f4d0333479ea0be6e24c084464a8cb64b98f1253fcc3df70f6eccf",
+   "sources": [
+    {
+     "repository": "https://github.com/NVIDIA/nvapi",
+     "commit": "9b181ea572f680327fe01a14a0f1f41c78034104",
+     "path": "License.txt",
+     "url": "https://raw.githubusercontent.com/NVIDIA/nvapi/9b181ea572f680327fe01a14a0f1f41c78034104/License.txt"
+    }
+   ]
+  },
+  "NVIDIA-Streamline-1.txt": {
+   "sha256": "a95188a6f2678ee2698587bd2eec863951e7e42f48757b3aeaf5b0bc38d6293d",
+   "sources": [
+    {
+     "repository": "https://github.com/NVIDIA-RTX/Streamline",
+     "commit": "5bac43f464f53bc0583bab8df506b788d8d14c3c",
+     "ref": "v1.1.1",
+     "path": "license.txt",
+     "url": "https://raw.githubusercontent.com/NVIDIA-RTX/Streamline/5bac43f464f53bc0583bab8df506b788d8d14c3c/license.txt"
+    }
+   ]
+  },
+  "NVIDIA-Streamline-2.txt": {
+   "sha256": "7b6f23e7d6f3ad6292f9308d2b42cdc3d82ae4e9b2abb55f230279d83bedd43d",
+   "sources": [
+    {
+     "repository": "https://github.com/NVIDIA-RTX/Streamline",
+     "commit": "019994e18d256a3e92347888deb527feb7f58bc0",
+     "ref": "v2.11.1",
+     "path": "license.txt",
+     "url": "https://raw.githubusercontent.com/NVIDIA-RTX/Streamline/019994e18d256a3e92347888deb527feb7f58bc0/license.txt"
+    }
+   ]
+  },
+  "simpleini.txt": {
+   "sha256": "1f8d19cba3d929f45f74b8e7cdf84b2fee5b96be69d08d0084ed728316f9f2c2",
+   "sources": [
+    {
+     "repository": "https://github.com/brofield/simpleini",
+     "commit": "6048871ea9ee0ec24be5bd099d161a10567d7dc2",
+     "path": "LICENCE.txt",
+     "url": "https://raw.githubusercontent.com/brofield/simpleini/6048871ea9ee0ec24be5bd099d161a10567d7dc2/LICENCE.txt"
+    }
+   ]
+  },
+  "spdlog.txt": {
+   "sha256": "4ccecab18d1ff0b61174fe3d6c430541625d3ddb865b0d5887db296f883c76e7",
+   "sources": [
+    {
+     "repository": "https://github.com/gabime/spdlog",
+     "commit": "faa0a7a9c5a3550ed5461fab7d8e31c37fd1a2ef",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/gabime/spdlog/faa0a7a9c5a3550ed5461fab7d8e31c37fd1a2ef/LICENSE"
+    }
+   ]
+  },
+  "unordered_dense.txt": {
+   "sha256": "4f5a62734899ec0ba85d3e8264a7ed1fcb4bcb8f0b4359c0afd627b6314ae599",
+   "sources": [
+    {
+     "repository": "https://github.com/martinus/unordered_dense",
+     "commit": "73f3cbb237e84d483afafc743f1f14ec53e12314",
+     "path": "LICENSE",
+     "url": "https://raw.githubusercontent.com/martinus/unordered_dense/73f3cbb237e84d483afafc743f1f14ec53e12314/LICENSE"
+    }
+   ]
+  },
+  "NVIDIA-DLSS-SDK.txt": {
+   "sha256": "21b5daec892b12bea692e66bc8fe45cf5902ccaf3a7b831e78050d8859881c37",
+   "sources": [
+    {
+     "repository": "https://github.com/NVIDIA/DLSS",
+     "commit": "a291cc7d2cc642a51566f3dfd5376f635cd1b284",
+     "ref": "v310.7.0",
+     "path": "LICENSE.txt",
+     "url": "https://raw.githubusercontent.com/NVIDIA/DLSS/a291cc7d2cc642a51566f3dfd5376f635cd1b284/LICENSE.txt"
+    }
+   ]
+  }
+ },
+ "components": [
+  {
+   "name": "FreeType",
+   "version": "2.13.3",
+   "source": [
+    "external/freetype (headers)",
+    "external/freetype/freetype.lib (static library; holds the BDF and PCF drivers and the gzip module with its copy of zlib 1.3)"
+   ],
+   "licence": "FTL (FreeType chose either the FreeType License or GPL-2.0-or-later; the FTL is compatible with GPL-3.0)",
+   "files": [
+    "FreeType-FTL.txt",
+    "FreeType-LICENSE.txt",
+    "FreeType-BDF-README.txt",
+    "FreeType-PCF-README.txt"
+   ],
+   "copyright": [
+    "Copyright (C) 1996-2024 by David Turner, Robert Wilhelm, and Werner Lemberg.",
+    "BDF driver: Copyright (C) 2001-2002 by Francesco Zappa Nardelli; Copyright 2000 Computing Research Labs, New Mexico State University; Copyright 2001-2002, 2011 Francesco Zappa Nardelli",
+    "PCF driver: Copyright (C) 2000 by Francesco Zappa Nardelli",
+    "zlib 1.3 (gzip module): Copyright (C) 1995-2023 Jean-loup Gailly and Mark Adler (zlib licence: no notice required in binary form)"
+   ],
+   "credit": "Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org).  All rights reserved.",
+   "evidence": "freetype.h and ftoption.h are identical (git blob) to VER-2-13-3; freetype.lib names bdf.obj, pcf.obj and ftgzip.obj"
+  },
+  {
+   "name": "Microsoft Detours",
+   "version": "4.0.1 (DETOURS_VERSION 0x4c0c1)",
+   "source": [
+    "OptiScaler/include/detours/detours.h",
+    "OptiScaler/library/detours/detours.lib (static library)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "Detours.txt"
+   ],
+   "copyright": [
+    "Copyright (c) Microsoft Corporation. All rights reserved."
+   ],
+   "evidence": "detours.h is not identical to the v4.0.1 tag or to main; the licence text is the same at both"
+  },
+  {
+   "name": "Dear ImGui",
+   "version": "1.92.0 WIP (docking)",
+   "source": [
+    "OptiScaler/include/imgui (core, Win32, DirectX 11, DirectX 12, Vulkan and UWP backends, misc/freetype)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "Dear-ImGui.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2014-2025 Omar Cornut"
+   ],
+   "evidence": "LICENSE.txt is the file of the OptiScaler tree (identical at upstream 92337ebf and fork a7932870)"
+  },
+  {
+   "name": "stb_rect_pack 1.01, stb_textedit 1.14 (part of Dear ImGui)",
+   "version": "",
+   "source": [
+    "OptiScaler/include/imgui/imstb_rectpack.h",
+    "OptiScaler/include/imgui/imstb_textedit.h"
+   ],
+   "licence": "public domain or MIT, as stated at the end of each file",
+   "files": [],
+   "copyright": [
+    "Sean Barrett"
+   ]
+  },
+  {
+   "name": "ImGuiNotify",
+   "version": "0.0.3",
+   "source": [
+    "OptiScaler/include/imgui/ImGuiNotify.hpp"
+   ],
+   "licence": "MIT",
+   "files": [
+    "ImGuiNotify.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2021 Patrick",
+    "Copyright (c) 2024 TyomaVader"
+   ],
+   "evidence": "modified copy of win32Example/backends/ImGuiNotify.hpp at v0.0.3 (based on patrickcjk/imgui-notify)"
+  },
+  {
+   "name": "spdlog",
+   "version": "1.15.1",
+   "source": [
+    "external/spdlog (submodule faa0a7a9)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "spdlog.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2016 Gabi Melman."
+   ],
+   "evidence": "the licence file of the pinned submodule commit"
+  },
+  {
+   "name": "JSON for Modern C++",
+   "version": "3.12.0",
+   "source": [
+    "external/nlohmann/json.hpp"
+   ],
+   "licence": "MIT",
+   "files": [
+    "nlohmann-json.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2013-2025 Niels Lohmann"
+   ],
+   "evidence": "json.hpp is identical (git blob) to single_include/nlohmann/json.hpp at v3.12.0"
+  },
+  {
+   "name": "SimpleIni",
+   "version": "submodule 6048871e",
+   "source": [
+    "external/simpleini"
+   ],
+   "licence": "MIT",
+   "files": [
+    "simpleini.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2006-2024 Brodie Thiesfield"
+   ],
+   "evidence": "the licence file of the pinned submodule commit"
+  },
+  {
+   "name": "magic_enum",
+   "version": "0.9.7",
+   "source": [
+    "external/magic_enum (submodule a733a2ea)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "magic_enum.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2019 - 2024 Daniil Goncharov"
+   ],
+   "evidence": "the licence file of the pinned submodule commit"
+  },
+  {
+   "name": "unordered_dense",
+   "version": "4.5.0",
+   "source": [
+    "external/unordered_dense (submodule 73f3cbb2)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "unordered_dense.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2022 Martin Leitner-Ankerl"
+   ],
+   "evidence": "the licence file of the pinned submodule commit"
+  },
+  {
+   "name": "flag-set-cpp",
+   "version": "",
+   "source": [
+    "OptiScaler/include/flag-set-cpp/flag_set.hpp"
+   ],
+   "licence": "MIT",
+   "files": [
+    "flag-set-cpp.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2019 Arnaud Kapp (Xaqq), Barry Revzin, Mart Sõmermaa"
+   ],
+   "evidence": "flag_set.hpp is identical (git blob) to include/flag_set.hpp at af71fd01"
+  },
+  {
+   "name": "SHA-1 (sha1.hpp)",
+   "version": "",
+   "source": [
+    "OptiScaler/include/sha1/sha1.hpp"
+   ],
+   "licence": "public domain (stated in the file)",
+   "files": [],
+   "copyright": []
+  },
+  {
+   "name": "AMD FidelityFX Super Resolution 2.2",
+   "version": "2.2",
+   "source": [
+    "OptiScaler/include/fsr2",
+    "OptiScaler/library/fsr2 (static libraries)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "AMD-FidelityFX-FSR2.2.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.",
+    "Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved."
+   ]
+  },
+  {
+   "name": "AMD FidelityFX Super Resolution 2.1.2",
+   "version": "2.1.2",
+   "source": [
+    "OptiScaler/include/fsr2_212",
+    "OptiScaler/library/fsr2_212 (static libraries)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "AMD-FidelityFX-FSR2.1.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2022 Advanced Micro Devices, Inc. All rights reserved."
+   ]
+  },
+  {
+   "name": "AMD FidelityFX SDK 1.0 (FSR 3)",
+   "version": "1.0",
+   "source": [
+    "OptiScaler/include/fsr3",
+    "OptiScaler/include/d3dx/d3dx12.h (the FidelityFX SDK copy of d3dx12.h)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "AMD-FidelityFX-SDK-1.0.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved.",
+    "Copyright © 2023 Advanced Micro Devices, Inc."
+   ]
+  },
+  {
+   "name": "AMD FidelityFX SDK 1.1 (FSR 3.1) and the FidelityFX API",
+   "version": "1.1",
+   "source": [
+    "OptiScaler/include/fsr31",
+    "OptiScaler/library/fsr31 (static libraries)",
+    "external/FidelityFX-SDK (submodule c6efa6bf = v1.1.4, ffx-api headers)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "AMD-FidelityFX-SDK-1.1.txt"
+   ],
+   "copyright": [
+    "Copyright (C) 2024 Advanced Micro Devices, Inc.",
+    "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved."
+   ]
+  },
+  {
+   "name": "AMD FidelityFX Super Resolution 1",
+   "version": "1.0",
+   "source": [
+    "OptiScaler/shaders/output_scaling/fsr1 (compiled into shaders)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "AMD-FidelityFX-FSR1.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved."
+   ]
+  },
+  {
+   "name": "AMD Anti-Lag 2 SDK",
+   "version": "",
+   "source": [
+    "external/AntiLag2-SDK"
+   ],
+   "licence": "MIT",
+   "files": [
+    "AMD-Anti-Lag-2-SDK.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved."
+   ]
+  },
+  {
+   "name": "AMD device_info",
+   "version": "",
+   "source": [
+    "OptiScaler/include/device_info"
+   ],
+   "licence": "MIT",
+   "files": [
+    "AMD-device_info.txt"
+   ],
+   "copyright": [
+    "Copyright Advanced Micro Devices, Inc. All rights reserved."
+   ],
+   "evidence": "the files say \"From https://github.com/GPUOpen-Tools/device_info licensed under MIT\""
+  },
+  {
+   "name": "Microsoft DirectX Graphics Samples (MiniEngine shaders, d3dx12.h)",
+   "version": "",
+   "source": [
+    "OptiScaler/shaders/output_scaling (bicubic upscaling shaders, OS_Common.h)",
+    "OptiScaler/include/d3dx/d3dx12.h"
+   ],
+   "licence": "MIT",
+   "files": [
+    "Microsoft-DirectX-Graphics-Samples.txt"
+   ],
+   "copyright": [
+    "Copyright (c) Microsoft. All rights reserved.",
+    "Copyright (c) 2015 Microsoft"
+   ]
+  },
+  {
+   "name": "NVIDIA Streamline 2",
+   "version": "2.11.1",
+   "source": [
+    "external/streamline (headers)",
+    "OptiScaler/include/sl.param (parameters.cpp, parameters.h)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "NVIDIA-Streamline-2.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2022-2025 NVIDIA CORPORATION. All rights reserved"
+   ],
+   "evidence": "sl.h and sl_version.h equal include/ at v2.11.1 apart from line endings; parameters.cpp is source/core/sl.param/parameters.cpp at v2.11.1 with its includes changed"
+  },
+  {
+   "name": "NVIDIA Streamline 1 (headers)",
+   "version": "1.x",
+   "source": [
+    "external/streamline1"
+   ],
+   "licence": "MIT",
+   "files": [
+    "NVIDIA-Streamline-1.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2022 NVIDIA CORPORATION. All rights reserved"
+   ]
+  },
+  {
+   "name": "NVIDIA NVAPI",
+   "version": "R595",
+   "source": [
+    "external/nvapi (submodule 9b181ea5, headers)"
+   ],
+   "licence": "MIT",
+   "files": [
+    "NVIDIA-NVAPI.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+   ]
+  },
+  {
+   "name": "Vulkan-Headers",
+   "version": "1.4.310",
+   "source": [
+    "external/vulkan (submodule d64e9e15)",
+    "OptiScaler/library/vulkan/vulkan-1.lib (import library of the Vulkan loader)"
+   ],
+   "licence": "Apache-2.0 (the C++ headers are Apache-2.0 OR MIT; Apache-2.0 applies here)",
+   "files": [
+    "Khronos-Vulkan-Headers.txt",
+    "Apache-2.0.txt"
+   ],
+   "copyright": [
+    "Copyright 2014-2025 The Khronos Group Inc."
+   ]
+  },
+  {
+   "name": "LatencyFleX",
+   "version": "",
+   "source": [
+    "external/latencyflex/latencyflex.h"
+   ],
+   "licence": "Apache-2.0",
+   "files": [
+    "Apache-2.0.txt"
+   ],
+   "copyright": [
+    "Copyright 2021 Tatsuyuki Ishi"
+   ]
+  },
+  {
+   "name": "Intel XeSS, XeLL and XeSS Frame Generation SDK headers",
+   "version": "submodule 8fe81bdb",
+   "source": [
+    "external/xess/inc"
+   ],
+   "licence": "Intel Simplified Software License (October 2022); the headers are marked as Intel copyrighted materials",
+   "files": [],
+   "shipped_elsewhere": "licenses/Intel-XeSS.txt (byte-identical to LICENSE.txt of external/xess at 8fe81bdb)",
+   "copyright": [
+    "Copyright (C) 2021-2024 Intel Corporation"
+   ]
+  },
+  {
+   "name": "NVIDIA NGX (DLSS SDK) headers",
+   "version": "NGX API 1.5.0",
+   "source": [
+    "external/nvngx_dlss_sdk"
+   ],
+   "licence": "NVIDIA proprietary (LicenseRef-NvidiaProprietary): the DLSS SDK licence, NVIDIA RTX SDKs License, https://github.com/NVIDIA/DLSS",
+   "files": [
+    "NVIDIA-DLSS-SDK.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2018-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+   ],
+   "evidence": "the headers carry NVIDIA's proprietary notice (SPDX LicenseRef-NvidiaProprietary); NVIDIA publishes the DLSS SDK, NGX headers included, under the NVIDIA RTX SDKs License. The text is that of DLSS SDK 310.7.0 (NVIDIA/DLSS v310.7.0, the same file the installer downloads with the DLSS helper); the headers in the OptiScaler source come from an earlier SDK release (NGX API 1.5.0)"
+  }
+ ],
+ "not_compiled_in": {
+  "fmt (bundled in spdlog)": "OptiScaler/SysUtils.h defines SPDLOG_USE_STD_FORMAT, so spdlog uses std::format; no file of spdlog/fmt/bundled is in the build's dependency log",
+  "stb_truetype (imstb_truetype.h)": "IMGUI_ENABLE_FREETYPE: FreeType builds the fonts; the header is not in the dependency log",
+  "external/FidelityFX-SDK-v2": "no file of it is in the dependency log",
+  "external/directx_agility_sdk": "no file of it is in the dependency log",
+  "OptiScaler/library/d3dx/d3dx11.lib": "on the library path, not linked",
+  "external/xess/lib": "on the library path; none of its import libraries is linked (OptiScaler loads the runtimes itself)"
+ },
+ "toolchain": {
+  "Microsoft C/C++ runtime and Windows SDK import libraries": "system libraries of the build toolchain; the DLL uses the shared runtime (/MD)",
+  "Microsoft C++ standard library (MSVC 14.44), the parts compiled into the DLL": "Apache-2.0 WITH LLVM-exception, which needs no notice for object code"
+ }
+}

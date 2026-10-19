@@ -1,0 +1,94 @@
+{
+  "about": "Definition of the Intel-free build variant (release/INTEL-FREE.md): an add-on and shader profile whose shipped shaders are all compiled from this project's HLSL. Every Intel-derived profile shader is left out; Intel's original pipeline then runs in its place where that is safe, and a feature that cannot run without an Intel-derived shader (generated-frame scaling, the dispatch guard with its literal-weight warps) is compiled out as a whole. Read by release/build_addon.py --variant intel-free, release/assemble.py --variant intel-free and release/check_intel_free.py.",
+  "variant": "intel-free",
+  "addon": {
+    "output_dir": "addon-intel-free",
+    "define": "XEFG_INTEL_FREE=1",
+    "dropped_defines": {
+      "XEFG_MODEL_OWN_225792=1": "Only Intel's original shaders read the 225792-byte model in this build (d95deb5ed92e496a, whose replacement is Intel-derived, and d5836bd2e22369b9, never replaced): the buffer stays the SDK's own, unexpanded. v15 (research q23) and earlier shipped without this definition.",
+      "XEFG_MFG_DOWN_FILTERS=1": "Scaling only: the area filter selects area-frame-warp-*/area-flow-preprocess, Intel-derived.",
+      "XEFG_MFG_UP_FILTERS=1": "Scaling only: enlargement filters run after a scaled warp, which this build does not have.",
+      "XEFG_MFG_GUARD_FULL=1": "Full-resolution guard selects mfg-warp-full-literal* (Intel weights as literals) behind mfg-dispatch-guard* (Intel weight tables): Intel's original warp runs instead.",
+      "XEFG_MFG_LEAN_FULL_TRACKING=1": "Root-constant tracking for the full-resolution guard only (flow_cap.h requires XEFG_MFG_GUARD_FULL).",
+      "XEFG_MFG_GUARD_OPTI=1": "Pixel-motion literal warp behind the guard.",
+      "XEFG_MFG_GUARD_FULL_NATIVE2=1": "Native 2x literal warp behind the guard.",
+      "XEFG_MFG_GUARD_FULL_PIXEL2=1": "Pixel-motion 2x literal warp behind the guard.",
+      "XEFG_MFG_DISPATCH_GUARD=1": "The guard compares live coefficients with tables embedded in its shaders; without literal warps there is nothing to select."
+    }
+  },
+  "profile": {
+    "name": "cl-wino-q33-intel-free",
+    "base": "profile-cl-wino-q33",
+    "keep": [
+      "08155f47bc92811b.dxil",
+      "1a3b0782583fef19.dxil",
+      "1f27b449fb99a587.dxil",
+      "4bb52a635e6d221a.dxil",
+      "558c3931ba6fb064.dxil",
+      "5654aa3800432b13.dxil",
+      "60edebbbd2f9fb69.dxil",
+      "9e0080eee00255f2.dxil",
+      "b3941ac8ff95efe7.dxil",
+      "b3ddf030f661d487.dxil",
+      "e83e868f8d5d2c0f.dxil",
+      "f030948d38e74671.dxil",
+      "f2e2e13fea432d20.dxil",
+      "graph-finish224-17-n32.dxil",
+      "graph-finish224-17.dxil",
+      "graph-finish224-n32.dxil",
+      "graph-finish224.dxil",
+      "graph-finish64-16.dxil",
+      "graph-finish64-17.dxil",
+      "graph-matmul224-n32.dxil",
+      "graph-matmul224.dxil",
+      "graph-matmul64.dxil",
+      "graph-prepare224-n32.dxil",
+      "graph-prepare224.dxil",
+      "graph-prepare64.dxil",
+      "mfg-finish224-18-n32.dxil",
+      "mfg-finish224-18-n48.dxil",
+      "mfg-finish224-19-n32.dxil",
+      "mfg-finish224-19-n48.dxil",
+      "mfg-finish64-18-n32.dxil",
+      "wino-ref64-16.dxil",
+      "wino-ref64-17.dxil",
+      "wino-ref64-18.dxil",
+      "model-owner.required",
+      "waves.txt",
+      "wino-enc16.required",
+      "wino-ref64.required",
+      "winograd-adaptive.required",
+      "winograd-coarse17.required",
+      "winograd-refine-pitch.required",
+      "winograd.required"
+    ],
+    "rewrite": {
+      "dispatch-scale.txt": {
+        "drop_shaders": {
+          "437542192dd795c8": "Its replacement (the enlarged motion-splat tile, Intel-derived) takes half the groups per axis; Intel's original keeps its own 8x8 dispatch."
+        }
+      }
+    },
+    "left_out_own": {
+      "frame-upsample.dxil": "Scaling only (frame_cap.h frame_initialize_output).",
+      "frame-upsample-bicubic.dxil": "Scaling only.",
+      "frame-upsample-lanczos2.dxil": "Scaling only.",
+      "frame-upsample-fsr1.dxil": "Scaling only.",
+      "frame-upsample.rs": "Scaling only.",
+      "frame-upsample-fsr1.rs": "Scaling only.",
+      "mfg-dispatch-guard.rs": "Dispatch guard only.",
+      "mfg-dispatch-guard-native2.rs": "Dispatch guard only.",
+      "general-cap.required": "Scaling only (mfg_frame_geometry.h).",
+      "mfg-frame-settings.required": "Marks a build with scaling controls (the installer's configure and Setup offer them when it is present).",
+      "mfg-upscale-filters.required": "Marks a build with enlargement filters.",
+      "mfg-downscale-filters.required": "Marks a build with the area filter.",
+      "mfg-dispatch-guard.required": "Marks a build with the dispatch guard.",
+      "mfg-dispatch-guard-opti.required": "Marks a build with the dispatch guard.",
+      "mfg-dispatch-guard-full.required": "Marks a build with the dispatch guard.",
+      "mfg-dispatch-guard-full-native2.required": "Marks a build with the dispatch guard.",
+      "mfg-dispatch-guard-full-pixel2.required": "Marks a build with the dispatch guard."
+    },
+    "allowed_shader_models": ["6.0", "6.6", "6.9"]
+  },
+  "reference": "release/intel_material.json (written by release/check_intel_free.py record): hashes of the shader programs of Intel's runtime and of its warp weight tables, which the check compares against"
+}

@@ -1,0 +1,265 @@
+# Public source tree: what the enabler-free build (variant intel-free-2x), the present-pacing layer, the installer and
+# their tests need, and nothing else (release/export_tree.py --public exports exactly these files).
+# One tracked path per line; "#" starts a comment. Every entry must also be in keep.txt (the public tree is a subset of
+# the lean release tree). export_tree.py --public refuses when a file the intel-free-2x package or the libxess_fg.dll and
+# libxefg_wave.so build records read is missing, imports every exported release/ tool in the export and runs the
+# installer tests there. It writes public versions of the C sources (resolved for the public build's configuration),
+# of release/inputs.lock.json, of release/intel_material.json and of release/package.json (the intel-free-2x package
+# only, so release/assemble.py with no --variant builds it); a header that holds nothing in that configuration is not
+# listed here and is left out of the export together with its #include lines. It also writes the files GitHub shows for
+# a repository, which this list must not name: README.md, LICENSE and NOTICE.md at the top and SECURITY.md and
+# CONTRIBUTING.md in .github/, copies of packaging/public/ with their links adjusted (export_tree.py PUBLIC_ROOT).
+#
+# Not public (the maintainers' list, keep.txt, has them): the maintainers' earlier add-on builds and their multi-frame,
+# scaling and dispatch-guard features (their builder, release/build_addon.py, included), the standalone measurement
+# program, research scripts other than the recipe builder the installer tests run, host runbooks and the notes of the
+# private builds. keep.txt itself is not exported: in a public tree read_keep() reads this list.
+
+# Release tooling: configuration, pinned inputs, the proxy and layer builds, packaging, the static Intel-free check, the
+# CPU-only Wine loader check of the proxy, the offline installer smoke test and this export
+release/config.py
+release/fetch.py
+release/build_proxy.py
+release/build_layer.py
+release/assemble.py
+release/source_companion.py
+release/fork_source_archive.py  # the OptiScaler fork's recursive source archive
+release/smoke_install.py
+release/check_intel_free.py
+release/check_proxy_wine.py
+release/export_tree.py
+release/keep-public.txt
+release/inputs.lock.json
+release/package.json  # exported as its public version (the intel-free-2x package)
+release/intel_free.json
+release/intel_free_2x.json
+release/intel_material.json  # exported as its public version (digests by category)
+# The helpers of the proxy build (Intel header parsing, the probe-core slice, the Intel-free profile, COM thunks, build
+# records), which the maintainers' other add-on builds share
+release/proxy_common.py
+# The host-path detector (export_tree.py, assemble.py), the conditional resolver of the public C sources and their tests
+release/host_paths.py
+release/unifdef.py
+release/test_release_tools.py
+# The rename of the identifiers that carry the internal name (scan, and apply in a public export) and its list of
+# identifier families with their compatibility policy; test_release_tools.py tests both
+release/rename.py
+release/names.json
+release/generated/com_thunks.h
+release/generated/com_thunks.S
+release/files/BC250-XeFG-settings.ini
+release/files/layer.json
+
+# Own shader profile (release/profile/ORIGIN.md): the 42 files the Intel-free builds read (intel_free.json keep +
+# rewrite; XEMFG_PROFILE=release/profile), their recipes (origin.json), the HLSL they are compiled from (src/kernels/)
+# and the rebuild check.
+release/build_profile.py
+release/profile/ORIGIN.md
+release/profile/origin.json
+release/profile/08155f47bc92811b.dxil
+release/profile/1a3b0782583fef19.dxil
+release/profile/1f27b449fb99a587.dxil
+release/profile/4bb52a635e6d221a.dxil
+release/profile/558c3931ba6fb064.dxil
+release/profile/5654aa3800432b13.dxil
+release/profile/60edebbbd2f9fb69.dxil
+release/profile/9e0080eee00255f2.dxil
+release/profile/b3941ac8ff95efe7.dxil
+release/profile/b3ddf030f661d487.dxil
+release/profile/dispatch-scale.txt
+release/profile/e83e868f8d5d2c0f.dxil
+release/profile/f030948d38e74671.dxil
+release/profile/f2e2e13fea432d20.dxil
+release/profile/graph-finish224-17-n32.dxil
+release/profile/graph-finish224-17.dxil
+release/profile/graph-finish224-n32.dxil
+release/profile/graph-finish224.dxil
+release/profile/graph-finish64-16.dxil
+release/profile/graph-finish64-17.dxil
+release/profile/graph-matmul224-n32.dxil
+release/profile/graph-matmul224.dxil
+release/profile/graph-matmul64.dxil
+release/profile/graph-prepare224-n32.dxil
+release/profile/graph-prepare224.dxil
+release/profile/graph-prepare64.dxil
+release/profile/mfg-finish224-18-n32.dxil
+release/profile/mfg-finish224-18-n48.dxil
+release/profile/mfg-finish224-19-n32.dxil
+release/profile/mfg-finish224-19-n48.dxil
+release/profile/mfg-finish64-18-n32.dxil
+release/profile/model-owner.required
+release/profile/waves.txt
+release/profile/wino-enc16.required
+release/profile/wino-ref64-16.dxil
+release/profile/wino-ref64-17.dxil
+release/profile/wino-ref64-18.dxil
+release/profile/wino-ref64.required
+release/profile/winograd-adaptive.required
+release/profile/winograd-coarse17.required
+release/profile/winograd-refine-pitch.required
+release/profile/winograd.required
+src/kernels/conv_64.hlsl
+src/kernels/conv_wino4_common.hlsli
+src/kernels/conv_wino4_finish.hlsl
+src/kernels/conv_wino4_matmul.hlsl
+src/kernels/conv_wino4_prepare.hlsl
+src/kernels/wino_dec16.hlsl
+src/kernels/wino_enc16.hlsl
+src/kernels/wino_ref64.hlsl
+src/kernels/wino_row16.hlsl
+src/kernels/wino_rs16.hlsl
+
+# libxess_fg.dll proxy (src/game/mfg_proxy.c): the probe core it slices (src/probe.c up to its scene_motion.h include)
+# and every header the build includes (its build record's "sources"); the Wine loader check's program
+src/game/mfg_proxy.c
+src/probe.c
+src/capture_off.h
+src/model_bindings.h
+src/model_owner.h
+src/model_wino_enc16.h
+src/model_winograd.h
+src/mfg_settings_contract.h
+src/warp_split.h
+src/winograd_geometry.h
+src/winograd_graph.h
+src/game/fast_trial.h
+src/game/mfg_pace_signal.h
+src/game/mfg_settings.h
+src/game/scoped_com.h
+src/game/timing.h
+src/game/test_proxy_load.c
+
+# libxefg_wave.so present-pacing layer and its unit tests
+src/game/wave_layer.c
+src/game/present_pacer.h
+src/game/test_present_pacer.c
+src/game/test_wave_layer.c
+src/game/test_present_concurrency.c
+
+# Installer, Setup, launcher configuration, recipes and dependency pins (package.json "installer")
+packaging/install.py
+packaging/mfg/setup.py
+packaging/launcher_config.py
+packaging/steam_config.py
+packaging/recipes.py
+packaging/recipes/recipes-runtime.json
+packaging/dependencies.json
+packaging/dependencies.py
+packaging/doctor.py
+packaging/Start-BC250-XeFG.sh
+# Read by the installer tests: the launch wrapper (test_mfg_install), the full recipe file and the builder of its
+# compact form (test_recipes)
+packaging/mfg/run.sh
+packaging/recipes/recipes.json
+research/recipes/build_recipes.py
+
+# PyYAML used by the launcher configuration
+packaging/vendor/__init__.py
+packaging/vendor/PyYAML-LICENSE.txt
+packaging/vendor/PyYAML-provenance.json
+packaging/vendor/yaml/__init__.py
+packaging/vendor/yaml/composer.py
+packaging/vendor/yaml/constructor.py
+packaging/vendor/yaml/cyaml.py
+packaging/vendor/yaml/dumper.py
+packaging/vendor/yaml/emitter.py
+packaging/vendor/yaml/error.py
+packaging/vendor/yaml/events.py
+packaging/vendor/yaml/loader.py
+packaging/vendor/yaml/nodes.py
+packaging/vendor/yaml/parser.py
+packaging/vendor/yaml/reader.py
+packaging/vendor/yaml/representer.py
+packaging/vendor/yaml/resolver.py
+packaging/vendor/yaml/scanner.py
+packaging/vendor/yaml/serializer.py
+packaging/vendor/yaml/tokens.py
+
+# Licence texts of the third-party code compiled into the shipped OptiScaler.dll (package.json component
+# optiscaler-fork ships them as licenses/OptiScaler-third-party/; PROVENANCE.json, not shipped, names the source of
+# each and the tests check it)
+packaging/licenses/OptiScaler-third-party/PROVENANCE.json
+packaging/licenses/OptiScaler-third-party/README.md
+packaging/licenses/OptiScaler-third-party/AMD-Anti-Lag-2-SDK.txt
+packaging/licenses/OptiScaler-third-party/AMD-device_info.txt
+packaging/licenses/OptiScaler-third-party/AMD-FidelityFX-FSR1.txt
+packaging/licenses/OptiScaler-third-party/AMD-FidelityFX-FSR2.1.txt
+packaging/licenses/OptiScaler-third-party/AMD-FidelityFX-FSR2.2.txt
+packaging/licenses/OptiScaler-third-party/AMD-FidelityFX-SDK-1.0.txt
+packaging/licenses/OptiScaler-third-party/AMD-FidelityFX-SDK-1.1.txt
+packaging/licenses/OptiScaler-third-party/Apache-2.0.txt
+packaging/licenses/OptiScaler-third-party/Dear-ImGui.txt
+packaging/licenses/OptiScaler-third-party/Detours.txt
+packaging/licenses/OptiScaler-third-party/flag-set-cpp.txt
+packaging/licenses/OptiScaler-third-party/FreeType-BDF-README.txt
+packaging/licenses/OptiScaler-third-party/FreeType-FTL.txt
+packaging/licenses/OptiScaler-third-party/FreeType-LICENSE.txt
+packaging/licenses/OptiScaler-third-party/FreeType-PCF-README.txt
+packaging/licenses/OptiScaler-third-party/ImGuiNotify.txt
+packaging/licenses/OptiScaler-third-party/Khronos-Vulkan-Headers.txt
+packaging/licenses/OptiScaler-third-party/magic_enum.txt
+packaging/licenses/OptiScaler-third-party/Microsoft-DirectX-Graphics-Samples.txt
+packaging/licenses/OptiScaler-third-party/nlohmann-json.txt
+packaging/licenses/OptiScaler-third-party/NVIDIA-DLSS-SDK.txt
+packaging/licenses/OptiScaler-third-party/NVIDIA-NVAPI.txt
+packaging/licenses/OptiScaler-third-party/NVIDIA-Streamline-1.txt
+packaging/licenses/OptiScaler-third-party/NVIDIA-Streamline-2.txt
+packaging/licenses/OptiScaler-third-party/simpleini.txt
+packaging/licenses/OptiScaler-third-party/spdlog.txt
+packaging/licenses/OptiScaler-third-party/unordered_dense.txt
+
+# Optional host helpers shipped as extras/
+packaging/extras/gamescope-cap-sys-nice/README.md
+packaging/extras/gamescope-cap-sys-nice/bc250-xemfg-gamescope-cap.hook
+packaging/extras/gamescope-cap-sys-nice/install.sh
+packaging/extras/gamescope-cap-sys-nice/uninstall.sh
+packaging/extras/steam-screensaver-in-game/README.md
+packaging/extras/steam-screensaver-in-game/bc250-steam-screensaver-in-game.py
+packaging/extras/steam-screensaver-in-game/bc250-steam-screensaver-in-game.service
+packaging/extras/steam-screensaver-in-game/install.sh
+packaging/extras/steam-screensaver-in-game/uninstall.sh
+
+# Public documents (the public package.json's "documents" component ships the nine .md files; package.json variant
+# intel-free-2x calls it "documents-public"), the licence text of this project's code (packaging/public/LICENSE: the MIT
+# text with the holder still a placeholder, shipped as licenses/freefg.txt in place of LICENSE.new-code) and the
+# documents' read-only checker (host paths, the old name, placeholders, links, PRIVACY.md against dependencies.json).
+# README.md, LICENSE, NOTICE.md, SECURITY.md and CONTRIBUTING.md are also the sources of the repository's top files.
+packaging/public/README.md
+packaging/public/NOTICE.md
+packaging/public/PRIVACY.md
+packaging/public/ARCHITECTURE.md
+packaging/public/MEASUREMENTS.md
+packaging/public/BUILDING.md
+packaging/public/CHANGELOG.md
+packaging/public/CONTRIBUTING.md
+packaging/public/SECURITY.md
+packaging/public/LICENSE
+packaging/public/check_public_docs.py
+
+# Continuous integration of the public tree (.github/workflows; release/ci/ holds its helpers and toolchain pins)
+.github/workflows/ci.yml
+.github/workflows/pins.yml
+release/ci/ci.lock.json
+release/ci/common.py
+release/ci/toolchain.py
+release/ci/profile.py
+release/ci/installer_tests.py
+release/ci/assemble_ci.py
+release/ci/check_controls.py
+release/ci/check_pins.py
+release/ci/report.py
+
+# Installer unit tests (package.json "installer_tests")
+scripts/test_game_install.py
+scripts/test_mfg_install.py
+scripts/test_launcher_config.py
+scripts/test_setup_front_end.py
+scripts/test_recipes.py
+scripts/test_dependencies.py
+scripts/test_screensaver_extra.py
+scripts/test_doctor.py
+scripts/test_proxy_install.py
+
+# The ignore rule for build/ (this project's licence text is packaging/public/LICENSE above; LICENSE.new-code, which
+# names the internal project as copyright holder, stays in the maintainers' tree)
+.gitignore

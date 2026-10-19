@@ -1,0 +1,13 @@
+# Give gamescope CAP_SYS_NICE (as SteamOS ships it) so its composition runs on a realtime-priority GPU queue and
+# realtime threads. Without it gamescope logs "No CAP_SYS_NICE, falling back to regular-priority compute and
+# threads", and under full GPU load its flips queue behind game work: uneven VRR refresh with frame generation.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/gamescope
+
+[Action]
+Description = Granting gamescope CAP_SYS_NICE (realtime composition priority)...
+When = PostTransaction
+Exec = /usr/bin/setcap cap_sys_nice=eip /usr/bin/gamescope

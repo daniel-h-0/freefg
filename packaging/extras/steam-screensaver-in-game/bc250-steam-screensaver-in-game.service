@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep Steam's idle screensaver off while a game runs
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/bc250-steam-screensaver-in-game run
+ExecStopPost=-%h/.local/bin/bc250-steam-screensaver-in-game restore
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

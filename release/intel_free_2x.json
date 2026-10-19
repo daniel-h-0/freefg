@@ -1,0 +1,46 @@
+{
+  "about": "Definition of the enabler-free Intel-free variant (how it works: packaging/public/ARCHITECTURE.md): the Intel-free add-on and profile of release/intel_free.json, entered through a libxess_fg.dll proxy for Intel's unmodified XeFG runtime instead of the XeSSMFG enabler, so the package needs no XeSSMFG component and passes release/check_intel_free.py without an allowance. Without the enabler XeFG generates one frame per real frame (2x), Intel's limit for GPUs other than its own, so everything that exists for 3x/4x or for the enabler is left out. Read by release/build_proxy.py and release/assemble.py --variant intel-free-2x.",
+  "variant": "intel-free-2x",
+  "base": "release/intel_free.json",
+  "addon": {
+    "output_dir": "addon-intel-free-2x",
+    "output": "libxess_fg.dll",
+    "source": "src/game/mfg_proxy.c",
+    "original": "bc250_xefg_original.dll",
+    "dropped_defines": {
+      "XEFG_MFG_RESEARCH=1": "Multi-frame network and its model census (31/58 buffers, mfg-finish kernels, late model sets). Intel's runtime alone initialises only the 27-buffer native set at 2x; without this definition the census is that set, sealed once the context is initialised, as in the lib2x library line that ran this runtime at 2x.",
+      "XEFG_MFG_POOL=1": "Pooled model sets and pipelines: they exist for the model sets and pipelines the SDK recreates at a multiplier change; one factor here.",
+      "XEFG_MFG_RETIRE=1": "Heap and list retirement at multiplier changes; it also depends on the scaling code's frame lock. Without it the scoped owners keep the shader-visible heaps they track until the context is destroyed (lib2x behaviour).",
+      "XEFG_MFG_XELL_PACE=1": "Frame-start pacer: it acts at 3x/4x only, reads the factor from the enabler's ApplyMultiplier hook and inline-hooks XeLL and the SDK's Present; none of that exists or is needed at 2x. The pacing layer still learns from the accelerated counters when XeFG generates.",
+      "XEFG_MFG_NO_ENABLER_UI=1": "Hook on the enabler's overlay; no enabler.",
+      "XEFG_FRAME_CAP_RESEARCH=1": "Generated-frame scaling code, inert in the Intel-free build (scaling forced off); compiled out whole here. The FRAME_CAP summary lines are gone with it.",
+      "XEFG_FLOW_CAP_RESEARCH=1": "Flow-preprocessing half of the same scaling code, inert in the Intel-free build; compiled out whole."
+    },
+    "hooks": {
+      "about": "release/proxy_common.py API_HOOKS, as wrappers of this proxy's own exports. Each replacement must match its hook's code once.",
+      "xefgSwapChainD3D12CreateContext": [["mfg_xell_pace_attach();", ""]],
+      "xefgSwapChainD3D12InitFromSwapChain": [
+        ["fast_begin_init(hSwapChain);", "if(mfg_proxy_one_frame(hSwapChain,pInitParams))fast_begin_init(hSwapChain);"],
+        ["if(result==0)mfg_xell_pace_swapchain(hSwapChain);", ""]
+      ],
+      "xefgSwapChainD3D12InitFromSwapChainDesc": [
+        ["fast_begin_init(hSwapChain);", "if(mfg_proxy_one_frame(hSwapChain,pInitParams))fast_begin_init(hSwapChain);"],
+        ["if(result==0)mfg_xell_pace_swapchain(hSwapChain);", ""]
+      ],
+      "xefgSwapChainDestroy": [["mfg_status_forget(hSwapChain);", ""]],
+      "xefgSwapChainGetLastPresentStatus": []
+    },
+    "extra_exports": ["BC250MFGGetFrameSettings", "BC250MFGInitialize", "BC250MFGReadFrameSettings", "BC250MFGSaveFrameSettings"],
+    "allowed_imports": ["kernel32.dll", "ucrtbase.dll"]
+  },
+  "profile": {
+    "name": "cl-wino-q33-intel-free-2x",
+    "drop": {
+      "mfg-finish224-18-n32.dxil": "Multi-frame network only (graph_finish_mfg, XEFG_MFG_RESEARCH).",
+      "mfg-finish224-18-n48.dxil": "Multi-frame network only.",
+      "mfg-finish224-19-n32.dxil": "Multi-frame network only.",
+      "mfg-finish224-19-n48.dxil": "Multi-frame network only.",
+      "mfg-finish64-18-n32.dxil": "Multi-frame network only."
+    }
+  }
+}

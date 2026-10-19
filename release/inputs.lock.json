@@ -1,0 +1,562 @@
+{
+ "schema": 1,
+ "about": "Every build-time input of the release build that is not tracked in this repository, pinned by sha256. \"fetch\" groups are public files that release/fetch.py downloads at the pinned commit into XEMFG_CACHE; \"work\" groups are private or unpublished inputs read from XEMFG_WORK (or their override variable). Runtime downloads made by the installer on a player's machine are owned by packaging/dependencies.json and are not repeated here.",
+ "fetch": {
+  "intel-xess": {
+   "description": "Intel XeSS SDK public headers (XeFG swap chain API, XeLL) and licence texts. The add-on compiles against the headers; build_addon.py generates its API hook wrappers from the two xess_fg API headers at build time.",
+   "repository": "https://github.com/intel/xess",
+   "commit": "de0fb9c1c510661c571164e1418ceca8101dab69",
+   "release": "commit \"Update license to MIT for public headers only\" (2026-09-09), after tag v3.0.2 (8fe81bdb)",
+   "url": "https://raw.githubusercontent.com/intel/xess/{commit}/{path}",
+   "files": {
+    "inc/xess_fg/xefg_swapchain.h": {
+     "sha256": "39f20fc1eef0b5d3fd41e25a2c5c04734d1a2cbdcf3f3da1c86cefef181ce976",
+     "license": "Intel proprietary notice in the header: fetched for the build, never tracked, shipped or copied into generated files that are tracked"
+    },
+    "inc/xess_fg/xefg_swapchain_d3d12.h": {
+     "sha256": "1aa9a1c31214aaefb2c4ca4fd3bce29a166c8384148466d69f679ea554cf2dbc",
+     "license": "Intel proprietary notice in the header: fetched for the build, never tracked, shipped or copied into generated files that are tracked"
+    },
+    "inc/xess_fg/xefg_swapchain_debug.h": {
+     "sha256": "3600f2698fc747810948deb6fe568f105a8f40c003c73b6940262ae311f33aeb",
+     "license": "Intel proprietary notice in the header: fetched for the build, never tracked, shipped or copied into generated files that are tracked"
+    },
+    "inc/xell/xell.h": {
+     "sha256": "d6d713a708b546a7189277923f28c9b7f746eb033f1ebc80ba76c9f57a93b398",
+     "license": "MIT (SPDX header)"
+    },
+    "inc/xell/xell_d3d12.h": {
+     "sha256": "d948779f3cd9f0e31652377346017b9feffea5d1a64346149c048b218e2bd84b",
+     "license": "MIT (SPDX header)"
+    },
+    "LICENSE.txt": {
+     "sha256": "784be42c39a4a4d03cf85d88e15e59d75828fca773ce45b8dbfffbd7eaf208df",
+     "license": "licence text (Intel Simplified Software License / third-party notices), shipped under licenses/"
+    },
+    "third-party-programs.txt": {
+     "sha256": "e8d8899dbfc4de0e8ca25560be9358e03c1405d7c956d20a1838c3c709b9b51c",
+     "license": "licence text (Intel Simplified Software License / third-party notices), shipped under licenses/"
+    }
+   }
+  },
+  "intel-xess-runtime": {
+   "description": "Intel's XeFG runtime DLL (libxess_fg.dll 1.3.1.78, Intel-signed, unmodified) from the same XeSS repository commit as the headers. release/build_proxy.py reads its export table, size and FNV-1a hash: the enabler-free proxy forwards to and verifies exactly this file. Never shipped: installations download the same bytes (packaging/dependencies.json runtime group).",
+   "repository": "https://github.com/intel/xess",
+   "commit": "de0fb9c1c510661c571164e1418ceca8101dab69",
+   "release": "commit \"Update license to MIT for public headers only\" (2026-09-09), after tag v3.0.2 (8fe81bdb)",
+   "url": "https://raw.githubusercontent.com/intel/xess/{commit}/{path}",
+   "files": {
+    "bin/libxess_fg.dll": {
+     "sha256": "ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27",
+     "license": "Intel XeSS SDK licence (LICENSE.txt of intel-xess): fetched for the build, never tracked, shipped or copied into generated files"
+    }
+   }
+  },
+  "minhook": {
+   "description": "MinHook 1.3.4 (BSD-2-Clause): sources compiled into the add-on, licence shipped under licenses/MinHook.txt.",
+   "repository": "https://github.com/TsudaKageyu/minhook",
+   "commit": "c3fcafdc10146beb5919319d0683e44e3c30d537",
+   "url": "https://raw.githubusercontent.com/TsudaKageyu/minhook/{commit}/{path}",
+   "files": {
+    "LICENSE.txt": {
+     "sha256": "d5c2224982b0b95a16b098a561335fa93f3eaf4d0aa964b7843edb986df78dc8"
+    },
+    "include/MinHook.h": {
+     "sha256": "62dff05e63155c6bf8135c36a0d79dedbdcaaede9da26fe38daf0bea34323e38"
+    },
+    "src/buffer.c": {
+     "sha256": "0ab484d7870c3a8e7a3a1ee61e2070072cf445ed85b619d4c4207fed34356d99"
+    },
+    "src/buffer.h": {
+     "sha256": "9769702bd625249e59a19ede05c84365fcc7707e1fa0e5df08df42227cee13e3"
+    },
+    "src/hook.c": {
+     "sha256": "edcce4c81985d7dd5b73feae96d6498c8f749b1bca4c3d2d9926ea9a17a84755"
+    },
+    "src/trampoline.c": {
+     "sha256": "f13a169f803ff5a8e45c58ce668b4377a9878c0fc4452369b8a1325065186b2b"
+    },
+    "src/trampoline.h": {
+     "sha256": "53ed9934492320617a27bfd952ffe7f5b7a4a1d09963d4512447082fe7b727b4"
+    },
+    "src/hde/hde64.c": {
+     "sha256": "824eafa315322e6da105a7ce4ec1fc0e0adeee0106d32152fbb0b59e709bd15c"
+    },
+    "src/hde/hde64.h": {
+     "sha256": "e99aa4997bda14b534c614c3d8cb78a72c4aca91a1212c8b03ec605d1d75e36e"
+    },
+    "src/hde/pstdint.h": {
+     "sha256": "604d1cdf45c5a95bc9cf1bbf39ca05ef83013541101d34971c5cd7577e3d5247"
+    },
+    "src/hde/table64.h": {
+     "sha256": "b774446d2f110ce954fb0a710f4693c5562ddbd8d56fe84106f2ee80db8b50a2"
+    }
+   }
+  },
+  "optiscaler-license": {
+   "description": "GPL-3.0 licence text of OptiScaler (identical in the fork), shipped as licenses/OptiScaler.txt next to the bundled fork build.",
+   "repository": "https://github.com/optiscaler/OptiScaler",
+   "commit": "92337ebfbf07d533eabe3731fd8de1bb19437aea",
+   "url": "https://raw.githubusercontent.com/optiscaler/OptiScaler/{commit}/{path}",
+   "files": {
+    "LICENSE": {
+     "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    }
+   }
+  },
+  "fsr4-notices": {
+   "description": "Notices of the FSR4 RC11 DLL (the installer downloads the DLL from the public release; the same six files are in its zip under notices/). Shipped under licenses/fsr4/.",
+   "repository": "https://github.com/daniel-h-0/bc250-fsr4-fork",
+   "commit": "f37421e7befb11a3a50f6f385332a8d1e02e7190",
+   "tag": "v4.0.0-rc11",
+   "url": "https://raw.githubusercontent.com/daniel-h-0/bc250-fsr4-fork/{commit}/{path}",
+   "files": {
+    "AMD-SDK-LICENSE.md": {
+     "sha256": "6757f2fec461238da6f84f83536ec195e8c036b1773a06f6f34301b9ed8c0963",
+     "source": "dll/notices/AMD-SDK-LICENSE.md"
+    },
+    "LICENSE-LLVM.txt": {
+     "sha256": "729615317e28dd03907e46f0fc3b5e88f7853cee61d1a1471d2749335516b46f",
+     "source": "dll/notices/LICENSE-LLVM.txt"
+    },
+    "LICENSE-MS.txt": {
+     "sha256": "734f72f239fe7b07b4c7203f294c1a7ce27095687278bab7e56d630d7c672963",
+     "source": "dll/notices/LICENSE-MS.txt"
+    },
+    "LICENSE.new-code": {
+     "sha256": "0a52351600f69642daebbddb6db6313450eadaa98a0d5fa84dd6953ba788772a",
+     "source": "dll/notices/LICENSE.new-code"
+    },
+    "PROVENANCE.md": {
+     "sha256": "1d9cddf9d57a3e84b21c624bf66841469f1aae411031cc9b4af6d547df18aa45",
+     "source": "dll/notices/PROVENANCE.md"
+    },
+    "V4-THIRD-PARTY.md": {
+     "sha256": "17a84aabab81b26aefb0a530e83a93b15646bd19a5590c691dd6122248645476",
+     "source": "dll/notices/V4-THIRD-PARTY.md"
+    }
+   }
+  }
+ },
+ "work": {
+  "profile-cl-wino-q33": {
+   "path": "mfg/cl-wino-q33",
+   "env": "XEMFG_PROFILE",
+   "description": "Shader profile cl-wino-q33, as far as this tree pins it: its files of this project's own origin (origin \"own\"), the compute shaders compiled from src/kernels/ and the profile's tables and markers. The add-on embeds the size and FNV-1a hash of each profile file it loads (profile_manifest.h).",
+   "in_tree": "release/profile: the 42 files the Intel-free builds read (release/intel_free.json keep + rewrite), byte-identical, with their HLSL recipes in release/profile/origin.json; release/build_profile.py compiles each shader again and compares. XEMFG_PROFILE=release/profile serves the build without a work directory.",
+   "files": {
+    "08155f47bc92811b.dxil": {
+     "sha256": "c19e7450db62ea50c32ebe77b452f6b73b3d7020a630b5e2c54fab9d463de2ec",
+     "shader_model": "6.9",
+     "origin": "own"
+    },
+    "1a3b0782583fef19.dxil": {
+     "sha256": "21f7e5628fc4d1f5a6af5bdffd0c83b62c032c8efa482edb0f15d06576cd118b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1f27b449fb99a587.dxil": {
+     "sha256": "61a61c7ce26fc5177e2426916a27b4539d8d34ce221b622c8af83d667ccae1b6",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "4bb52a635e6d221a.dxil": {
+     "sha256": "415f7780c39e54f16917ef5a994d744a20f4d2e354a7375722f6ad7c65152db7",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "558c3931ba6fb064.dxil": {
+     "sha256": "bf21a9bd7e992ccdea0973a9ba55ef3cd1d8764428bdffe2343e5a9861796cd7",
+     "shader_model": "6.9",
+     "origin": "own"
+    },
+    "5654aa3800432b13.dxil": {
+     "sha256": "22e59624ace8ec02851733bb46120714aadf38e02bb7ecf29f16b503adc4e60f",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "60edebbbd2f9fb69.dxil": {
+     "sha256": "8dabc9695c886ad25e378c415e315a029569d28f0ee26081c7325d1901585ae2",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "9e0080eee00255f2.dxil": {
+     "sha256": "dd0365d3b8e4636246eee7be3341eecaefcaa914b5d307d7dee6c10db4ef5c37",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3941ac8ff95efe7.dxil": {
+     "sha256": "b8b44cc054c4e5a91fa6221c735db10930de4de71e4b2c9b8fe285c0232f8b0b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3ddf030f661d487.dxil": {
+     "sha256": "7cf20fbe2672aff1d60ab53101eadd35db2cf040f803eef83181cd56c0604d6b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "dispatch-scale.txt": {
+     "sha256": "ba54afcde3aa57e8ab11ac2b0166c55724caa69d6be206076aa49a3375a672b4",
+     "origin": "own"
+    },
+    "e83e868f8d5d2c0f.dxil": {
+     "sha256": "2dbd5a00d8e735c5a6f08c70c8a400bf208adf2a7547328435d31dcc6f7e1f3d",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f030948d38e74671.dxil": {
+     "sha256": "1806682df555597220c6bd205ded6050beb8497b22efec4d6449feaa3a15945e",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f2e2e13fea432d20.dxil": {
+     "sha256": "091067d0bc1ebc99f80b01396fc9de8de9e0fa886a4d0a95a23ecd16496a173e",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "frame-upsample-bicubic.dxil": {
+     "sha256": "af2b0eafca9e7d2125610ff2d43dcec2ccc76f769b9ef6fae6262180e50ef5e7",
+     "shader_model": "6.0",
+     "origin": "own"
+    },
+    "frame-upsample-fsr1.dxil": {
+     "sha256": "66fe982137480d05b02e9248d5cacf4c3a3a63cb8ef4485639d3c17dd0fa2f64",
+     "shader_model": "6.0",
+     "origin": "own"
+    },
+    "frame-upsample-fsr1.rs": {
+     "sha256": "d919f8c39b7a1bab1c89f0acfb157ed60d58eec1c21ff1e3e724606fb593ec32",
+     "origin": "own"
+    },
+    "frame-upsample-lanczos2.dxil": {
+     "sha256": "ac1a0213cf9c458a033fd972feb4fb03318fcfc998eb885a1a59020fb4784dce",
+     "shader_model": "6.0",
+     "origin": "own"
+    },
+    "frame-upsample.dxil": {
+     "sha256": "5736dfbea4d1794a1cdeae7f1a0339cfeb46ea61c7fb243db17ede224af15b56",
+     "shader_model": "6.0",
+     "origin": "own"
+    },
+    "frame-upsample.rs": {
+     "sha256": "e605232a4ca6b70d9bdc72ea0b2105fe5bda822cd8167e5a558849a4d03fa913",
+     "origin": "own"
+    },
+    "general-cap.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "graph-finish224-17-n32.dxil": {
+     "sha256": "38c0c11105439b267c8e3a33850fa6fa590a808abb6bc4517a22b488814aa5cb",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-finish224-17.dxil": {
+     "sha256": "0196d3da8670b6da3f42ff630d6f3057c44648ed5fdda8e62a98bff7f4e23f24",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-finish224-n32.dxil": {
+     "sha256": "206741e941ba1fa49b723a0d097d8fa86896942d92214f89a2a679aa547fae20",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-finish224.dxil": {
+     "sha256": "7dcd6ee2406d30a0f2beda18f994a7d7181dba217620285544a6bfc73c1cd97b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-finish64-16.dxil": {
+     "sha256": "bfec9523f5dc2da56fcb52a3404a8b91606b14fc880b394e0c04f2d60492b05c",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-finish64-17.dxil": {
+     "sha256": "5ef90eb942d2e7dd1b87e73323faec49ec09af1a182392be8d0a141ffd5353c5",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-matmul224-n32.dxil": {
+     "sha256": "bbd7ae1d2a26d481514d9040350be53da6a07affe6a22221dc2d52cb44dbb893",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-matmul224.dxil": {
+     "sha256": "787641cf59c729efbff7e95d12f448ae3556ce1139d29359ab158cef8a672cdf",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-matmul64.dxil": {
+     "sha256": "a8880f00c50fd4a7b0af07d764688d182cd8d88a3005d635abba48a7a7b2102a",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-prepare224-n32.dxil": {
+     "sha256": "0015a41463a0aa91ab0d524414e00f594897d6de6509e181e2c3de8e39d82ede",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-prepare224.dxil": {
+     "sha256": "24c9d418a2b61f74f66ec84fcaf68b55f91f0ec6f877ac238e655dcfe99336f0",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "graph-prepare64.dxil": {
+     "sha256": "6df57dd162a90df74f366e6e897e29ae192ea52ee1aefa9b634ca435d1e351dd",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "mfg-dispatch-guard-full-native2.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "mfg-dispatch-guard-full-pixel2.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "mfg-dispatch-guard-full.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "mfg-dispatch-guard-native2.rs": {
+     "sha256": "e89bb143c1145b73dd604bdecd485a2323d63a4ac42c8964068e44b0e15387cd",
+     "origin": "own"
+    },
+    "mfg-dispatch-guard-opti.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "mfg-dispatch-guard.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "mfg-dispatch-guard.rs": {
+     "sha256": "e89bb143c1145b73dd604bdecd485a2323d63a4ac42c8964068e44b0e15387cd",
+     "origin": "own"
+    },
+    "mfg-downscale-filters.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "mfg-finish224-18-n32.dxil": {
+     "sha256": "af9528dcbc850403731df9e779cc0ae03754ad751ddcda68d036b0359e9465e1",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "mfg-finish224-18-n48.dxil": {
+     "sha256": "ba59c34077bee222a74485c1c5bacd94acffb8219a5e5c529ceb086233ef4788",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "mfg-finish224-19-n32.dxil": {
+     "sha256": "1f11e2c53d81153a5450e32164c93a9e02248ee41cda949b577e4e12a1963b3a",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "mfg-finish224-19-n48.dxil": {
+     "sha256": "ea5268e0f5677f9fe4724f2c5265cb8d0b87b11b35f2e40a3c8e7b6aedd7a6a7",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "mfg-finish64-18-n32.dxil": {
+     "sha256": "df06cc3dca84aeca72c2c853f2fa26b09746382accd1ddfeed99473b3f3b82fe",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "mfg-frame-settings.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "mfg-upscale-filters.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "model-owner.required": {
+     "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58",
+     "origin": "own"
+    },
+    "waves.txt": {
+     "sha256": "e2f27b957d68fb43085a8ba5af32e59423ffbf0eb81c5c01b7b443b98b79bf30",
+     "origin": "own"
+    },
+    "wino-enc16.required": {
+     "sha256": "9c1cf4c2cb32498eb7634d021972f35e4f2b98606ae0aabaa4b53cf36235b60f",
+     "origin": "own"
+    },
+    "wino-ref64-16.dxil": {
+     "sha256": "b11dc2d987cd07246e68a60a62828e07acd3e3ce93890aabe63acc852ff579d6",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "wino-ref64-17.dxil": {
+     "sha256": "0515073bc44ddf1b6d28f005638412c91b84a346756b0d526328d2670b8aa7d5",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "wino-ref64-18.dxil": {
+     "sha256": "e80aabb71ec12fe9af3e16fbdfdba7f9faa0ffdc55bceb8e76be638ca1b7ad51",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "wino-ref64.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "winograd-adaptive.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "winograd-coarse17.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "winograd-refine-pitch.required": {
+     "sha256": "13f35c581d557deba983f3f71dea7ba68b3de9eda013742189a1e9647d778e1f",
+     "origin": "own"
+    },
+    "winograd.required": {
+     "sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+     "origin": "own"
+    }
+   }
+  },
+  "optiscaler-fork": {
+   "path": "OptiScaler-build",
+   "env": "XEMFG_OPTISCALER",
+   "description": "OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll: OptiScaler nightly-20260929 with four commits. Its source is the commit below with the submodules that commit pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which ran it. Until the fork's release is public, release/assemble.py reads the DLL from XEMFG_OPTISCALER and the source companion reads the fork's git checkout from XEMFG_OPTISCALER_SOURCE; release_fetch is the fetch group prepared for that release.",
+   "source": {
+    "commit": "a7932870f9988b86692aabf9e8908e2adc61e1f0",
+    "branch": "publish-noreply",
+    "upstream": "https://github.com/optiscaler/OptiScaler",
+    "upstream_base": "92337ebfbf07d533eabe3731fd8de1bb19437aea",
+    "reverted_upstream": "f6db41dfa7bacb16ac50bd1e5787fdb44362da47",
+    "tree": "74d774430e56919ab2246476004ed43b731d259f",
+    "tag": "bc250-a793287",
+    "tag_commit": "9a939154049733a3df67823113f45d1d4b1721dd",
+    "build_route": [
+     "FORK.md",
+     "tools/bc250-build.py"
+    ],
+    "archive": {
+     "name": "OptiScaler-bc250-a793287-source.tar.xz",
+     "sha256": "f27b12626eb96f2fc2a23e0656b23d949895761b340605124339e5ab3fde6c3f",
+     "bytes": 332085208,
+     "tar_sha256": "bd7d654a52c6093bccba8c2941ea94d947bee27cd982e98a10577536389ce2e3",
+     "tar_bytes": 881254400,
+     "members": 6998,
+     "files": 6260,
+     "files_sha256": "02036ae4eb662536093df850a4bc555103a3ce8b135971fcdb0047b540fef503",
+     "tag": "bc250-a793287",
+     "tag_commit": "9a939154049733a3df67823113f45d1d4b1721dd",
+     "commit": "a7932870f9988b86692aabf9e8908e2adc61e1f0",
+     "bundled": [
+      "external/FidelityFX-SDK",
+      "external/FidelityFX-SDK-v2",
+      "external/magic_enum",
+      "external/nvapi",
+      "external/simpleini",
+      "external/spdlog",
+      "external/unordered_dense",
+      "external/vulkan"
+     ],
+     "pointer_only": [
+      "external/xess"
+     ],
+     "made_by": "release/fork_source_archive.py"
+    },
+    "build": "tools/bc250-build.py of the fork (FORK.md, tag bc250-a793287) --jobs 4: clang-cl/lld-link/llvm-rc 22.1.8 against msvc-wine 514f8ea3 (MSVC 14.44.35207, SDK 10.0.26100.0); compile and link settings from the vcxproj",
+    "source_in_work": "OptiScaler"
+   },
+   "files": {
+    "OptiScaler.dll": {
+     "sha256": "244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d"
+    }
+   },
+   "release_fetch": {
+    "enabled": false,
+    "about": "Prepared, not used yet: the fetch group \"optiscaler-fork\" for when the fork's release is public. Then move it to \"fetch\" with the placeholders filled and \"enabled\" and \"about\" removed; the work group's \"source\" record (commit, tree, tag, tag_commit, build_route, archive, ...) moves with it, as the group's \"source\" (the source companion and release/fork_source_archive.py read it there; its work-checkout notes may go). Then drop this work group, the OMITTABLE entry of release/ci/assemble_ci.py and BUILDING.md's note that the release tooling does not download the built DLL, and list the group in BUILDING.md. Its \"commit\" is source.tag_commit: after the tag moves, both change together (release/fork_source_archive.py, \"Moving the tag\"). [OPTISCALER-FORK-SOURCE-URL] is the fork's repository URL (the one FORK.md clones) and [OPTISCALER-FORK-TAG] its tag. release/test_release_tools.py checks that it pins the same files as this group, at the tag commit.",
+    "repository": "[OPTISCALER-FORK-SOURCE-URL]",
+    "commit": "9a939154049733a3df67823113f45d1d4b1721dd",
+    "url": "[OPTISCALER-FORK-SOURCE-URL]/releases/download/[OPTISCALER-FORK-TAG]/{path}",
+    "files": {
+     "OptiScaler.dll": {
+      "sha256": "244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d"
+     }
+    }
+   }
+  }
+ },
+ "toolchain": {
+  "about": "The environment the reference outputs were built and verified in (2026-10-15, CachyOS). A different compiler, Wine or system headers can change the output bytes; build_addon.py and build_layer.py warn when the digests below differ.",
+  "packages": [
+   "clang 22.1.8-1",
+   "lld 22.1.8-1",
+   "gcc 16.2.1+r23+gd564253eb6c8-1",
+   "wine 11.16-2",
+   "vulkan-headers 1:1.4.357.0-1",
+   "glibc 2.44+r24+g16be1518495f-1",
+   "binutils 2.47-4"
+  ],
+  "python": "3.14.7",
+  "dxc": "libdxcompiler.so: 1.9(1-0d3ee6b5)(1.9.0.1) (optional; only checks the profile warp shader thread group)",
+  "profile": {
+   "about": "The DXC that rebuilds release/profile byte for byte (release/build_profile.py check compares the files below with XEMFG_DXC and reports a difference; byte identity is then not expected). It is Microsoft's DirectX Shader Compiler release v1.9.2607 for Linux, unmodified: the release asset below, extracted (its top directory is XEMFG_DXC), which reports itself as the version string below. The reference DXC of \"dxc\" above is the same release. Release v1.9.2609 compiles the same sources to different bytes (checked 2026-10-18 on wino_enc16.hlsl).",
+   "release": "v1.9.2607",
+   "commit": "0d3ee6b551b8fa768fbf825300ebab81047ef6a8",
+   "url": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/linux_dxc_2026_07_29.x86_x64.tar.gz",
+   "sha256": "55665c87824051ed4774ff3280a79ccbbb7d39243b9736ca5e98222134112d54",
+   "bytes": 515588543,
+   "top_directory": "linux_dxc_2026_07_29.x86_x64",
+   "version": "libdxcompiler.so: 1.9(1-0d3ee6b5)(1.9.0.1)",
+   "files": {
+    "bin/dxc": "b1bfa493d5c780b94c20b8b5f5aed50d1c4d03339cd55f496bd223eedeec1734",
+    "bin/opt": "e0d605396860b49678cd7f39678c64769e4545b1cf81623160bfc06a41349ab2",
+    "bin/dxa": "48fb22a4f014ce20787bd74f3175502d1c0885c92a868a1c210dbf2c19e0b053",
+    "bin/dxv": "87cc9c1e459a7d6a0dc52c7b319d627d0f6078a2be95621e5a98b3cf12f255cb",
+    "lib/libdxcompiler.so": "be01593d3ff635fca6f20b044aa49c777f6409e50a28fb0242a0c87272620b62",
+    "lib/libdxil.so": "e74c02162cd553a0ceab041937d749cfd6ab9adf919142603ff5fc55af222c73"
+   }
+  },
+  "addon": {
+   "clang": "clang version 22.1.8",
+   "lld": "LLD 22.1.8 (compatible with GNU linkers)",
+   "system_headers": {
+    "count": 128,
+    "sha256": "7411da6112350418f1abb75193d48107897ba3ce2cbfab756fe4006537016100"
+   },
+   "import_libraries": {
+    "libkernel32.a": "86791b9216f8ac1352612907594fa96177a1264915e145002e0d54ae893b8525",
+    "libucrtbase.a": "6288792f05f698c8b17944138a7a0152f86f6b5a57525749664ec693b83b3828"
+   },
+   "note": "system_headers: count and sha256 of the Wine headers the add-on includes, named relative to XEMFG_WINE_INCLUDE; import_libraries: Wine 11.16 x86_64 import libraries in XEMFG_WINE_LIB"
+  },
+  "addon (intel-free)": {
+   "system_headers": {
+    "count": 126,
+    "sha256": "c43ac9a2fe0486ea19586fa384bf36bdc8837aaf557b1e92b43676a62382bacc"
+   },
+   "note": "The Intel-free variant (build_addon.py --variant intel-free) includes two Wine headers fewer than the default build (msvcrt/math.h and corecrt_math_defines.h: the FSR1 enlargement filter is not compiled); compiler, linker and import libraries are those of \"addon\"."
+  },
+  "addon (intel-free-2x)": {
+   "system_headers": {
+    "count": 124,
+    "sha256": "51783ee776c97ea34d0fa798503e3fa783157ae66cbf6076c3f0b4cb5f37a571"
+   },
+   "note": "The enabler-free proxy (release/build_proxy.py, src/game/mfg_proxy.c) includes four Wine headers fewer than the default add-on: those of the Intel-free variant less windows/tlhelp32.h and windows/cguid.h (no MinHook); compiler, linker and import libraries are those of \"addon\"."
+  },
+  "layer": {
+   "gcc": "gcc (GCC) 16.2.1 20260810",
+   "system_headers": {
+    "count": 183,
+    "sha256": "3c39d835d840e83b5d3610bd474b866c8627a0af515da67d6fd39ce20db63d69"
+   },
+   "note": "system_headers: count and sha256 of the glibc/gcc/Vulkan headers the layer includes (vulkan-headers 1.4.357)"
+  }
+ },
+ "outputs": {
+  "BC250-MFG.asi": "b1b016dda687a98087d0d8cb682f739779b3ac8ac44e7bb7891b0ee21f4c8eab",
+  "libxefg_wave.so": "d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271",
+  "BC250-MFG.asi (intel-free)": "28246c08a28876197a85f4888eae43339837b1b2fa22ae344fcfa4db7cfe9b4c",
+  "libxess_fg.dll (intel-free-2x)": "3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410"
+ }
+}

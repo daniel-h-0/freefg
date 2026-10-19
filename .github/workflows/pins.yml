@@ -1,0 +1,70 @@
+# Scheduled checks that do not belong on every push:
+#   pinned-downloads   every pinned download still serves its pinned bytes (release/ci/check_pins.py): the build
+#                      inputs of release/inputs.lock.json "fetch", every download of packaging/dependencies.json
+#                      (followed by the installer's own preparation of them), and the CI toolchain pins of
+#                      release/ci/ci.lock.json (Arch packages, DXC, the container image digest). A failure means an
+#                      upstream file moved or vanished: installations or builds would fail the same way.
+#   current-toolchain  ci.yml with today's Arch packages instead of the pinned snapshot. Best effort: it shows whether
+#                      the tree still builds and passes its tests on current compilers; hash differences are warnings.
+
+name: Scheduled checks
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-downloads:
+    name: Pinned downloads
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container:
+      # Must equal release/ci/ci.lock.json "image" (toolchain.py check-workflows).
+      image: archlinux:base-20260830.0.582275@sha256:82b1b08faae9d61e3e7e13d562f4d09114d939105b0d59ff34140f3bd418593a
+    env:
+      # Must equal release/ci/ci.lock.json "snapshot" (toolchain.py check-workflows).
+      ARCH_SNAPSHOT: 2026/09/03
+      PYTHONDONTWRITEBYTECODE: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Point pacman at the pinned Arch Linux Archive snapshot
+        run: |
+          # The image ships the Arch keys without a local signing key; create one so that a keyring update can sign
+          # the keys it adds.
+          pacman-key --init
+          pacman-key --populate archlinux
+          # $repo and $arch are pacman's variables, not the shell's.
+          # shellcheck disable=SC2016
+          printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "$ARCH_SNAPSHOT" > /etc/pacman.d/mirrorlist
+          # bsdtar (libarchive, a pacman dependency) unpacks the installer's archives.
+          pacman -Syyuu --noconfirm --needed git python
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check every pinned download
+        run: |
+          mkdir -p build/ci/reports
+          python3 release/ci/check_pins.py --report build/ci/reports/pins.json
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pinned-downloads
+          path: build/ci/reports/
+          if-no-files-found: warn
+          retention-days: 30
+
+  current-toolchain:
+    name: Current toolchain
+    uses: ./.github/workflows/ci.yml
+    with:
+      toolchain: current
