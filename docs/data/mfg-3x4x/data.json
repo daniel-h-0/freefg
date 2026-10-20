@@ -1,36 +1,36 @@
 {
  "figure": "mfg-3x4x-fps",
- "question": "How many game frames per second does Cyberpunk 2077 run at 3x and 4x with MFG Unlocker, with FreeFG's shaders and with MFG Unlocker alone?",
+ "question": "How many frames per second does Cyberpunk 2077 show at 3x and 4x with MFG Unlocker, with FreeFG's shaders and with MFG Unlocker alone?",
  "plot": {
   "title": "Cyberpunk 2077 at 3× and 4× with MFG Unlocker",
   "subtitle": "AMD BC-250  ·  2560×1440 SDR  ·  FSR 4 Performance  ·  XeFGModel=default",
-  "unit": "game FPS",
+  "unit": "FPS",
   "bars": [
    {
     "id": "alone_3x",
     "label": "MFG Unlocker alone",
-    "value_from": "default_model.3x.mfg_unlocker_alone.game_fps_mean",
+    "value_from": "default_model.3x.mfg_unlocker_alone.shown_fps_mean",
     "group": "3×",
     "role": "intel"
    },
    {
     "id": "freefg_3x",
     "label": "FreeFG 1.0.0",
-    "value_from": "default_model.3x.freefg.game_fps_mean",
+    "value_from": "default_model.3x.freefg.shown_fps_mean",
     "group": "3×",
     "role": "freefg"
    },
    {
     "id": "alone_4x",
     "label": "MFG Unlocker alone",
-    "value_from": "default_model.4x.mfg_unlocker_alone.game_fps_mean",
+    "value_from": "default_model.4x.mfg_unlocker_alone.shown_fps_mean",
     "group": "4×",
     "role": "intel"
    },
    {
     "id": "freefg_4x",
     "label": "FreeFG 1.0.0",
-    "value_from": "default_model.4x.freefg.game_fps_mean",
+    "value_from": "default_model.4x.freefg.shown_fps_mean",
     "group": "4×",
     "role": "freefg"
    }
@@ -65,7 +65,7 @@
   "optiscaler_sha256": "5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6",
   "mfg_unlocker_dll_sha256": "161b9e1245a3736dc462ee83f4ad51e6125d8e7e73ce3eedde89d2eed60c69fa"
  },
- "metric": "game FPS = rows of the benchmark's frames.csv divided by its duration (real frames; on this route the benchmark's own average counts the same frames). presents_per_s_derived = frames per present x game FPS (with pacing off the layer records no present times).",
+ "metric": "game FPS = rows of the benchmark's frames.csv divided by its duration (real frames; on this route the benchmark's own average counts the same frames). presents_per_s_derived = frames per present x game FPS (with pacing off the layer records no present times). shown_fps_mean = frames per present x game_fps_mean: frames shown per second, generated frames included (what the 2x figure and an FPS counter show); headless at 240 Hz nothing was capped.",
  "default_model": {
   "3x": {
    "frames_per_present": 3,
@@ -100,7 +100,8 @@
       "presents_per_s_derived": 93.42,
       "shaders_replaced": 0
      }
-    ]
+    ],
+    "shown_fps_mean": 93.42
    },
    "freefg": {
     "n": 2,
@@ -133,7 +134,8 @@
       "presents_per_s_derived": 125.25,
       "shaders_replaced": 13
      }
-    ]
+    ],
+    "shown_fps_mean": 125.31
    },
    "gain_pct": 34.14,
    "gain_se_pct": 0.11,
@@ -174,7 +176,8 @@
       "presents_per_s_derived": 97.74,
       "shaders_replaced": 0
      }
-    ]
+    ],
+    "shown_fps_mean": 97.75
    },
    "freefg": {
     "n": 1,
@@ -209,7 +212,8 @@
       "presents_per_s_derived": 139.69,
       "shaders_replaced": 13
      }
-    ]
+    ],
+    "shown_fps_mean": 139.92
    },
    "gain_pct": 43.14,
    "gain_pct_with_excluded_runs": 43.13,

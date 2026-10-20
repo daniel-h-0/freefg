@@ -116,10 +116,12 @@ For speed, use `XeFGModel=default` with FreeFG: in Cyberpunk 2077 the game ran 2
 on MFG Unlocker's own model, because FreeFG's shaders then run the whole network. With `default`, the picture at 3×
 and 4× is unchecked (table above).
 
-![Cyberpunk 2077 game frame rate with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 31.14 FPS and FreeFG 1.0.0 41.77 FPS (+34.1%); at 4×, 24.44 and 34.98 FPS (+43.1%).](docs/assets/mfg-3x4x-fps.svg)
+![Cyberpunk 2077 frames shown per second with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 93.42 FPS and FreeFG 1.0.0 125.31 FPS (+34.1%); at 4×, 97.75 and 139.92 FPS (+43.1%).](docs/assets/mfg-3x4x-fps.svg)
 
-FreeFG against MFG Unlocker alone, both with `XeFGModel=default`. Headless at 240 Hz, pacing off, 1–2 runs per arm;
-same files in 1.0.1 ([details](packaging/public/MEASUREMENTS.md#3-and-4-with-mfg-unlocker)).
+FreeFG against MFG Unlocker alone, both with `XeFGModel=default`. Frames shown per second, generated frames
+included, as in the 2× figure; the game itself renders 31 and 42 FPS at 3×. Headless at 240 Hz, so nothing was capped;
+a 120 Hz display shows at most 120. Pacing off, 1–2 runs per arm; same files in 1.0.1
+([details](packaging/public/MEASUREMENTS.md#3-and-4-with-mfg-unlocker)).
 
 - With a game's own XeSS frame generation, FreeFG accelerates nothing while MFG Unlocker is loaded
   ([details](packaging/public/ARCHITECTURE.md#optiscalers-contexts-only)).

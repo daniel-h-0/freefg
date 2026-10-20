@@ -150,9 +150,10 @@ Results:
 - Every run at a fixed frame count had 3 or 4 frames per present as set, no `FAIL` line and no GPU error in the kernel
   log; the warm-ups were within 0.3% of the measured runs.
 
-![Cyberpunk 2077 game frame rate with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 31.14 FPS and FreeFG 1.0.0 41.77 FPS (+34.1%); at 4×, 24.44 and 34.98 FPS (+43.1%).](../../docs/assets/mfg-3x4x-fps.svg)
+![Cyberpunk 2077 frames shown per second with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 93.42 FPS and FreeFG 1.0.0 125.31 FPS (+34.1%); at 4×, 97.75 and 139.92 FPS (+43.1%).](../../docs/assets/mfg-3x4x-fps.svg)
 
-Headless at 240 Hz, SDR, pacing off; 2 runs per arm at 3×, 1 at 4×.
+Frames shown per second (frames per present × game FPS), as in the 2× figure. Headless at 240 Hz, SDR, pacing off;
+2 runs per arm at 3×, 1 at 4×.
 
 HDR10, FreeFG with `default`, one run each after a warm-up (MFG Unlocker alone was not run in HDR10, so there is no
 HDR10 gain):
