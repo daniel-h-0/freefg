@@ -105,20 +105,65 @@ def choose_upscaler(installer,text):
     if choice=='FSR 4':return ['--upscaler','fsr4']
     return ['--upscaler','helixsr'] if helixsr_ready(installer) else None
 
-def verdicts(installer,selected,route=None,fg_input=None):
+def verdicts(installer,selected,route=None,fg_input=None,accept_risk=()):
     """[(game, exe, compatibility verdict or None)] for every selected game (install.py compat_verdict: read only, no
-    network), for Automatic (route None) or the route and input chosen for the batch."""
+    network), for Automatic (route None) or the route and input chosen for the batch. accept_risk: the anti-cheat override,
+    only for the one game it was confirmed for (override_anticheat)."""
     out=[]
     for exe in selected:
-        try:found=installer.compat_verdict(ROOT,Path(exe).absolute(),route,fg_input)
+        try:found=installer.compat_verdict(ROOT,Path(exe).absolute(),route,fg_input,**({'accept_risk':list(accept_risk)} if accept_risk else {}))
         except Exception:found=None
         out.append((Path(exe).name,exe,found[0] if found else None))
     return out
 
 def soft_refusals(found_verdicts):
     """[(exe, code, line)]: every soft refusal of every game, one line each (a code shared by two games is listed and
-    accepted once per game, never for a game that was not listed)."""
-    return [(exe,r['code'],name+': '+r['text']+' '+r['way']) for name,exe,v in found_verdicts if v for r in v['blocking'] if r['kind']=='soft']
+    accepted once per game, never for a game that was not listed). Install anyway never lists a hard or risk refusal
+    (anti-cheat: Override anti-cheat refusal... in the menu), nor the soft ones of a game such a refusal keeps out."""
+    return [(exe,r['code'],name+': '+r['text']+' '+r['way']) for name,exe,v in found_verdicts
+            if v and not any(x['kind'] in ('hard','risk') for x in v['blocking']) for r in v['blocking'] if r['kind']=='soft']
+
+# Refusals that rest on detection alone (compat.refusals: no DirectX 12, no input): hard for Automatic, soft once the user
+# chooses the input. The override's first check leaves them to the input chosen in its Install dialogs.
+def detection_only(refusal):
+    return refusal['code'] in ('no-input','no-dx12') or refusal['code'].startswith('api-')
+
+def refused_for_another_reason(name,refusal,automatic=False):
+    """The error for a game the anti-cheat override cannot help: another refusal remains, with what to do about it."""
+    way=('If you know the game has what this check missed, choose its input instead of Automatic.' if automatic and detection_only(refusal)
+         else refusal['way'])
+    dialog('--error','--width=700','--text='+name+' is also refused for another reason: '+refusal['text']+' '+way+'\n\nNothing was installed.')
+
+# The anti-cheat override (install.py --accept-anticheat-risk): a menu entry of its own, never part of Install or Install
+# anyway. One game at a time; the warning's default button is Cancel; then the sentence must be typed exactly.
+RISK_ACTION='Override anti-cheat refusal...'
+def override_anticheat(installer,selected):
+    """(exe, the sentence as typed) for one selected game whose only refusal is its anti-cheat, once the user has read the
+    warning and typed the sentence; None when cancelled, on any mismatch, or when no selected game ships anti-cheat."""
+    if installer is None:
+        dialog('--error','--text=Setup cannot read install.py; use the command line (README.md).');return None
+    found=[(name,exe,v,installer.anticheat_names(v)) for name,exe,v in verdicts(installer,selected) if v and installer.anticheat_names(v)]
+    if not found:
+        dialog('--info','--width=560','--text=Check finds no anti-cheat in the selected games. Use Install.');return None
+    if len(found)>1:
+        rows=[x for _,exe,_,names in found for x in (str(exe),', '.join(names))]
+        choice=dialog('--list','--width=900','--height=360','--column=Game','--column=Anti-cheat',*rows,
+                      '--text=The override applies to one game at a time. Choose the game:')
+        found=[f for f in found if str(f[1])==choice]
+        if not found:return None
+    name,exe,verdict,names=found[0]
+    # Another hard refusal is shown before the warning. Soft ones are offered by the Install dialogs that follow (Install
+    # anyway), and detection's are left to the input chosen there (soft for an explicit input, refused for Automatic).
+    others=[r for r in verdict['blocking'] if r['kind']=='hard' and not detection_only(r)]
+    if others:
+        refused_for_another_reason(name,others[0]);return None
+    if dialog('--question','--default-cancel','--width=700','--ok-label=Continue','--cancel-label=Cancel',
+              '--text='+installer.anticheat_warning(name,names,NAME)+'\n\nContinue only if you accept that risk for this game.') is None:return None
+    typed=dialog('--entry','--width=700','--text=To install '+name+' anyway, type this sentence exactly (anything else cancels):\n\n'+installer.RISK_SENTENCE)
+    if typed is None:return None
+    if not installer.risk_confirmed(typed):
+        dialog('--info','--width=560','--text=The sentence does not match. Nothing was installed.');return None
+    return exe,typed.strip()
 
 def show_text(command,selected):
     """Run install.py command on the selected games and show its output (Check system, Check)."""
@@ -127,6 +172,54 @@ def show_text(command,selected):
         with output.open('w') as stream:subprocess.run([sys.executable,'-u',str(ROOT/'install.py'),*command,*map(str,selected)],stdout=stream,stderr=subprocess.STDOUT)
         dialog('--text-info','--width=1000','--height=600','--filename='+str(output))
 
+def install_choices(installer,games,risk=False):
+    """The Install dialogs for games (input, upscaler, steps, soft refusals, confirmation): the install.py arguments, or
+    None when the user goes back. risk: games is the one game the anti-cheat override was confirmed for."""
+    accept_risk=['anticheat'] if risk else []
+    # Each game's compatibility verdict (install.py check), so the input can be chosen per batch.
+    found_verdicts=verdicts(installer,games,accept_risk=accept_risk) if installer else []
+    lines=[name+': '+v['line'] for name,_,v in found_verdicts if v]
+    found='\n'.join(lines[:12]+([f'... and {len(lines)-12} more (Check lists every game)'] if len(lines)>12 else []))
+    if installer and not found:
+        try:found='\n'.join(Path(exe).name+': '+installer.detect_input(Path(exe))[2] for exe in games[:8])
+        except Exception:found=''
+    route=dialog('--list','--width=850','--height=420','--column=Route','--column=Use',
+        'Automatic per game','A verified recipe\'s input, else native XeSS FG where the game ships it, else OptiFG; refuses games that cannot work',
+        'OptiFG','Games without native FG: uses the upscaler input; may affect HUDs',
+        'DLSS FG','Games with supported DLSS FG (Streamline 2+)',
+        'FSR 3.1 FG','Games with native FSR 3.1 frame generation',
+        'FSR 3.0 FG','Games with native FSR 3.0 frame generation',
+        'Native XeSS FG','Games with native XeSS FG DLL beside the executable',
+        '--text=Choose the same input for these games, or Automatic. Prefer a native FG input when available.\nAll OptiScaler routes use XeFG output. '+('Frame generation defaults to 2×.' if MFG and len(FACTORS)>1 else 'Frame generation is 2×.')+' Per-game recipes verified on a BC-250 are applied (Automatic also takes their input); OptiScaler wiki notes are listed.'+('\n\nFound:\n'+found if found else ''))
+    source={'OptiFG':'upscaler','DLSS FG':'dlssg','FSR 3.1 FG':'fsrfg','FSR 3.0 FG':'fsrfg30'}
+    if not route:return None
+    extra=['--route','auto','--fg-input','auto'] if route.startswith('Automatic') else ['--route','native'] if route=='Native XeSS FG' else ['--route','opti','--fg-input',source[route]]
+    upscaler=choose_upscaler(installer,'Choose the upscaler for these games. Frame generation is XeFG with either. Upscaler switches it later.\n'+HELIXSR_ABOUT)
+    if not upscaler:return None
+    extra+=upscaler
+    # An explicit input changes the verdicts (the user's choice wins; refusals that rest on detection alone become
+    # soft): ask them again for that choice.
+    if installer and not route.startswith('Automatic'):
+        found_verdicts=verdicts(installer,games,'native' if route=='Native XeSS FG' else 'opti',source.get(route),accept_risk)
+    if risk:
+        # The override lifts the anti-cheat refusal only: a hard refusal for the input chosen still refuses the game.
+        hard=[(name,r) for name,_,v in found_verdicts if v for r in v['blocking'] if r['kind'] in ('hard','risk')]
+        if hard:
+            refused_for_another_reason(*hard[0],automatic=route.startswith('Automatic'));return None
+    # The steps a game needs from the user beyond choosing its upscaler, before anything is confirmed.
+    steps=''.join('\n\n'+name+':\n'+'\n'.join(f'  {n}. {s}' for n,s in enumerate(v['manual_steps'],1)) for name,_,v in found_verdicts
+                  if v and v['needs_step'] and not any(r['kind'] in ('hard','risk') for r in v['blocking']))
+    steps=('\n\nYour steps:'+steps) if steps else ''
+    # Soft refusals (a GE-Proton fix that leaves DirectX 12, the wiki's "not working") need an explicit yes.
+    soft=soft_refusals(found_verdicts)
+    if soft and dialog('--question','--width=760','--ok-label=Install anyway','--cancel-label=Skip those games',
+                       '--text=These games would be refused unless you accept:\n\n'+'\n'.join(line for _,_,line in soft)) is not None:
+        # Each accept names its game: install.py applies CODE=EXE to that executable only.
+        for exe,code,_ in soft:extra+=['--accept',code+'='+str(exe)]
+    override=('\n\nThe anti-cheat refusal is overridden for this game only, at the risk of a ban; Status and Check show it until Restore.' if risk else '')
+    if dialog('--question','--width=680','--text=Setup will configure '+NAME+' and each game’s launch settings.\nThe first installation downloads checked upstream files (FSR4 and Intel’s XeFG runtime);\na fresh OptiScaler setup also fetches OptiScaler and OptiPatcher, and NVIDIA’s DLSS helper only for a DLSS input\nwhere OptiScaler finds no copy of the game’s own.\nAfter installation, reopen your launcher and play normally.'+steps+override) is None:return None
+    return extra
+
 def main():
     if not shutil.which('zenity'):
         print('The desktop installer needs zenity. The command-line route is in README.md.',file=sys.stderr);return 1
@@ -134,7 +227,7 @@ def main():
     try:installer=load_installer()
     except Exception:installer=None
     while True:
-        action=dialog('--list','--width=740','--height=400','--column=Action','--column=Description',
+        action=dialog('--list','--width=740','--height=420','--column=Action','--column=Description',
             'Add games','Choose actual game .exe files; repeat to add another folder',
             'Install','Install '+NAME+' into selected games',
             # A 2×-only package (no 3×/4×, no generated-frame scaling) has nothing for Settings to change.
@@ -144,6 +237,7 @@ def main():
             'Status','Check installed files and the last acceleration log',
             'Check','Compatibility of each selected game: what Install would do, or why it refuses (changes nothing)',
             'Check system','Driver, gamescope, Proton and memory checks for this BC-250 (changes nothing)',
+            RISK_ACTION,'Install into one selected game that ships anti-cheat, at the risk of an account ban (asks you to confirm)',
             'Clear','Clear the selection',
             '--text='+('Selected:\n'+'\n'.join(str(p) for p in selected) if selected else 'Frame generation for DirectX 12 games under Proton on the AMD BC-250. Add games to begin.'))
         if action is None:return 0  # Cancel or the window closed: leave Setup
@@ -159,7 +253,8 @@ def main():
         if not selected:dialog('--info','--text=Add games first.');continue
         # Check prints each game's verdict and the redacted report a game report issue asks for (CONTRIBUTING.md).
         if action=='Check':show_text(['check','--report'],selected);continue
-        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure'}[action];extra=[]
+        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure',RISK_ACTION:'install'}[action]
+        extra=[];games=selected
         if action=='Upscaler':
             extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed):\n'+HELIXSR_ABOUT)
             if not extra:continue
@@ -183,47 +278,21 @@ def main():
             if down!='Keep current':extra+=['--downscale',down.lower()]
             if up!='Keep current':extra+=['--upscale','fsr1' if up=='FSR1 (EASU)' else up.lower()]
         if action=='Install':
-            # Each selected game's compatibility verdict (install.py check), so the input can be chosen per batch.
-            found_verdicts=verdicts(installer,selected) if installer else []
-            lines=[name+': '+v['line'] for name,_,v in found_verdicts if v]
-            found='\n'.join(lines[:12]+([f'... and {len(lines)-12} more (Check lists every game)'] if len(lines)>12 else []))
-            if installer and not found:
-                try:found='\n'.join(Path(exe).name+': '+installer.detect_input(Path(exe))[2] for exe in selected[:8])
-                except Exception:found=''
-            route=dialog('--list','--width=850','--height=420','--column=Route','--column=Use',
-                'Automatic per game','A verified recipe\'s input, else native XeSS FG where the game ships it, else OptiFG; refuses games that cannot work',
-                'OptiFG','Games without native FG: uses the upscaler input; may affect HUDs',
-                'DLSS FG','Games with supported DLSS FG (Streamline 2+)',
-                'FSR 3.1 FG','Games with native FSR 3.1 frame generation',
-                'FSR 3.0 FG','Games with native FSR 3.0 frame generation',
-                'Native XeSS FG','Games with native XeSS FG DLL beside the executable',
-                '--text=Choose the same input for these games, or Automatic. Prefer a native FG input when available.\nAll OptiScaler routes use XeFG output. '+('Frame generation defaults to 2×.' if MFG and len(FACTORS)>1 else 'Frame generation is 2×.')+' Per-game recipes verified on a BC-250 are applied (Automatic also takes their input); OptiScaler wiki notes are listed.'+('\n\nFound:\n'+found if found else ''))
-            source={'OptiFG':'upscaler','DLSS FG':'dlssg','FSR 3.1 FG':'fsrfg','FSR 3.0 FG':'fsrfg30'}
-            if not route:continue
-            extra=['--route','auto','--fg-input','auto'] if route.startswith('Automatic') else ['--route','native'] if route=='Native XeSS FG' else ['--route','opti','--fg-input',source[route]]
-            upscaler=choose_upscaler(installer,'Choose the upscaler for these games. Frame generation is XeFG with either. Upscaler switches it later.\n'+HELIXSR_ABOUT)
-            if not upscaler:continue
-            extra+=upscaler
-            # An explicit input changes the verdicts (the user's choice wins; refusals that rest on detection alone become
-            # soft): ask them again for that choice.
-            if installer and not route.startswith('Automatic'):
-                found_verdicts=verdicts(installer,selected,'native' if route=='Native XeSS FG' else 'opti',source.get(route))
-            # The steps a game needs from the user beyond choosing its upscaler, before anything is confirmed.
-            steps=''.join('\n\n'+name+':\n'+'\n'.join(f'  {n}. {s}' for n,s in enumerate(v['manual_steps'],1)) for name,_,v in found_verdicts
-                          if v and v['needs_step'] and not any(r['kind']=='hard' for r in v['blocking']))
-            steps=('\n\nYour steps:'+steps) if steps else ''
-            # Soft refusals (a GE-Proton fix that leaves DirectX 12, the wiki's "not working") need an explicit yes.
-            soft=soft_refusals(found_verdicts)
-            if soft and dialog('--question','--width=760','--ok-label=Install anyway','--cancel-label=Skip those games',
-                               '--text=These games would be refused unless you accept:\n\n'+'\n'.join(line for _,_,line in soft)) is not None:
-                # Each accept names its game: install.py applies CODE=EXE to that executable only.
-                for exe,code,_ in soft:extra+=['--accept',code+'='+str(exe)]
-            if dialog('--question','--width=680','--text=Setup will configure '+NAME+' and each game’s launch settings.\nThe first installation downloads checked upstream files (FSR4 and Intel’s XeFG runtime);\na fresh OptiScaler setup also fetches OptiScaler and OptiPatcher, and NVIDIA’s DLSS helper only for a DLSS input\nwhere OptiScaler finds no copy of the game’s own.\nAfter installation, reopen your launcher and play normally.'+steps) is None:continue
-        if command!='status' and not wait_closed(installer,selected,command in ['install','restore']):continue
+            extra=install_choices(installer,games)
+            if extra is None:continue
+        if action==RISK_ACTION:
+            # Only the one game the user confirmed: install.py repeats the check and the sentence (CODE=EXE scoping).
+            picked=override_anticheat(installer,selected)
+            if not picked:continue
+            games=[picked[0]]
+            extra=install_choices(installer,games,risk=True)
+            if extra is None:continue
+            extra+=['--accept-anticheat-risk='+str(picked[0]),'--confirm-anticheat-risk',picked[1]]
+        if command!='status' and not wait_closed(installer,games,command in ['install','restore']):continue
         with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
             output=Path(temporary)/'result.txt'
             with output.open('w') as stream:
-                process=subprocess.Popen([sys.executable,'-u',str(ROOT/'install.py'),command,*map(str,selected),*extra],stdout=stream,stderr=subprocess.STDOUT)
+                process=subprocess.Popen([sys.executable,'-u',str(ROOT/'install.py'),command,*map(str,games),*extra],stdout=stream,stderr=subprocess.STDOUT)
                 progress=subprocess.Popen(['zenity','--progress','--pulsate','--no-cancel','--auto-close','--title='+NAME,'--text=Working. First setup may download dependencies.'],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
                 result=process.wait()
                 try:progress.communicate(b'100\n',timeout=10)

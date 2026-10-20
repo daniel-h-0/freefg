@@ -4,7 +4,7 @@ Steam library: refusals before any download or write, keys from promoted wiki it
 applied and restored exactly, a soft refusal accepted, verified recipes installed exactly as without the verdict, a
 community recipe's game setting applied and restored, Check writing nothing and naming every refusal Install would
 make for the game folder's state, and Automatic taking the verdict's input, with accepts given per game."""
-import contextlib, hashlib, io, json, re, sys, unittest
+import contextlib, hashlib, io, json, os, re, sys, unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -377,3 +377,259 @@ class FolderStateTests(CompatFixture):
                    'Unknown integration route', 'Unknown DLSS helper', 'Unknown upscaler', 'Choose the actual game', 'This installer installs only',
                    'Unknown add-on entry', 'Package lacks', 'install.py and dependencies.json', 'Package file differs')
         self.assertEqual([r for r in refusals if not any(c.startswith(r) or r in c or c in r for c in covered)], [])
+
+
+SENTENCE = 'I accept that my account may be banned'
+
+
+class AntiCheatOverrideTests(CompatFixture):
+    """The anti-cheat override (install.py --accept-anticheat-risk): refused without it whatever is accepted; with it,
+    installed and recorded, shown by Status and Check, cleared by Restore and asked for again by the next Install; on the
+    command line only after the warning and the typed sentence, and only for the game it names."""
+
+    def setUp(self):
+        super().setUp()
+        anticheat = self.game.parents[2]/'EasyAntiCheat/EasyAntiCheat_x64.dll'
+        write(anticheat.parent, {anticheat.name: b'x'})
+
+    def output(self, function, *args, **kwargs):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            function(*args, **kwargs)
+        return out.getvalue()
+
+    def main(self, *argv, typed=None, tty=True):
+        """main() with install() replaced: (exit status, [(exe name, accept_risk, accept, verdict)], stdout, stderr). typed is
+        what the user types at the terminal (None: asking at all fails the test)."""
+        calls, out, err = [], io.StringIO(), io.StringIO()
+
+        def ask(prompt=''):
+            if typed is None:
+                raise AssertionError('asked for the sentence')
+            if isinstance(typed, BaseException):
+                raise typed
+            return typed
+        with patch.object(m, 'install', side_effect=lambda *a, **k: calls.append((a[1].name, k['accept_risk'], k['accept'], k['verdict']))), \
+             patch.object(m, 'terminal', return_value=tty), patch('builtins.input', side_effect=ask), \
+             patch.object(sys, 'argv', ['install.py', *map(str, argv)]), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = m.main()
+        self.assertNotIn('Unexpected error', err.getvalue())
+        return code, calls, out.getvalue(), err.getvalue()
+
+    def test_the_installer_offers_what_setup_calls(self):
+        for name in ('RISK_SENTENCE', 'risk_confirmed', 'anticheat_names', 'anticheat_warning', 'compat_verdict'):
+            self.assertTrue(hasattr(m, name), name)
+        self.assertTrue(m.risk_confirmed('  ' + SENTENCE + ' '))
+        for wrong in ('', 'yes', SENTENCE.lower(), SENTENCE + '.', 'I accept', None):
+            self.assertFalse(m.risk_confirmed(wrong), wrong)
+
+    def test_refused_whatever_is_accepted(self):
+        before = self.snapshot()
+        for accept in ([], ['anticheat'], ['anticheat', 'protonfix-api', 'wiki-not-working', 'no-input', 'input-unconfirmed']):
+            with self.assertRaisesRegex(ValueError, r'--accept-anticheat-risk.*\[anticheat\]'):
+                m.install(self.package, self.exe, route='opti', fg_input='upscaler', accept=accept)
+        err = io.StringIO()
+        with patch.object(sys, 'argv', ['install.py', 'install', str(self.exe), '--accept', 'anticheat']), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            self.assertEqual(m.main(), 1)
+        self.assertIn('[anticheat]', err.getvalue())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_override_recorded_shown_and_cleared_by_restore(self):
+        before = self.snapshot()
+        preview = self.output(m.install, self.package, self.exe, preview=True, route='opti', fg_input='upscaler', accept_risk=['anticheat'])
+        self.assertIn('Anti-cheat refusal overridden at your request (risk accepted): This game ships anti-cheat: Easy Anti-Cheat', preview)
+        self.assertEqual(self.snapshot(), before)
+        out = self.output(m.install, self.package, self.exe, route='opti', fg_input='upscaler', accept_risk=['anticheat'])
+        self.assertIn('Anti-cheat refusal overridden at your request (risk accepted)', out)
+        [entry] = self.record()['risk_accepted']
+        self.assertEqual({k: entry[k] for k in ('code', 'anticheat', 'package')},
+                         dict(code='anticheat', anticheat=['Easy Anti-Cheat'], package='bc250-fsr4-xemfg-private-test-99'))
+        self.assertRegex(entry['accepted_at'], r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$')
+        self.assertEqual(self.record()['compat']['accepted'], [])
+        line = f'Installed despite anti-cheat (Easy Anti-Cheat), risk accepted on {entry["accepted_at"][:10]}.'
+        self.assertIn(line, self.output(m.status, self.exe).splitlines())
+        check = self.output(m.check, self.package, self.exe)
+        self.assertIn(line, check.splitlines())
+        # Check says what a new Install would meet: the refusal, with the override named.
+        self.assertTrue(check.startswith('Not supported: This game ships anti-cheat'))
+        self.assertIn('[anticheat, risk, refused]', check)
+        with patch('doctor.checks', return_value=[]):
+            report = self.output(m.check, self.package, self.exe, report=True)
+        self.assertIn('- ' + line, report[report.index('### Game report'):])
+        restored = self.output(m.restore, self.exe)
+        self.assertIn('The anti-cheat override ended with this installation', restored)
+        self.assertOriginal()
+        self.assertNotIn('risk_accepted', self.record())
+        self.assertNotIn('Installed despite', self.output(m.status, self.exe))
+        self.assertNotIn('Installed despite', self.output(m.check, self.package, self.exe))
+        # Not carried: the next Install is refused again until the override is given again.
+        with self.assertRaisesRegex(ValueError, r'\[anticheat\]'):
+            m.install(self.package, self.exe, route='opti', fg_input='upscaler')
+        self.output(m.install, self.package, self.exe, route='opti', fg_input='upscaler', accept_risk=['anticheat'])
+        self.assertEqual(len(self.record()['risk_accepted']), 1)
+        self.output(m.restore, self.exe)
+        self.assertOriginal()
+
+    def test_a_game_without_anticheat_records_nothing(self):
+        (self.game.parents[2]/'EasyAntiCheat/EasyAntiCheat_x64.dll').unlink()
+        (self.game.parents[2]/'EasyAntiCheat').rmdir()  # the folder alone is anti-cheat evidence too
+        self.output(m.install, self.package, self.exe, route='opti', fg_input='upscaler', accept_risk=['anticheat'])
+        self.assertNotIn('risk_accepted', self.record())
+        self.assertNotIn('anti-cheat', self.output(m.status, self.exe))
+        self.output(m.restore, self.exe)
+        self.assertOriginal()
+
+    def test_command_line_at_a_terminal(self):
+        code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk', typed=SENTENCE)
+        self.assertEqual(code, 0, err)
+        [(name, risk, accept, verdict)] = calls
+        self.assertEqual((name, risk, accept), ('Hero-Win64-Shipping.exe', ['anticheat'], []))
+        # Automatic: install() gets the verdict with the override applied.
+        self.assertEqual((verdict['blocking'], verdict['risk_accepted']), ([], ['anticheat']))
+        for fact in ('Hero-Win64-Shipping.exe ships anti-cheat: Easy Anti-Cheat.', 'This build loads DLLs into the game process',
+                     'a ban of your account or a refusal to start the game', 'does not hide itself from anti-cheat and will not try to',
+                     'at most in offline or single-player modes; the anti-cheat can run in those modes too',
+                     'The maintainers cannot help with bans.',
+                     'Restore removes the DLLs and launch settings this build added; its backup folder .bc250-xefg-experimental',
+                     'Restore cannot undo a ban.', 'type this sentence exactly', SENTENCE):
+            self.assertIn(fact, out)
+        self.assertLess(out.index('ships anti-cheat'), out.index('type this sentence exactly'))
+        # Blanks around the sentence are allowed; anything else cancels before install() is called.
+        self.assertEqual(self.main('install', self.exe, '--accept-anticheat-risk', typed='  ' + SENTENCE + '  ')[:2][0], 0)
+        for wrong in ('', 'yes', SENTENCE.lower(), SENTENCE + '.'):
+            code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk', typed=wrong)
+            self.assertEqual((code, calls), (1, []), wrong)
+            self.assertIn('does not match the sentence', err)
+        # An explicit input: install() makes the verdict itself, with the override.
+        code, calls, out, err = self.main('preview', self.exe, '--route', 'opti', '--fg-input', 'upscaler', '--accept-anticheat-risk', typed=SENTENCE)
+        self.assertEqual((code, [c[:3] for c in calls], calls[0][3]), (0, [('Hero-Win64-Shipping.exe', ['anticheat'], [])], None))
+
+    def test_command_line_without_a_terminal_needs_the_sentence_spelled_out(self):
+        code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk', tty=False)
+        self.assertEqual((code, calls), (1, []))
+        self.assertIn('--confirm-anticheat-risk "' + SENTENCE + '"', err)
+        self.assertIn('ships anti-cheat: Easy Anti-Cheat', out)  # the warning comes first either way
+        code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk', '--confirm-anticheat-risk', 'I accept', tty=False)
+        self.assertEqual((code, calls), (1, []))
+        self.assertIn('does not match the sentence', err)
+        # Without a terminal, the sentence given on the command line confirms it.
+        code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk=' + str(self.exe), '--confirm-anticheat-risk', SENTENCE, tty=False)
+        self.assertEqual((code, [c[:2] for c in calls]), (0, [('Hero-Win64-Shipping.exe', ['anticheat'])]))
+        self.assertNotIn('type this sentence', out)
+        # At a terminal it is typed all the same: a pasted command with the sentence does not skip the prompt.
+        for typed, result in ((SENTENCE, (0, [('Hero-Win64-Shipping.exe', ['anticheat'])])), ('', (1, []))):
+            code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk', '--confirm-anticheat-risk', SENTENCE, typed=typed)
+            self.assertEqual((code, [c[:2] for c in calls]), result, typed)
+            self.assertIn('At a terminal the sentence is typed', out)
+            self.assertIn('type this sentence exactly', out)
+
+    def test_command_line_scopes_the_override_to_one_game(self):
+        other = self.root/'Other/Other.exe'
+        m.write(other, self.exe.read_bytes())
+        both = ['install', self.exe, other]
+        code, calls, out, err = self.main(*both, '--accept-anticheat-risk=' + str(self.exe), '--confirm-anticheat-risk', SENTENCE, tty=False)
+        self.assertEqual((code, [c[:2] for c in calls]), (0, [('Hero-Win64-Shipping.exe', ['anticheat']), ('Other.exe', [])]))
+        # A game without anti-cheat: the override changes nothing there.
+        code, calls, out, err = self.main('install', other, '--accept-anticheat-risk', '--confirm-anticheat-risk', SENTENCE, tty=False)
+        self.assertEqual((code, [c[:2] for c in calls]), (0, [('Other.exe', [])]))
+        self.assertIn('No anti-cheat found in this game', out)
+        # Refused before any game is touched: a bare option for two games, a game the command does not name, the option
+        # swallowing the only game, the confirmation alone, another command.
+        for argv in ([*both, '--accept-anticheat-risk', '--confirm-anticheat-risk', SENTENCE],
+                     ['install', other, '--accept-anticheat-risk=' + str(self.exe), '--confirm-anticheat-risk', SENTENCE],
+                     ['install', '--accept-anticheat-risk', self.exe],
+                     ['install', self.exe, '--confirm-anticheat-risk', SENTENCE],
+                     ['check', self.exe, '--accept-anticheat-risk'], ['restore', self.exe, '--accept-anticheat-risk']):
+            with self.assertRaises(SystemExit) as stopped:
+                self.main(*argv, tty=False)
+            self.assertEqual(stopped.exception.code, 2, argv)
+
+    def test_another_refusal_comes_first_without_asking(self):
+        self.set_options('PROTON_FSR4_UPGRADE=1 %command%')
+        code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk')
+        self.assertEqual((code, calls), (1, []))
+        self.assertIn('[ge-optiscaler]', err)
+        self.assertNotIn('type this sentence', out)
+
+    def test_terminal_needs_both_stdin_and_stdout(self):
+        class Stream(io.StringIO):
+            def __init__(self, tty):
+                super().__init__()
+                self.tty = tty
+
+            def isatty(self):
+                return self.tty
+        for stdin, stdout in ((True, True), (True, False), (False, True), (False, False)):
+            with patch.object(sys, 'stdin', Stream(stdin)), patch.object(sys, 'stdout', Stream(stdout)):
+                self.assertEqual(m.terminal(), stdin and stdout, (stdin, stdout))
+
+    def test_end_of_input_or_ctrl_c_at_the_prompt_cancels(self):
+        for stop in (EOFError(), KeyboardInterrupt()):
+            code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk', typed=stop)
+            self.assertEqual((code, calls), (1, []), stop)
+            self.assertIn('Anti-cheat override cancelled', err)
+            self.assertNotIn('Traceback', err)
+
+    def test_a_running_game_is_named_before_the_sentence(self):
+        with patch.object(m, 'idle', side_effect=ValueError('Close the game before installing or restoring')):
+            code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk')  # typed=None: asking fails
+        self.assertEqual((code, calls), (1, []))
+        self.assertIn('Close the game', err)
+        self.assertNotIn('ships anti-cheat', out)
+
+    def test_without_a_compatibility_check_the_override_is_refused(self):
+        # compat_verdict None: the modules are missing or the scan failed, so nothing says whether the game ships anti-cheat.
+        with patch.object(m, 'compat_verdict', return_value=None):
+            code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk', '--confirm-anticheat-risk', SENTENCE, tty=False)
+        self.assertEqual((code, calls), (1, []))
+        self.assertIn('the compatibility check did not run, so anti-cheat was not checked', err)
+        self.assertNotIn('No anti-cheat found', out)
+
+    def test_the_option_without_a_game_says_where_the_game_goes(self):
+        err = io.StringIO()
+        with patch.object(sys, 'argv', ['install.py', 'install', '--accept-anticheat-risk', str(self.exe)]), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err), self.assertRaises(SystemExit):
+            m.main()
+        self.assertIn('name the game before the option: install.py install GAME.exe --accept-anticheat-risk[=GAME.exe]', err.getvalue())
+
+    def test_settings_keep_the_override_and_an_interrupted_one_shows(self):
+        self.output(m.install, self.package, self.exe, route='opti', fg_input='upscaler', accept_risk=['anticheat'])
+        entry = self.record()['risk_accepted']
+        # Settings rewrite the record of the same installation: the override stays, and Status still shows it.
+        self.output(m.configure, self.exe, factor=3)
+        self.assertEqual(self.record()['risk_accepted'], entry)
+        line = f'Installed despite anti-cheat (Easy Anti-Cheat), risk accepted on {entry[0]["accepted_at"][:10]}.'
+        self.assertIn(line, self.output(m.status, self.exe).splitlines())
+        # check --all names it beside the verdict, which stays the refusal.
+        with patch('gamescan.installed_games', return_value=[dict(path=str(self.steam/'steamapps/common/Hero'), name='Hero', store='steam', id='4242')]):
+            listing = self.output(m.check_all, self.package, home=self.root)
+        self.assertIn('Hero [steam 4242]: Not supported: This game ships anti-cheat', listing)
+        self.assertIn(line, listing)
+        # An interrupted installation (its DLLs may be in place) shows it too, and Restore clears it.
+        record = self.record()
+        record['status'] = 'prepared'
+        m.write(self.game/m.STATE/'state.json', json.dumps(record).encode())
+        interrupted = 'Interrupted installation despite anti-cheat (Easy Anti-Cheat), risk accepted on ' + entry[0]['accepted_at'][:10] + '.'
+        self.assertIn(interrupted, self.output(m.status, self.exe).splitlines())
+        self.assertIn(interrupted, self.output(m.check, self.package, self.exe).splitlines())
+        self.assertIn('The anti-cheat override ended with this installation', self.output(m.restore, self.exe))
+        self.assertNotIn('risk_accepted', self.record())
+        self.assertOriginal()
+
+    def test_the_upscaler_switch_keeps_the_override(self):
+        from test_helixsr_install import add_pins, built, make_release
+        cache = patch.dict(os.environ, {'XDG_CACHE_HOME': str(self.root/'cache')})
+        cache.start()
+        self.addCleanup(cache.stop)
+        add_pins(self.package)
+        make_release(self.root/'HelixSR-2.0.0', built())
+        self.output(m.install, self.package, self.exe, route='opti', fg_input='upscaler', accept_risk=['anticheat'])
+        entry = self.record()['risk_accepted']
+        self.output(m.configure, self.exe, upscaler='helixsr', package=self.package)
+        self.assertEqual((self.record()['upscaler']['name'], self.record()['risk_accepted']), ('helixsr', entry))
+        self.assertIn(f'Installed despite anti-cheat (Easy Anti-Cheat), risk accepted on {entry[0]["accepted_at"][:10]}.',
+                      self.output(m.status, self.exe).splitlines())
+        self.output(m.restore, self.exe)
+        self.assertNotIn('risk_accepted', self.record())
+        self.assertOriginal()

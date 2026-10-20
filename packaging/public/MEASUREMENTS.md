@@ -5,9 +5,11 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 ## Scope
 
 - One AMD BC-250 ([test system](#test-system)).
-- Every measurement is at 2× with 0.9.0, the 2×-only pre-release. 1.0.0 keeps its pacing layer and 28 shaders for 2×
-  and adds five multi-frame shaders, with a proxy built from the same source with the multi-frame code compiled in. The
-  measurements were not repeated with 1.0.0, which had the shorter [checks](#checks-of-100), including 3× and 4×.
+- Most measurements are at 2× with 0.9.0, the 2×-only pre-release. 1.0.0 keeps its pacing layer and 28 shaders for 2×
+  and adds five multi-frame shaders, with a proxy built from the same source with the multi-frame code compiled in.
+  1.0.0 had the shorter [checks](#checks-of-100), then two same-day blocks: [against 0.9.0 at
+  2×](#100-against-090-at-2-same-day) and [at 3× and 4× with MFG Unlocker](#3-and-4-with-mfg-unlocker).
+- 1.0.1 ships the same proxy, pacing layer, shader profile and OptiScaler as 1.0.0; 1.0.0's measurements apply to it.
 - Most runs are headless; one campaign ran [on a TV with VRR](#on-a-tv-with-vrr). Headless and TV figures are not
   comparable. Some comparisons cross two days, as marked.
 - Each figure is drawn from `docs/data/<figure>/data.json` in the repository (with its `plot.py`), which names its
@@ -20,10 +22,13 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 
 | Component | Version | SHA-256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (measured) | 0.9.0 | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
-| `libxess_fg.dll` (released) | 1.0.0 | `77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7` |
-| Pacing layer `libxefg_wave.so` | 0.9.0 and 1.0.0 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
+| `libxess_fg.dll` | 0.9.0 | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
+| `libxess_fg.dll` | 1.0.0 and 1.0.1 | `77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7` |
+| Pacing layer `libxefg_wave.so` | 0.9.0, 1.0.0 and 1.0.1 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
+| `OptiScaler.dll` | 0.9.0 | `244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d` |
+| `OptiScaler.dll` | 1.0.0 and 1.0.1 | `5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6` |
 | Intel's XeFG runtime, unmodified | 1.3.1.78 | `ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27` |
+| MFG Unlocker `MFGUnlocker.dll`, not shipped | 1.6.0 | `161b9e1245a3736dc462ee83f4ad51e6125d8e7e73ce3eedde89d2eed60c69fa` |
 
 ## Test system
 
@@ -31,7 +36,7 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 | --- | --- |
 | Hardware | AMD BC-250 (Cyan Skillfish APU), GPU clock limit 1850 MHz, 6 GiB GTT (`ttm.pages_limit=1572864`) |
 | Software | CachyOS, kernel `linux-cachyos-bc250` 7.2.8; Mesa 26.2.2 RADV, a BC-250 build with the compute queue enabled; GE-Proton 11-7 through umu-launcher; gamescope 3.16.28; Python 3.14 for the installer |
-| Headless runs | `gamescope --backend headless`, 2560×1440 at a fixed 120 Hz, no VRR |
+| Headless runs | `gamescope --backend headless`, 2560×1440 at a fixed 120 Hz (240 Hz for [3× and 4×](#3-and-4-with-mfg-unlocker)), no VRR |
 | TV runs | LG G5 OLED TV at 2560×1440 and 120 Hz with VRR (range 40–165 Hz), through a DisplayPort-to-HDMI adapter, in Steam Game Mode (gamescope outputs HDR10) |
 
 ## Checks of 1.0.0
@@ -45,18 +50,133 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 | Installer | Unit tests pass; an offline install and Restore return a throwaway game folder to its original files. |
 | Wine loader check, no GPU | Loads and forwards to Intel's runtime; refuses a missing or altered runtime. With a stand-in module hooking eight of Intel's entry points, each call reaches it once with the caller it would see without FreeFG; only OptiScaler's contexts are accelerated (also a unit test). |
 | Synthetic scenes, 2× | Generated images bit-identical to 0.9.0's (which match Intel's shaders where compared, [below](#generated-images-bit-identical)) in SDR 1440p, HDR10 1440p with pixel motion vectors and SDR 4K, five images each. Coefficient buffers verified; 2 frames per present. |
-| Echo Point Nova (Steam, OptiScaler's frame generation) | 2×: accelerated, 2 frames per present. MFG Unlocker v1.6.0 with `XeFGModel=default`: 4× at 4 and 3× at 3 frames per present on FreeFG's shaders; one of two 3× starts ended during start-up with no error in any log, and the next start worked. MFG Unlocker's own model: 3× at 3, accelerated. HelixSR 2.0.0: its network ran, 2× accelerated at 2; OptiScaler's FSR 4 settings left its DLL alone; switching back to FSR 4 worked. |
-| Cyberpunk 2077 (GOG through Heroic, the game's own XeSS FG), headless | Benchmark accelerated, 2.0 presents per game frame, 102.08 FPS: one run, not compared on the same day (0.9.0: 103.28 FPS on 16 October). |
+| Echo Point Nova (Steam, OptiScaler's frame generation) | 2×: accelerated, 2 frames per present. MFG Unlocker v1.6.0 with `XeFGModel=default`: 4× at 4 and 3× at 3 frames per present on FreeFG's shaders; one of two 3× starts ended during start-up with no error in any log, and the next start worked ([later starts](#start-up-exits-at-3)). MFG Unlocker's own model: 3× at 3, accelerated. HelixSR 2.0.0: its network ran, 2× accelerated at 2; OptiScaler's FSR 4 settings left its DLL alone; switching back to FSR 4 worked. |
+| Cyberpunk 2077 (GOG through Heroic, the game's own XeSS FG), headless | Benchmark accelerated, 2.0 presents per game frame, 102.08 FPS: one run, not compared on the same day (0.9.0: 103.28 FPS on 16 October). A later same-day comparison found no measurable difference ([below](#100-against-090-at-2-same-day)). |
 | Restore | Both game folders exactly as they were. |
 | CONTROL Resonant (DLSS FG input), this release's OptiScaler | 32 of 32 starts reached the game; 2 presents per game frame in the 12 starts measured. |
 
 Echo Point Nova was installed by this build's installer; its OptiScaler DLL was then replaced by hand with the one the
 1.0.0 package ships.
 
-Not covered: same-day speed comparisons (1.0.0 against 0.9.0 at 2×; FreeFG against MFG Unlocker alone at 3× and 4×);
-3× and 4× on a VRR display, in HDR10 and in their picture; changing the frame count while a game runs, and OptiScaler's
-Dynamic MFG; a game's own XeSS frame generation beside MFG Unlocker; games without a recipe; Flatpak Steam or Heroic;
-gameplay and longer play sessions; pixel comparisons in games.
+Speed and further 3× and 4× checks: the two sections below.
+
+Not covered: 3× and 4× on a VRR display and in their picture; changing the frame count in OptiScaler's menu while a game
+runs; a game's own XeSS frame generation beside MFG Unlocker; games without a recipe; Flatpak Steam or Heroic; gameplay
+and longer play sessions; pixel comparisons in games.
+
+## 1.0.0 against 0.9.0 at 2×, same day
+
+Setup:
+
+- The Cyberpunk 2077 benchmark of [Frame rate](#frame-rate-cyberpunk-2077): headless, 2560×1440 SDR, FSR 4 Performance,
+  the game's native XeSS frame generation at 2×, pacing layer on; 2026-10-20.
+- Four arms (table). Each had one discarded warm-up start, then 4 runs in mirrored order (`A B B1 C C B1 B A`, twice).
+  The rules were fixed before the first run: a run more than 1.0% from its arm's median is an outlier; between arms
+  that differ in one component (B against A, A against C, B1 against B), a difference over 0.35% is a finding. B
+  against C and B1 against C are summary lines, without that threshold.
+- All 20 runs valid: 2.000 presents per game frame, accelerated, no `FAIL` line, no GPU error in the kernel log. No
+  outliers.
+
+| Arm | Proxy and shader profile | OptiScaler | `OptiScaler.ini` | FPS (presented), mean ± SD (n = 4) |
+| --- | --- | --- | --- | --- |
+| C | 0.9.0 | 0.9.0 | as 0.9.0 and 1.0.0 write it into an existing OptiScaler setup | 103.17 ± 0.20 |
+| A | 0.9.0 | 1.0.0 | the same | 102.86 ± 0.37 |
+| B | 1.0.0 | 1.0.0 | the same | 103.05 ± 0.11 |
+| B1 | 1.0.0 | 1.0.0 | as 1.0.0 writes it into a fresh setup (`LoadAsiPlugins=true`: OptiPatcher loaded) | 102.71 ± 0.49 |
+
+| Comparison | What differs | Difference (SE) |
+| --- | --- | --- |
+| B against C | 1.0.0 against 0.9.0 | −0.12% (0.11) |
+| B against A | proxy and shader profile | +0.19% (0.19) |
+| A against C | OptiScaler | −0.31% (0.20) |
+| B1 against B | OptiPatcher loaded | −0.33% (0.24) |
+| B1 against C | a fresh 1.0.0 setup against 0.9.0 | −0.45% (0.25) |
+
+Results:
+
+- In an existing OptiScaler setup, no measurable difference between 1.0.0 and 0.9.0 at 2× (−0.12%, SE 0.11), nor from
+  the new proxy and shader profile alone (+0.19%, SE 0.19).
+- The rebased OptiScaler and OptiPatcher loading are each about −0.3%, under the 0.35% threshold; most of each arm's
+  spread comes from one low run (A 102.31, B1 102.02 FPS).
+- A fresh 1.0.0 setup, which loads OptiPatcher, is −0.45% (SE 0.25) against 0.9.0: over 0.35% as a point estimate,
+  under two standard errors. It is the sum of the three single changes (−0.31%, −0.33%, +0.19%), each under the
+  threshold.
+- 0.9.0 ran at 103.17 FPS, as in its [earlier series](#frame-rate-cyberpunk-2077) (103.28). The single 1.0.0 run of the
+  [checks](#checks-of-100), about 1% lower on another day, did not repeat.
+
+Not covered: HDR10; the OptiFG route; a display; other games.
+
+## 3× and 4× with MFG Unlocker
+
+Setup:
+
+- The Cyberpunk 2077 benchmark, headless, 2560×1440, FSR 4 Performance, on OptiScaler's frame generation (OptiFG) with
+  the game's own frame generation off; 2026-10-20.
+- 1.0.0's files as its installer writes them, plus MFG Unlocker v1.6.0 as in
+  [README.md](README.md#3-and-4-with-mfg-unlocker), at 3× or 4×, with `XeFGModel=default` and without it (MFG
+  Unlocker's own model).
+- FreeFG, accelerated beside MFG Unlocker, against MFG Unlocker alone: the same files with `BC250_XEFG_DISABLE=1`, so
+  the proxy only forwards. The network then runs on Intel's shaders, except the five programs MFG Unlocker's own model
+  replaces.
+- The headless output ran at 240 Hz, so no arm reached the refresh limit (at most 140 presents per second; at 120 Hz, 3×
+  and 4× are capped by the refresh rate).
+- Pacing layer off (`BC250_XEFG_PACE=0`) in every run, by a rule fixed beforehand: in a check run, the paced 3× arms'
+  release intervals differed by more than 10%, following their present rates. One paced run per arm at 3× gave the
+  same gain (+33.9%).
+- Per model, one discarded warm-up start per arm, then 2 runs per arm in mirrored order. Game FPS counts real frames
+  (the benchmark's frames over its duration).
+- Excluded by the same rules: 3 of the 16 timed runs, all at 4×, during which another process used 28–61% of a CPU
+  core. With them, the 4× gains are +43.1% (`default`) and +17.0%.
+
+| Frame count, model | MFG Unlocker alone, game FPS | FreeFG, game FPS | Gain | Saved per generated frame |
+| --- | --- | --- | --- | --- |
+| 3×, `default` | 31.14 (n = 2) | 41.77 (n = 2) | +34.1% (SE 0.1) | 4.09 ms |
+| 4×, `default` | 24.44 (n = 1) | 34.98 (n = 1) | +43.1% | 4.11 ms |
+| 3×, MFG Unlocker's model | 31.43 (n = 2) | 34.77 (n = 2) | +10.6% (SE 0.4) | 1.52 ms |
+| 4×, MFG Unlocker's model | 23.93 (n = 1) | 27.92 (n = 2) | +16.7% | 1.99 ms |
+
+Saved per generated frame = (1 / FPS alone − 1 / FPS FreeFG) / (frames per present − 1).
+
+Results:
+
+- With `XeFGModel=default`, FreeFG saves 4.1 ms per generated frame at both 3× and 4×; the game runs 34% faster at
+  3× and 43% at 4×. At 2×, the same formula gives 4.08 ms in the [Cyberpunk benchmark](#frame-rate-cyberpunk-2077)
+  (0.9.0 against Intel's shaders, on other days, the game's own XeSS frame generation, pacing on).
+- On MFG Unlocker's model, FreeFG replaces 7 shaders instead of 13 and gains 11% and 17%. With FreeFG, `default`
+  is 20% (3×) and 25% (4×) faster than MFG Unlocker's model; MFG Unlocker alone is within about 2% on either model.
+- Presents per second (frames per present × game FPS), `default`: FreeFG 125 at 3× and 140 at 4×, MFG Unlocker alone
+  93 and 98.
+- Every run at a fixed frame count had 3 or 4 frames per present as set, no `FAIL` line and no GPU error in the kernel
+  log; the warm-ups were within 0.3% of the measured runs.
+
+![Cyberpunk 2077 game frame rate with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 31.14 FPS and FreeFG 1.0.0 41.77 FPS (+34.1%); at 4×, 24.44 and 34.98 FPS (+43.1%).](../../docs/assets/mfg-3x4x-fps.svg)
+
+Headless at 240 Hz, SDR, pacing off; 2 runs per arm at 3×, 1 at 4×.
+
+HDR10, FreeFG with `default`, one run each after a warm-up (MFG Unlocker alone was not run in HDR10, so there is no
+HDR10 gain):
+
+| | 3× | 4× |
+| --- | --- | --- |
+| HDR10, game FPS | 40.61 | 33.78 |
+| SDR (table above) | 41.77 | 34.98 |
+| HDR10 cost | −2.8% | −3.4% |
+
+Dynamic MFG: one run with `[XeFG] DynamicMFG=true` (at most 4×) at 120 Hz. OptiScaler changed the frame count six
+times between 4× and 2×; the proxy followed each change, stayed accelerated and logged no `FAIL` line (48.0 game FPS).
+
+### Start-up exits at 3×
+
+In the [checks](#checks-of-100), one of two 3× starts in Echo Point Nova ended during start-up. In this round none of
+18 starts at 3× with `default` ended early: 14 with FreeFG (12 SDR, 8 of them with empty shader caches; 2 HDR10) and
+4 with MFG Unlocker alone. The 8 empty-cache starts were short starts, not benchmark runs: each ran until 3 frames per
+present were seen and 10 s more, half of them under Wine debug tracing. At 95% confidence, the rate per start with
+FreeFG is at most 19.3% in this game. The round's 23 other starts (2× to 4×, both models, Dynamic MFG) also ran to
+the end. Echo Point Nova was not run again; its exit is unexplained.
+
+Not covered: a VRR display, and the picture at 3× and 4× (MFG Unlocker's authors report misplaced outer frames with
+`default` at 6×); pacing on, beyond one run per arm at 3×; HDR10 with MFG Unlocker alone; other games; a game's own
+XeSS frame generation, where FreeFG accelerates nothing beside MFG Unlocker; gameplay.
 
 ## Generated images: bit-identical
 

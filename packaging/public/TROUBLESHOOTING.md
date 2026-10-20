@@ -31,6 +31,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | Only real frames are shown; the frame rate does not go up | Turn the game's frame generation on (DLSS FG and FSR FG inputs); make sure the game is not in exclusive fullscreen; check `BC250-XeFG-fast.log`. |
 | Uneven pacing or VRR flicker | Give gamescope realtime priority ([Extras](README.md#extras)); rule out Steam's screensaver (below); stay below the refresh rate; check the `BC250_PACE` lines. |
 | Bursts of VRR flicker after some idle minutes, in long cutscenes or with a game left running | Steam's screensaver: in Game Mode it starts behind a running game after the idle timeout (5 minutes by default; controller input resets it) and every 20 seconds cross-fades for 2 seconds, taking GPU time. Set the timeout to **Never**, or install the `steam-screensaver-in-game` extra. |
+| A game installed despite its anti-cheat does not start, or reports tampering | The anti-cheat refuses FreeFG's DLLs: Restore the game. The maintainers cannot help with bans ([COMPATIBILITY.md](COMPATIBILITY.md#anti-cheat)). |
 | `Existing OptiScaler must be the 10.0.0-pre1 nightly …` | Restore or update the game's OptiScaler first. |
 | `Cannot download …` | The first installation needs internet access, or the file already in `~/.cache/bc250-xefg-testers`. |
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |

@@ -298,11 +298,54 @@ class RefusalTests(unittest.TestCase):
             self.assertIn('Install anyway (you chose the input)', explicit['blocking'][0]['way'])
             accepted = c.decide(scan(**over), data(), ids(), choice=chosen, accept=[code])
             self.assertEqual((accepted['blocking'], accepted['accepted'], accepted['tier']), ([], [code], 'D'), code)
-        # Anti-cheat, 32-bit and a missing executable stay hard whatever is chosen.
+        # 32-bit and a missing executable stay hard whatever is chosen; anti-cheat stays a risk refusal, which no accept lifts.
         ac = c.decide(scan(anticheat=[dict(name='BattlEye', evidence=['BattlEye'], proton_runtime=False)]), data(), ids(),
                       choice=dict(route='opti', fg_input='upscaler'), accept=['anticheat'])
-        self.assertEqual(ac['blocking'][0]['kind'], 'hard')
+        self.assertEqual((ac['blocking'][0]['code'], ac['blocking'][0]['kind'], ac['tier']), ('anticheat', 'risk', 'R'))
         self.assertEqual(c.decide(scan(exe=dict(bits=32)), data(), ids(), choice=dict(route='opti'), accept=['32bit'])['tier'], 'R')
+
+    def test_anticheat_is_a_risk_refusal_lifted_only_by_the_override(self):
+        both = [dict(name='Easy Anti-Cheat', evidence=['EasyAntiCheat/'], proton_runtime=True),
+                dict(name='BattlEye', evidence=['BattlEye/'], proton_runtime=False)]
+        v = c.decide(scan(anticheat=both), data(), ids())
+        r_ = v['blocking'][0]
+        self.assertEqual((r_['code'], r_['kind'], r_['names'], v['tier']), ('anticheat', 'risk', ['Easy Anti-Cheat', 'BattlEye'], 'R'))
+        self.assertIn('ships anti-cheat: Easy Anti-Cheat and BattlEye', r_['text'])
+        # The way forward names the override's option and where it is described, without offering it as Install anyway.
+        self.assertEqual(r_['way'], 'None by default. An override for one game risks a ban: --accept-anticheat-risk '
+                                    '(COMPATIBILITY.md#anti-cheat).')
+        self.assertNotIn('Install anyway', r_['way'])
+        self.assertIn('--accept-anticheat-risk', v['line'])
+        # Neither an accept of its code nor every soft code lifts it, with Automatic or an explicit input.
+        for choice in (None, dict(route='opti', fg_input='upscaler')):
+            accepted = c.decide(scan(anticheat=both), data(), ids(), choice=choice, accept=['anticheat', 'protonfix-api', 'wiki-not-working'])
+            self.assertEqual(([x['code'] for x in accepted['blocking']], accepted['accepted'], accepted['risk_accepted']), (['anticheat'], [], []))
+            with self.assertRaises(c.Refused):
+                c.preflight(accepted)
+        # The override lifts it: the plan is the one the game has without anti-cheat, and the verdict says it was overridden.
+        plain = c.decide(scan(), data([VERIFIED]), ids())
+        overridden = c.decide(scan(anticheat=both), data([VERIFIED]), ids(), accept_risk=['anticheat'])
+        c.preflight(overridden)
+        self.assertEqual((overridden['blocking'], overridden['accepted'], overridden['risk_accepted']), ([], [], ['anticheat']))
+        for key in ('tier', 'route', 'fg_input', 'launch_args', 'ini', 'line'):
+            self.assertEqual(overridden[key], plain[key], key)
+        lines = c.check_lines(overridden, scan(anticheat=both), installed_notes=['Installed despite anti-cheat (BattlEye), risk accepted on 2026-10-20.'])
+        self.assertTrue(any(line.startswith('[anticheat, risk, risk accepted]') for line in lines))
+        self.assertIn('Installed despite anti-cheat (BattlEye), risk accepted on 2026-10-20.', lines)
+        refused = c.check_lines(v, scan(anticheat=both))
+        self.assertTrue(any(line.startswith('[anticheat, risk, refused]') and '--accept-anticheat-risk' in line for line in refused))
+        # The override lifts only risk refusals: never a soft or a hard one.
+        fix = dict(protonfix=dict(tool='GE-Proton11-7', change="append_argument('-dx11')"))
+        soft = c.decide(scan(anticheat=both, **fix), data(), ids(), accept_risk=['anticheat', 'protonfix-api'])
+        self.assertEqual([x['code'] for x in soft['blocking']], ['protonfix-api'])
+        hard = c.decide(scan(anticheat=both, exe=dict(bits=32)), data(), ids(), accept_risk=['anticheat', '32bit'])
+        self.assertEqual([x['code'] for x in hard['blocking']], ['32bit'])
+
+    def test_the_report_lists_an_override_with_the_package(self):
+        text = c.report(c.decide(scan(), data(), ids()), scan(), package='freefg-1.0.1',
+                        installed_notes=['Installed despite anti-cheat (BattlEye), risk accepted on 2026-10-20.'])
+        self.assertIn('- Package: freefg-1.0.1\n', text)
+        self.assertIn('- Installed despite anti-cheat (BattlEye), risk accepted on 2026-10-20.\n', text)
 
     def test_native_choice_needs_the_games_xess_fg(self):
         v = c.decide(scan(), data(), ids(), choice=dict(route='native'))
@@ -413,7 +456,7 @@ class LibraryTests(unittest.TestCase):
             '9990006': ('input-unconfirmed', 'soft'),      # only the DLSS DLL Unity's NVIDIA module bundles
             '9990007': ('native-linux', 'hard'), '9990008': ('32bit', 'hard'), '9990009': ('api-vulkan', 'hard'),
             '9990010': ('api-opengl', 'hard'), '9990011': ('api-dx11', 'hard'), '9990012': ('no-dx12', 'hard'),
-            '9990013': ('no-exe', 'hard'), '9990014': ('anticheat', 'hard')})
+            '9990013': ('no-exe', 'hard'), '9990014': ('anticheat', 'risk')})
         self.assertFalse(any('mods' in s for s in games))  # other tools' files are never part of a fixture
 
     def test_a_strong_wiki_match_guides_the_automatic_setup(self):

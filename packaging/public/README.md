@@ -27,7 +27,7 @@ works with.
 | Graphics driver | Mesa RADV, any current version. The BC-250's compute queue (off in stock Mesa) is optional and needs a kernel with the matching BC-250 fixes. |
 | Compositor | gamescope 3.16.28 or newer, as in Steam Game Mode; realtime priority helps ([Extras](#extras)) |
 | Setup | Python 3.11 or newer, Zenity (desktop Setup), `bsdtar` (libarchive); network access for the first installation ([PRIVACY.md](PRIVACY.md)) |
-| Games | 64-bit DirectX 12 under Proton, from Steam, Heroic or Lutris; an ASCII-only folder path; no anti-cheat ([COMPATIBILITY.md](COMPATIBILITY.md)) |
+| Games | 64-bit DirectX 12 under Proton, from Steam, Heroic or Lutris; an ASCII-only folder path; no anti-cheat (an [override](COMPATIBILITY.md#anti-cheat) per game risks a ban) |
 
 Setup's **Check system** reports each item and warns about a compute-queue Mesa on a kernel without the fixes. Tested
 configuration: [MEASUREMENTS.md](MEASUREMENTS.md#test-system). The Steam Deck is untested.
@@ -99,8 +99,8 @@ work that is still Intel's, on OptiScaler's frame generation ([how](ARCHITECTURE
 2. Download `MFGUnlocker-v1.6.0.zip` from its Releases page and check it against its `SHA256SUMS.txt`.
 3. Rename `MFGUnlocker.dll` to `MFGUnlocker.asi` and put it in the `OptiScaler/plugins/` folder beside the `.exe`. Do
    not give it a DLL name such as `dxgi.dll`; those are OptiScaler's.
-4. In `OptiScaler.ini`, set `LoadAsiPlugins=true` under `[Plugins]` (Setup sets it only in setups it creates) and
-   `FGOutput=xefg` under `[FrameGen]`. Optionally set `XeFGModel=default` under `[XeFG]` (table below).
+4. In `OptiScaler.ini`, set `LoadAsiPlugins=true` under `[Plugins]` (Setup sets it only in setups it creates),
+   `FGOutput=xefg` under `[FrameGen]` and `XeFGModel=default` under `[XeFG]` (below).
 5. In the game, set the frame count in OptiScaler's menu (**Insert**, **Frame Generation**), which saves it. OptiScaler's
    frame limit counts output frames: at 4×, 117 FPS is about 29 real frames per second.
 6. To return to 2×, remove `MFGUnlocker.asi` and set 2×. Leave `LoadAsiPlugins` on: it also loads OptiPatcher, which
@@ -110,6 +110,15 @@ work that is still Intel's, on OptiScaler's frame generation ([how](ARCHITECTURE
 | --- | --- | --- |
 | `default` | Intel's 2× model at every frame count. MFG Unlocker's authors found that it places the outer generated frames at the wrong times at 6×, which smears them; 3× and 4× are unchecked. | the whole network |
 | not set (MFG Unlocker's default) | MFG Unlocker's own model, which replaces five of the network's programs | the rest of the network |
+
+For speed, use `XeFGModel=default` with FreeFG: in Cyberpunk 2077 the game ran 20% (3×) and 25% (4×) faster than
+on MFG Unlocker's own model, because FreeFG's shaders then run the whole network. With `default`, the picture at 3×
+and 4× is unchecked (table above).
+
+![Cyberpunk 2077 game frame rate with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 31.14 FPS and FreeFG 1.0.0 41.77 FPS (+34.1%); at 4×, 24.44 and 34.98 FPS (+43.1%).](../../docs/assets/mfg-3x4x-fps.svg)
+
+FreeFG against MFG Unlocker alone, both with `XeFGModel=default`. Headless at 240 Hz, pacing off, 1–2 runs per arm;
+same files in 1.0.1 ([details](MEASUREMENTS.md#3-and-4-with-mfg-unlocker)).
 
 - With a game's own XeSS frame generation, FreeFG accelerates nothing while MFG Unlocker is loaded
   ([details](ARCHITECTURE.md#optiscalers-contexts-only)).
@@ -174,10 +183,10 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.0.0, 20 October 2026. Tested only on the AMD BC-250 under Proton in Steam Game Mode, with a short qualification:
-checks without a GPU, then one short start per question on one BC-250 ([checks](MEASUREMENTS.md#checks-of-100)).
-Everything else is untested. The 2×-only pre-release 0.9.0, with the same shaders at 2×, had the longer qualification
-in [MEASUREMENTS.md](MEASUREMENTS.md).
+1.0.1, 20 October 2026. Tested only on the AMD BC-250 under Proton in Steam Game Mode. Apart from the installer and the
+documents, its files are 1.0.0's. 1.0.0 had a short qualification, one start per question
+([checks](MEASUREMENTS.md#checks-of-100)), then same-day frame-rate measurements at 2×, 3× and 4× in Cyberpunk 2077
+([MEASUREMENTS.md](MEASUREMENTS.md)). Everything else is untested.
 
 ![Cyberpunk 2077 frame rate at 2× on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance, headless): XeFG with Intel's shaders 85.31 FPS; FreeFG 0.9.0 103.28 FPS, +21.1%.](../../docs/assets/cyberpunk-2x-fps.svg)
 

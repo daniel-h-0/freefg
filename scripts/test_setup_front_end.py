@@ -161,6 +161,145 @@ class SetupFrontEnd(unittest.TestCase):
         self.assertEqual(sorted(accepts), sorted(['protonfix-api=' + str(games[0]), 'protonfix-api=' + str(games[13]),
                                                   'no-input=' + str(games[5])]))
 
+    def anticheat_installer(self):
+        """A fake installer: games named Cheat*.exe ship BattlEye; Both.exe ships it and is 32-bit; CheatSoft.exe and Soft.exe
+        have a soft refusal; CheatDetect.exe has no input found (hard for Automatic, soft for an explicit input); others are
+        clean. compat_verdict records each call; the override (accept_risk) lifts only the anti-cheat refusal."""
+        class Installer:
+            RISK_SENTENCE = 'I accept that my account may be banned'
+            asked = []
+
+            def compat_verdict(self, root, exe, route=None, fg_input=None, accept_risk=()):
+                self.asked.append((exe.name, route, fg_input, list(accept_risk)))
+                refusal = dict(code='anticheat', kind='risk', text='This game ships anti-cheat: BattlEye (BattlEye/).', names=['BattlEye'],
+                               way='An override for this one game, at the risk of a ban: Override anti-cheat refusal...')
+                ac = exe.name.startswith('Cheat') or exe.name == 'Both.exe'
+                blocking = [refusal] if ac and 'anticheat' not in accept_risk else []
+                if exe.name == 'Both.exe':
+                    blocking.append(dict(code='32bit', kind='hard', text='This is a 32-bit game.', way='None.'))
+                if exe.name in ('Soft.exe', 'CheatSoft.exe'):
+                    blocking.append(dict(code='protonfix-api', kind='soft', text='GE fix leaves DirectX 12.', way='Install anyway adds it.'))
+                if exe.name == 'CheatDetect.exe':
+                    blocking.append(dict(code='no-input', kind='soft' if route else 'hard', text='No input found.',
+                                         way='None inside this build.' + (' Install anyway (you chose the input).' if route else '')))
+                line = ('Not supported: ' + blocking[0]['text']) if blocking and blocking[0]['kind'] != 'soft' else 'Automatic (no recipe) → OptiFG input'
+                return dict(line=line, needs_step=ac, manual_steps=['Choose the upscaler.', 'Step for ' + exe.name + '.'], blocking=blocking,
+                            refusals=[refusal] if ac else [], risk_accepted=['anticheat'] if ac and 'anticheat' in accept_risk else []), {}, {}, {}
+
+            @staticmethod
+            def anticheat_names(verdict):
+                return next((r['names'] for r in verdict.get('refusals', []) if r['code'] == 'anticheat'), [])
+
+            @staticmethod
+            def anticheat_warning(game, names, product=None):
+                return game + ' ships anti-cheat: ' + ', '.join(names) + '. ' + str(product) + ' does not hide itself.'
+
+            @classmethod
+            def risk_confirmed(cls, text):
+                return isinstance(text, str) and text.strip() == cls.RISK_SENTENCE
+
+            def idle(self, root):
+                pass
+        return Installer()
+
+    def games(self, *names):
+        out = []
+        for name in names:
+            folder = self.dir / name.lower().removesuffix('.exe'); folder.mkdir(); (folder / name).write_bytes(b''); out.append(folder / name)
+        return out
+
+    def test_install_never_offers_the_anticheat_refusal(self):
+        # Install lists only soft refusals under Install anyway; an anti-cheat game stays refused (no accept, no steps).
+        # The soft refusal of a game the anti-cheat keeps out is not offered either.
+        cheat, soft, cheat_soft = self.games('Cheat.exe', 'Soft.exe', 'CheatSoft.exe')
+        calls, runs = self.scripted([(0, 'Add games'), (0, f'{cheat}\n{soft}\n{cheat_soft}'), (0, 'Install'), (0, 'Automatic per game'),
+                                     (0, 'FSR 4'), (0, ''), (0, ''), (0, ''), (1, '')], self.anticheat_installer())
+        self.assertIn(self.setup.RISK_ACTION, calls[0])
+        question = next(a for a in next(c for c in calls if '--ok-label=Install anyway' in c) if a.startswith('--text='))
+        self.assertIn('Soft.exe: GE fix', question)
+        self.assertNotIn('CheatSoft.exe', question)
+        self.assertNotIn('anti-cheat', question)
+        confirm = next(a for c in calls for a in c if a.startswith('--text=Setup will configure'))
+        self.assertNotIn('Step for Cheat.exe', confirm)
+        [run] = runs
+        self.assertEqual(run[3:7], ['install', str(cheat), str(soft), str(cheat_soft)])
+        self.assertNotIn('anticheat', ' '.join(run))
+        self.assertIn('protonfix-api=' + str(soft), run)
+        self.assertNotIn('protonfix-api=' + str(cheat_soft), run)
+
+    def test_override_warns_asks_for_the_sentence_and_installs_one_game(self):
+        cheat, cheat2, clean = self.games('Cheat.exe', 'Cheat2.exe', 'Clean.exe')
+        installer = self.anticheat_installer()
+        sentence = installer.RISK_SENTENCE
+        calls, runs = self.scripted([(0, 'Add games'), (0, f'{cheat}\n{cheat2}\n{clean}'), (0, self.setup.RISK_ACTION), (0, str(cheat2)),
+                                     (0, ''), (0, sentence), (0, 'Automatic per game'), (0, 'FSR 4'), (0, ''), (0, ''), (1, '')], installer)
+        choose = next(c for c in calls if '--column=Anti-cheat' in c)  # one game at a time, from the anti-cheat games only
+        self.assertIn(str(cheat), choose); self.assertIn(str(cheat2), choose); self.assertNotIn(str(clean), choose)
+        warning = next(c for c in calls if '--question' in c and any('ships anti-cheat' in a for a in c))
+        self.assertIn('--default-cancel', warning)
+        self.assertIn('--cancel-label=Cancel', warning)
+        self.assertTrue(any(a.startswith(f'--text=Cheat2.exe ships anti-cheat: BattlEye. {self.setup.NAME} does not hide itself.') for a in warning))
+        entry = next(c for c in calls if '--entry' in c)
+        self.assertTrue(any(sentence in a for a in entry))
+        self.assertLess(calls.index(warning), calls.index(entry))
+        # The Install dialogs that follow are for that game, with the override applied to its verdict only.
+        self.assertIn(('Cheat2.exe', None, None, ['anticheat']), installer.asked)
+        self.assertNotIn(('Cheat.exe', None, None, ['anticheat']), installer.asked)
+        confirm = next(a for c in calls for a in c if a.startswith('--text=Setup will configure'))
+        self.assertIn('Step for Cheat2.exe', confirm)
+        self.assertIn('overridden for this game only', confirm)
+        [run] = runs
+        self.assertEqual(run[3:], ['install', str(cheat2), '--route', 'auto', '--fg-input', 'auto', '--upscaler', 'fsr4',
+                                   '--accept-anticheat-risk=' + str(cheat2), '--confirm-anticheat-risk', sentence])
+
+    def test_override_cancelled_or_mismatched_installs_nothing(self):
+        cheat, = self.games('Cheat.exe')
+        start = [(0, 'Add games'), (0, str(cheat)), (0, self.setup.RISK_ACTION)]
+        for answers in ([(1, '')],                                   # Cancel at the warning (its default button)
+                        [(0, ''), (1, '')],                          # the sentence dialog cancelled
+                        [(0, ''), (0, 'I accept'), (0, '')],         # a mismatch, then its notice
+                        [(0, ''), (0, 'i accept that my account may be banned'), (0, '')],
+                        [(0, ''), (0, 'I accept that my account may be banned'), (1, '')]):  # matched, then the input list cancelled
+            calls, runs = self.scripted(start + answers + [(1, '')], self.anticheat_installer())
+            self.assertEqual(runs, [], answers)
+
+    def test_override_needs_a_game_refused_only_for_anticheat(self):
+        clean, both = self.games('Clean.exe', 'Both.exe')
+        for game, kind in ((clean, '--info'), (both, '--error')):
+            calls, runs = self.scripted([(0, 'Add games'), (0, str(game)), (0, self.setup.RISK_ACTION), (0, ''), (1, '')], self.anticheat_installer())
+            self.assertEqual(runs, [])
+            self.assertIn(kind, calls[-2])
+            self.assertFalse(any('--entry' in c for c in calls))
+        self.assertTrue(any('32-bit' in a for a in calls[-2]))
+
+    def test_override_offers_the_soft_refusals_of_that_game(self):
+        # A soft refusal beside the anti-cheat is no reason to turn the override away: after the warning and the sentence,
+        # Install anyway lists it for that game, and the run carries both its accept and the override.
+        cheat_soft, = self.games('CheatSoft.exe')
+        sentence = self.anticheat_installer().RISK_SENTENCE
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(cheat_soft)), (0, self.setup.RISK_ACTION), (0, ''), (0, sentence),
+                                     (0, 'Automatic per game'), (0, 'FSR 4'), (0, ''), (0, ''), (0, ''), (1, '')], self.anticheat_installer())
+        self.assertFalse(any('--error' in c for c in calls))
+        question = next(a for a in next(c for c in calls if '--ok-label=Install anyway' in c) if a.startswith('--text='))
+        self.assertIn('CheatSoft.exe: GE fix', question)
+        [run] = runs
+        self.assertEqual(run[3:], ['install', str(cheat_soft), '--route', 'auto', '--fg-input', 'auto', '--upscaler', 'fsr4',
+                                   '--accept', 'protonfix-api=' + str(cheat_soft),
+                                   '--accept-anticheat-risk=' + str(cheat_soft), '--confirm-anticheat-risk', sentence])
+
+    def test_override_leaves_detection_refusals_to_the_input_chosen(self):
+        # No input found: refused for Automatic (after the sentence, saying how to go on), soft once the input is chosen.
+        game, = self.games('CheatDetect.exe')
+        sentence = self.anticheat_installer().RISK_SENTENCE
+        start = [(0, 'Add games'), (0, str(game)), (0, self.setup.RISK_ACTION), (0, ''), (0, sentence)]
+        calls, runs = self.scripted(start + [(0, 'Automatic per game'), (0, 'FSR 4'), (0, ''), (1, '')], self.anticheat_installer())
+        self.assertEqual(runs, [])
+        error = next(c for c in calls if '--error' in c)
+        self.assertTrue(any('also refused for another reason: No input found.' in a and 'instead of Automatic' in a for a in error))
+        calls, runs = self.scripted(start + [(0, 'OptiFG'), (0, 'FSR 4'), (0, ''), (0, ''), (0, ''), (1, '')], self.anticheat_installer())
+        [run] = runs
+        self.assertEqual(run[3:], ['install', str(game), '--route', 'opti', '--fg-input', 'upscaler', '--upscaler', 'fsr4',
+                                   '--accept', 'no-input=' + str(game), '--accept-anticheat-risk=' + str(game), '--confirm-anticheat-risk', sentence])
 
     def scripted(self, answers, installer=None):
         """Run Setup's menu on scripted zenity answers, with a fake installer or none (load_installer fails); returns

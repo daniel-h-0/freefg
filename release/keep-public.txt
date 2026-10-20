@@ -283,6 +283,10 @@ docs/data/setup-layout/data.json
 docs/data/setup-layout/plot.py
 docs/assets/setup-file-layout.svg
 docs/assets/setup-file-layout.png
+docs/data/mfg-3x4x/data.json
+docs/data/mfg-3x4x/plot.py
+docs/assets/mfg-3x4x-fps.svg
+docs/assets/mfg-3x4x-fps.png
 
 # Continuous integration of the public tree (.github/workflows; release/ci/ holds its helpers and toolchain pins)
 .github/workflows/ci.yml

@@ -59,11 +59,12 @@ decides: [ARCHITECTURE.md](ARCHITECTURE.md#which-source-decides).
 
 ## Refusals
 
-A soft refusal can be accepted per game: **Install anyway** in Setup, `--accept CODE` on the command line.
+A soft refusal can be accepted per game: **Install anyway** in Setup, `--accept CODE` on the command line. Neither
+lifts the anti-cheat refusal (kind `risk`), which has an [override](#anti-cheat) of its own.
 
 | Code | Reason | What to do |
 | --- | --- | --- |
-| `anticheat` | Anti-cheat files (Easy Anti-Cheat, BattlEye, GameGuard, XIGNCODE3, EA Javelin, ACE, mhyprot, EQU8, PunkBuster, Vanguard); FreeFG loads DLLs into the game process, which anti-cheat software may treat as tampering. | Nothing. |
+| `anticheat` (risk) | Anti-cheat files (Easy Anti-Cheat, BattlEye, GameGuard, XIGNCODE3, EA Javelin, ACE, mhyprot, EQU8, PunkBuster, Vanguard); FreeFG loads DLLs into the game process, which anti-cheat software may treat as tampering. | Nothing by default; an [override](#anti-cheat) for one game risks a ban. |
 | `native-linux` | Steam installed the Linux version. | Force a Proton version in the game's Compatibility properties, let Steam download the Windows version, Check again. |
 | `32bit` | XeFG and FreeFG are 64-bit only. | Nothing. |
 | `api-vulkan`, `api-opengl`, `api-dx11`, `no-dx12` | No DirectX 12 path. DirectX 11 stays refused until qualified: OptiScaler's DX11-to-DX12 bridge gave a black screen under this Proton stack. | Nothing; soft when you chose the input yourself, since detection can miss what you know. |
@@ -76,6 +77,37 @@ A soft refusal can be accepted per game: **Install anyway** in Setup, `--accept 
 | `protonfix-api` (soft) | GE-Proton's fix for the game switches it away from DirectX 12. | Accepting adds `PROTONFIXES_DISABLE=1`, turning off all of GE-Proton's fixes for the game (Check names what else the fix does); Restore removes it. |
 | `wiki-not-working` (soft) | The OptiScaler wiki lists the game as not working (matched by launcher ID, or by executable and title; a title-only match is a note). | Accept to try anyway. |
 | `installed`, `xessmfg`, `version-dll`, `existing-files`, `existing-optiscaler`, `optiscaler-paths`, `helixsr-installer`, `recipe-exe`, `ascii-path` | The game folder: an installation not yet restored, another frame-generation mod, an OptiScaler setup this package does not take over, HelixSR installed by its own installer, the wrong executable of a verified game, a path that is not ASCII. Check shows the plan Install follows once resolved. | What Check names: Restore, remove the other mod (HelixSR: with its own uninstaller), or choose the other executable. |
+
+## Anti-cheat
+
+FreeFG loads DLLs into the game process. Anti-cheat software can treat that as tampering and answer with a ban of
+your account or a refusal to start the game, so a game with anti-cheat files is refused; Check cannot tell offline-only
+modes apart. The override applies per game, never to every selected game at once. Before using it:
+
+- FreeFG does not hide itself from anti-cheat and will not try to. Use it at most in offline or single-player modes;
+  the anti-cheat can run in those modes too.
+- The maintainers cannot help with bans.
+- Restore removes the DLLs and launch settings FreeFG added; its backup folder `.bc250-xefg-experimental` (with its
+  logs) stays in the game folder. Restore cannot undo a ban.
+
+In Setup, select the game and choose **Override anti-cheat refusal...**. Setup shows these facts (**Cancel** is the
+default button), then asks you to type `I accept that my account may be banned` exactly; anything else cancels. The
+input and upscaler are then chosen as in Install, for that game only.
+
+On the command line, `--accept-anticheat-risk` shows the facts and asks for the same sentence at the terminal, once
+for each game. Without a terminal (a script, or output piped elsewhere) the sentence goes in `--confirm-anticheat-risk`,
+once for every game named with `--accept-anticheat-risk=EXE`; at a terminal it is typed all the same:
+
+```sh
+python3 install.py install GAME.exe --accept-anticheat-risk             # asks for the sentence
+python3 install.py install A.exe B.exe --accept-anticheat-risk=A.exe    # for A.exe only
+python3 install.py install GAME.exe --accept-anticheat-risk \
+    --confirm-anticheat-risk 'I accept that my account may be banned'   # only without a terminal
+```
+
+The installation record keeps the anti-cheat names, the time and the package. Status, Check and `check --all` show
+"Installed despite anti-cheat (…), risk accepted on <date>". Restore works as for any game and ends the override; the
+next Install of the game asks for it again.
 
 ## Checking a game
 

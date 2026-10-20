@@ -694,10 +694,11 @@ def preconditions(package,exe,recipe=None):
     helixsr_installed(target)
     return out
 
-def compat_verdict(package,exe,route=None,fg_input=None,launcher_home=None,accept=()):
+def compat_verdict(package,exe,route=None,fg_input=None,launcher_home=None,accept=(),accept_risk=()):
     """(verdict, scan, recipe data, identity) of exe from compat.py (packaging/compat.py, gamescan.py): read only, no
-    network. route/fg_input are the user's explicit choice, None for Automatic. None when the package lacks the
-    modules or the scan fails unexpectedly (the install then goes on as 0.9.0 did, and says so)."""
+    network. route/fg_input are the user's explicit choice, None for Automatic. accept: soft refusal codes accepted;
+    accept_risk: the anti-cheat override, confirmed for this game (confirm_anticheat_risk). None when the package lacks
+    the modules or the scan fails unexpectedly (the install then goes on as 0.9.0 did, and says so)."""
     here=Path(__file__).resolve().parent
     if not all((here/name).is_file() for name in ['compat.py','gamescan.py','recipes.py']):return None
     try:
@@ -716,7 +717,8 @@ def compat_verdict(package,exe,route=None,fg_input=None,launcher_home=None,accep
         conflicts=launcher_config.conflicts(exe,launchers,os.environ)
         choice=dict(route=route,fg_input=fg_input) if route else None
         setup=preconditions(package,exe,recipe)
-        return compat.decide(scan,data,ids,choice,None,accept,conflicts,launchers,verified=recipe[1] if recipe else None,setup=setup),scan,data,ids
+        return compat.decide(scan,data,ids,choice,None,accept,conflicts,launchers,verified=recipe[1] if recipe else None,setup=setup,
+                             accept_risk=accept_risk),scan,data,ids
     except Exception as error:  # noqa: BLE001 - the check is advice; an unexpected failure must not block an install
         print('Compatibility check skipped ('+type(error).__name__+': '+str(error)[:200]+').',file=sys.stderr)
         return None
@@ -726,8 +728,107 @@ def verdict_notes(verdict):
     lines=['Compatibility: '+verdict['line']]
     lines+=['Note: '+w for w in verdict['warnings'] if not w.startswith('Known on BC-250: ')]
     lines+=['Accepted: '+r['code']+' ('+r['text']+')' for r in verdict['refusals'] if r['code'] in verdict['accepted']]
+    lines+=['Anti-cheat refusal overridden at your request (risk accepted): '+r['text'] for r in verdict['refusals']
+            if r['code'] in verdict.get('risk_accepted',())]
     if verdict['manual_steps']:lines+=['Your steps:']+['  '+str(n)+'. '+s for n,s in enumerate(verdict['manual_steps'],1)]
     return lines
+
+# The anti-cheat override (compat.py's risk refusal 'anticheat'): per game, after the warning below, confirmed by typing
+# this sentence (install.py --accept-anticheat-risk; Setup's Override anti-cheat refusal...). At a terminal it is always
+# typed; without one (a script, output piped elsewhere, Setup) it is given with --confirm-anticheat-risk, so a script
+# spells it out. Neither --accept nor Install anyway lifts it. The acceptance is recorded with one installation
+# (risk_accepted) and never carried: Restore clears it, and the next Install of the game asks again.
+RISK_SENTENCE='I accept that my account may be banned'
+def risk_confirmed(text):
+    """True when text is the confirmation sentence: case and punctuation as written, blanks around it ignored."""
+    return isinstance(text,str) and text.strip()==RISK_SENTENCE
+
+def joined(names):
+    """'A', 'A and B', 'A, B and C' (compat.names_text, without needing compat.py)."""
+    names=[str(n) for n in names]
+    return ' and '.join(names) if len(names)<3 else ', '.join(names[:-1])+' and '+names[-1]
+
+def anticheat_warning(game,names,product=None):
+    """The facts shown before the anti-cheat override is confirmed: on the command line (product None: 'this build') and
+    in Setup, which names the product (a dialog shows the text on its own)."""
+    name=product or 'This build'
+    return '\n'.join([game+' ships anti-cheat: '+joined(names)+'.',
+                      name+' loads DLLs into the game process. Anti-cheat software can treat that as tampering and answer with a ban '
+                      'of your account or a refusal to start the game.',
+                      name+' does not hide itself from anti-cheat and will not try to.',
+                      'Use it at most in offline or single-player modes; the anti-cheat can run in those modes too.',
+                      'The maintainers cannot help with bans.',
+                      'Restore removes the DLLs and launch settings '+(product or 'this build')+' added; its backup folder '+STATE+
+                      ' (with its logs) stays in the game folder. Restore cannot undo a ban.'])
+
+def anticheat_names(verdict):
+    """The anti-cheat names of verdict's risk refusal, or [] when the game has none."""
+    return next((list(r.get('names') or []) for r in (verdict or {}).get('refusals',[]) if r['code']=='anticheat'),[])
+
+def risk_record(verdict,package=None,now=None):
+    """The installation record's risk_accepted: one entry per risk refusal overridden for this installation, with its
+    code, the anti-cheat names, the local time of the installation and the package (its name carries the version)."""
+    import datetime
+    when=(now or datetime.datetime.now().astimezone()).isoformat(timespec='seconds')
+    return [dict(code=r['code'],anticheat=list(r.get('names') or []),accepted_at=when,package=package)
+            for r in verdict.get('refusals',[]) if r['code'] in verdict.get('risk_accepted',())]
+
+def risk_lines(record):
+    """What Status and Check say about an installation made despite anti-cheat, also an interrupted one (its DLLs may be in
+    place); nothing once it is restored."""
+    status=(record or {}).get('status')
+    if status not in ('installed','prepared'):return []
+    what='Installed' if status=='installed' else 'Interrupted installation'
+    return [what+' despite anti-cheat ('+joined(item.get('anticheat') or ['unknown'])+'), risk accepted on '+
+            str(item.get('accepted_at') or '?')[:10]+'.' for item in record.get('risk_accepted') or []]
+
+def same_exe(first,second):
+    return Path(first).expanduser().absolute().resolve()==Path(second).expanduser().absolute().resolve()
+
+def anticheat_override(values,exe,games):
+    """True when --accept-anticheat-risk names exe: =EXE for that executable, or the bare option when exe is the only game
+    of the command (main() refuses a bare option for several games)."""
+    return any((value=='' and len(games)==1) or (value and same_exe(value,exe)) for value in values)
+
+def terminal():
+    """True when the sentence can be asked for: stdin and stdout are a terminal."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+def confirm_anticheat_risk(exe,names,sentence=None):
+    """The anti-cheat override's confirmation for one game: the warning is printed, then the sentence is asked for at a
+    terminal (also when --confirm-anticheat-risk gave it: a pasted command does not skip it), or, without a terminal,
+    taken from --confirm-anticheat-risk. Raises ValueError (nothing is changed) on a mismatch, at an end of input or
+    Ctrl+C, or without a terminal and the option."""
+    print('\n'+anticheat_warning(exe.name,names)+'\n',flush=True)
+    if terminal():
+        if sentence is not None:print('At a terminal the sentence is typed; --confirm-anticheat-risk is for runs without one.')
+        print('To override the refusal for '+exe.name+', type this sentence exactly (anything else cancels):\n  '+RISK_SENTENCE,flush=True)
+        try:typed=input('> ')
+        except (EOFError,KeyboardInterrupt):print();typed=''
+        if not risk_confirmed(typed):raise ValueError('Anti-cheat override cancelled: what you typed does not match the sentence. Nothing was changed.')
+        return
+    if sentence is None:
+        raise ValueError('Anti-cheat override not confirmed: without a terminal, give the sentence as --confirm-anticheat-risk "'+RISK_SENTENCE+'". Nothing was changed.')
+    if not risk_confirmed(sentence):raise ValueError('Anti-cheat override cancelled: --confirm-anticheat-risk does not match the sentence "'+RISK_SENTENCE+'". Nothing was changed.')
+
+def override_anticheat(package,exe,route,fg_input,accept,verdict=None,sentence=None):
+    """--accept-anticheat-risk for one game: ['anticheat'] once the warning is shown and the sentence confirmed, [] when
+    the check finds no anti-cheat refusal. verdict: main()'s Automatic verdict, else the one for the route and input chosen
+    (as install() makes it). A game refused for another reason too is refused for that one, without asking. Without a
+    compatibility check (compat_verdict None) nothing tells whether the game ships anti-cheat: refused."""
+    if verdict is None:
+        found=compat_verdict(package,exe,route,fg_input,None,accept);verdict=found[0] if found else None
+    if verdict is None:
+        raise ValueError('Anti-cheat override not confirmed: the compatibility check did not run, so anti-cheat was not checked. Nothing was changed.')
+    names=anticheat_names(verdict)
+    if not names:
+        print('No anti-cheat found in this game: --accept-anticheat-risk changes nothing here.');return []
+    others=[r for r in verdict['blocking'] if r['kind']!='risk']
+    if others:
+        import compat
+        raise compat.Refused(others[0])
+    confirm_anticheat_risk(exe,names,sentence)
+    return ['anticheat']
 
 # OptiScaler.ini keys a user sets for themselves (the MFG multiplier from OptiScaler's menu, the Reflex override), kept
 # across Restore and Install of a fresh OptiScaler setup: (section, key, description).
@@ -735,7 +836,11 @@ CARRIED_INI=[('XeFG','InterpolationCount','multiplier'),('fakenvapi','ForceRefle
 
 @locked
 def install(package,exe,preview=False,route="native",fg_input="upscaler",dependency_dir=None,launcher_home=None,extra_args=(),dlss_helper='auto',
-            upscaler='fsr4',helixsr_dir=None,accept=(),verdict=None):
+            upscaler='fsr4',helixsr_dir=None,accept=(),verdict=None,accept_risk=()):
+    """Install the package into the game of exe. accept: soft refusal codes the user accepted for this game; accept_risk:
+    risk refusal codes (anticheat) the user overrode for it after the warning and the typed sentence (main(),
+    override_anticheat), recorded with this installation only. verdict: main()'s Automatic verdict for route and fg_input,
+    used as it is."""
     if route not in ["native","opti"] or fg_input not in ["upscaler","dlssg","fsrfg","fsrfg30"]:raise ValueError("Unknown integration route")
     if dlss_helper not in ['auto','yes','no']:raise ValueError('Unknown DLSS helper choice (auto, yes or no)')
     if upscaler not in UPSCALERS:raise ValueError('Unknown upscaler (fsr4 or helixsr)')
@@ -784,7 +889,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         found=sorted({str(p.relative_to(root)) for p in root.rglob('*') if p.name.lower() in expected and p.is_file()})[:3]
         raise ValueError('For '+recipe[1]['title']+' choose the game’s own executable ('+' or '.join(found or expected)+'), not '+exe.name+'.')
     if verdict is None or (verdict['route'],verdict['fg_input'])!=(route,fg_input):
-        found=compat_verdict(package,exe,route,fg_input,launcher_home,accept)
+        found=compat_verdict(package,exe,route,fg_input,launcher_home,accept,accept_risk)
         verdict=found[0] if found else None
     if verdict:
         import compat
@@ -1031,6 +1136,8 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if helper:record['dlss_helper']=helper
     if verdict:record['compat']=dict(tier=verdict['tier'],line=verdict['line'],choice=verdict['choice'],launch_source=verdict['launch_source'],
                                      ini_sources=verdict['ini_sources'],accepted=verdict['accepted'],extra_env=verdict['extra_env'])
+    # The anti-cheat override, for this installation only: Status and Check show it, Restore clears it.
+    if verdict and verdict.get('risk_accepted'):record['risk_accepted']=risk_record(verdict,package_record.get('name'))
     if recipe:
         entry=recipe[1] or community
         record['recipe']=dict(title=(entry or {}).get('title'),status='verified-bc250' if recipe[1] else 'community-bc250' if entry else None,
@@ -1199,6 +1306,8 @@ def restore(exe):
         except OSError:left_dirs.append(relative)
     if left_dirs:notes.append('Kept folders the installation created that now hold other files: '+', '.join(left_dirs)+'.')
     if kept:record['kept_changed']=[path for path,_ in kept]
+    # An anti-cheat override belonged to this installation: a new Install asks for it again.
+    overridden=record.pop('risk_accepted',None)
     record['status']='restored';write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
     print(('Original files and launcher settings restored. ' if record.get('launchers') else 'Original files restored; later INI edits preserved. Remove the earlier build’s run.sh launch wrapper from the game’s launch options. ')+'Backups remain in '+str(state))
     if record.get('preserved_ini'):print('Settings from the removed fresh OptiScaler setup: '+str(state/record['preserved_ini']))
@@ -1208,6 +1317,7 @@ def restore(exe):
         print('Kept '+path+': it changed after installation (a game update or another tool), so it is the game’s own now'+
               ('; the version from before installation is '+str(state/'backups'/str(i)) if i is not None else '')+'.')
     for line in launcher_notes+left+notes:print(line)
+    if overridden:print('The anti-cheat override ended with this installation; a new Install asks for it again.')
 
 def upscaler_target(record,pins):
     """(installation's upscaler record, the managed file that holds the upscaler DLL). Records of earlier builds have no
@@ -1370,13 +1480,16 @@ def status(exe):
     if record.get('package'):print('Package: '+record['package'])
     if record.get('pending_update'):print('An update by an earlier build was interrupted: use Restore.')
     if record['status']=='prepared':print('The installation was interrupted after saving backups: use Restore, then Install again.')
-    if record['status']!='installed':return
+    if record['status']!='installed':
+        for line in risk_lines(record):print(line)
+        return
     changed=[]
     for item in record['files']:
         p=safe(root,item['path']);actual=digest(p.read_bytes()) if p.exists() else None
         if actual!=item['after']:changed.append(item['path'])
     print('Changed since installation: '+(', '.join(changed) if changed else 'none'))
     if record.get('compat'):print('Compatibility at installation: '+record['compat']['line'])
+    for line in risk_lines(record):print(line)
     # The launch option the installation actually added (records before launch_args_added name the recipe's).
     added=record.get('launch_args_added',record.get('recipe',{}).get('launch_args') or [])
     if record.get('recipe',{}).get('title'):print('Recipe: '+record['recipe']['title']+(' (launch option '+' '.join(added)+')' if added else ''))
@@ -1428,7 +1541,9 @@ def check(package,exe,accept=(),report=False):
     # The logs describe this installer's last run only where it installed (a record, restored or not); an OptiScaler log
     # without one comes from another setup (an earlier OptiScaler, Luma, another tool) and says nothing about this one.
     if record:run=compat.last_run(root)
-    lines=compat.check_lines(verdict,scan,compat.wiki_advice(data,ids,verdict),run,installed)
+    # An installation made despite anti-cheat says so; the verdict stays what a new Install would meet (refused).
+    notes=risk_lines(record)
+    lines=compat.check_lines(verdict,scan,compat.wiki_advice(data,ids,verdict),run,installed,notes)
     if not record and any((root/n).is_file() for n in ['OptiScaler.log',*PROXY_LOGS]):lines+=['','Logs from another setup are in the game folder (not read: no installation of this build is recorded here).']
     print('\n'.join(lines))
     if report:
@@ -1440,7 +1555,7 @@ def check(package,exe,accept=(),report=False):
         name=None
         try:name=json.loads((package/'manifest.json').read_text()).get('name')
         except (OSError,ValueError):pass
-        print('\n'+compat.report(verdict,scan,versions,run,name))
+        print('\n'+compat.report(verdict,scan,versions,run,name,installed_notes=notes))
 
 def check_all(package,home=None):
     """install.py check --all: one verdict line per installed Steam and Heroic game (no launcher edits, no network)."""
@@ -1457,7 +1572,12 @@ def check_all(package,home=None):
         verdict=compat.decide(scan,data,ids)
         key=verdict['blocking'][0]['code'] if verdict['blocking'] else verdict['tier']
         counts[key]=counts.get(key,0)+1
-        print(f'{game.get("name")} [{game.get("store")} {game.get("id")}]: {verdict["line"]}')
+        # An installation made despite anti-cheat says so beside the verdict (which stays the refusal).
+        notes=[]
+        if exe and game.get('path'):
+            try:notes=risk_lines(json.loads(safe((Path(game['path'])/exe).parent.resolve(),STATE+'/state.json').read_text()))
+            except (OSError,ValueError):notes=[]
+        print(f'{game.get("name")} [{game.get("store")} {game.get("id")}]: {verdict["line"]}'+''.join(' '+n for n in notes))
     print('\n'+', '.join(f'{k} {v}' for k,v in sorted(counts.items(),key=lambda kv:-kv[1])))
 
 def zipfile_errors():
@@ -1491,7 +1611,7 @@ def accepted_for(accept,exe):
     out=[]
     for item in accept:
         code,_,path=item.partition('=')
-        if not path or Path(path).expanduser().absolute().resolve()==Path(exe).expanduser().absolute().resolve():out.append(code)
+        if not path or same_exe(path,exe):out.append(code)
     return out
 
 def main():
@@ -1513,9 +1633,25 @@ def main():
                         help='install despite a soft refusal (install.py check names them: protonfix-api, wiki-not-working, '
                              'input-unconfirmed, and with an explicit --route/--fg-input no-input, no-dx12, api-*); CODE=EXE '
                              'accepts it for that game only (Setup passes one per game it listed)')
+    parser.add_argument('--accept-anticheat-risk',action='append',nargs='?',const='',default=[],metavar='EXE',
+                        help='install or preview despite the game’s anti-cheat, at the risk of an account ban (COMPATIBILITY.md); '
+                             '--accept never lifts this refusal. =EXE names the game; without it, only when one game is given. '
+                             'It shows the risks, then asks for the sentence "'+RISK_SENTENCE+'", typed at a terminal')
+    parser.add_argument('--confirm-anticheat-risk',metavar='SENTENCE',
+                        help='the sentence "'+RISK_SENTENCE+'" for --accept-anticheat-risk where there is no terminal to type it '
+                             '(Setup, a script, output piped elsewhere); at a terminal it is typed all the same')
     parser.add_argument('--all',action='store_true',help='check: every installed Steam and Heroic game, one line each')
     parser.add_argument('--report',action='store_true',help='check: also print a redacted report for a GitHub issue')
     args=parser.parse_args()
+    risk_values=args.accept_anticheat_risk
+    if risk_values or args.confirm_anticheat_risk is not None:
+        # The override is per game and needs both its options; nothing is lifted for games the command does not name.
+        if args.command not in ['install','preview']:parser.error('--accept-anticheat-risk and --confirm-anticheat-risk apply to install and preview only')
+        if not risk_values:parser.error('--confirm-anticheat-risk confirms --accept-anticheat-risk; give both')
+        if not args.exe:parser.error('name the game before the option: install.py '+args.command+' GAME.exe --accept-anticheat-risk[=GAME.exe]')
+        if '' in risk_values and len(args.exe)!=1:parser.error('--accept-anticheat-risk without =EXE needs exactly one game; name each game with --accept-anticheat-risk=EXE')
+        for value in risk_values:
+            if value and not any(same_exe(value,exe) for exe in args.exe):parser.error('--accept-anticheat-risk='+value+' names none of the games of this command')
     if args.command=='check' and args.all:return check_all(Path(__file__).resolve().parent)
     if args.command=='doctor':
         import doctor
@@ -1536,10 +1672,10 @@ def main():
             else:
                 route,fg_input=args.route,args.fg_input
                 if route=='auto' and fg_input!='auto':route='opti'  # an explicit OptiScaler input names the route
-                verdict=None
+                verdict=None;accepted=accepted_for(args.accept,exe)
                 if route=='auto' and fg_input=='auto':
                     # Automatic: the compatibility verdict picks the route and input (a verified recipe's, else detection's).
-                    found=compat_verdict(Path(__file__).resolve().parent,exe.absolute(),None,None,None,accepted_for(args.accept,exe))
+                    found=compat_verdict(Path(__file__).resolve().parent,exe.absolute(),None,None,None,accepted)
                     if found:
                         verdict=found[0];route,fg_input=verdict['route'],verdict['fg_input']
                         print('Frame-generation input: '+('native XeSS FG' if route=='native' else {'upscaler':'OptiFG','dlssg':'DLSS FG','fsrfg':'FSR 3.1 FG','fsrfg30':'FSR 3.0 FG'}[fg_input])+' ('+verdict['reason']+')')
@@ -1556,8 +1692,18 @@ def main():
                     fg_input=detected[1] if fg_input=='auto' else fg_input
                     print('Frame-generation input: '+detected[2]+('' if (route,fg_input)==detected[:2] else ' (overridden: '+route+'/'+fg_input+')'))
                 if fg_input=='auto':fg_input='upscaler'
+                risk=[]
+                if anticheat_override(risk_values,exe,args.exe):
+                    # The warning, then the sentence; only then is the anti-cheat refusal lifted, for this game alone. A running
+                    # game is named first, as install() would, so the sentence is not typed for an install that cannot start.
+                    idle(exe.absolute().parent.resolve())
+                    risk=override_anticheat(Path(__file__).resolve().parent,exe.absolute(),route,fg_input,accepted,verdict,args.confirm_anticheat_risk)
+                    if risk and verdict is not None:
+                        found=compat_verdict(Path(__file__).resolve().parent,exe.absolute(),None,None,None,accepted,risk)
+                        verdict=found[0] if found else None
                 install(Path(__file__).resolve().parent,exe.absolute(),args.command=='preview',route,fg_input,dlss_helper=args.dlss_helper,
-                        upscaler=args.upscaler or 'fsr4',helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted_for(args.accept,exe),verdict=verdict)
+                        upscaler=args.upscaler or 'fsr4',helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted,verdict=verdict,
+                        accept_risk=risk)
         except (ValueError,OSError,configparser.Error,subprocess.SubprocessError) as error:print(str(error),file=sys.stderr);failed=True
         except Exception as error:  # noqa: BLE001 - one game's unexpected failure must not skip the others
             import traceback

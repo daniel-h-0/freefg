@@ -106,8 +106,9 @@ The compatibility check (before every install, and Setup's **Check**) only reads
 
 Its report (`--report`) is text for you to paste into an issue yourself. It contains the package name, the game's name,
 store and ID, the GPU, kernel, gamescope and Proton lines of **Check system**, the verdict and what the check detected,
-and a summary of the last run's logs. It replaces your home folder, user name and the game's library folder (also as the
-game sees them under Wine, `Z:\...`), and names the executable only by its file name.
+a summary of the last run's logs and, for a game installed despite its anti-cheat, the date of that override. It
+replaces your home folder, user name and the game's library folder (also as the game sees them under Wine, `Z:\...`),
+and names the executable only by its file name.
 
 **Check system** reads the GPU's PCI IDs, the kernel version, the Vulkan driver's queue layout, memory sizes and clocks,
 gamescope's version and capabilities, and the installed Proton builds. It tests whether Steam's local DevTools port

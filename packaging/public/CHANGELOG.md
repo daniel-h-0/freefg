@@ -2,6 +2,40 @@
 
 Changes in each release of FreeFG. The private test builds made before 0.9.0 are not covered.
 
+## 1.0.1 – 2026-10-20
+
+The installer and the documents change. The proxy, pacing layer, shader profile and OptiScaler are byte-identical to
+1.0.0's.
+
+### Added
+
+- An override of the anti-cheat refusal per game, at the risk of an account ban: Setup's **Override anti-cheat
+  refusal...** or `install.py --accept-anticheat-risk` ([COMPATIBILITY.md](COMPATIBILITY.md#anti-cheat)). **Install
+  anyway** and `--accept` still never lift it. Status and Check show the override until Restore.
+
+### Changed
+
+- Check lists anti-cheat as a refusal of its own kind (`[anticheat, risk, refused]`, before: `hard`) and names the
+  override.
+
+### Documents
+
+- README and COMPATIBILITY name the 758 games with an OptiScaler wiki entry beside the 19 verified recipes.
+- The figures carry less text; their captions give the conditions.
+- MEASUREMENTS adds the two measurement series under Checked, with a figure. README recommends
+  `XeFGModel=default` with MFG Unlocker for speed.
+
+### Checked
+
+- Without a GPU: the installer tests, an offline install and Restore, and CI.
+- The payload is byte-identical to 1.0.0's, so 1.0.0's GPU [checks](MEASUREMENTS.md#checks-of-100) apply to it.
+- Two measurement series with 1.0.0's files on one BC-250, Cyberpunk 2077 headless:
+  - [1.0.0 against 0.9.0 at 2×](MEASUREMENTS.md#100-against-090-at-2-same-day), the same day: no measurable difference
+    in an existing OptiScaler setup (−0.12%, SE 0.11); a fresh setup, which loads OptiPatcher, −0.45% (SE 0.25).
+  - [3× and 4× with MFG Unlocker](MEASUREMENTS.md#3-and-4-with-mfg-unlocker), against MFG Unlocker alone with
+    `XeFGModel=default`: +34% and +43% game frame rate (pacing off, 1–2 runs per arm). Also HDR10, Dynamic MFG, and no
+    start-up exit in 18 starts at 3×.
+
 ## 1.0.0 – 2026-10-20
 
 First public release. The proxy `libxess_fg.dll` is a new build with the multi-frame code compiled in. The figures in

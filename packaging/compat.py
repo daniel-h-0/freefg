@@ -228,22 +228,34 @@ def _refusal(code, kind, text, way):
     return dict(code=code, kind=kind, text=text, way=way)
 
 
+def names_text(names):
+    """'A', 'A and B', 'A, B and C'."""
+    names = list(names)
+    return ' and '.join(names) if len(names) < 3 else ', '.join(names[:-1]) + ' and ' + names[-1]
+
+
 def refusals(scan, verified=None, community=None, launcher_conflicts=(), launchers=None, wiki=(), explicit=False, setup=()):
     """Every refusal the evidence calls for (gamescan scan, the recipe in effect, launcher_config.conflicts, and setup:
     what install.preconditions finds in the game folder): hard ones cannot be overridden, soft ones need an explicit
-    accept (Setup's Install anyway, --accept CODE). explicit: the user chose the route and input, so a refusal that rests
-    on detection alone (no DirectX 12, no input) is soft: detection can miss what the user knows."""
+    accept (Setup's Install anyway, --accept CODE), and risk ones (anti-cheat) are lifted only by the user's override for
+    that one game (decide's accept_risk), never by an accept. explicit: the user chose the route and input, so a refusal
+    that rests on detection alone (no DirectX 12, no input) is soft: detection can miss what the user knows."""
     out = []
     kind = 'soft' if explicit else 'hard'
     anyway = ' Install anyway (you chose the input) only if you know the game has what this check missed.' if explicit else ''
     exe = scan.get('exe') or {}
     api = scan.get('api') or {}
     recipe = verified or community
-    for ac in scan.get('anticheat') or []:
-        out.append(_refusal('anticheat', 'hard', f'This game ships {ac["name"]} anti-cheat ({ac["evidence"][0]}). This build loads DLLs '
-                            'into the game process, which anti-cheat software can treat as tampering and may ban the account.',
-                            'None: offline-only modes are not told apart.'))
-        break
+    found = scan.get('anticheat') or []
+    if found:
+        # A risk refusal: no accept lifts it (--accept, Install anyway); only the user's own override for this one game,
+        # confirmed with the typed sentence (install.py --accept-anticheat-risk, Setup's Override anti-cheat refusal).
+        names = [ac['name'] for ac in found]
+        out.append(dict(_refusal('anticheat', 'risk', f'This game ships anti-cheat: {names_text(names)} ({found[0]["evidence"][0]}). This '
+                                 'build loads DLLs into the game process, which anti-cheat software can treat as tampering and may ban the '
+                                 'account.', 'None by default. An override for one game risks a ban: --accept-anticheat-risk '
+                                 '(COMPATIBILITY.md#anti-cheat).'),
+                        names=names))
     if not exe.get('selected') and exe.get('native_linux'):
         out.append(_refusal('native-linux', 'hard', 'Steam installed the Linux version of this game.',
                             'Steam: Properties, Compatibility, force a Proton version, let Steam download the Windows version, then Check again.'))
@@ -305,13 +317,14 @@ MATCH = object()
 
 
 def decide(scan, data=None, ids=None, choice=None, ctx=None, accept=(), launcher_conflicts=(), launchers=None, quirk_exe=None,
-           verified=MATCH, setup=()):
+           verified=MATCH, setup=(), accept_risk=()):
     """The verdict for one game. choice: dict(route, fg_input) chosen by the user (None: Automatic). accept: soft
-    refusal codes the user accepted. Returns dict(tier, name, line, route, fg_input, reason, launch_args,
+    refusal codes the user accepted. accept_risk: risk refusal codes (anticheat) the user overrode for this game after
+    the typed confirmation; accept never lifts one. Returns dict(tier, name, line, route, fg_input, reason, launch_args,
     launch_source, ini, ini_sources, dlss_helper, extra_env, manual_steps, warnings, refusals, blocking, accepted,
-    confidence, wiki, recipe, recipe_entry). verified: the verified recipe recipes.match found (None for none), so that the
-    installer and the verdict use one matcher; by default it is matched here the same way. setup: refusals of the game
-    folder's current state (install.preconditions): they block Install but do not change the tier."""
+    risk_accepted, confidence, wiki, recipe, recipe_entry). verified: the verified recipe recipes.match found (None for
+    none), so that the installer and the verdict use one matcher; by default it is matched here the same way. setup:
+    refusals of the game folder's current state (install.preconditions): they block Install but do not change the tier."""
     ids = ids or dict(exe=Path((scan.get('exe') or {}).get('selected') or '').name.lower(), steam=set(), gog=set(), epic=set(),
                       titles=set(), folders=set())
     data = data or {}
@@ -468,8 +481,12 @@ def decide(scan, data=None, ids=None, choice=None, ctx=None, accept=(), launcher
     if choice_source == 'user' and route == 'native' and not scan.get('xefg_beside') and exe.get('selected'):
         found.insert(0, _refusal('no-native-xefg', 'hard', 'Native XeSS FG needs the game\'s own libxess_fg.dll beside its executable, '
                                  'and there is none.', 'Choose an OptiScaler input (OptiFG) instead.'))
-    accepted = [r['code'] for r in found if r['kind'] == 'soft' and r['code'] in accept]
-    blocking = [r for r in found if r['kind'] == 'hard' or r['code'] not in accept]
+    def lifted(r):
+        # A hard refusal never; a soft one by an accept; a risk one only by accept_risk (an accept of its code does nothing).
+        return (r['kind'] == 'soft' and r['code'] in accept) or (r['kind'] == 'risk' and r['code'] in accept_risk)
+    accepted = [r['code'] for r in found if r['kind'] == 'soft' and lifted(r)]
+    risk_accepted = [r['code'] for r in found if r['kind'] == 'risk' and lifted(r)]
+    blocking = [r for r in found if not lifted(r)]
     refused = [r for r in blocking if not r.get('setup')]
     extra_env = {'PROTONFIXES_DISABLE': '1'} if 'protonfix-api' in accepted else {}
     # Confidence for the two things detection can get wrong.
@@ -491,7 +508,7 @@ def decide(scan, data=None, ids=None, choice=None, ctx=None, accept=(), launcher
     verdict = dict(tier=tier, name=TIER_NAMES[tier], route=route, fg_input=fg_input, reason=reason, choice=choice_source,
                    launch_args=launch_args, launch_source=launch_source, ini=ini, ini_sources=sources, dlss_helper=dlss_helper,
                    extra_env=extra_env, manual_steps=manual, needs_step=len(manual) > standard, warnings=warnings,
-                   refusals=found, blocking=blocking, accepted=accepted, confidence=confidence, vetoes=vetoes,
+                   refusals=found, blocking=blocking, accepted=accepted, risk_accepted=risk_accepted, confidence=confidence, vetoes=vetoes,
                    recipe=dict(title=recipe['title'], status='verified-bc250' if verified else 'community-bc250',
                                evidence=(verified or {}).get('evidence'), observed=(verified or {}).get('observed'),
                                reports=(community or {}).get('reports')) if recipe else None,
@@ -529,7 +546,8 @@ def _plan_line(v, scan):
 
 
 def preflight(verdict):
-    """Raise Refused for the first refusal that blocks an install (hard, or soft and not accepted)."""
+    """Raise Refused for the first refusal that blocks an install (hard, soft and not accepted, or risk and not
+    overridden)."""
     if verdict['blocking']:
         raise Refused(verdict['blocking'][0])
 
@@ -691,8 +709,9 @@ def last_run_lines(summary):
 
 
 # --------------------------------------------------------------------------------------------- Check and the report
-def check_lines(verdict, scan, advice=None, run=None, installed=None):
-    """The text of install.py check / Setup's Check for one game."""
+def check_lines(verdict, scan, advice=None, run=None, installed=None, installed_notes=()):
+    """The text of install.py check / Setup's Check for one game. installed_notes: lines about the installation (an
+    anti-cheat override, install.risk_lines)."""
     exe = scan.get('exe') or {}
     api = scan.get('api') or {}
     out = [verdict['line'], '']
@@ -725,6 +744,7 @@ def check_lines(verdict, scan, advice=None, run=None, installed=None):
         out.append('Other tools\' files: ' + ', '.join(sorted({m['what'] for m in scan['mods']}))[:200])
     if installed:
         out.append('Installed: ' + installed)
+    out += list(installed_notes)
     out.append('')
     if not [r for r in verdict['blocking'] if not r.get('setup')]:
         out.append('Plan: ' + ('native XeSS FG' if verdict['route'] == 'native' else INPUT_NAMES.get(verdict['fg_input'], verdict['fg_input']) + ' input')
@@ -741,7 +761,8 @@ def check_lines(verdict, scan, advice=None, run=None, installed=None):
         out.append('Your steps:')
         out += [f'  {n}. {s}' for n, s in enumerate(verdict['manual_steps'], 1)]
     for r in verdict['refusals']:
-        mark = 'accepted' if r['code'] in verdict['accepted'] else 'refused' if r in verdict['blocking'] else 'note'
+        mark = 'accepted' if r['code'] in verdict['accepted'] else 'risk accepted' if r['code'] in verdict.get('risk_accepted', ()) \
+            else 'refused' if r in verdict['blocking'] else 'note'
         out.append(f'[{r["code"]}, {r["kind"]}{", before Install" if r.get("setup") else ""}, {mark}] {r["text"]} {r["way"]}')
     for w in verdict['warnings']:
         out.append('Note: ' + w)
@@ -777,8 +798,9 @@ def redact(text, home=None, libraries=()):
     return text
 
 
-def report(verdict, scan, versions=None, run=None, package=None, home=None):
-    """The redacted text Check's Copy report gives for a GitHub issue: no paths, no user name, no file contents."""
+def report(verdict, scan, versions=None, run=None, package=None, home=None, installed_notes=()):
+    """The redacted text Check's Copy report gives for a GitHub issue: no paths, no user name, no file contents.
+    installed_notes: lines about the installation (an anti-cheat override), listed with the package."""
     v = {k: verdict[k] for k in ('tier', 'route', 'fg_input', 'reason', 'launch_args', 'launch_source', 'dlss_helper', 'accepted')}
     v['ini'] = {f'{s}.{k}': value for (s, k), value in verdict['ini'].items()}
     v['refusals'] = [r['code'] for r in verdict['refusals']]
@@ -790,6 +812,7 @@ def report(verdict, scan, versions=None, run=None, package=None, home=None):
     lines = ['### Game report', '', f'- Package: {package or "unknown"}',
              '- Game: ' + (scan.get('name') or '?') + (f' ({scan["store"]} {scan["id"]})' if scan.get('store') else '')]
     lines += [f'- {k}: {val}' for k, val in (versions or {}).items()]
+    lines += [f'- {note}' for note in installed_notes]
     lines += ['', '```json', json.dumps(dict(verdict=v, detected=detected), indent=1, sort_keys=True, default=str), '```']
     if run:
         lines += ['', 'After the last run:'] + ['- ' + line for line in last_run_lines(run)]

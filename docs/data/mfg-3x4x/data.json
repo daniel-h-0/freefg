@@ -1,0 +1,453 @@
+{
+ "figure": "mfg-3x4x-fps",
+ "question": "How many game frames per second does Cyberpunk 2077 run at 3x and 4x with MFG Unlocker, with FreeFG's shaders and with MFG Unlocker alone?",
+ "plot": {
+  "title": "Cyberpunk 2077 at 3× and 4× with MFG Unlocker",
+  "subtitle": "AMD BC-250  ·  2560×1440 SDR  ·  FSR 4 Performance  ·  XeFGModel=default",
+  "unit": "game FPS",
+  "bars": [
+   {
+    "id": "alone_3x",
+    "label": "MFG Unlocker alone",
+    "value_from": "default_model.3x.mfg_unlocker_alone.game_fps_mean",
+    "group": "3×",
+    "role": "intel"
+   },
+   {
+    "id": "freefg_3x",
+    "label": "FreeFG 1.0.0",
+    "value_from": "default_model.3x.freefg.game_fps_mean",
+    "group": "3×",
+    "role": "freefg"
+   },
+   {
+    "id": "alone_4x",
+    "label": "MFG Unlocker alone",
+    "value_from": "default_model.4x.mfg_unlocker_alone.game_fps_mean",
+    "group": "4×",
+    "role": "intel"
+   },
+   {
+    "id": "freefg_4x",
+    "label": "FreeFG 1.0.0",
+    "value_from": "default_model.4x.freefg.game_fps_mean",
+    "group": "4×",
+    "role": "freefg"
+   }
+  ],
+  "differences": [
+   {
+    "from": "alone_3x",
+    "to": "freefg_3x",
+    "digits": 1
+   },
+   {
+    "from": "alone_4x",
+    "to": "freefg_4x",
+    "digits": 1
+   }
+  ]
+ },
+ "date": "2026-10-20",
+ "conditions": {
+  "gpu": "AMD BC-250, GPU clock limit 1850 MHz",
+  "game": "Cyberpunk 2077 2.31 (GOG files, started by the test harness, no save loaded), built-in benchmark, one pass per run",
+  "output": "2560x1440 SDR (HDR10 where noted), private headless gamescope at a fixed 240 Hz, no display, no VRR; Dynamic MFG at 120 Hz",
+  "upscaler": "FSR 4 Performance",
+  "frame_generation": "OptiScaler's frame generation (OptiFG, FGOutput=xefg) from the upscaler input; the game's own frame generation off",
+  "mfg_unlocker": "v1.6.0 as OptiScaler/plugins/MFGUnlocker.asi ([Plugins] LoadAsiPlugins=true), [XeFG] InterpolationCount 2 (3x) or 3 (4x); XeFGModel=default, or absent for MFG Unlocker's own model",
+  "pacing": "pacing layer loaded with BC250_XEFG_PACE=0 (no holding) in every run below; a rule fixed before the runs turned pacing off because the paced 3x arms' release intervals differed by more than 10%",
+  "freefg_arm": "FreeFG 1.0.0's files as its installer writes them; the proxy accelerates beside MFG Unlocker",
+  "mfg_unlocker_alone_arm": "the same files with BC250_XEFG_DISABLE=1: the proxy only forwards, so MFG Unlocker runs with Intel's shaders",
+  "order": "one discarded warm-up start per arm, then O I I O at 3x and O I I O at 4x (O = FreeFG, I = MFG Unlocker alone), per model",
+  "proxy_sha256": "77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7",
+  "layer_sha256": "d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271",
+  "optiscaler_sha256": "5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6",
+  "mfg_unlocker_dll_sha256": "161b9e1245a3736dc462ee83f4ad51e6125d8e7e73ce3eedde89d2eed60c69fa"
+ },
+ "metric": "game FPS = rows of the benchmark's frames.csv divided by its duration (real frames; on this route the benchmark's own average counts the same frames). presents_per_s_derived = frames per present x game FPS (with pacing off the layer records no present times).",
+ "default_model": {
+  "3x": {
+   "frames_per_present": 3,
+   "mfg_unlocker_alone": {
+    "n": 2,
+    "game_fps_mean": 31.141,
+    "game_fps_sd": 0.047,
+    "runs": [
+     {
+      "run": "ms3-1020044101-06-I3d",
+      "game_fps": 31.108,
+      "min_fps": 29.4,
+      "seconds": 64.2,
+      "presents_per_s_derived": 93.33,
+      "shaders_replaced": 0
+     },
+     {
+      "run": "ms3-1020044101-07-I3d",
+      "game_fps": 31.174,
+      "min_fps": 29.6,
+      "seconds": 64.2,
+      "presents_per_s_derived": 93.52,
+      "shaders_replaced": 0
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020044101-02-wu-I3d",
+      "game_fps": 31.142,
+      "min_fps": 29.5,
+      "seconds": 64.2,
+      "presents_per_s_derived": 93.42,
+      "shaders_replaced": 0
+     }
+    ]
+   },
+   "freefg": {
+    "n": 2,
+    "game_fps_mean": 41.771,
+    "game_fps_sd": 0.008,
+    "runs": [
+     {
+      "run": "ms3-1020044101-05-O3d",
+      "game_fps": 41.777,
+      "min_fps": 38.9,
+      "seconds": 64.2,
+      "presents_per_s_derived": 125.33,
+      "shaders_replaced": 13
+     },
+     {
+      "run": "ms3-1020044101-08-O3d",
+      "game_fps": 41.765,
+      "min_fps": 39.1,
+      "seconds": 64.2,
+      "presents_per_s_derived": 125.3,
+      "shaders_replaced": 13
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020044101-01-wu-O3d",
+      "game_fps": 41.749,
+      "min_fps": 38.9,
+      "seconds": 64.2,
+      "presents_per_s_derived": 125.25,
+      "shaders_replaced": 13
+     }
+    ]
+   },
+   "gain_pct": 34.14,
+   "gain_se_pct": 0.11,
+   "saved_ms_per_generated_frame": 4.09
+  },
+  "4x": {
+   "frames_per_present": 4,
+   "mfg_unlocker_alone": {
+    "n": 1,
+    "game_fps_mean": 24.438,
+    "runs": [
+     {
+      "run": "ms3-1020044101-10-I4d",
+      "game_fps": 24.438,
+      "min_fps": 23.3,
+      "seconds": 64.2,
+      "presents_per_s_derived": 97.75,
+      "shaders_replaced": 0
+     }
+    ],
+    "excluded_runs": [
+     {
+      "run": "ms3-1020044101-11-I4d",
+      "game_fps": 24.415,
+      "min_fps": 23.1,
+      "seconds": 64.2,
+      "presents_per_s_derived": 97.66,
+      "shaders_replaced": 0,
+      "excluded": "left out: another process used 28.2% of a CPU core during the run (check after the run)"
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020044101-04-wu-I4d",
+      "game_fps": 24.435,
+      "min_fps": 23.3,
+      "seconds": 64.2,
+      "presents_per_s_derived": 97.74,
+      "shaders_replaced": 0
+     }
+    ]
+   },
+   "freefg": {
+    "n": 1,
+    "game_fps_mean": 34.981,
+    "runs": [
+     {
+      "run": "ms3-1020044101-12-O4d",
+      "game_fps": 34.981,
+      "min_fps": 33.0,
+      "seconds": 64.2,
+      "presents_per_s_derived": 139.93,
+      "shaders_replaced": 13
+     }
+    ],
+    "excluded_runs": [
+     {
+      "run": "ms3-1020044101-09-O4d",
+      "game_fps": 34.944,
+      "min_fps": 32.9,
+      "seconds": 64.2,
+      "presents_per_s_derived": 139.78,
+      "shaders_replaced": 13,
+      "excluded": "left out: another process used 39.2% of a CPU core during the run (check after the run)"
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020044101-03-wu-O4d",
+      "game_fps": 34.923,
+      "min_fps": 32.9,
+      "seconds": 64.2,
+      "presents_per_s_derived": 139.69,
+      "shaders_replaced": 13
+     }
+    ]
+   },
+   "gain_pct": 43.14,
+   "gain_pct_with_excluded_runs": 43.13,
+   "saved_ms_per_generated_frame": 4.11
+  }
+ },
+ "mfg_unlocker_model": {
+  "3x": {
+   "frames_per_present": 3,
+   "mfg_unlocker_alone": {
+    "n": 2,
+    "game_fps_mean": 31.433,
+    "game_fps_sd": 0.174,
+    "runs": [
+     {
+      "run": "ms3-1020054434-06-I3p",
+      "game_fps": 31.31,
+      "min_fps": 29.2,
+      "seconds": 64.2,
+      "presents_per_s_derived": 93.93,
+      "shaders_replaced": 0
+     },
+     {
+      "run": "ms3-1020054434-07-I3p",
+      "game_fps": 31.556,
+      "min_fps": 29.7,
+      "seconds": 64.2,
+      "presents_per_s_derived": 94.67,
+      "shaders_replaced": 0
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020054434-02-wu-I3p",
+      "game_fps": 31.403,
+      "min_fps": 29.4,
+      "seconds": 64.2,
+      "presents_per_s_derived": 94.21,
+      "shaders_replaced": 0,
+      "excluded": "left out: another process used 44.9% of a CPU core during the run (check after the run)"
+     }
+    ]
+   },
+   "freefg": {
+    "n": 2,
+    "game_fps_mean": 34.765,
+    "game_fps_sd": 0.059,
+    "runs": [
+     {
+      "run": "ms3-1020054434-05-O3p",
+      "game_fps": 34.723,
+      "min_fps": 32.6,
+      "seconds": 64.2,
+      "presents_per_s_derived": 104.17,
+      "shaders_replaced": 7
+     },
+     {
+      "run": "ms3-1020054434-08-O3p",
+      "game_fps": 34.807,
+      "min_fps": 32.7,
+      "seconds": 64.2,
+      "presents_per_s_derived": 104.42,
+      "shaders_replaced": 7
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020054434-01-wu-O3p",
+      "game_fps": 34.786,
+      "min_fps": 32.8,
+      "seconds": 64.2,
+      "presents_per_s_derived": 104.36,
+      "shaders_replaced": 7
+     }
+    ]
+   },
+   "gain_pct": 10.6,
+   "gain_se_pct": 0.41,
+   "saved_ms_per_generated_frame": 1.52
+  },
+  "4x": {
+   "frames_per_present": 4,
+   "mfg_unlocker_alone": {
+    "n": 1,
+    "game_fps_mean": 23.927,
+    "runs": [
+     {
+      "run": "ms3-1020054434-10-I4p",
+      "game_fps": 23.927,
+      "min_fps": 22.7,
+      "seconds": 64.2,
+      "presents_per_s_derived": 95.71,
+      "shaders_replaced": 0
+     }
+    ],
+    "excluded_runs": [
+     {
+      "run": "ms3-1020054434-11-I4p",
+      "game_fps": 23.819,
+      "min_fps": 22.6,
+      "seconds": 64.2,
+      "presents_per_s_derived": 95.28,
+      "shaders_replaced": 0,
+      "excluded": "left out: another process used 61.3% of a CPU core during the run (check after the run)"
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020054434-04-wu-I4p",
+      "game_fps": 23.91,
+      "min_fps": 22.7,
+      "seconds": 64.2,
+      "presents_per_s_derived": 95.64,
+      "shaders_replaced": 0
+     }
+    ]
+   },
+   "freefg": {
+    "n": 2,
+    "game_fps_mean": 27.919,
+    "game_fps_sd": 0.057,
+    "runs": [
+     {
+      "run": "ms3-1020054434-09-O4p",
+      "game_fps": 27.879,
+      "min_fps": 26.2,
+      "seconds": 64.2,
+      "presents_per_s_derived": 111.52,
+      "shaders_replaced": 7
+     },
+     {
+      "run": "ms3-1020054434-12-O4p",
+      "game_fps": 27.96,
+      "min_fps": 26.1,
+      "seconds": 64.2,
+      "presents_per_s_derived": 111.84,
+      "shaders_replaced": 7
+     }
+    ],
+    "warm_up_discarded": [
+     {
+      "run": "ms3-1020054434-03-wu-O4p",
+      "game_fps": 27.936,
+      "min_fps": 26.3,
+      "seconds": 64.2,
+      "presents_per_s_derived": 111.74,
+      "shaders_replaced": 7
+     }
+    ]
+   },
+   "gain_pct": 16.68,
+   "gain_pct_with_excluded_runs": 16.95,
+   "saved_ms_per_generated_frame": 1.99
+  }
+ },
+ "hdr10_default_model_freefg": {
+  "3x": {
+   "n": 1,
+   "game_fps_mean": 40.612,
+   "runs": [
+    {
+     "run": "ms3-1020052554-03-H3",
+     "game_fps": 40.612,
+     "min_fps": 37.8,
+     "seconds": 64.2,
+     "presents_per_s_derived": 121.83,
+     "shaders_replaced": 13
+    }
+   ],
+   "warm_up_discarded": [
+    {
+     "run": "ms3-1020052554-01-wu-H3",
+     "game_fps": 40.605,
+     "min_fps": 37.8,
+     "seconds": 64.2,
+     "presents_per_s_derived": 121.82,
+     "shaders_replaced": 13
+    }
+   ]
+  },
+  "4x": {
+   "n": 1,
+   "game_fps_mean": 33.784,
+   "runs": [
+    {
+     "run": "ms3-1020052554-04-H4",
+     "game_fps": 33.784,
+     "min_fps": 31.9,
+     "seconds": 64.2,
+     "presents_per_s_derived": 135.14,
+     "shaders_replaced": 13
+    }
+   ],
+   "warm_up_discarded": [
+    {
+     "run": "ms3-1020052554-02-wu-H4",
+     "game_fps": 33.805,
+     "min_fps": 31.9,
+     "seconds": 64.2,
+     "presents_per_s_derived": 135.22,
+     "shaders_replaced": 13
+    }
+   ]
+  }
+ },
+ "dynamic_mfg": {
+  "n": 1,
+  "game_fps_mean": 48.013,
+  "runs": [
+   {
+    "run": "ms3-1020054013-01-DYN",
+    "game_fps": 48.013,
+    "min_fps": 34.2,
+    "seconds": 64.2,
+    "shaders_replaced": 13
+   }
+  ],
+  "setting": "[XeFG] DynamicMFG=true with InterpolationCount 3 (at most 4x), 2560x1440 at 120 Hz, frame target just under the refresh (116)",
+  "factor_changes": [
+   "4x to 3x",
+   "3x to 4x",
+   "4x to 3x",
+   "3x to 2x",
+   "2x to 3x",
+   "3x to 2x"
+  ],
+  "result": "the proxy followed every change, stayed accelerated and logged no FAIL line"
+ },
+ "notes": [
+  "gain_pct: FreeFG's game FPS against MFG Unlocker alone, from the kept runs; gain_se_pct from the run SDs (arms with 2 kept runs only).",
+  "saved_ms_per_generated_frame = (1/FPS_alone - 1/FPS_FreeFG) / (frames per present - 1), from game FPS.",
+  "Runs whose check after the run found another process using a large share of a CPU core were left out, by a rule fixed before the runs; they are listed under excluded_runs and give gain_pct_with_excluded_runs.",
+  "shaders_replaced: shaders the proxy ran in place of Intel's, from its log (13 on the default model, 7 on MFG Unlocker's own model).",
+  "No HDR10 run of MFG Unlocker alone was made, so HDR10 has no gain figure.",
+  "FreeFG 1.0.1 ships the same proxy, layer, shader profile and OptiScaler as 1.0.0."
+ ],
+ "sources": [
+  "Maintainer evidence, headless Cyberpunk measurement round of 2026-10-20 (MS-3): blocks ms3-20261020-044101 (default model), -052554 (HDR10), -054013 (Dynamic MFG) and -054434 (MFG Unlocker's model); per run benchmark/summary.json, benchmark/frames.csv, the proxy's and OptiScaler's logs and the conditions checks before and after",
+  "Summarised in packaging/public/MEASUREMENTS.md, section \"3× and 4× with MFG Unlocker\""
+ ]
+}
