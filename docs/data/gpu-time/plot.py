@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""GPU time of one generated frame by stage: XeFG with Intel's shaders against FreeFG. Reads data.json beside it.
+"""GPU time of one generated frame: XeFG with Intel's shaders against FreeFG 0.9.0, totals and the stages FreeFG
+replaces. Reads data.json beside it.
 
   python3 docs/data/gpu-time/plot.py      # writes docs/assets/gpu-time-per-generated-frame.svg and .png
+
+Conditions, runs, dates and the caveats of comparing the two arms are in packaging/public/MEASUREMENTS.md, not in the
+image.
 """
 import json
 import sys
@@ -15,97 +19,83 @@ import figstyle as s  # noqa: E402
 from matplotlib.patches import Rectangle  # noqa: E402
 
 DATA = json.loads((HERE / 'data.json').read_text())
-W, H = 1600, 1040
-X0, PER_MS = 560, 92.0
+W, H = 1200, 540
+X0, PER_MS = 330, 78.0        # bar origin and scale (design pixels per millisecond)
+LEFT, RIGHT = 56, W - 56
+TOTAL_BAR, STAGE_BAR = 40, 18
+
+# Short names of the stages FreeFG runs with its own shaders; the table in MEASUREMENTS.md gives the full names and
+# the stages both arms run with Intel's shaders (left out here: their differences come from the arms' inputs).
+NAMES = {
+    'Reconstruction network': 'Reconstruction network',
+    'Optical flow: 224-channel layers': 'Flow, 224 channels',
+    'Optical flow: 64-channel refinement': 'Flow, 64 channels',
+}
 
 
 def x(ms):
     return X0 + ms * PER_MS
 
 
-def bar(ax, y, ms, height, color, start=0.0, alpha=1.0, hatch=None):
+def bar(ax, y, ms, height, color, start=0.0):
     ax.add_patch(Rectangle((x(start), y - height / 2), ms * PER_MS, height, facecolor=color, edgecolor='none',
-                           alpha=alpha, hatch=hatch, zorder=3))
+                           zorder=3))
 
 
-def label_box(artist):
-    artist.set_bbox(dict(facecolor=s.BG, edgecolor='none', pad=1))
-    return artist
+def legend(fig, ax, y, items):
+    """Swatch + label pairs on one line, right-aligned to the canvas margin."""
+    renderer = fig.canvas.get_renderer()
+    swatch, pad, gap = 16, 10, 32
+    labels = [s.text(ax, 0, y, label, 18, s.MUTED) for _, label in items]
+    widths = [artist.get_window_extent(renderer).width for artist in labels]
+    left = RIGHT - sum(swatch + pad + w for w in widths) - gap * (len(items) - 1)
+    for (color, _), artist, width in zip(items, labels, widths):
+        ax.add_patch(Rectangle((left, y - swatch / 2), swatch, swatch, facecolor=color, edgecolor='none'))
+        artist.set_x(left + swatch + pad)
+        left += swatch + pad + width + gap
 
 
 def render():
     s.setup('freefg-gpu-time-per-generated-frame')
     fig, ax = s.canvas(W, H)
-    t, stages = DATA['totals'], DATA['stages']
-    s.text(ax, 56, 56, 'GPU time per generated frame', 40, s.INK, 'bold')
-    s.text(ax, 56, 102, 'AMD BC-250  ·  XeFG at 2×  ·  output 2560×1440 SDR  ·  engine motion vectors  ·  GPU timestamps '
-           'around every dispatch  ·  headless test program', 19, s.MUTED)
-    s.text(ax, W - 56, 56, 'LOWER IS BETTER', 15, s.FREEFG, 'bold', 'right')
+    t = DATA['totals']
+    stages = [stage for stage in DATA['stages'] if stage['freefg_runs'] == 'own shaders']
 
-    for ms in range(0, 11):
-        ax.plot([x(ms), x(ms)], [156, 852], color=s.LINE, linewidth=0.7, zorder=1)
-        s.text(ax, x(ms), 868, f'{ms}', 15, s.FAINT, align='center')
-    s.text(ax, x(10) + 26, 868, 'ms', 15, s.FAINT)
+    s.text(ax, LEFT, 62, 'GPU time per generated frame at 2×', 36, s.INK, 'bold')
+    s.text(ax, LEFT, 106, 'AMD BC-250  ·  2560×1440 SDR', 20, s.MUTED)
+    legend(fig, ax, 106, [(s.FREEFG, 'FreeFG\'s shaders'), (s.INTEL, 'Intel\'s shaders')])
 
-    # Totals: Intel's shaders, and FreeFG split into its own shaders and the passes it leaves to Intel's.
-    s.text(ax, 56, 182, 'XeFG, Intel\'s shaders', 23, s.INK, 'bold')
-    s.text(ax, 56, 210, 'all of the frame-generation graph', 16, s.MUTED)
-    bar(ax, 192, t['intel_ms'], 44, s.INTEL)
-    s.text(ax, x(t['intel_ms']) - 12, 194, f'{t["intel_ms"]:.2f} ms', 24, s.BG, 'bold', 'right', zorder=4)
-    s.text(ax, 56, 262, 'FreeFG', 23, s.INK, 'bold')
-    s.text(ax, 56, 290, 'its own shaders + Intel\'s for the rest', 16, s.MUTED)
-    bar(ax, 272, t['freefg_own_ms'], 44, s.FREEFG)
-    bar(ax, 272, t['freefg_intel_ms'], 44, s.INTEL, start=t['freefg_own_ms'], alpha=0.45)
-    s.text(ax, x(t['freefg_own_ms']) - 10, 274, f'{t["freefg_own_ms"]:.2f}', 20, s.BG, 'bold', 'right', zorder=4)
-    s.text(ax, x(t['freefg_ms']) - 10, 274, f'{t["freefg_intel_ms"]:.2f}', 20, s.INK, 'bold', 'right', zorder=4)
-    s.text(ax, x(t['freefg_ms']) + 14, 274, f'{t["freefg_ms"]:.2f} ms', 24, s.INK, 'bold', zorder=4)
-    label_box(s.text(ax, x(t['freefg_ms']) + 128, 262, f'−{t["saved_in_replaced_stages_ms"]:.1f} ms in the stages FreeFG replaces', 22, s.CHANGE,
-                     'bold', zorder=4))
-    cross = DATA['cross_check']
-    label_box(s.text(ax, x(t['freefg_ms']) + 128, 290, f'Cyberpunk 2077, headless: {cross["intel_fps"]:.2f} → '
-                     f'{cross["freefg_fps"]:.2f} FPS ({cross["measured_change_percent"]:+.1f}%)', 16, s.MUTED, zorder=4))
+    # Totals: Intel's shaders throughout; FreeFG 0.9.0 = its own shaders, then the passes it leaves to Intel's.
+    y = 190
+    s.text(ax, LEFT, y, 'XeFG, Intel\'s shaders', 22, s.INK, 'bold')
+    bar(ax, y, t['intel_ms'], TOTAL_BAR, s.INTEL)
+    s.text(ax, x(t['intel_ms']) - 14, y + 1, f'{t["intel_ms"]:.2f} ms', 22, s.BG, 'bold', 'right', zorder=4)
+    y = 248
+    s.text(ax, LEFT, y, 'FreeFG 0.9.0', 22, s.INK, 'bold')
+    bar(ax, y, t['freefg_own_ms'], TOTAL_BAR, s.FREEFG)
+    bar(ax, y, t['freefg_intel_ms'], TOTAL_BAR, s.INTEL, start=t['freefg_own_ms'])
+    ax.plot([x(t['freefg_own_ms'])] * 2, [y - TOTAL_BAR / 2, y + TOTAL_BAR / 2], color=s.BG, linewidth=1.5, zorder=4)
+    s.text(ax, x(t['freefg_ms']) - 14, y + 1, f'{t["freefg_ms"]:.2f} ms', 22, s.BG, 'bold', 'right', zorder=4)
 
-    ax.add_patch(Rectangle((40, 322), W - 80, 40, facecolor=s.PANEL, edgecolor='none', zorder=2))
-    s.text(ax, 56, 342, 'By stage', 19, s.INK, 'bold', zorder=4)
-    ax.add_patch(Rectangle((X0, 334), 16, 16, facecolor=s.INTEL, edgecolor='none', zorder=4))
-    s.text(ax, X0 + 24, 342, 'upper bar: XeFG, Intel\'s shaders', 17, s.MUTED, zorder=4)
-    ax.add_patch(Rectangle((X0 + 300, 334), 16, 16, facecolor=s.FREEFG, edgecolor='none', zorder=4))
-    s.text(ax, X0 + 324, 342, 'lower bar: FreeFG\'s own shaders', 17, s.MUTED, zorder=4)
-    ax.add_patch(Rectangle((X0 + 580, 334), 16, 16, facecolor=s.INTEL, alpha=0.45, edgecolor='none', zorder=4))
-    s.text(ax, X0 + 604, 342, 'FreeFG, Intel\'s shader kept', 17, s.MUTED, zorder=4)
+    ax.plot([LEFT, RIGHT], [296, 296], color=s.LINE, linewidth=0.8, zorder=2)
 
-    y = 410
+    # The stages FreeFG replaces: upper bar Intel's shaders, lower bar FreeFG's own.
+    y = 342
     for stage in stages:
-        own = stage['freefg_runs'] == 'own shaders'
-        s.text(ax, 56, y - 6, stage['stage'], 20, s.INK, 'bold')
-        s.text(ax, 56, y + 20, 'FreeFG runs its own shaders' if own else ('Intel\'s shader in both' if stage['intel_shader_count'] == 1 else 'Intel\'s shaders in both'), 16,
-               s.FREEFG if own else s.MUTED)
-        bar(ax, y - 12, stage['intel_ms'], 20, s.INTEL)
-        bar(ax, y + 12, stage['freefg_ms'], 20, s.FREEFG if own else s.INTEL, alpha=1.0 if own else 0.45)
-        label_box(s.text(ax, x(stage['intel_ms']) + 10, y - 12, f'{stage["intel_ms"]:.2f}', 16, s.MUTED, zorder=4))
-        value = f'{stage["freefg_ms"]:.2f}'
-        if own:
-            value += f'   {stage["intel_ms"] / stage["freefg_ms"]:.1f}× faster'
-        label_box(s.text(ax, x(stage['freefg_ms']) + 10, y + 12, value, 16, s.FREEFG if own else s.MUTED,
-                         'bold' if own else 'regular', zorder=4))
-        y += 74
+        s.text(ax, LEFT, y, NAMES[stage['stage']], 20, s.INK)
+        upper, lower = y - STAGE_BAR / 2 - 2, y + STAGE_BAR / 2 + 2
+        bar(ax, upper, stage['intel_ms'], STAGE_BAR, s.INTEL)
+        bar(ax, lower, stage['freefg_ms'], STAGE_BAR, s.FREEFG)
+        s.text(ax, x(stage['intel_ms']) + 10, upper, f'{stage["intel_ms"]:.2f}', 18, s.INTEL, zorder=4)
+        s.text(ax, x(stage['freefg_ms']) + 10, lower, f'{stage["freefg_ms"]:.2f}', 18, s.FREEFG, zorder=4)
+        end = lower + STAGE_BAR / 2
+        y += 66
+    ax.plot([X0, X0], [162, end + 10], color=s.LINE, linewidth=1.0, zorder=4)  # zero line
 
-    ax.plot([56, W - 56], [900, 900], color=s.LINE, linewidth=0.8)
-    c = DATA['conditions']
-    gaps = sorted(t['gaps_between_dispatches_ms'].values())
-    s.text(ax, 56, 926, 'Two runs, not one session, and the inputs differ. Intel\'s shaders: Intel\'s runtime alone, 180 '
-           'generated frames of replayed game inputs at 2560×1440, 27 Sep 2026.', 16, s.MUTED)
-    s.text(ax, 56, 952, 'FreeFG: the released proxy, 3 runs × 220 frames of a synthetic scene with 1280×720 inputs, 18 Oct '
-           '2026. So the stages left to Intel\'s shaders differ between the bars', 16, s.MUTED)
-    s.text(ax, 56, 978, f'(the motion splat most), and the total gap includes {t["kept_stages_difference_ms"]:.2f} ms of that. '
-           'The reference used another of Intel\'s warp variants (same grid). Data: docs/data/gpu-time/data.json', 16,
-           s.MUTED)
-    s.text(ax, 56, 1004, 'Intel\'s flow layers are matched to FreeFG\'s by dispatch grid and call count. Sums of dispatch '
-           f'times; the gaps between dispatches ({gaps[0]:.2f}–{gaps[1]:.2f} ms) are not included.', 16, s.MUTED)
     s.check_inside(fig, W, H)
-    return s.save(fig, 'gpu-time-per-generated-frame', 'GPU time per generated frame on the AMD BC-250, by stage',
-                  'XeFG at 2x, output 2560x1440 SDR: Intel\'s shaders against FreeFG, stage by stage, from two runs '
-                  'with different inputs. Source: docs/data/gpu-time/data.json.')
+    return s.save(fig, 'gpu-time-per-generated-frame', 'GPU time per generated frame at 2x on the AMD BC-250',
+                  'XeFG at 2x, output 2560x1440 SDR: totals for Intel\'s shaders and FreeFG 0.9.0, and the three '
+                  'stages FreeFG replaces, from two runs with different inputs. Source: docs/data/gpu-time/data.json.')
 
 
 if __name__ == '__main__':

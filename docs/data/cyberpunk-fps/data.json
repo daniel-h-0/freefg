@@ -1,6 +1,34 @@
 {
  "figure": "cyberpunk-2x-fps",
  "question": "How many frames per second does FreeFG show in Cyberpunk 2077 at 2x, against XeFG with Intel's own shaders?",
+ "plot": {
+  "title": "Cyberpunk 2077 frame rate at 2×",
+  "subtitle": "AMD BC-250  ·  2560×1440 SDR  ·  FSR 4 Performance",
+  "unit": "FPS",
+  "bars": [
+   {
+    "id": "intel_sdr",
+    "label": "XeFG, Intel's shaders",
+    "value_from": "headless.intel_sdr.fps_mean",
+    "group": "SDR",
+    "role": "intel"
+   },
+   {
+    "id": "freefg_sdr",
+    "label": "FreeFG 0.9.0",
+    "value_from": "headless.freefg_sdr.fps_mean",
+    "group": "SDR",
+    "role": "freefg"
+   }
+  ],
+  "differences": [
+   {
+    "from": "intel_sdr",
+    "to": "freefg_sdr",
+    "digits": 1
+   }
+  ]
+ },
  "conditions": {
   "gpu": "AMD BC-250, GPU clock limit 1850 MHz",
   "game": "Cyberpunk 2077 2.31, built-in benchmark, one pass per run",

@@ -3,10 +3,12 @@
 """What Setup puts into a game folder and its launcher entry. Reads data.json beside it.
 
   python3 docs/data/setup-layout/plot.py      # writes docs/assets/setup-file-layout.svg and .png
+
+The figure names each file with a short role and lists the launcher variables by name; the variables' roles and
+values, the conditions on each file and the recording live in data.json and in the document text beside the figure.
 """
 import json
 import sys
-import textwrap
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -16,107 +18,100 @@ import figstyle as s  # noqa: E402
 from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
 
 DATA = json.loads((HERE / 'data.json').read_text())
-W, H = 1600, 1110
+W, H = 1160, 916
 DOWNLOAD = '#7fb2e5'
-KINDS = {'package': (s.FREEFG, 'from the FreeFG package'),
-         'download': (DOWNLOAD, 'pinned download, checked by SHA-256'),
-         'settings': (s.CHANGE, 'written by Setup'),
-         'backup': (s.MUTED, 'kept for Restore'),
-         'unchanged': (s.FAINT, 'the game\'s own, or a folder')}
-ROW = 46
+KINDS = {'package': (s.FREEFG, 'FreeFG package'),
+         'download': (DOWNLOAD, 'Pinned download'),
+         'settings': (s.CHANGE, 'Written by Setup'),
+         'backup': (s.MUTED, 'Kept for Restore')}
+
+# (name shown, depth, data.json path, short role); the folder BC250-XeFG/ holds only package files
+TREE = [('dxgi.dll', 0, 'dxgi.dll', 'OptiScaler DLL'),
+        ('OptiScaler.ini', 0, 'OptiScaler.ini', 'OptiScaler settings'),
+        ('OptiScaler/', 0, 'OptiScaler/', None),
+        ('amd_fidelityfx_upscaler_dx12.dll', 1, 'OptiScaler/amd_fidelityfx_upscaler_dx12.dll', 'FSR 4 or HelixSR'),
+        ('libxess_fg.dll', 0, 'libxess_fg.dll', 'FreeFG proxy'),
+        ('bc250_xefg_original.dll', 0, 'bc250_xefg_original.dll', 'Intel XeFG, unmodified'),
+        ('libxell.dll', 0, 'libxell.dll', 'Intel XeLL, unmodified'),
+        ('nvngx_dlss.dll', 0, 'nvngx_dlss.dll', 'NVIDIA DLSS'),
+        ('BC250-XeFG/', 0, None, None),
+        ('layer/', 1, 'BC250-XeFG/layer/', 'Pacing layer'),
+        ('shaders/', 1, 'BC250-XeFG/shaders/', 'FreeFG shaders'),
+        ('settings.ini', 1, 'BC250-XeFG/settings.ini', 'FreeFG settings'),
+        ('.bc250-xefg-experimental/', 0, '.bc250-xefg-experimental/', 'Originals and logs')]
+
+TOP = 128            # top of both panels
+ROW = 50             # row pitch of the tree and the launcher list
+NAME = 19            # file and variable names (Liberation Mono)
+ROLE = 19            # roles
+CHIP = 16
 
 
 def chip(ax, x, y, color):
-    ax.add_patch(Rectangle((x, y - 8), 16, 16, facecolor=color, edgecolor='none', zorder=4))
+    ax.add_patch(Rectangle((x, y - CHIP / 2), CHIP, CHIP, facecolor=color, edgecolor='none', zorder=4))
 
 
-def mono(ax, x, y, value, size=18, color=s.INK, weight='regular'):
-    return s.text(ax, x, y, value, size, color, weight, family='Liberation Mono')
+def panel(ax, x0, y0, x1, y1):
+    ax.add_patch(FancyBboxPatch((x0, y0), x1 - x0, y1 - y0, boxstyle='round,pad=0,rounding_size=10',
+                                facecolor=s.PANEL, edgecolor='none', zorder=0))
+
+
+def mono(ax, x, y, value, color=s.INK):
+    return s.text(ax, x, y, value, NAME, color, family='Liberation Mono')
 
 
 def render():
     s.setup('freefg-setup-file-layout')
     fig, ax = s.canvas(W, H)
     entries = {e['path']: e for e in DATA['entries']}
-    s.text(ax, 56, 56, 'What Setup changes in a game', 40, s.INK, 'bold')
-    s.text(ax, 56, 102, 'FreeFG 1.0.0 on the AMD BC-250  ·  one game folder and its launcher entry  ·  Restore takes it '
-           'out again', 19, s.MUTED)
-    s.text(ax, 56, 136, 'Recorded in a live install of 0.9.0 on 19 Oct 2026 (Echo Point Nova, Steam, OptiFG input); 1.0.0 adds '
-           'five shaders. File roles from the package manifest and the pinned downloads.', 17, s.FAINT)
-
-    # Game folder
-    left, right = 40, 1000
-    s.text(ax, 64, 204, 'Game folder', 22, s.INK, 'bold')
-    s.text(ax, 220, 205, 'the folder of the game\'s rendering .exe', 17, s.MUTED)
-    rows = [('Game.exe', 0, None, 'the game itself, not changed', None),
-            ('dxgi.dll', 0, 'dxgi.dll', None, None),
-            ('OptiScaler.ini', 0, 'OptiScaler.ini', None, None),
-            ('OptiScaler/', 0, 'OptiScaler/', None, None),
-            ('amd_fidelityfx_upscaler_dx12.dll', 1, 'OptiScaler/amd_fidelityfx_upscaler_dx12.dll', None, None),
-            ('libxess_fg.dll', 0, 'libxess_fg.dll', None, None),
-            ('bc250_xefg_original.dll', 0, 'bc250_xefg_original.dll', None, None),
-            ('libxell.dll', 0, 'libxell.dll', None, None),
-            ('nvngx_dlss.dll', 0, 'nvngx_dlss.dll', None, None),
-            ('BC250-XeFG/', 0, None, 'FreeFG\'s folder', None),
-            ('layer/', 1, 'BC250-XeFG/layer/', None, None),
-            ('shaders/', 1, 'BC250-XeFG/shaders/', None, None),
-            ('settings.ini', 1, 'BC250-XeFG/settings.ini', None, None),
-            ('.bc250-xefg-experimental/', 0, '.bc250-xefg-experimental/', None, None)]
-    used = {key for _, _, key, _, _ in rows if key}
+    used = {path for _, _, path, _ in TREE if path}
     assert used == set(entries), sorted(set(entries) ^ used)
-    y = 262
-    previous = y
-    for name, depth, key, fallback, _ in rows:
-        x = 64 + depth * 34
+
+    s.text(ax, 56, 62, 'What Setup changes in a game', 36, s.INK, 'bold')
+
+    # Game folder: the file tree
+    left, right, role_x = 40, 780, 548
+    s.text(ax, 72, TOP + 42, 'Game folder', 22, s.INK, 'bold')
+    y = TOP + 104
+    parent_y = None
+    for name, depth, path, role in TREE:
+        x = 72 + depth * 36
         if depth:
-            ax.plot([x - 20, x - 20, x - 6], [previous + 12, y, y], color=s.LINE, linewidth=1.2, zorder=3)
-        entry = entries.get(key) if key else None
-        color = KINDS[entry['kind']][0] if entry else KINDS['unchanged'][0]
-        chip(ax, x, y, color)
-        mono(ax, x + 26, y, name, 18, s.INK if entry else s.MUTED, 'bold' if entry and entry['kind'] == 'package' else 'regular')
-        what = textwrap.wrap(entry['what'] if entry else fallback, 60)
-        note = textwrap.wrap(entry['note'], 68) if entry and entry.get('note') else []
-        lines = [(line, 16, s.INK if entry else s.MUTED) for line in what] + [(line, 14, s.FAINT) for line in note]
-        for i, (line, size, tone) in enumerate(lines):
-            s.text(ax, 520, y + i * 20, line, size, tone)
-        previous = y
-        y += ROW + 20 * (len(lines) - 1)
-    folder_bottom = y - ROW + 30
-    ax.add_patch(FancyBboxPatch((left, 172), right - left, folder_bottom - 172, boxstyle='round,pad=0,rounding_size=10',
-                                facecolor=s.PANEL, edgecolor='none', zorder=0))
+            ax.plot([x - 26, x - 26, x - 8], [parent_y + 14, y, y], color=s.LINE, linewidth=1.4, zorder=3,
+                    solid_joinstyle='miter')
+        else:
+            parent_y = y
+        kind = entries[path]['kind'] if path else 'package'
+        chip(ax, x, y, KINDS[kind][0])
+        mono(ax, x + CHIP + 12, y, name)
+        if role:
+            s.text(ax, role_x, y, role, ROLE, s.MUTED)
+        y += ROW
+    bottom = y - ROW + 44
+    panel(ax, left, TOP, right, bottom)
 
-    # Launcher entry
-    lx = 1030
-    ax.add_patch(FancyBboxPatch((lx, 172), W - 40 - lx, 560, boxstyle='round,pad=0,rounding_size=10',
-                                facecolor=s.PANEL, edgecolor='none'))
-    s.text(ax, lx + 24, 204, 'Launcher entry', 22, s.INK, 'bold')
-    s.text(ax, lx + 24, 234, 'Steam launch options, or the game\'s environment', 15, s.MUTED)
-    s.text(ax, lx + 24, 254, 'in Heroic or Lutris; your own options stay', 15, s.MUTED)
-    y = 300
+    # Launcher entry: the variables Setup adds, by name only (their roles are in the document text)
+    lx = right + 30
+    s.text(ax, lx + 32, TOP + 42, 'Launcher entry', 22, s.INK, 'bold')
+    y = TOP + 104
     for item in DATA['launch_options_added']:
-        chip(ax, lx + 24, y, s.CHANGE)
-        mono(ax, lx + 50, y, item['key'], 17, s.INK, 'bold')
-        mono(ax, lx + 50, y + 24, item['value'], 14, s.CHANGE)
-        s.text(ax, lx + 50, y + 46, item['what'], 14, s.MUTED)
-        y += 86
+        chip(ax, lx + 32, y, KINDS['settings'][0])
+        mono(ax, lx + 32 + CHIP + 12, y, item['key'])
+        y += ROW
+    launcher_bottom = y - ROW + 44
+    panel(ax, lx, TOP, W - 40, launcher_bottom)
 
-    # Key
-    ky = 772
-    s.text(ax, lx + 24, ky, 'Where each file comes from', 18, s.INK, 'bold')
-    for i, (kind, (color, label)) in enumerate(KINDS.items()):
-        chip(ax, lx + 24, ky + 36 + i * 30, color)
-        s.text(ax, lx + 50, ky + 36 + i * 30, label, 15, s.MUTED)
-    s.text(ax, lx + 24, ky + 202, 'Example values: this game\'s OptiScaler', 15, s.FAINT)
-    s.text(ax, lx + 24, ky + 224, 'is winmm.dll; <game folder> stands for', 15, s.FAINT)
-    s.text(ax, lx + 24, ky + 246, 'the folder\'s full path.', 15, s.FAINT)
+    # Colour key, just below the launcher panel; muted so the file names read first
+    ky = launcher_bottom + 64
+    for i, (color, label) in enumerate(KINDS.values()):
+        chip(ax, lx + 32, ky + i * 44, color)
+        s.text(ax, lx + 32 + CHIP + 12, ky + i * 44, label, ROLE, s.MUTED)
 
-    assert folder_bottom + 50 < H, folder_bottom
-    s.text(ax, 56, H - 30, 'Restore copies back every file Setup replaced, deletes what it added and removes its launcher '
-           'settings; a file a game update changed since is kept. Data: docs/data/setup-layout/data.json', 15, s.MUTED)
+    assert bottom + 40 == H, bottom
     s.check_inside(fig, W, H)
     return s.save(fig, 'setup-file-layout', 'What FreeFG Setup changes in a game folder and launcher entry',
                   'Files Setup places beside the game executable, where each comes from, and the launcher variables it '
-                  'adds; recorded in a live install. Source: docs/data/setup-layout/data.json.')
+                  'adds. Source: docs/data/setup-layout/data.json.')
 
 
 if __name__ == '__main__':

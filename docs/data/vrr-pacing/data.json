@@ -1028,8 +1028,8 @@
   "tv19-r2-9-B-2x": 99.368
  },
  "notes": [
-  "Histogram counts pool every run of a group; the sequence is the first 150 intervals of the first run.",
-  "The Sep 29 rows and the FreeFG row were measured on different days with different builds; each row has its own axes."
+  "Each histogram pools every run of its group (share of intervals per 0.25 ms bin); all histograms share one scale. The sequence is the first 150 intervals of the first run and is not drawn.",
+  "The Sep 29 rows and the FreeFG row were measured on different days with different builds; a rule separates the FreeFG row from the earlier pair."
  ],
  "sources": [
   "Maintainer evidence, queue-layout pacing campaign of 2026-09-29 (Cyberpunk harness on the TV): runs cq-nc-v26-2x, cq-nc-v26-2x-r2 (pacing off), cq-nc-appq-2x, cq-nc-appq-2x-r2, cf-nc-final-2x (paced from the game's queue): each run's ftrace.txt.gz, runtime.log and benchmark/summary.json",

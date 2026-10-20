@@ -143,11 +143,15 @@ Before it writes anything, Setup gives every game a verdict, with the way forwar
 
 Setup downloads the pinned files in [PRIVACY.md](packaging/public/PRIVACY.md#what-the-installer-downloads) from their publishers, checked
 by SHA-256, into `~/.cache/bc250-xefg-testers`. It saves each game file it replaces in the backup folder, then places
-the files and writes the launch settings in the figure (and a recipe's settings,
-[COMPATIBILITY.md](packaging/public/COMPATIBILITY.md#supported-games)); existing launch options and wrappers stay. Setup waits until the
-game, and for launcher settings the launcher, is closed.
+the files in the figure beside the game's rendering `.exe` and writes the launch settings
+([variables](packaging/public/ARCHITECTURE.md#the-installer)) and a recipe's settings
+([COMPATIBILITY.md](packaging/public/COMPATIBILITY.md#supported-games)); existing launch options and wrappers stay. An OptiScaler already
+in the game keeps its file name. OptiScaler's support files come only with a fresh setup, `nvngx_dlss.dll` only for a
+DLSS input without a game copy. Setup waits until the game, and for launcher settings the launcher, is closed.
 
-![What Setup changes in a game, recorded in a live install of FreeFG 0.9.0 (Echo Point Nova, Steam, OptiFG input); 1.0.0 adds five shaders. Game folder: OptiScaler as dxgi.dll (an existing OptiScaler keeps its name, here winmm.dll) and OptiScaler.ini; in OptiScaler/, its support files and FSR 4 (or HelixSR's DLL with helixsr.ini); libxess_fg.dll; Intel's unmodified runtime as bc250_xefg_original.dll and XeLL as libxell.dll; nvngx_dlss.dll only for a DLSS input where the game has none; BC250-XeFG/ with the pacing layer, 33 own shaders (28 in 0.9.0), 9 control files and settings; the backup folder .bc250-xefg-experimental. Launcher entry: OptiScaler's DLL override, the pacing layer's variables and a vkd3d-proton option.](docs/assets/setup-file-layout.svg)
+![Files Setup places in a game folder, coloured by origin (package, pinned download, written by Setup, kept for Restore), and the five launcher variables it adds.](docs/assets/setup-file-layout.svg)
+
+Recorded in a live install of 0.9.0 (Echo Point Nova, Steam, OptiFG input, 19 October 2026); 1.0.0 adds five shaders.
 
 ## Restore and uninstall
 
@@ -176,7 +180,10 @@ checks without a GPU, then one short start per question on one BC-250 ([checks](
 Everything else is untested. The 2×-only pre-release 0.9.0, with the same shaders at 2×, had the longer qualification
 in [MEASUREMENTS.md](packaging/public/MEASUREMENTS.md).
 
-![Cyberpunk 2077 benchmark at 2× with 0.9.0 on an AMD BC-250 (2560×1440, FSR 4 Performance, native XeSS frame generation). Headless: Intel's shaders 85.31 FPS (SDR, 15 October 2026); FreeFG 103.28 FPS (SDR, 16 October; +21.1%, a day apart) and 101.58 FPS (HDR10). LG G5 TV at 120 Hz with VRR: 99.29 FPS (SDR) and 97.24 FPS (HDR10), 18–19 October, not comparable with headless figures.](docs/assets/cyberpunk-2x-fps.svg)
+![Cyberpunk 2077 frame rate at 2× on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance, headless): XeFG with Intel's shaders 85.31 FPS; FreeFG 0.9.0 103.28 FPS, +21.1%.](docs/assets/cyberpunk-2x-fps.svg)
+
+Headless; the two arms ran a day apart, bridged by a reference build. HDR10 and TV figures:
+[MEASUREMENTS.md](packaging/public/MEASUREMENTS.md#frame-rate-cyberpunk-2077).
 
 ## Known limitations
 

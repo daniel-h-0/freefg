@@ -150,12 +150,17 @@ Results:
   headless measurements predicted; it comes from the passes FreeFG leaves to Intel's shaders.
 - On the TV the benchmark runs about 3% below the headless figures (about 99 against 103 FPS).
 
-![Frame pacing on an LG G5 TV with VRR at 2×, Cyberpunk 2077, 2560×1440, SDR: intervals between display commits. The first two rows, from an earlier session with the same harness and TV (29 September 2026, earlier private builds, no compute queue), show what pacing does and are not FreeFG measurements. Without pacing the intervals alternate between about 5 and 16 ms (5th to 95th percentile 4.8 to 16.4 ms, 577 intervals over 1.5 times their run's median in 60 seconds). In the same session, a layer that paces from the game's queue gives 9.0 to 11.1 ms with 3 such intervals in 90 seconds. FreeFG 0.9.0 with a compute queue (18–19 October): the SDR column of the table above.](../../docs/assets/vrr-pacing.svg)
+The figure's first two rows come from an earlier session with the same harness and TV (2026-09-29; earlier private
+builds, no compute queue; 2 runs without pacing and 3 with a layer that paces from the game's queue, 30 s each). They
+show what pacing does and are not FreeFG measurements; the FreeFG row pools the four SDR runs of the table above.
+Commit intervals over 1.5× their run's median: 577 without pacing, 3 with it.
 
-Not covered: gameplay; a game started by Steam or Heroic (the harness runs the game beside Steam's own interface, which
-can delay gamescope's commits differently); the OptiFG route; what the TV itself shows (commit intervals mark when
-gamescope's frame reaches the kernel; the TV's own frame repeats or re-locks are not measured); input latency; other
-displays.
+![Intervals between display commits on a VRR TV, Cyberpunk 2077 at 2×, SDR, 5th to 95th percentile: earlier build unpaced 4.8–16.4 ms and paced 9.0–11.1 ms; FreeFG 0.9.0 8.9–11.0 ms.](../../docs/assets/vrr-pacing.svg)
+
+Not covered: Intel's shaders; gameplay; a game started by Steam or Heroic (the harness runs the game beside Steam's own
+interface, which can delay gamescope's commits differently); the OptiFG route; what the TV itself shows (commit
+intervals mark when gamescope's frame reaches the kernel; the TV's own frame repeats or re-locks are not measured);
+input latency; other displays.
 
 ## GPU time per generated frame
 
@@ -187,7 +192,7 @@ to FreeFG's by dispatch grid and call count.
 For scale: in the Cyberpunk benchmark, the time per real frame at 2× fell by 4.08 ms (23.44 to 19.36 ms; 85.31 to
 103.28 FPS), a whole game frame with the game's own work and waits, so the two numbers need not match.
 
-![GPU time per generated frame by stage, as in the table above.](../../docs/assets/gpu-time-per-generated-frame.svg)
+![GPU time per generated frame at 2×: 9.76 ms with Intel's shaders, 4.50 ms with FreeFG 0.9.0; in the stages it replaces, 5.12 to 1.93, 1.24 to 0.44 and 1.29 to 0.56 ms.](../../docs/assets/gpu-time-per-generated-frame.svg)
 
 Not covered: games (the test program's scene and replayed inputs only); HDR10, pixel motion vectors and 4K in this
 form; both arms in one session.

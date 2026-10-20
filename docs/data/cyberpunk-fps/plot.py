@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Cyberpunk 2077 at 2x: FreeFG against XeFG with Intel's shaders, headless and on a TV. Reads data.json beside it.
+"""Cyberpunk 2077 benchmark frame rate as horizontal bars. Reads data.json beside it.
 
   python3 docs/data/cyberpunk-fps/plot.py      # writes docs/assets/cyberpunk-2x-fps.svg and .png
+
+Everything drawn comes from data.json's "plot" entry, so a new measurement is an edit of data.json only:
+  title, subtitle  one line each
+  unit             the axis unit
+  bars             in drawing order: id, label, group, role ("intel" or "freefg": the colour) and the value, either
+                   value_from (a dotted path into data.json, such as "headless.freefg_sdr.fps_mean") or value (a number)
+  differences      {"from": id, "to": id, "digits": 1}: the change from one bar to another, printed beside "to"
+Bars of one group are drawn together; group names are printed only when there is more than one group.
+Caveats (dates, run counts, cross-day comparisons) belong in MEASUREMENTS.md, not in the image.
 """
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -14,100 +24,117 @@ sys.path.insert(0, str(HERE.parent))
 import figstyle as s  # noqa: E402
 
 DATA = json.loads((HERE / 'data.json').read_text())
-W, H = 1600, 1016
-X0, PER_FPS = 470, 7.6          # bar origin and scale (design pixels per FPS)
-BAR = 40
+PLOT = DATA['plot']
+ROLES = {'intel': s.INTEL, 'freefg': s.FREEFG}
+
+W = 1200
+LEFT = 56                 # left margin of title and labels
+PLOT_RIGHT = W - 130      # the axis maximum; the unit sits to its right
+TOP = 168                 # first bar row starts here
+ROW, BAR = 84, 46         # row pitch and bar thickness
+GROUP_HEAD, GROUP_GAP = 40, 20
+NOTE_GAP = 18             # between a bar's end and its difference
 
 
-def x(fps):
-    return X0 + fps * PER_FPS
+def value(bar):
+    if 'value' in bar:
+        return float(bar['value'])
+    node = DATA
+    for key in bar['value_from'].split('.'):
+        node = node[key]
+    if not isinstance(node, (int, float)):
+        raise SystemExit(f'{bar["value_from"]} is not a number')
+    return float(node)
 
 
-def date(iso):
-    months = {'09': 'Sep', '10': 'Oct'}
-    year, month, day = iso.split('-')[:3]
-    return f'{int(day)} {months[month]} {year}'
+def signed(number, digits):
+    return f'{number:+.{digits}f}'.replace('-', '−')
 
 
-def row(ax, y, name, detail, arm, color):
-    runs = [r['fps'] for r in arm['runs']]
-    mean = arm['fps_mean']
-    s.text(ax, 56, y + 2, name, 23, s.INK, 'bold')
-    s.text(ax, 56, y + 32, detail, 17, s.MUTED)
-    ax.add_patch(s.matplotlib.patches.Rectangle((X0, y - BAR / 2 + 4), mean * PER_FPS, BAR, facecolor=color,
-                                                edgecolor='none', zorder=3))
-    s.text(ax, x(mean) - 12, y + 4, f'{mean:.2f}', 24, s.BG, 'bold', 'right', zorder=4)
-    spread = f'{min(runs):.2f}–{max(runs):.2f}' if len(runs) > 1 else f'{runs[0]:.2f}'
-    s.text(ax, X0, y + 42, f'{arm["game_fps_mean"]:.1f} game frames/s  ·  {1000 / mean:.2f} ms per shown frame  ·  '
-           f'{len(runs)} runs, {spread} FPS', 16, s.MUTED, zorder=4).set_bbox(dict(facecolor=s.BG, edgecolor='none', pad=1))
-    return mean
+def layout(bars):
+    """Centre line of every bar, the y of every group name (only with several groups) and the bottom of the rows."""
+    groups = list(dict.fromkeys(b['group'] for b in bars))
+    heads, centres, y = [], {}, TOP
+    for n, group in enumerate(groups):
+        if len(groups) > 1:
+            y += GROUP_GAP if n else 0
+            heads.append((y + GROUP_HEAD - 4, group))  # close above its first bar
+            y += GROUP_HEAD
+        for b in (b for b in bars if b['group'] == group):
+            centres[b['id']] = y + ROW / 2
+            y += ROW
+    return heads, centres, y
 
 
-def axis(ax, top, bottom):
-    for fps in range(0, 121, 20):
-        ax.plot([x(fps), x(fps)], [top, bottom], color=s.LINE, linewidth=0.7, zorder=1)
-        s.text(ax, x(fps), bottom + 16, f'{fps}', 15, s.FAINT, align='center')
-    s.text(ax, x(120) + 26, bottom + 16, 'FPS', 15, s.FAINT)
-
-
-def header(ax, y, title, when):
-    ax.add_patch(s.matplotlib.patches.Rectangle((40, y - 26), W - 80, 52, facecolor=s.PANEL, edgecolor='none'))
-    s.text(ax, 56, y, title, 21, s.INK, 'bold')
-    s.text(ax, W - 56, y, when, 18, s.MUTED, align='right')
+def difference(d, values):
+    return signed((values[d['to']] / values[d['from']] - 1) * 100, d.get('digits', 1)) + '%'
 
 
 def render():
     s.setup('freefg-cyberpunk-2x-fps')
+    bars, differences = PLOT['bars'], PLOT.get('differences', [])
+    values = {b['id']: value(b) for b in bars}
+    heads, centres, bottom = layout(bars)
+    H = int(bottom + 78)
     fig, ax = s.canvas(W, H)
-    c = DATA['conditions']
-    hl, tv = DATA['headless'], DATA['tv']
-    s.text(ax, 56, 56, 'Cyberpunk 2077 at 2×: frames per second', 40, s.INK, 'bold')
-    s.text(ax, 56, 102, f'AMD BC-250  ·  {c["output"].replace("x", "×")}  ·  {c["upscaler"]}  ·  native XeSS frame '
-           f'generation  ·  ray tracing {c["ray_tracing"]}  ·  built-in benchmark, game {c["game"].split()[2].rstrip(",")}',
-           19, s.MUTED)
-    s.text(ax, W - 56, 56, 'HIGHER IS BETTER', 15, s.FREEFG, 'bold', 'right')
 
-    header(ax, 168, 'Headless: no display, gamescope at a fixed 120 Hz',
-           f'{date(hl["dates"]["intel_sdr"])} and {date(hl["dates"]["freefg"])}')
-    rows = [(238, 'XeFG, Intel\'s shaders', f'SDR  ·  {date(hl["dates"]["intel_sdr"])}', hl['intel_sdr'], s.INTEL),
-            (334, 'FreeFG', f'SDR  ·  {date(hl["dates"]["freefg"])}', hl['freefg_sdr'], s.FREEFG),
-            (430, 'FreeFG', f'HDR10  ·  {date(hl["dates"]["freefg"])}', hl['freefg_hdr10'], s.FREEFG)]
-    axis(ax, 205, 486)
-    means = [row(ax, *r) for r in rows]
-    # The Intel level carried down onto the FreeFG bar, and the change between them.
-    ax.plot([x(means[0]), x(means[0])], [238 + BAR / 2 + 4, 334 - BAR / 2 + 4], color=s.CHANGE, linewidth=1.2,
-            linestyle=(0, (3, 3)), zorder=5)
-    bridge = hl['bridge']
-    moved = (bridge['reference_2026_10_16']['fps_mean'] / bridge['reference_2026_10_15']['fps_mean'] - 1) * 100
-    change = (means[1] / means[0] - 1) * 100
-    s.text(ax, x(means[1]) + 18, 324, f'+{change:.1f}%', 28, s.CHANGE, 'bold')
-    for dy, line in ((354, 'measured a day apart; a reference'), (374, 'build run on both days moved ' +
-                                                                         f'{moved:+.2f}%'.replace('-', '−'))):
-        s.text(ax, x(means[1]) + 18, dy, line, 15, s.MUTED, zorder=4).set_bbox(
-            dict(facecolor=s.BG, edgecolor='none', pad=1))
-    s.text(ax, 56, 538, 'HDR10 with Intel\'s shaders: not measured.', 16, s.FAINT)
+    s.text(ax, LEFT, 62, PLOT['title'], 36, s.INK, 'bold')
+    s.text(ax, LEFT, 106, PLOT['subtitle'], 20, s.MUTED)
+    for y, group in heads:
+        s.text(ax, LEFT, y, group, 18, s.MUTED)
+    labels = [s.text(ax, LEFT, centres[b['id']], b['label'], 22, s.INK, 'bold') for b in bars]
+    notes = {d['to']: s.text(ax, 0, 0, difference(d, values), 22, s.CHANGE, 'bold') for d in differences}
 
-    header(ax, 600, 'On a TV with VRR: LG G5 OLED, 2560×1440 at 120 Hz, VRR active in every run',
-           tv['dates'].replace('2026-10-18/19', '18–19 Oct 2026'))
-    axis(ax, 637, 822)
-    row(ax, 670, 'FreeFG', 'SDR', tv['freefg_sdr'], s.FREEFG)
-    row(ax, 766, 'FreeFG', 'HDR10', tv['freefg_hdr10'], s.FREEFG)
-    s.text(ax, 56, 872, 'Intel\'s shaders were not measured on the TV with this build. Headless and TV figures are '
-           'not comparable with each other.', 16, s.FAINT)
+    # The bars start right of the longest label; the scale leaves room for each difference beside its bar.
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    x0 = LEFT + max(t.get_window_extent(renderer).width for t in labels) + 36
+    step = 20 if max(values.values()) <= 60 else 40
+    top_value = step * math.ceil(max(values.values()) / step)
+    scale = min([(PLOT_RIGHT - x0) / top_value] +
+                [(W - LEFT - x0 - NOTE_GAP - t.get_window_extent(renderer).width) / values[i]
+                 for i, t in notes.items()])
 
-    ax.plot([56, W - 56], [904, 904], color=s.LINE, linewidth=0.8)
-    s.text(ax, 56, 930, 'FPS: the benchmark\'s average, generated frames included. Game frames/s: frames the game itself '
-           'rendered (half the shown frames at 2×). Bars: mean of the runs.', 16, s.MUTED)
-    loader = (hl['freefg_sdr']['fps_mean'] / bridge['reference_2026_10_16']['fps_mean'] - 1) * 100
-    s.text(ax, 56, 958, f'FreeFG 0.9.0: proxy {c["proxy_sha256"][:8]}, pacing layer {c["layer_sha256"][:8]}. Intel\'s '
-           'shaders: an internal build with its acceleration off, same harness and layer; its internal loader', 16,
-           s.MUTED)
-    s.text(ax, 56, 984, f'measured {loader:.2f}% slower than FreeFG\'s, both running FreeFG\'s shaders (16 Oct). Data: '
-           'docs/data/cyberpunk-fps/data.json', 16, s.MUTED)
+    def x(v):
+        return x0 + v * scale
+
+    # A zero line and tick values below the rows; the bars carry their own values, so no grid.
+    rows_top, rows_bottom = TOP - 8, bottom + 8
+    ax.plot([x0, x0], [rows_top, rows_bottom], color=s.LINE, linewidth=1.0, zorder=1)
+    for tick in range(0, top_value + 1, step):
+        s.text(ax, x(tick), rows_bottom + 22, f'{tick}', 16, s.FAINT, align='center')
+    s.text(ax, x(top_value) + 22, rows_bottom + 22, PLOT['unit'], 18, s.MUTED)
+
+    ends = {}
+    for b in bars:
+        y, v = centres[b['id']], values[b['id']]
+        ax.add_patch(s.matplotlib.patches.Rectangle((x0, y - BAR / 2), v * scale, BAR, facecolor=ROLES[b['role']],
+                                                    edgecolor='none', zorder=3))
+        if v * scale > 130:
+            s.text(ax, x(v) - 14, y + 1, f'{v:.2f}', 22, s.BG, 'bold', 'right', zorder=4)
+            ends[b['id']] = x(v)
+        else:
+            label = s.text(ax, x(v) + 14, y + 1, f'{v:.2f}', 22, s.INK, 'bold', zorder=4)
+            ends[b['id']] = x(v) + 14 + label.get_window_extent(renderer).width
+
+    # Each difference sits beside its "to" bar, at the size of the bar values.
+    for d in differences:
+        b = d['to']
+        notes[b].set_position((ends[b] + NOTE_GAP, centres[b] + 1))
+        notes[b].set_zorder(4)
+
     s.check_inside(fig, W, H)
-    return s.save(fig, 'cyberpunk-2x-fps', 'Cyberpunk 2077 at 2x on the AMD BC-250: FreeFG and XeFG with Intel\'s shaders',
-                  'Benchmark FPS, 2560x1440, FSR 4 Performance, native XeSS frame generation at 2x; headless and on a TV '
-                  'with VRR. Source: docs/data/cyberpunk-fps/data.json.')
+    description = '; '.join(f'{b["label"]}: {values[b["id"]]:.2f} {PLOT["unit"]}' for b in bars)
+    description += ''.join(f'; {difference(d, values)}' for d in differences)
+    return s.save(fig, DATA['figure'], plain(PLOT['title']),
+                  plain(f'{PLOT["subtitle"]}. {description}. Source: docs/data/cyberpunk-fps/data.json.'))
+
+
+def plain(text):
+    """Metadata in plain characters."""
+    for old, new in (('×', 'x'), ('  ·  ', ', '), ('−', '-')):
+        text = text.replace(old, new)
+    return text
 
 
 if __name__ == '__main__':
