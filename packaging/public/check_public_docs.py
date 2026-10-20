@@ -7,11 +7,11 @@ Errors (exit status 1):
   - the old internal product name, or with --name a candidate name that carries Intel's Xe mark;
   - PRIVACY.md's download table differs from packaging/dependencies.json "inputs" (URL, SHA-256 or size);
   - BUILDING.md lacks a fetch group or commit of release/inputs.lock.json, or a released output's reference hash;
-  - MEASUREMENTS.md lacks the measured binaries' reference hashes;
+  - MEASUREMENTS.md lacks the released or the measured binaries' reference hashes;
   - a relative link to a missing document or to a heading that does not exist;
-  - with --release: any [DRAFT] marker or placeholder ([PRODUCT], [VERSION], [PENDING-…], …), also in LICENSE
-    ([COPYRIGHT HOLDER]).
-Warnings: placeholders and [DRAFT] markers (without --release); licence files the intel-free-2x package ships for code
+  - with --release: any [DRAFT] marker or placeholder ([PRODUCT], [VERSION], [PENDING-…], [QUAL] for qualification
+    results still to be written in, …), also in LICENSE ([COPYRIGHT HOLDER]).
+Warnings: placeholders and [DRAFT] markers (without --release); licence files the intel-free-mfg package ships for code
 this build does not compile in, or that NOTICE.md does not describe; identifiers that still carry the internal name and
 must follow the rename.
 
@@ -26,15 +26,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 DOCS = sorted(HERE.glob('*.md'))
-VARIANT = 'intel-free-2x'
-RELEASED_OUTPUTS = ('libxess_fg.dll (intel-free-2x)', 'libxefg_wave.so')
+VARIANT = 'intel-free-mfg'
+RELEASED_OUTPUTS = ('libxess_fg.dll (intel-free-mfg)', 'libxefg_wave.so')
+# The binaries MEASUREMENTS.md's figures were measured with: 0.9.0's 2x proxy (the same 2x shaders and the same layer).
+MEASURED_OUTPUTS = ('libxess_fg.dll (intel-free-2x)', 'libxefg_wave.so')
 # Written in pieces so that this file does not match its own patterns.
 HOST_PATHS = [re.compile(p) for p in (r'/' + r'home/[A-Za-z0-9_.-]+', r'/var' + r'/home/', r'/run' + r'/media/',
                                        r'bc250' + r'-admin', r'~' + r'/bc250' + r'-', r'Steam' + r'Roms')]
 # The old name as a word on its own (a product name); inside identifiers such as bc250-xemfg-… it is a rename item.
 OLD_NAMES = re.compile(r'(?<![\w-])' + 'Xe' + r'MFG(?![\w-])', re.I)
 PLACEHOLDER = re.compile(r'\[(PRODUCT|VERSION|REPO-URL|RELEASE-DATE|SECURITY-CONTACT|CONTACT|COPYRIGHT HOLDER|'
-                         r'OPTISCALER-FORK-[A-Z-]+|PENDING-[A-Z-]+)\]')
+                         r'OPTISCALER-FORK-[A-Z-]+|PENDING-[A-Z-]+|QUAL)\]')
 # This project's licence text (shipped as licenses/BC250-XeFG.txt, the public repository's LICENSE): placeholders only.
 LICENSE = HERE / 'LICENSE'
 RENAME = re.compile(r'BC250-XeFG|BC250_XEFG_\w*|bc250_xefg_original|bc250-xefg[\w-]*|bc250-xe' + r'mfg[\w-]*|BC250-MFG\.log|'
@@ -55,7 +57,7 @@ def headings(text):
 
 
 def package_files():
-    """{package path: source} of the intel-free-2x package as release/package.json declares it."""
+    """{package path: source} of the intel-free-mfg package as release/package.json declares it."""
     package = json.loads((REPO / 'release/package.json').read_text())
     variant = package['variants'][VARIANT]
     components = dict(package['components'])
@@ -140,13 +142,13 @@ def main():
     for group, entry in lock['fetch'].items():
         if f'`{group}`' not in building or entry['commit'] not in building:
             errors.append(f'BUILDING.md: fetch group {group} at {entry["commit"]} is not listed')
-    for output in RELEASED_OUTPUTS:
-        digest = lock['outputs'].get(output)
-        for name in ('BUILDING.md', 'MEASUREMENTS.md'):
+    for name, outputs in (('BUILDING.md', RELEASED_OUTPUTS), ('MEASUREMENTS.md', RELEASED_OUTPUTS + MEASURED_OUTPUTS)):
+        for output in dict.fromkeys(outputs):
+            digest = lock['outputs'].get(output)
             if digest and digest not in texts.get(name, ''):
                 errors.append(f'{name}: reference hash of {output} ({digest[:16]}…) is missing')
 
-    # Licence texts of the intel-free-2x package against NOTICE.md and this build.
+    # Licence texts of the intel-free-mfg package against NOTICE.md and this build.
     notice = texts.get('NOTICE.md', '')
     shipped = sorted(p for p in package_files() if p.startswith('licenses/'))
     for path in shipped:

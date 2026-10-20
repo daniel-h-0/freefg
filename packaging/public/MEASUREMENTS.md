@@ -7,10 +7,18 @@ are not comparable with each other. Some comparisons **cross two days**. Read th
 faster on this hardware with identical output and even pacing. They are not a prediction for your games, settings or
 display.
 
-The build measured is the one released: `libxess_fg.dll` sha256
+The figures on this page are drawn from data files in the repository (`docs/data/<figure>/data.json`, each with its
+`plot.py`), which name their sources. Some figures also show runs from other days (Intel's shaders, earlier private
+builds) for context; the figure and the text mark them.
+
+The build measured is FreeFG 0.9.0, the 2×-only pre-release: `libxess_fg.dll` sha256
 `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410`, with the pacing layer `libxefg_wave.so` sha256
 `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` and Intel's XeFG runtime 1.3.1.78 (sha256
-`ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27`), unmodified.
+`ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27`), unmodified. FreeFG 1.0.0 ships the same layer
+and the same 28 shaders for 2×, plus five for the multi-frame network, with a new build of the proxy:
+`libxess_fg.dll` sha256 `77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7`, from the same source with
+the multi-frame code compiled in. The measurements on this page were not repeated with it; what was checked with
+1.0.0 is in [README.md](README.md#status). Nothing on this page measures 3× or 4×.
 
 ## Test system
 
@@ -69,6 +77,8 @@ reference and p FreeFG). Figures are means ± sample standard deviation.
   context, XeFG reported two presented frames per game frame, no `FAIL`, `FAST_SKIP` or `FAST_FALLBACK` line, and the
   pacing layer held presents while XeFG generated.
 
+![Cyberpunk 2077 at 2× on an AMD BC-250, 2560×1440, FSR 4 Performance, native XeSS frame generation. Headless: XeFG with Intel's shaders 85.31 FPS (SDR, 15 October 2026) and FreeFG 103.28 FPS (SDR, 16 October), +21.1% measured a day apart; FreeFG in HDR10 101.58 FPS. On an LG G5 TV at 120 Hz with VRR: FreeFG 99.29 FPS in SDR and 97.24 FPS in HDR10 (18–19 October). Headless and TV figures are not comparable with each other.](../../docs/assets/cyberpunk-2x-fps.svg)
+
 **Not covered:** other games; other resolutions and upscaler modes; a real display, VRR and gamescope's real refresh
 behaviour (the headless compositor runs a fixed 120 Hz timer, so these numbers are not comparable with figures measured
 on a TV; see [On a TV with VRR](#on-a-tv-with-vrr) for one display); input latency; frame-time distribution and pacing
@@ -108,10 +118,49 @@ gamescope's display commits, taken at the same point of the benchmark in both ar
 - On the TV the benchmark runs about 3% below the headless figures above (about 99 against 103 FPS). Compare TV figures
   only with TV figures.
 
+The figure below shows the commit intervals behind the FreeFG SDR column, under two rows from an earlier session
+with the same harness and TV (2026-09-29, earlier private builds, no compute queue): XeFG with an earlier pacing layer
+passing presents through, and with a later one pacing them from the game's queue. Those two rows show what pacing does;
+they are not FreeFG measurements. The figure counts long intervals against each run's own median, as the table above
+does.
+
+![Frame pacing on an LG G5 TV with VRR at 2×, Cyberpunk 2077, 2560×1440, SDR: intervals between display commits. Without pacing (29 September 2026, earlier private builds, no compute queue), the intervals alternate between about 5 and 16 ms (5th to 95th percentile 4.8 to 16.4 ms, 577 intervals over 1.5 times their run's median in 60 seconds). In the same session, a layer that paces from the game's queue gives 9.0 to 11.1 ms with 3 such intervals in 90 seconds. FreeFG 0.9.0's proxy, layer and shaders with a compute queue (18–19 October): 8.9 to 11.0 ms, 7 such intervals in 120 seconds, none over 25 ms.](../../docs/assets/vrr-pacing.svg)
+
 **Not covered:** gameplay (benchmark only, no save loaded); a game started by Steam or Heroic (the harness runs the
 game beside Steam's own interface, which can delay gamescope's commits differently); the OptiFG route; what the TV
 itself shows (commit intervals mark when gamescope's frame reaches the kernel; the TV's own frame repeats or re-locks
 are not measured); input latency; other displays, games and GPUs.
+
+## GPU time per generated frame
+
+**Setup:** the SDK test program (headless, output 2560×1440, SDR, engine motion vectors, 2×) with a GPU timestamp around
+every dispatch of the frame-generation graph; the time of a stage is the sum of its dispatches. FreeFG: 0.9.0's
+proxy, 3 runs of 220 generated frames of the synthetic scene with 1280×720 inputs, 2026-10-18. Intel's shaders: Intel's
+runtime alone, 1 run of 180 generated frames of replayed game inputs at 2560×1440, 2026-09-27. The two bars are **not
+one session and not the same inputs**: the passes FreeFG leaves to Intel's shaders took 1.57 ms in one and 2.11 ms
+in the other (the motion splat runs on a 4× larger grid with the larger inputs). In the stages FreeFG replaces, the
+time falls from 7.65 to 2.93 ms (−4.7 ms); the remaining 0.55 ms of the 5.26 ms total gap comes from the inputs. The
+reference run used another of Intel's 2× warp variants (same dispatch grid), and Intel's 224- and 64-channel flow passes
+are matched to FreeFG's by dispatch grid and call count.
+
+| | Intel's shaders | FreeFG | Who runs it in FreeFG |
+| --- | --- | --- | --- |
+| Reconstruction network | 5.12 ms | 1.93 ms | own shaders |
+| Optical flow, 224-channel layers | 1.24 ms | 0.44 ms | own shaders |
+| Optical flow, 64-channel refinement | 1.29 ms | 0.56 ms | own shaders |
+| Warp | 0.82 ms | 0.82 ms | Intel's shader |
+| Other optical-flow passes | 0.60 ms | 0.46 ms | Intel's shaders |
+| Motion splat and compose | 0.69 ms | 0.29 ms | Intel's shaders |
+| **Sum of dispatches** | **9.76 ms** | **4.50 ms** | 2.93 ms own, 1.57 ms Intel's |
+
+For scale: in the Cyberpunk benchmark above, the time per real frame at 2× fell by 4.08 ms (from 23.44 to 19.36 ms;
+85.31 to 103.28 FPS). That is a whole game frame, with the game's own work and waits, so the two numbers need not
+match.
+
+![GPU time per generated frame on the AMD BC-250, XeFG at 2×, output 2560×1440 SDR, from two runs with different inputs (Intel's shaders: replayed game inputs at 2560×1440, 27 September 2026; FreeFG: a synthetic scene with 1280×720 inputs, 18 October 2026). Intel's shaders: 9.76 ms. FreeFG: 4.50 ms, of which 2.93 ms are its own shaders and 1.57 ms Intel's. In the stages FreeFG replaces, 7.65 against 2.93 ms (−4.7 ms); the rest of the total gap (0.55 ms) comes from the different inputs. By stage, Intel's shaders against FreeFG: reconstruction network 5.12 against 1.93 ms (own shaders), optical-flow 224-channel layers 1.24 against 0.44 ms (own), optical-flow 64-channel refinement 1.29 against 0.56 ms (own), warp 0.82 against 0.82 ms (Intel's in both, another of Intel's warp variants in the reference run), other optical-flow passes 0.60 against 0.46 ms, motion splat and compose 0.69 against 0.29 ms (Intel's in both).](../../docs/assets/gpu-time-per-generated-frame.svg)
+
+**Not covered:** games (the test program's scene and replayed inputs only); HDR10, pixel motion vectors and 4K in this
+form; one session for both arms.
 
 ## Live install and Restore
 

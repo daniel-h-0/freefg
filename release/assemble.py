@@ -16,7 +16,7 @@ is read. The result is written to <build>/package/<name>/ (a variant: <build>/<i
                                         directory by source_companion.py (deterministic, so a receipt covers them)
 
 Checks before anything is written: the documents come from packaging/<version>/ (a variant may name another folder in
-its documents_version: intel-free-2x ships the public set of packaging/public/); no evidence/xemfg-<version>-package.json
+its documents_version: intel-free-mfg and intel-free-2x ship the public set of packaging/public/); no evidence/xemfg-<version>-package.json
 of an earlier build with a different payload exists (a version number is never reused); every file the package must
 not carry (package.json never_ship) is pinned as a 'runtime' download in the packaged dependencies.json with the bytes
 the package used to carry, so the installer still gets it; the add-on and layer builds are current.
@@ -30,7 +30,7 @@ Typical use:
 
 --archive also needs a clean git checkout (every shipped file and build source equal to HEAD), a source companion
 for components that require a source offer, and documents without the [DRAFT] marker. A package that ships the public
-documents (documents_version "public": the intel-free-2x variant) passes the public gate besides: it is archived only
+documents (documents_version "public": the intel-free-mfg variant, and intel-free-2x) passes the public gate besides: it is archived only
 when packaging/public/check_public_docs.py --release reports no error (run as that tool: no placeholder such as
 [PRODUCT] or [VERSION] and no [DRAFT] marker left in the documents and LICENSE, and nothing its normal check reports),
 when the manifest's text, the generated SOURCE.md and SOURCE.json, the OptiScaler fork's build route files that the
@@ -53,7 +53,7 @@ profile (release/build_addon.py --variant intel-free) in place of the default on
 then checked by release/check_intel_free.py (findings in the variant's allowed components are reported, not failing)
 and the manifest records the outcome (intel_free.result "pass", or "pass-with-allowed-components" with
 intel_free_complete false when only the allowed components carry findings); the package is removed again when the
-check fails. --variant intel-free-2x is the enabler-free one (release/build_proxy.py): its add-on is a libxess_fg.dll
+check fails. --variant intel-free-mfg (the released build) and intel-free-2x are the enabler-free ones (release/build_proxy.py): its add-on is a libxess_fg.dll
 proxy (manifest addon_entry "libxess_fg-proxy"), it has no XeSSMFG component and no allowed component, its own
 never_ship rules, and its runtime downloads follow dependencies.json runtime.ProxyPackage. The maintainers' library
 tooling does not deploy a variant package: its name has no plain private-test-NN number, so that tooling finds no
@@ -62,8 +62,8 @@ qualification receipt for it.
 Package names (package_naming()): bc250-fsr4-xemfg-private-test-NN[-variant] (version vNN[-variant], receipt
 xemfg-vNN[-variant]-package.json), and in a public tree renamed under the chosen public name (release/names.json
 "chosen", release/export_tree.py --public) the name release/names.json package-name public_template gives: today
-{slug}-0.9.0, the decided version as fixed text (<slug>-0.9.0, version v0.9.0, receipt public_receipt_template:
-<slug>-v0.9.0-package.json), which the rename's package-name replacement writes too. A public version is a build
+{slug}-1.0.0, the decided version as fixed text (<slug>-1.0.0, version v1.0.0, receipt public_receipt_template:
+<slug>-v1.0.0-package.json), which the rename's package-name replacement writes too. A public version is a build
 number (an integer) or a dotted semantic version MAJOR.MINOR.PATCH, as fixed text or as {number}, which matches either:
 {slug}-{number}-2x, the template before the version was decided, gives <slug>-NN-2x with the private build number
 (version vNN-2x, receipt <slug>-vNN-2x-package.json) or <slug>-0.1.0-2x (v0.1.0-2x). The receipt name is the same
@@ -73,7 +73,7 @@ The public build (public_build(): the variant that ships the public documents, a
 a public name) carries neutral manifest text (PUBLIC_MANIFEST: status and profile.research) in place of package.json's,
 which describes the maintainers' builds; its [PRODUCT] is names.json "chosen" name once decided. Its runtime stays
 "xemfg" (the value install.py and Setup read) and candidate stays true until a passed receipt is staged. Assembled in
-this tree under its private name, the intel-free-2x variant keeps package.json's text.
+this tree under its private name, the intel-free-mfg and intel-free-2x variants keep package.json's text.
 """
 import argparse
 import copy
@@ -109,25 +109,28 @@ PUBLIC_NUMBER = rf'{SEMVER}|\d+'
 # digits, the version, then text that does not continue it (-2x, or nothing).
 FIXED_VERSION = re.compile(rf'(?P<lead>\D*?)(?P<number>{PUBLIC_NUMBER})(?P<suffix>(?![0-9A-Za-z.]).*)', re.S)
 # The public build (public_build()): the package that ships the public documents (documents_version "public", the
-# intel-free-2x variant), its document check, and the manifest text it carries in place of package.json's (which
+# intel-free-mfg variant), its document check, and the manifest text it carries in place of package.json's (which
 # describes the maintainers' builds). {product} is names.json "chosen" name, [PRODUCT] while undecided.
 PUBLIC_DOCUMENTS = 'public'
 PUBLIC_DOCS_CHECK = 'packaging/public/check_public_docs.py'
 PRODUCT = '[PRODUCT]'
 PUBLIC_MANIFEST = {
-    'status': "{product} {version}: 2x frame generation through Intel's unmodified XeFG runtime (downloaded by the "
+    'status': "{product} {version}: frame generation through Intel's unmodified XeFG runtime (downloaded by the "
               "installer) behind a libxess_fg.dll proxy that runs part of the runtime's GPU work with this project's "
-              'own shaders and paces presents evenly for VRR displays; no generated-frame scaling. See README.md and '
-              'ARCHITECTURE.md',
-    'profile.research': "this project's own shaders only, built from its HLSL sources (src/kernels), for one "
-                        'generated frame per real frame',
+              "own shaders at the frame count the runtime runs (2x on its own; 3x and 4x only beside a separate tool "
+              "the user adds that lifts Intel's limit) and paces presents evenly for VRR displays; no generated-frame "
+              'scaling. See README.md and ARCHITECTURE.md',
+    'profile.research': "this project's own shaders only, built from its HLSL sources (src/kernels), for the "
+                        'one-frame and multi-frame networks',
 }
 # The archives of a package directory, beside it (archive(), source_companion.py).
 ARCHIVES = ('{name}.zip', '{name}.zip.sha256', '{name}-source.zip', '{name}-source.zip.sha256')
 BUILD_OUTPUTS = {'addon': ('addon', 'BC250-MFG.asi'), 'layer': ('layer', 'libxefg_wave.so'),
                  'addon-intel-free': ('addon-intel-free', 'BC250-MFG.asi'),
-                 'addon-intel-free-2x': ('addon-intel-free-2x', 'libxess_fg.dll')}
-BUILD_COMMANDS = {'addon-intel-free': 'build_addon.py --variant intel-free', 'addon-intel-free-2x': 'build_proxy.py'}
+                 'addon-intel-free-2x': ('addon-intel-free-2x', 'libxess_fg.dll'),
+                 'addon-intel-free-mfg': ('addon-intel-free-mfg', 'libxess_fg.dll')}
+BUILD_COMMANDS = {'addon-intel-free': 'build_addon.py --variant intel-free', 'addon-intel-free-2x': 'build_proxy.py',
+                  'addon-intel-free-mfg': 'build_proxy.py --variant intel-free-mfg'}
 # manifest addon_entry of packages whose add-on is a libxess_fg.dll proxy (no XeSSMFG enabler): their runtime downloads
 # follow dependencies.json runtime.ProxyPackage instead of runtime.Package.
 PROXY_ENTRY = 'libxess_fg-proxy'
@@ -246,6 +249,8 @@ def apply_variant(spec, variant):
                package_dir=entry.get('package_dir', 'package'),
                allowed_components=entry.get('allowed_components', {}),
                never_ship=entry.get('never_ship', spec['never_ship']))
+    if 'documents_base' in entry:
+        out['documents_base'] = entry['documents_base']
     return out
 
 
@@ -364,6 +369,24 @@ def build_command(kind):
     return BUILD_COMMANDS.get(kind, f'build_{kind}.py')
 
 
+# HelixSR's setup appends the network it builds from NVIDIA's DLSS DLL behind a 32-byte footer that starts with this magic
+# (packaging/helixsr.py). Such a DLL is NVIDIA's network on the user's computer and is never shipped, whatever its hash.
+HELIXSR_NETWORK_MAGIC = b'HXSRNET1'
+
+
+def built_helixsr(path):
+    """True when the file ends in HelixSR's network footer (a HelixSR DLL its setup has built)."""
+    try:
+        size = path.stat().st_size
+        if size < 32:
+            return False
+        with open(path, 'rb') as stream:
+            stream.seek(size - 32)
+            return stream.read(8) == HELIXSR_NETWORK_MAGIC
+    except OSError:
+        return False
+
+
 def plan(spec, sources):
     """{package path: (component, source file)} after the never-ship rules."""
     rules = spec['never_ship']
@@ -380,6 +403,9 @@ def plan(spec, sources):
             digest = sha256(path)
             if digest in rules['sha256']:
                 raise ReleaseError(f'{target} is {rules["sha256"][digest]}, which must not be shipped')
+            if built_helixsr(path):
+                raise ReleaseError(f'{target} is a HelixSR DLL with the network its setup builds from NVIDIA\'s DLSS DLL, '
+                                   'which must not be shipped')
             files[target] = (component, path)
     return dict(sorted(files.items()))
 
@@ -409,12 +435,15 @@ def check_runtime_supply(spec, files):
 
 def check_documents(spec, version, files):
     """Documents come from packaging/<version>/ (a variant's documents_version, e.g. "public" for packaging/public/; its
-    documents component may replace "documents"). Returns (documents naming SOURCE.md/.json, documents marked draft)."""
+    documents component may replace "documents"), or from packaging/<documents_base>/ where the variant names one (none
+    does since 1.0.0, when the multi-frame build's README.md and ARCHITECTURE.md replaced packaging/public/'s).
+    Returns (documents naming SOURCE.md/.json, documents marked draft)."""
     documents = spec['components'][spec.get('documents_component', 'documents')]['files']
-    folder = f'repo:packaging/{version}/'
-    wrong = sorted(f'{target} <- {source}' for target, source in documents.items() if not source.startswith(folder))
+    folders = tuple(f'repo:packaging/{name}/' for name in (version, spec.get('documents_base')) if name)
+    wrong = sorted(f'{target} <- {source}' for target, source in documents.items() if not source.startswith(folders))
     if wrong:
-        raise ReleaseError(f'Documents of {version} must come from packaging/{version}/: ' + ', '.join(wrong))
+        where = ' or '.join(folder.removeprefix('repo:') for folder in folders)
+        raise ReleaseError(f'Documents of {version} must come from {where}: ' + ', '.join(wrong))
     texts = {target: files[target][1].read_text() for target in documents}
     naming = sorted(t for t, text in texts.items() if any(name in text for name in SOURCE_OFFER))
     drafts = sorted(t for t, text in texts.items() if DRAFT_MARKER in text)
@@ -422,7 +451,7 @@ def check_documents(spec, version, files):
 
 
 def ships_public_documents(spec):
-    """Whether the package ships the public document set of packaging/public/ (the intel-free-2x variant, here or in a
+    """Whether the package ships the public document set of packaging/public/ (the intel-free-mfg variant, here or in a
     public export): its --archive passes the public gate (public_archive_problems(), write_archives())."""
     return spec.get('documents_version') == PUBLIC_DOCUMENTS
 

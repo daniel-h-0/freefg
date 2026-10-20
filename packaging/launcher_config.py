@@ -71,12 +71,14 @@ def shortcut(data, appid):
     return matches[0]
 
 
-def environment(root, owner, current, runtime='xemfg', route='opti'):
+def environment(root, owner, current, runtime='xemfg', route='opti', extra=None):
     """Retain the wrapper's fast path using ordinary launcher environment fields.
 
     runtime 'xemfg' loads the multi-frame loader (version.dll) and its addon; runtime 'xemfg-proxy' is the add-on as a
     libxess_fg.dll proxy (no loader, 2x), with its shader profile beside it in BC250-XeFG/; runtime 'xefg' is Intel's
-    own 2x frame generation with the BC250 proxy, whose files sit under OptiScaler/ on the OptiScaler route."""
+    own 2x frame generation with the BC250 proxy, whose files sit under OptiScaler/ on the OptiScaler route. extra: further
+    variables the installation sets (PROTONFIXES_DISABLE=1 after an accepted protonfix-api refusal); Restore takes them
+    out like the others."""
     if not isinstance(current, dict) or any(not isinstance(key, str) or not KEY.fullmatch(key)
            or not isinstance(value, str) or '\0' in value for key, value in current.items()):
         raise ValueError('Launcher environment keys and values must be strings with valid names')
@@ -106,6 +108,10 @@ def environment(root, owner, current, runtime='xemfg', route='opti'):
     if current.get('BC250_XEFG_NO_STAGGERED_SUBMIT') != '0':
         result['VKD3D_CONFIG'] = ','.join(dict.fromkeys([
             *filter(None, current.get('VKD3D_CONFIG', '').split(',')), 'no_staggered_submit']))
+    for key, value in (extra or {}).items():
+        if not KEY.fullmatch(key) or not isinstance(value, str) or '\0' in value:
+            raise ValueError('Invalid launcher environment setting: '+str(key))
+        result[key] = value
     if runtime in ('xemfg', 'xemfg-proxy'):
         # The installed addon owns its local verified payload and saved settings.
         for key in ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP'):
@@ -186,7 +192,7 @@ def _join_steam(env, rest, written=None):
     return ' '.join([*(key+'='+spelled(key, val) for key, val in env.items()), *([rest] if rest else [])])
 
 
-def steam_options(value, root, owner, runtime='xemfg', route='opti', args=()):
+def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), extra_env=None):
     """Transform ordinary launch options; never execute shell text while editing."""
     current, rest, written = split_steam(value)
     # Wrappers of earlier wrapper-based installs (either layout; the lib2x/XeFG route's lives under OptiScaler/).
@@ -204,7 +210,7 @@ def steam_options(value, root, owner, runtime='xemfg', route='opti', args=()):
         raise ValueError('Nested environment assignments need explicit reconciliation')
     if any(';' in token for token in tokens):
         raise ValueError('Shell commands in Steam launch options need explicit reconciliation')
-    env = environment(root, owner, current, runtime, route)
+    env = environment(root, owner, current, runtime, route, extra_env)
     added = with_args(tokens, args)[len(tokens):]
     return _join_steam(env, ' '.join([rest, *map(shlex.quote, added)]), written)
 
@@ -435,12 +441,85 @@ def patch(target, data, values):
     return yaml.safe_dump(doc, sort_keys=False, allow_unicode=True).encode()
 
 
-def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=()):
+# GE-Proton variables that make Proton copy its own OptiScaler or upscaler DLLs into the game (GE-Proton11-7: USE_OPTISCALER,
+# DLSS/FSR3/FSR4/FSR4_RDNA3/MLFG/XESS_UPGRADE); they would collide with this installation's files.
+GE_UPSCALER = re.compile(r'PROTON_(USE_OPTISCALER|[A-Z0-9_]+_UPGRADE)')
+# The layer folder an installation names in VK_LAYER_PATH (environment() above), relative to its game folder.
+LAYER_TAIL = ('BC250-XeFG', 'layer')
+
+
+def entry_environment(target, data):
+    """The environment variables a launcher entry sets for the game (Steam: the assignments before %command%)."""
+    values = fields({k: v for k, v in target.items() if k not in ('before', 'args')}, data)
+    if target['launcher'] == 'steam':
+        return split_steam(values['LaunchOptions'] or '')[0]
+    if target['launcher'] == 'heroic':
+        return {e.get('key'): e.get('value') for e in values.get('enviromentOptions') or [] if isinstance(e, dict)}
+    env = values.get('env') or {}
+    return {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {}
+
+
+def layer_roots(env):
+    """Game folders whose installation this environment loads the layer from (VK_LAYER_PATH entries ending in the
+    layer folder; the lib2x OptiScaler-route layout keeps it under OptiScaler/)."""
+    roots = []
+    for entry in filter(None, (env.get('VK_LAYER_PATH') or '').split(':')):
+        path = Path(entry)
+        if tuple(path.parts[-2:]) == LAYER_TAIL:
+            root = path.parent.parent
+            roots.append(root.parent if root.name == 'OptiScaler' else root)
+    return roots
+
+
+def _ge_variables(env):
+    return sorted(str(k) for k, v in env.items() if GE_UPSCALER.fullmatch(str(k)) and str(v).strip() not in ('', '0'))
+
+
+def conflicts(exe, targets, environ=None):
+    """Refusals that the launcher entries of exe call for, found before anything is downloaded or written:
+    [dict(code, kind, text, way)]. shared-entry: an entry already loads an installation from another folder (two
+    installations on one entry cannot both be restored exactly). ge-optiscaler: GE-Proton is told to place its own
+    OptiScaler or upscaler DLLs (in the entry, or in environ: the environment Setup runs in). An entry that cannot be
+    read is left to plan(), which reports it."""
+    root = Path(exe).parent.resolve()
+    found = []
+    for target in targets:
+        try:
+            env = entry_environment(target, Path(target['path']).read_bytes())
+        except Exception:  # noqa: BLE001 - plan() reports an unreadable entry
+            continue
+        others = sorted({str(r) for r in layer_roots(env) if r.resolve() != root})
+        if others:
+            found.append(dict(code='shared-entry', kind='hard',
+                              text=f'This {target["launcher"].capitalize()} entry already starts an installation in {others[0]}.',
+                              way='Restore that installation first (install.py restore on its executable), then install here.'))
+        ge = _ge_variables(env)
+        if ge:
+            found.append(dict(code='ge-optiscaler', kind='hard',
+                              text='GE-Proton is set to place its own OptiScaler or upscaler DLLs in this game (' + ', '.join(ge) +
+                                   '), which would collide with the installed files.',
+                              way='Remove ' + ', '.join(ge) + ' from the game\'s launch options.'))
+    ge = _ge_variables(environ or {})
+    if ge and not any(c['code'] == 'ge-optiscaler' for c in found):
+        found.append(dict(code='ge-optiscaler', kind='hard',
+                          text='GE-Proton is set to place its own OptiScaler or upscaler DLLs (' + ', '.join(ge) +
+                               ' in your environment), which would collide with the installed files.',
+                          way='Unset ' + ', '.join(ge) + ' for this game.'))
+    unique = {}
+    for c in found:
+        unique.setdefault((c['code'], c['text']), c)
+    return list(unique.values())
+
+
+def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None):
     targets = discover(exe, home)
     if not targets:
         raise ValueError('No launcher entry found for this executable. Add the game to Steam, Heroic or Lutris first.')
     require_stopped(t['launcher'] for t in targets)
     root = exe.parent.resolve()
+    # The checks Install also runs before its downloads (compat.preflight); here they guard every other caller.
+    for refusal in conflicts(exe, targets):
+        raise ValueError(f'{refusal["text"]} {refusal["way"]} [{refusal["code"]}]')
     # Wrappers of earlier wrapper-based installs (either layout) give way to the launcher fields.
     wrappers = {str(root/'BC250-XeFG/run.sh'), str(root/'OptiScaler/BC250-XeFG/run.sh')}
     operations = []
@@ -455,13 +534,13 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=()):
         if target['launcher'] == 'steam' and target.get('format') != 'shortcuts':
             target = dict(target, created_app=not Document(data).has_object(APP+[target['id']]))
         if target['launcher'] == 'steam':
-            after = {'LaunchOptions': steam_options(before['LaunchOptions'] or '', root, owner, runtime, route, args)}
+            after = {'LaunchOptions': steam_options(before['LaunchOptions'] or '', root, owner, runtime, route, args, extra_env)}
         elif target['launcher'] == 'heroic':
             entries = before['enviromentOptions'] or []
             current = {e['key']: e['value'] for e in entries}
             if len(current) != len(entries):
                 raise ValueError('Duplicate Heroic environment variables')
-            after = dict(enviromentOptions=[dict(key=k, value=v) for k, v in environment(root, owner, current, runtime, route).items()],
+            after = dict(enviromentOptions=[dict(key=k, value=v) for k, v in environment(root, owner, current, runtime, route, extra_env).items()],
                          wrapperOptions=[r for r in (before['wrapperOptions'] or []) if r.get('exe') not in wrappers])
             if 'launcherArgs' in before:
                 tokens = with_args(shlex.split(before['launcherArgs'] or ''), args)
@@ -470,10 +549,28 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=()):
             prefix = before['prefix_command'] or ''
             # Remove only this installation's old wrapper, preserving other tools.
             tokens = shlex.split(prefix)
-            after = dict(env=environment(root, owner, before['env'] or {}, runtime, route),
+            after = dict(env=environment(root, owner, before['env'] or {}, runtime, route, extra_env),
                          prefix_command=shlex.join(t for t in tokens if t not in wrappers))
         operations.append(dict({k: v for k, v in target.items() if k != 'args'}, before=before, after=after))
     return operations
+
+
+def added_args(operations):
+    """Game arguments the planned launcher fields add (Steam LaunchOptions after %command%, Heroic launcherArgs), in
+    order and once each: with_args adds none where the user's options already choose a graphics API, and Lutris's
+    arguments are not managed."""
+    added = []
+    for row in operations:
+        if row['launcher'] == 'steam':
+            before = shlex.split(split_steam(row['before'].get('LaunchOptions') or '')[1])
+            after = shlex.split(split_steam(row['after'].get('LaunchOptions') or '')[1])
+        elif row['launcher'] == 'heroic' and 'launcherArgs' in row['after']:
+            before = shlex.split(row['before'].get('launcherArgs') or '')
+            after = shlex.split(row['after'].get('launcherArgs') or '')
+        else:
+            continue
+        added += [t for t in after if t not in before and t != '%command%' and t not in added]
+    return added
 
 
 def reverse(row, current):

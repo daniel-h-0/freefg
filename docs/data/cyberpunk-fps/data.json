@@ -1,0 +1,388 @@
+{
+ "figure": "cyberpunk-2x-fps",
+ "question": "How many frames per second does FreeFG show in Cyberpunk 2077 at 2x, against XeFG with Intel's own shaders?",
+ "conditions": {
+  "gpu": "AMD BC-250, GPU clock limit 1850 MHz",
+  "game": "Cyberpunk 2077 2.31, built-in benchmark, one pass per run",
+  "output": "2560x1440",
+  "upscaler": "FSR 4 Performance",
+  "frame_generation": "the game's native XeSS frame generation at 2x, pacing layer on (auto)",
+  "ray_tracing": "off",
+  "proxy_sha256": "3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410",
+  "layer_sha256": "d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271"
+ },
+ "headless": {
+  "where": "private headless gamescope, 2560x1440 at a fixed 120 Hz, no display, no VRR",
+  "dates": {
+   "intel_sdr": "2026-10-15",
+   "freefg": "2026-10-16"
+  },
+  "intel_sdr": {
+   "n": 4,
+   "fps_mean": 85.31,
+   "fps_sd": 0.08,
+   "game_fps_mean": 42.66,
+   "ms_per_displayed_frame": 11.72,
+   "runs": [
+    {
+     "run": "if-c-2x-3",
+     "fps": 85.268,
+     "min_fps": 79.57,
+     "seconds": 64.221,
+     "presented_frames": 5476,
+     "game_frames": 2738,
+     "game_fps": 42.634,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "if-c-2x-4",
+     "fps": 85.251,
+     "min_fps": 79.91,
+     "seconds": 64.234,
+     "presented_frames": 5476,
+     "game_frames": 2738,
+     "game_fps": 42.626,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "if-c-2x-9",
+     "fps": 85.436,
+     "min_fps": 79.94,
+     "seconds": 64.235,
+     "presented_frames": 5488,
+     "game_frames": 2744,
+     "game_fps": 42.718,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "if-c-2x-10",
+     "fps": 85.303,
+     "min_fps": 79.79,
+     "seconds": 64.218,
+     "presented_frames": 5478,
+     "game_frames": 2739,
+     "game_fps": 42.652,
+     "hdr": false,
+     "game_version": "2.31"
+    }
+   ]
+  },
+  "freefg_sdr": {
+   "n": 4,
+   "fps_mean": 103.28,
+   "fps_sd": 0.09,
+   "game_fps_mean": 51.64,
+   "ms_per_displayed_frame": 9.68,
+   "runs": [
+    {
+     "run": "ef-p-2x-2",
+     "fps": 103.404,
+     "min_fps": 93.95,
+     "seconds": 64.233,
+     "presented_frames": 6642,
+     "game_frames": 3321,
+     "game_fps": 51.702,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ef-p-2x-3",
+     "fps": 103.182,
+     "min_fps": 94.13,
+     "seconds": 64.217,
+     "presented_frames": 6626,
+     "game_frames": 3313,
+     "game_fps": 51.591,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ef-p-2x-6",
+     "fps": 103.279,
+     "min_fps": 94.41,
+     "seconds": 64.233,
+     "presented_frames": 6634,
+     "game_frames": 3317,
+     "game_fps": 51.64,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ef-p-2x-7",
+     "fps": 103.251,
+     "min_fps": 94.03,
+     "seconds": 64.232,
+     "presented_frames": 6632,
+     "game_frames": 3316,
+     "game_fps": 51.626,
+     "hdr": false,
+     "game_version": "2.31"
+    }
+   ]
+  },
+  "freefg_hdr10": {
+   "n": 2,
+   "fps_mean": 101.58,
+   "fps_sd": 0.15,
+   "game_fps_mean": 50.79,
+   "ms_per_displayed_frame": 9.84,
+   "runs": [
+    {
+     "run": "ef-p-2x-hdr-10",
+     "fps": 101.69,
+     "min_fps": 93.27,
+     "seconds": 64.235,
+     "presented_frames": 6532,
+     "game_frames": 3266,
+     "game_fps": 50.845,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ef-p-2x-hdr-11",
+     "fps": 101.471,
+     "min_fps": 93.29,
+     "seconds": 64.235,
+     "presented_frames": 6518,
+     "game_frames": 3259,
+     "game_fps": 50.735,
+     "hdr": true,
+     "game_version": "2.31"
+    }
+   ]
+  },
+  "bridge": {
+   "reference_2026_10_15": {
+    "n": 4,
+    "fps_mean": 103.05,
+    "fps_sd": 0.07,
+    "game_fps_mean": 51.53,
+    "ms_per_displayed_frame": 9.7,
+    "runs": [
+     {
+      "run": "if-b-2x-2",
+      "fps": 103.058,
+      "min_fps": 94.26,
+      "seconds": 64.235,
+      "presented_frames": 6620,
+      "game_frames": 3310,
+      "game_fps": 51.529,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "if-b-2x-5",
+      "fps": 103.097,
+      "min_fps": 94.49,
+      "seconds": 64.231,
+      "presented_frames": 6622,
+      "game_frames": 3311,
+      "game_fps": 51.548,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "if-b-2x-8",
+      "fps": 103.103,
+      "min_fps": 94.34,
+      "seconds": 64.247,
+      "presented_frames": 6624,
+      "game_frames": 3312,
+      "game_fps": 51.551,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "if-b-2x-11",
+      "fps": 102.954,
+      "min_fps": 94.46,
+      "seconds": 64.242,
+      "presented_frames": 6614,
+      "game_frames": 3307,
+      "game_fps": 51.477,
+      "hdr": false,
+      "game_version": "2.31"
+     }
+    ]
+   },
+   "reference_2026_10_16": {
+    "n": 4,
+    "fps_mean": 103.03,
+    "fps_sd": 0.14,
+    "game_fps_mean": 51.52,
+    "ms_per_displayed_frame": 9.71,
+    "runs": [
+     {
+      "run": "ef-b-2x-1",
+      "fps": 102.831,
+      "min_fps": 93.58,
+      "seconds": 64.241,
+      "presented_frames": 6606,
+      "game_frames": 3303,
+      "game_fps": 51.416,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "ef-b-2x-4",
+      "fps": 103.118,
+      "min_fps": 93.95,
+      "seconds": 64.237,
+      "presented_frames": 6624,
+      "game_frames": 3312,
+      "game_fps": 51.559,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "ef-b-2x-5",
+      "fps": 103.111,
+      "min_fps": 94.42,
+      "seconds": 64.241,
+      "presented_frames": 6624,
+      "game_frames": 3312,
+      "game_fps": 51.556,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "ef-b-2x-8",
+      "fps": 103.073,
+      "min_fps": 94.46,
+      "seconds": 64.226,
+      "presented_frames": 6620,
+      "game_frames": 3310,
+      "game_fps": 51.537,
+      "hdr": false,
+      "game_version": "2.31"
+     }
+    ]
+   }
+  }
+ },
+ "tv": {
+  "where": "LG G5 OLED TV at 2560x1440, 120 Hz, VRR active in every run (Steam Game Mode, gamescope, HDR10 output)",
+  "dates": "2026-10-18/19",
+  "freefg_sdr": {
+   "n": 4,
+   "fps_mean": 99.29,
+   "fps_sd": 0.07,
+   "game_fps_mean": 49.65,
+   "ms_per_displayed_frame": 10.07,
+   "runs": [
+    {
+     "run": "tv19-r2-4-B-2x",
+     "fps": 99.208,
+     "min_fps": 90.26,
+     "seconds": 64.249,
+     "presented_frames": 6374,
+     "game_frames": 3187,
+     "game_fps": 49.604,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "tv19-r2-5-B-2x",
+     "fps": 99.334,
+     "min_fps": 90.81,
+     "seconds": 64.248,
+     "presented_frames": 6382,
+     "game_frames": 3191,
+     "game_fps": 49.667,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "tv19-r2-8-B-2x",
+     "fps": 99.258,
+     "min_fps": 90.53,
+     "seconds": 64.237,
+     "presented_frames": 6376,
+     "game_frames": 3188,
+     "game_fps": 49.629,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "tv19-r2-9-B-2x",
+     "fps": 99.368,
+     "min_fps": 90.75,
+     "seconds": 64.246,
+     "presented_frames": 6384,
+     "game_frames": 3192,
+     "game_fps": 49.684,
+     "hdr": false,
+     "game_version": "2.31"
+    }
+   ]
+  },
+  "freefg_hdr10": {
+   "n": 4,
+   "fps_mean": 97.24,
+   "fps_sd": 0.11,
+   "game_fps_mean": 48.62,
+   "ms_per_displayed_frame": 10.28,
+   "runs": [
+    {
+     "run": "tv19-r2-14-B-2x-hdr",
+     "fps": 97.078,
+     "min_fps": 88.47,
+     "seconds": 64.237,
+     "presented_frames": 6236,
+     "game_frames": 3118,
+     "game_fps": 48.539,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "tv19-r2-15-B-2x-hdr",
+     "fps": 97.286,
+     "min_fps": 88.88,
+     "seconds": 64.244,
+     "presented_frames": 6250,
+     "game_frames": 3125,
+     "game_fps": 48.643,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "tv19-r3-3-B-2x-hdr",
+     "fps": 97.29,
+     "min_fps": 89.18,
+     "seconds": 64.22,
+     "presented_frames": 6248,
+     "game_frames": 3124,
+     "game_fps": 48.645,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "tv19-r3-4-B-2x-hdr",
+     "fps": 97.302,
+     "min_fps": 89.13,
+     "seconds": 64.233,
+     "presented_frames": 6250,
+     "game_frames": 3125,
+     "game_fps": 48.651,
+     "hdr": true,
+     "game_version": "2.31"
+    }
+   ]
+  }
+ },
+ "notes": [
+  "Benchmark FPS counts generated frames; game frames per second = rows of the benchmark's frames.csv divided by its duration.",
+  "The Intel's-shaders arm (BC250_XEFG_DISABLE=1) and FreeFG ran on different days in the same harness; a reference build measured on both days (bridge) moved by -0.02%.",
+  "The Intel's-shaders arm ran through the maintainers' internal loader with its acceleration switched off (BC250_XEFG_DISABLE=1), in the same harness with the same pacing layer.",
+  "HDR10 with Intel's shaders was not measured. Headless and TV figures are not comparable with each other."
+ ],
+ "sources": [
+  "Maintainer evidence, headless Cyberpunk ABBA campaign of 2026-10-15 (Intel-free add-on qualification): runs if-c-2x-{3,4,9,10} (Intel's shaders) and if-b-2x-{2,5,8,11} (reference), each benchmark/summary.json and benchmark/frames.csv",
+  "Maintainer evidence, headless Cyberpunk ABBA campaign of 2026-10-16 (enabler-free proxy): runs ef-p-2x-{2,3,6,7}, ef-p-2x-hdr-{10,11} (FreeFG) and ef-b-2x-{1,4,5,8} (reference), same files",
+  "Maintainer evidence, TV pacing campaign of 2026-10-18/19: arm B runs listed in its analysis.json summary (SDR and HDR10, warm-ups and the pilot excluded), same files",
+  "Summarised in packaging/public/MEASUREMENTS.md, sections \"Frame rate: Cyberpunk 2077\" and \"On a TV with VRR\""
+ ]
+}

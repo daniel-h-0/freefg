@@ -33,7 +33,7 @@ release/keep.txt (the private tree, whose setup.py and package.json also serve t
 --allow-private-tree. Before writing, changed JSON files must parse, changed Python files must compile, the private
 package names in release/package.json must be unchanged (the private library owner matches private-test-NN) and the
 public variant's new name must not match the owner's pattern; apply also reports whether release/assemble.py accepts
-that name, and that the new name is package-name's public_template (today {slug}-0.9.0). rename_texts() is the same
+that name, and that the new name is package-name's public_template (today {slug}-1.0.0). rename_texts() is the same
 rewrite as a library function (texts in, changed texts out), for a tool that writes the public tree itself:
 release/export_tree.py --public applies it to its copies when names.json "chosen" holds the decided name and slug
 (chosen_name() reads and checks that block; empty, the export renames nothing).

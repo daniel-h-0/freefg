@@ -14,6 +14,7 @@ static ID3D12Device*graph_device;
 static ID3D12RootSignature*graph_root;
 static ID3D12PipelineState*graph_prepare[3],*graph_multiply[3],*graph_finish[4];
 static ID3D12PipelineState*graph_finish_coarse17[2];
+static ID3D12PipelineState*graph_finish_mfg[5];
 static ID3D12Resource*graph_input[2],*graph_output[2],*graph_retired[32];
 static UINT64 graph_capacity[2];static UINT graph_retired_count;
 static ID3D12GraphicsCommandList*graph_lists[128];static UINT graph_list_count;
@@ -54,6 +55,9 @@ static void graph_initialize(void){
  if(graph_enabled&2){graph_prepare[1]=graph_pipeline("graph-prepare64.dxil");graph_multiply[1]=graph_pipeline("graph-matmul64.dxil");graph_finish[1]=graph_pipeline("graph-finish64-16.dxil");graph_finish[2]=graph_pipeline("graph-finish64-17.dxil");}
  if(graph_adaptive){graph_prepare[2]=graph_pipeline("graph-prepare224-n32.dxil");graph_multiply[2]=graph_pipeline("graph-matmul224-n32.dxil");graph_finish[3]=graph_pipeline("graph-finish224-n32.dxil");}
  if(graph_coarse17){graph_finish_coarse17[0]=graph_pipeline("graph-finish224-17.dxil");if(graph_adaptive)graph_finish_coarse17[1]=graph_pipeline("graph-finish224-17-n32.dxil");}
+ graph_finish_mfg[0]=graph_pipeline("mfg-finish224-18-n48.dxil");graph_finish_mfg[1]=graph_pipeline("mfg-finish224-18-n32.dxil");
+ graph_finish_mfg[2]=graph_pipeline("mfg-finish224-19-n48.dxil");graph_finish_mfg[3]=graph_pipeline("mfg-finish224-19-n32.dxil");
+ graph_finish_mfg[4]=graph_pipeline("mfg-finish64-18-n32.dxil");
  if(graph_ref64){graph_ref64_pso[0]=graph_pipeline("wino-ref64-16.dxil");graph_ref64_pso[1]=graph_pipeline("wino-ref64-17.dxil");graph_ref64_pso[2]=graph_pipeline("wino-ref64-18.dxil");}
  graph_ready=1;logline("WINOGRAD_READY U24/F4 M32 prep8 finish32\n");
 }
@@ -76,6 +80,10 @@ static void install_graph(ID3D12Device*d,ID3D12CommandQueue*q){
 static int graph_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UINT y,UINT z){
  UINT family,kind;
  if(shader==0xfec421a3b6a0632bULL){family=0;kind=0;}else if(shader==0x558c3931ba6fb064ULL){family=1;kind=1;}else if(shader==0x08155f47bc92811bULL){family=1;kind=2;}else if(shader==0x18a0d2663b5d5282ULL&&graph_coarse17){family=0;kind=3;}
+ else if(shader==0x3c5180037dafdbb8ULL){family=0;kind=4;}
+ else if(shader==0x8b17a4f9fcb35e18ULL){family=0;kind=5;}
+ else if(shader==0x990b9bf8cf279d27ULL){family=1;kind=2;}
+ else if(shader==0x4470217240e7372aULL){family=1;kind=6;}
  else return 0;
  if(!(graph_enabled&(1u<<family)))return 0;if(!graph_ready)model_fail("Winograd dispatched before initialization");
  AcquireSRWLockExclusive(&graph_lock);
@@ -125,6 +133,7 @@ static int graph_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
  set_original(l,graph_multiply[profile]);dispatch_original(l,matrix_columns/columns,channels/32,36);
  barrier.UAV.pResource=graph_output[family];ID3D12GraphicsCommandList_ResourceBarrier(l,1,&barrier);
  ID3D12PipelineState*finish;
+ if(kind>=4)finish=graph_finish_mfg[kind==6?4:(kind-4)*2+(profile==2)];else
  finish=kind==3?graph_finish_coarse17[profile==2]:graph_finish[profile==2?3:kind];
  set_original(l,finish);dispatch_original(l,tiles,channels/32,1);
  // The SDK's expanded signature retains its original first three arguments.
@@ -136,4 +145,5 @@ static int graph_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
 static void graph_report(void){
  if(graph_enabled){char line[120];snprintf(line,sizeof(line),"WINOGRAD_GEOMETRY fallback=%llu\n",(unsigned long long)graph_geometry_fallbacks);logline(line);}
  if(graph_ref64){char line[160];snprintf(line,sizeof(line),"WINO_REF64 clamp16=%llu clamp17=%llu clamp18=%llu\n",(unsigned long long)graph_ref64_counts[0],(unsigned long long)graph_ref64_counts[1],(unsigned long long)graph_ref64_counts[2]);logline(line);}
+ if(graph_enabled){char line[160];snprintf(line,sizeof(line),"MFG_WINOGRAD coarse18=%llu coarse19=%llu refinement18=%llu\n",graph_counts[4],graph_counts[5],graph_counts[6]);logline(line);}
  if(graph_enabled){char line[180];if(graph_refine_pad){snprintf(line,sizeof(line),"WINOGRAD_REFINE_LAYOUT columns=%u pad=%u calls=%llu\n",graph_refine_columns,graph_refine_pad,(unsigned long long)(graph_counts[1]+graph_counts[2]));logline(line);}snprintf(line,sizeof(line),"WINOGRAD_COUNTS coarse=%llu refinement16=%llu refinement17=%llu\n",(unsigned long long)graph_counts[0],(unsigned long long)graph_counts[1],(unsigned long long)graph_counts[2]);logline(line);snprintf(line,sizeof(line),"WINOGRAD_PROFILES coarse48=%llu refinement=%llu coarse32=%llu\n",(unsigned long long)graph_profiles[0],(unsigned long long)graph_profiles[1],(unsigned long long)graph_profiles[2]);logline(line);if(graph_coarse17){snprintf(line,sizeof(line),"WINOGRAD_COARSE17 count=%llu columns48=%llu columns32=%llu\n",(unsigned long long)graph_counts[3],(unsigned long long)graph_coarse17_profiles[0],(unsigned long long)graph_coarse17_profiles[1]);logline(line);}}}

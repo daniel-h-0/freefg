@@ -75,11 +75,13 @@ class SetupFrontEnd(unittest.TestCase):
 
     def test_cancel_and_empty_choices_go_back_to_the_menu(self):
         # Scripted zenity answers: (returncode, stdout). OK with no row, a cancelled file chooser, Settings cancelled at
-        # the form, then Install cancelled at the route list and at the confirmation, then the menu closed.
+        # the form, then Install cancelled at the route list, at the upscaler list and at the confirmation, Upscaler
+        # cancelled at its list, then the menu closed.
         from unittest import mock
         game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
         answers = iter([(0, ''), (0, 'Add games'), (1, ''), (0, 'Add games'), (0, str(game / 'Game.exe')),
-                        (0, 'Settings'), (1, ''), (0, 'Install'), (1, ''), (0, 'Install'), (0, 'Automatic'), (1, ''), (1, '')])
+                        (0, 'Settings'), (1, ''), (0, 'Install'), (1, ''), (0, 'Install'), (0, 'Automatic'), (1, ''),
+                        (0, 'Install'), (0, 'Automatic'), (0, 'FSR 4'), (1, ''), (0, 'Upscaler'), (1, ''), (1, '')])
         calls = []
         def run(args, **kw):
             calls.append(args); code, out = next(answers)
@@ -90,6 +92,171 @@ class SetupFrontEnd(unittest.TestCase):
             self.assertEqual(self.setup.main(), 0)
         self.assertEqual(next(answers, None), None)  # every scripted answer was used: no early exit
         self.assertFalse(any('install.py' in ' '.join(map(str, a)) for a in calls))  # nothing was run
+
+    def test_check_runs_the_installers_check(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, commands = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Check'), (0, ''), (1, '')])
+        # Check prints the redacted game report too (CONTRIBUTING.md and the issue form point to Setup's Check for it).
+        self.assertEqual([c[2:] for c in commands], [[str(self.dir / 'install.py'), 'check', '--report', str(game / 'Game.exe')]])
+        self.assertTrue(any('--text-info' in c for c in calls))
+        menu = calls[0]
+        self.assertIn('Check', menu)
+
+    def test_install_shows_verdicts_steps_and_asks_for_soft_refusals(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        verdict = dict(line='Automatic (no recipe) → DLSS FG input (needs one step from you)', needs_step=True,
+                       manual_steps=['Choose the upscaler.', 'Turn on the game\'s own frame generation.'],
+                       blocking=[dict(code='protonfix-api', kind='soft', text='GE-Proton11-7\'s fix switches it off DirectX 12.',
+                                      way='Install anyway adds PROTONFIXES_DISABLE=1.')])
+
+        class Installer:
+            def compat_verdict(self, root, exe, route=None, fg_input=None):
+                return verdict, {}, {}, {}
+
+            def idle(self, root):
+                pass
+        answers = [(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'Automatic per game'), (0, 'FSR 4'), (0, ''), (0, ''), (0, ''), (1, '')]
+        calls, commands = self.scripted(answers, Installer())
+        route_list = next(c for c in calls if '--column=Route' in c)
+        self.assertIn('Automatic per game', route_list)
+        self.assertTrue(any('Game.exe: Automatic (no recipe)' in a for a in route_list))
+        question = next(c for c in calls if '--ok-label=Install anyway' in c)
+        self.assertTrue(any('GE-Proton11-7' in a for a in question))
+        confirm = next(c for c in calls if any(a.startswith('--text=Setup will configure') for a in c))
+        self.assertTrue(any("2. Turn on the game's own frame generation." in a for a in confirm))
+        install = next(c for c in commands if 'install' in c)
+        self.assertEqual(install[install.index('--accept') + 1], 'protonfix-api=' + str(game / 'Game.exe'))
+
+    def test_soft_refusals_are_listed_and_accepted_per_game(self):
+        # Two games share a soft code, and more games are selected than the route list shows: every one is evaluated
+        # and listed, and each accept names its game. An explicit input asks for the verdicts again for that input.
+        games = []
+        for n in range(14):
+            folder = self.dir / f'g{n}'; folder.mkdir(); (folder / f'G{n}.exe').write_bytes(b''); games.append(folder / f'G{n}.exe')
+        soft = lambda name: dict(code='protonfix-api', kind='soft', text=f'{name} fix leaves DirectX 12.', way='Install anyway adds it.')
+        asked = []
+
+        class Installer:
+            def compat_verdict(self, root, exe, route=None, fg_input=None):
+                asked.append((exe.name, route, fg_input))
+                blocking = [soft(exe.name)] if exe.name in ('G0.exe', 'G13.exe') else []
+                if route == 'opti' and exe.name == 'G5.exe':
+                    blocking = [dict(code='no-input', kind='soft', text='No input found.', way='Install anyway (you chose the input).')]
+                return dict(line='Automatic (no recipe) → OptiFG input', needs_step=False, manual_steps=[], blocking=blocking), {}, {}, {}
+
+            def idle(self, root):
+                pass
+        answers = [(0, 'Add games'), (0, '\n'.join(map(str, games))), (0, 'Install'), (0, 'OptiFG'), (0, 'FSR 4'), (0, ''), (0, ''), (0, ''), (1, '')]
+        calls, commands = self.scripted(answers, Installer())
+        self.assertEqual(len([a for a in asked if a[1] is None]), 14)  # Automatic, for the route list
+        self.assertEqual(len([a for a in asked if a[1:] == ('opti', 'upscaler')]), 14)  # again for the input chosen
+        route_list = next(c for c in calls if '--column=Route' in c)
+        self.assertTrue(any('... and 2 more (Check lists every game)' in a for a in route_list))
+        question = next(c for c in calls if '--ok-label=Install anyway' in c)
+        text = next(a for a in question if a.startswith('--text='))
+        for name in ('G0.exe: G0.exe fix', 'G13.exe: G13.exe fix', 'G5.exe: No input found.'):
+            self.assertIn(name, text)
+        install = next(c for c in commands if 'install' in c)
+        accepts = [install[i + 1] for i, a in enumerate(install) if a == '--accept']
+        self.assertEqual(sorted(accepts), sorted(['protonfix-api=' + str(games[0]), 'protonfix-api=' + str(games[13]),
+                                                  'no-input=' + str(games[5])]))
+
+
+    def scripted(self, answers, installer=None):
+        """Run Setup's menu on scripted zenity answers, with a fake installer or none (load_installer fails); returns
+        (zenity calls, install.py runs). install.py runs (subprocess.run or Popen) take no answer; nothing may open a
+        network connection."""
+        from unittest import mock
+        import socket
+        answers = iter(answers); calls = []; runs = []
+        def run(args, **kw):
+            if args[0] == sys.executable:
+                runs.append(args); return mock.Mock(returncode=0)
+            calls.append(args); code, out = next(answers)
+            return mock.Mock(returncode=code, stdout=out)
+        class Process:
+            def __init__(self, args, **kw):
+                runs.append(args)
+            def wait(self):
+                return 0
+            def communicate(self, *a, **k):
+                return b'', b''
+        def no_network(*a, **k):
+            raise AssertionError('Setup opened a network connection')
+        with mock.patch.object(self.setup.shutil, 'which', return_value='/usr/bin/zenity'), \
+             mock.patch.object(self.setup.subprocess, 'run', side_effect=run), \
+             mock.patch.object(self.setup.subprocess, 'Popen', side_effect=Process), \
+             mock.patch.object(socket, 'create_connection', no_network), mock.patch.object(socket.socket, 'connect', no_network), \
+             mock.patch.object(self.setup, 'load_installer', return_value=installer) if installer else \
+             mock.patch.object(self.setup, 'load_installer', side_effect=ImportError):
+            self.assertEqual(self.setup.main(), 0)
+        self.assertEqual(next(answers, None), None)
+        return calls, [r for r in runs if 'install.py' in ' '.join(map(str, r))]
+
+    def helix_installer(self, state):
+        class HelixSR:
+            LABEL = 'HelixSR (by lonewolf0622)'
+            @staticmethod
+            def find(root):
+                return dict(state=state, pinned='2.0.0', folder='/cache/HelixSR-2.0.0', message='m')
+            @staticmethod
+            def pins(root):
+                return {'input': {'size': 136997025}}
+            @staticmethod
+            def guidance(found):
+                return 'cd /cache/HelixSR-2.0.0 && ./helixsr-setup.sh --no-fg'
+        class Installer:
+            helixsr = HelixSR
+            def idle(self, root):
+                pass
+            def detect_input(self, exe):
+                return ('opti', 'upscaler', 'OptiFG')
+        return Installer()
+
+    def test_install_with_helixsr_ready_passes_the_choice(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'HelixSR (by lonewolf0622)'), (0, ''), (0, ''), (1, '')], self.helix_installer('ready'))
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0][-6:], ['--route', 'opti', '--fg-input', 'upscaler', '--upscaler', 'helixsr'])
+        listing = next(c for c in calls if '--column=Upscaler' in c)
+        self.assertIn('HelixSR (by lonewolf0622)', listing)
+        self.assertTrue(any('separate project by lonewolf0622' in a for a in listing))
+
+    def test_helixsr_missing_downloads_on_request_and_installs_nothing(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        # HelixSR chosen, download confirmed (install.py helixsr runs), its output shown; back at the menu, nothing installed.
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'HelixSR (by lonewolf0622)'), (0, ''), (0, ''), (1, '')], self.helix_installer('missing'))
+        self.assertEqual([r[-1] for r in runs], ['helixsr'])
+        question = next(c for c in calls if '--question' in c)
+        self.assertTrue(any('github.com/lonewolf0622/HelixSR' in a and '137 MB' in a for a in question))
+        # Declined: nothing runs at all.
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'HelixSR (by lonewolf0622)'), (1, ''), (1, '')], self.helix_installer('missing'))
+        self.assertEqual(runs, [])
+
+    def test_helixsr_unknown_offers_the_official_download(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        # Only another HelixSR on this computer: Setup offers the official release (and says which folder is not used).
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'),
+                                     (0, 'HelixSR (by lonewolf0622)'), (0, ''), (0, ''), (1, '')], self.helix_installer('unknown'))
+        self.assertEqual([r[-1] for r in runs], ['helixsr'])
+        question = next(c for c in calls if '--question' in c)
+        self.assertTrue(any(a.startswith('--text=Not used: m') for a in question))
+
+    def test_helixsr_unbuilt_shows_the_setup_command(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'),
+                                     (0, 'HelixSR (by lonewolf0622)'), (0, ''), (1, '')], self.helix_installer('unbuilt'))
+        self.assertEqual(runs, [])
+        self.assertTrue(any('--text-info' in c for c in calls))
+
+    def test_upscaler_switch_runs_configure(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'), (0, 'FSR 4'), (0, ''), (1, '')],
+                                    self.helix_installer('missing'))
+        self.assertEqual(len(runs), 1); self.assertIn('configure', runs[0]); self.assertEqual(runs[0][-2:], ['--upscaler', 'fsr4'])
 
 
 if __name__ == '__main__':

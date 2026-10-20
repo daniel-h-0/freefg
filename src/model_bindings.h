@@ -16,6 +16,7 @@ static __typeof__(set_root_original) model_root_original;
 static __typeof__(cbv_original) model_cbv_original;
 static struct model_record*model_descriptor_get(SIZE_T cpu){for(UINT i=0;i<model_descriptor_count;i++)if(model_descriptors[i].cpu==cpu)return model_descriptors[i].m;return NULL;}
 static void model_descriptor_set(SIZE_T cpu,struct model_record*m){UINT i;for(i=0;i<model_descriptor_count;i++)if(model_descriptors[i].cpu==cpu)break;if(i==model_descriptor_count){if(!m)return;if(i==8192)model_fail("descriptor tracking capacity");model_descriptor_count++;model_descriptors[i].cpu=cpu;}
+ if(!m){model_descriptors[i]=model_descriptors[--model_descriptor_count];memset(&model_descriptors[model_descriptor_count],0,sizeof(*model_descriptors));return;}
  model_descriptors[i].m=m;}
 static UINT model_list(ID3D12GraphicsCommandList*l){UINT i;for(i=0;i<model_list_count;i++)if(model_lists[i].l==l)break;if(i==model_list_count){if(i==128)model_fail("list tracking capacity");model_lists[i].l=l;model_list_count++;}return i;}
 static void model_root_check(ID3D12RootSignature*r){
@@ -27,6 +28,7 @@ static void model_root_check(ID3D12RootSignature*r){
  ReleaseSRWLockShared(&model_lock);
 }
 static __typeof__(root_original) model_create_root_original;
+#include "mfg_root_cache.h"
 static HRESULT STDMETHODCALLTYPE model_create_root_hook(ID3D12Device*d,UINT node,const void*data,SIZE_T size,REFIID iid,void**out){
  HRESULT(WINAPI*deserialize)(const void*,SIZE_T,REFIID,void**)=(void*)GetProcAddress(GetModuleHandleA("d3d12.dll"),"D3D12CreateVersionedRootSignatureDeserializer");
  ID3D12VersionedRootSignatureDeserializer*reader=NULL;const D3D12_VERSIONED_ROOT_SIGNATURE_DESC*desc=NULL;
@@ -38,7 +40,6 @@ static HRESULT STDMETHODCALLTYPE model_create_root_hook(ID3D12Device*d,UINT node
  UINT graph=match&&s->Flags==D3D12_ROOT_SIGNATURE_FLAG_NONE&&s->NumStaticSamplers==0&&s->pParameters[0].ParameterType==D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE&&s->pParameters[2].Constants.Num32BitValues==12&&s->pParameters[2].Constants.ShaderRegister==0&&s->pParameters[2].Constants.RegisterSpace==0;
  if(graph){for(UINT i=0;i<3;i++)graph&=s->pParameters[i].ShaderVisibility==D3D12_SHADER_VISIBILITY_ALL;const D3D12_ROOT_DESCRIPTOR_TABLE*t=&s->pParameters[0].DescriptorTable;graph&=t->NumDescriptorRanges==2;for(UINT i=0;graph&&i<2;i++){const D3D12_DESCRIPTOR_RANGE*v=&t->pDescriptorRanges[i];graph=v->RangeType==(i?D3D12_DESCRIPTOR_RANGE_TYPE_UAV:D3D12_DESCRIPTOR_RANGE_TYPE_SRV)&&v->NumDescriptors==1&&v->BaseShaderRegister==0&&v->RegisterSpace==0&&(v->OffsetInDescriptorsFromTableStart==D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND||v->OffsetInDescriptorsFromTableStart==i);}}
  UINT expanded=graph&&model_owner_enabled==7
- &&model_allocations_open
  ;ID3DBlob*blob=NULL;
  if(expanded){
   D3D12_ROOT_PARAMETER parameters[5]={0};memcpy(parameters,s->pParameters,3*sizeof(*parameters));
@@ -48,16 +49,16 @@ static HRESULT STDMETHODCALLTYPE model_create_root_hook(ID3D12Device*d,UINT node
   if(!serialize)model_fail("missing root serializer");HR(serialize(&extended,D3D_ROOT_SIGNATURE_VERSION_1_0,&blob,NULL));data=ID3D10Blob_GetBufferPointer(blob);size=ID3D10Blob_GetBufferSize(blob);
  }
  HRESULT hr=
- model_create_root_original(d,node,data,size,iid,out);
+ mfg_cached_root(d,node,data,size,iid,out);
  if(blob)ID3D10Blob_Release(blob);
  if(SUCCEEDED(hr)&&match){AcquireSRWLockExclusive(&model_lock);if(!model_known_root(*out)){if(model_root_count==MODEL_ROOT_CAPACITY)model_fail("root tracking capacity");UINT index=model_root_count++;model_roots[index]=*out;model_graph_roots[index]=expanded;ID3D12RootSignature_AddRef((ID3D12RootSignature*)*out);}ReleaseSRWLockExclusive(&model_lock);}
  if(SUCCEEDED(hr)&&expanded)logline("WINOGRAD_ROOT preserved three parameters; appended u1/u2 roots\n");
  ID3D12VersionedRootSignatureDeserializer_Release(reader);return hr;
 }
+static void mfg_watch_descriptor_heap(ID3D12Device*,ID3D12DescriptorHeap*,const D3D12_DESCRIPTOR_HEAP_DESC*);
 static HRESULT STDMETHODCALLTYPE model_heap_hook(ID3D12Device*d,const D3D12_DESCRIPTOR_HEAP_DESC*desc,REFIID iid,void**out){
  HRESULT hr=model_heap_original(d,desc,iid,out);
- if(SUCCEEDED(hr)&&desc->Type==D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV&&(desc->Flags&D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE)){
- AcquireSRWLockExclusive(&model_lock);if(model_heap_count==128)model_fail("heap tracking capacity");UINT i=model_heap_count++;ID3D12DescriptorHeap*h=*out;model_heaps[i].h=h;ID3D12DescriptorHeap_AddRef(h);model_heaps[i].cpu=ID3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart(h).ptr;model_heaps[i].gpu=ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(h).ptr;model_heaps[i].count=desc->NumDescriptors;model_heaps[i].stride=ID3D12Device_GetDescriptorHandleIncrementSize(d,desc->Type);ReleaseSRWLockExclusive(&model_lock);}
+ if(SUCCEEDED(hr)&&desc->Type==D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)mfg_watch_descriptor_heap(d,*out,desc);
  return hr;
 }
 static void STDMETHODCALLTYPE model_simple_hook(ID3D12Device*d,UINT n,D3D12_CPU_DESCRIPTOR_HANDLE dst,D3D12_CPU_DESCRIPTOR_HANDLE src,D3D12_DESCRIPTOR_HEAP_TYPE type){

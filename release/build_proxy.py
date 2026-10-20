@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Build the enabler-free add-on (variant intel-free-2x, release/intel_free_2x.json): libxess_fg.dll, a proxy for Intel's
-unmodified XeFG runtime with the Intel-free add-on inside, so a package needs no XeSSMFG enabler.
+"""Build the enabler-free add-on: libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime with the Intel-free add-on
+inside, so a package needs no XeSSMFG enabler. --variant picks the build:
+
+  intel-free-mfg  (default, release/intel_free_mfg.json; the released build since 1.0.0) the frame count Intel's
+                  runtime runs, including the multi-frame network when another module the user installed has lifted
+                  Intel's limit, beside which it keeps its callers' view and steps aside rather than end the game
+                  (src/game/mfg_proxy_coexist.h)
+  intel-free-2x   (release/intel_free_2x.json; the 0.9.0 build, maintainers' tree only) one generated frame per real
+                  frame (2x)
 
 Steps:
   1. Check the inputs against release/inputs.lock.json: Intel's XeSS SDK headers (intel-xess), Intel's runtime DLL at the
      same commit (intel-xess-runtime; never shipped) and the locked shader profile. The runtime must also be the file
      packaging/dependencies.json makes installations download as bc250_xefg_original.dll.
-  2. Assemble the profile into <build>/addon-intel-free-2x/profile: the Intel-free profile of release/intel_free.json
-     (prepared and checked by release/proxy_common.py) without the multi-frame kernels intel_free_2x.json drops.
-  3. Generate into <build>/addon-intel-free-2x/generated:
+  2. Assemble the profile into <build>/<output_dir>/profile: the Intel-free profile of release/intel_free.json
+     (prepared and checked by release/proxy_common.py) without the files the variant drops (2x: the multi-frame kernels).
+  3. Generate into <build>/<output_dir>/generated:
        probe_core.h          src/probe.c up to its scene_motion.h include, fixed modes patched in (proxy_common.py)
        profile_manifest.h    size and FNV-1a hash of every profile file
        original_manifest.h   size and FNV-1a hash of Intel's runtime (the proxy loads nothing else)
-       mfg_proxy_exports.h   the five wrapped XeFG entries: proxy_common.py API_HOOKS with intel_free_2x.json's changes,
-                             as this DLL's own exports calling Intel's
+       mfg_proxy_exports.h   the wrapped XeFG entries as this DLL's own exports calling Intel's: 2x, the five of
+                             proxy_common.py API_HOOKS with intel_free_2x.json's changes; mfg, the seven of
+                             proxy_common.py MFG_PROXY_HOOKS, each with a tail-calling path
        proxy.def             Intel's 57 exports at their ordinals (wrapped ones here, the rest forwarded to
                              bc250_xefg_original) and the add-on's settings exports after them
   4. Compile src/game/mfg_proxy.c with clang for x86_64-w64-windows-gnu against Wine's headers and import libraries,
@@ -22,8 +30,8 @@ Steps:
   5. Check the DLL: Intel's export table reproduced ordinal for ordinal, wrapped entries implemented here, every other
      one a forwarder to bc250_xefg_original, no other exports than the settings interface; imports only from the
      allowed DLLs; no reference to the XeSSMFG enabler or version.dll.
-  6. Write <build>/addon-intel-free-2x/build.json (no absolute paths) and compare with the lock's reference
-     ("libxess_fg.dll (intel-free-2x)").
+  6. Write <build>/<output_dir>/build.json (no absolute paths) and compare with the lock's reference
+     ("libxess_fg.dll (<variant>)").
 
 Exit status 0 when the build matches the reference (or there is none yet, or --no-reference-check), 1 otherwise.
 """
@@ -41,7 +49,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import REPO, RELEASE, Config, ReleaseError, add_arguments, fnv1a64, relative, sha256, tool_version  # noqa: E402
 import proxy_common as common  # noqa: E402
 
-DEFINITION = RELEASE / 'intel_free_2x.json'
+VARIANTS = {'intel-free-2x': RELEASE / 'intel_free_2x.json', 'intel-free-mfg': RELEASE / 'intel_free_mfg.json'}
+DEFAULT_VARIANT = 'intel-free-mfg'
+DEFINITION = VARIANTS[DEFAULT_VARIANT]
 RUNTIME_GROUP, RUNTIME_FILE = 'intel-xess-runtime', 'bin/libxess_fg.dll'
 DEPENDENCIES = REPO / 'packaging' / 'dependencies.json'
 ENABLER_MARKERS = (b'XeSSMFG', b'version.dll', b'v\0e\0r\0s\0i\0o\0n\0.\0d\0l\0l\0', b'X\0e\0S\0S\0M\0F\0G\0')
@@ -112,8 +122,19 @@ def pe_imports(data):
 # ---------------------------------------------------------------------------------------------------------- generation
 
 def proxy_hooks(definition):
-    """proxy_common.API_HOOKS with intel_free_2x.json's replacements (each must match its hook's code once)."""
+    """The variant's wrapped entries: a named table of proxy_common.py (HOOK_TABLES), or proxy_common.API_HOOKS with the
+    definition's replacements (each must match its hook's code once)."""
     spec = definition['addon']['hooks']
+    if isinstance(spec, str):
+        if spec not in common.HOOK_TABLES:
+            raise ReleaseError(f'{definition["variant"]}: proxy_common.py has no hook table {spec}')
+        hooks = {name: dict(hook) for name, hook in common.HOOK_TABLES[spec].items()}
+        for name, hook in hooks.items():
+            code = ''.join(hook.get(key, '') for key in ('before', 'after', 'tail_before'))
+            for leftover in ('mfg_xell_pace', 'mfg_status_', 'mfg_enabler'):
+                if leftover in code:
+                    raise ReleaseError(f'{name}: the proxy has no {leftover}* (frame-start pacer or enabler) to call')
+        return hooks
     if set(spec) - {'about'} != set(common.API_HOOKS):
         raise ReleaseError('intel_free_2x.json hooks must name exactly the entries proxy_common.py API_HOOKS wraps')
     hooks = {}
@@ -131,6 +152,36 @@ def proxy_hooks(definition):
     return hooks
 
 
+def _arguments(name, arguments, replace):
+    if not replace:
+        return list(arguments)
+    original, replacement = replace
+    if original not in arguments:
+        raise ReleaseError(f'{name}: Intel header has no parameter {original}')
+    out = list(arguments)
+    out[out.index(original)] = replacement
+    return out
+
+
+def tail_wrapper(result_type, name, signature, arguments, spec):
+    """An entry with a tail-calling path (MFG_PROXY_HOOKS): Intel's entry is resolved once; "always_tail" entries run
+    "before" and tail-call; the others tail-call when "tail_when" holds and otherwise take the ordinary path."""
+    head = (f'XEFG_SWAPCHAIN_API {result_type} {name}({signature}){{static __typeof__(&{name}) original;static LONG calls;'
+            f'if(!original&&!(original=(void*)resolve("{name}")))return XEFG_SWAPCHAIN_RESULT_ERROR_CANT_LOAD_LIBRARY;'
+            f'InterlockedIncrement(&calls);')
+    if spec.get('always_tail'):
+        return (head + f'{spec["before"]}__attribute__((musttail)) return original({", ".join(arguments)});}}\n')
+    body = ''
+    if 'tail_when' in spec:
+        tail = _arguments(name, arguments, spec.get('tail_replace'))
+        body += (f'if({spec["tail_when"]}){{{spec.get("tail_before", "")}'
+                 f'__attribute__((musttail)) return original({", ".join(tail)});}}')
+    ordinary = _arguments(name, arguments, spec.get('replace'))
+    body += (f'{spec["before"]}{result_type} result=original({", ".join(ordinary)});{spec["after"]}(void)calls;'
+             f'return result;}}\n')
+    return head + body
+
+
 def exports_header(headers_text, hooks):
     """mfg_proxy_exports.h: each wrapped entry as an export of this DLL that calls Intel's through resolve()."""
     code = []
@@ -142,6 +193,9 @@ def exports_header(headers_text, hooks):
         spec = hooks[name]
         signature = ' '.join(params.split())
         arguments = [re.search(r'(\w+)\s*$', parameter)[1] for parameter in signature.split(',')]
+        if 'tail_when' in spec or spec.get('always_tail'):
+            code.append(tail_wrapper(result_type, name, signature, arguments, spec))
+            continue
         if 'replace' in spec:
             original, replacement = spec['replace']
             if original not in arguments:
@@ -153,7 +207,7 @@ def exports_header(headers_text, hooks):
                     f'{spec["before"]}{result_type} result=original({", ".join(arguments)});{spec["after"]}'
                     f'return result;}}\n')
     if len(code) != len(hooks):
-        raise ReleaseError('Intel headers do not declare all five wrapped XeFG entries')
+        raise ReleaseError(f'Intel headers do not declare all {len(hooks)} wrapped XeFG entries')
     return ''.join(code)
 
 
@@ -217,15 +271,26 @@ def check_proxy(data, intel_exports, wrapped, extra, original, allowed_imports):
 
 # --------------------------------------------------------------------------------------------------------------- build
 
-def definitions():
-    """(intel_free.json, intel_free_2x.json, the proxy's preprocessor definitions)."""
-    base, definition = common.intel_free_definition(), json.loads(DEFINITION.read_text())
+def definition_path(variant=DEFAULT_VARIANT):
+    if variant not in VARIANTS:
+        raise ReleaseError(f'Unknown proxy variant {variant!r} (known: {", ".join(VARIANTS)})')
+    return VARIANTS[variant]
+
+
+def definitions(variant=DEFAULT_VARIANT):
+    """(intel_free.json, the variant's definition, the proxy's preprocessor definitions): the Intel-free add-on's
+    definitions without the ones the variant drops, plus the variant's own "define" if it has one."""
+    path = definition_path(variant)
+    base, definition = common.intel_free_definition(), json.loads(path.read_text())
+    if definition['variant'] != variant:
+        raise ReleaseError(f'{path.name} defines variant {definition["variant"]!r}, not {variant!r}')
     inherited = common.intel_free_defines(base)
     dropped = definition['addon']['dropped_defines']
     unknown = sorted(set(dropped) - set(inherited))
     if unknown:
-        raise ReleaseError('intel_free_2x.json drops definitions the Intel-free build does not have: ' + ', '.join(unknown))
-    return base, definition, [d for d in inherited if d not in dropped]
+        raise ReleaseError(f'{path.name} drops definitions the Intel-free build does not have: ' + ', '.join(unknown))
+    added = [definition['addon']['define']] if definition['addon'].get('define') else []
+    return base, definition, [d for d in inherited if d not in dropped] + added
 
 
 def prepare_profile(config, base, definition, folder):
@@ -233,12 +298,15 @@ def prepare_profile(config, base, definition, folder):
     common.prepare_intel_free_profile(config, base, folder)
     for name in definition['profile']['drop']:
         if not (folder / name).is_file():
-            raise ReleaseError(f'intel_free_2x.json drops {name}, which the Intel-free profile does not have')
+            raise ReleaseError(f'{definition["variant"]} drops {name}, which the Intel-free profile does not have')
         (folder / name).unlink()
     files = sorted(folder.iterdir())
-    leftover = sorted(p.name for p in files if p.name.startswith('mfg-finish'))
-    if leftover:
-        raise ReleaseError('Multi-frame kernels left in the 2x profile: ' + ', '.join(leftover))
+    multi_frame = 'XEFG_MFG_RESEARCH=1' not in definition['addon']['dropped_defines']
+    kernels = sorted(p.name for p in files if p.name.startswith('mfg-finish'))
+    if not multi_frame and kernels:
+        raise ReleaseError('Multi-frame kernels left in the 2x profile: ' + ', '.join(kernels))
+    if multi_frame and len(kernels) != 5:
+        raise ReleaseError(f'The multi-frame build needs the five mfg-finish kernels; the profile has {kernels}')
     return files
 
 
@@ -255,8 +323,8 @@ def compile_command(config, xess, generated, output, defines, source):
             '-lkernel32', '-lucrtbase', '-o', str(output)]
 
 
-def build(config, check_com_thunks=True):
-    base, definition, defines = definitions()
+def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
+    base, definition, defines = definitions(variant)
     spec = definition['addon']
     xess = config.check_group('intel-xess')
     runtime = config.input_file(RUNTIME_GROUP, RUNTIME_FILE)
@@ -321,7 +389,7 @@ def build(config, check_com_thunks=True):
               if not (p.is_relative_to(REPO) or p.is_relative_to(config.build) or p.is_relative_to(config.cache))]
     tracked = {p for p in depends
                if p.is_relative_to(REPO) and not (p.is_relative_to(config.build) or p.is_relative_to(config.cache))}
-    tracked |= {REPO / 'src/probe.c', common.COM_THUNKS / 'com_thunks.S', common.INTEL_FREE, DEFINITION, DEPENDENCIES,
+    tracked |= {REPO / 'src/probe.c', common.COM_THUNKS / 'com_thunks.S', common.INTEL_FREE, definition_path(variant), DEPENDENCIES,
                 Path(__file__).resolve(), Path(common.__file__).resolve(), RELEASE / 'config.py',
                 RELEASE / 'check_intel_free.py'}
 
@@ -331,9 +399,7 @@ def build(config, check_com_thunks=True):
     record = dict(
         output=spec['output'], sha256=digest, reference_sha256=reference,
         matches_reference=digest == reference if reference else None, variant=definition['variant'],
-        configuration='Enabler-free Intel-free add-on: libxess_fg.dll proxy over Intel\'s unmodified XeFG runtime '
-                      '(bc250_xefg_original.dll), own shaders only, one generated frame per real frame (2x); no XeSSMFG '
-                      'enabler, MinHook, frame-start pacer, pooled model sets or scaling code',
+        configuration=definition['configuration'],
         defines=defines, dropped_defines=sorted(base['addon']['dropped_defines']) + sorted(spec['dropped_defines']),
         command=[common.record_argument(a, config) for a in command],
         sources={str(p.relative_to(REPO)): sha256(p) for p in sorted(tracked)},
@@ -362,9 +428,11 @@ def main():
     add_arguments(parser)
     parser.add_argument('--no-com-thunk-check', action='store_true', help="skip regenerating the COM thunks from Wine's d3d12.h")
     parser.add_argument('--no-reference-check', action='store_true', help='exit 0 even when the output differs from the lock')
+    parser.add_argument('--variant', choices=sorted(VARIANTS), default=DEFAULT_VARIANT,
+                        help=f'the proxy build (default {DEFAULT_VARIANT})')
     args = parser.parse_args()
     config = Config.from_args(args)
-    output, record = build(config, check_com_thunks=not args.no_com_thunk_check)
+    output, record = build(config, check_com_thunks=not args.no_com_thunk_check, variant=args.variant)
     locked = config.lock.get('toolchain', {})
     toolchain = dict(locked.get('addon', {}))
     toolchain['system_headers'] = locked.get(f'addon ({record["variant"]})', {}).get('system_headers')

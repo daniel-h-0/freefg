@@ -14,7 +14,7 @@ Checks: every file the package must not carry (package.json never_ship) is insta
 the bytes the package used to carry, and Restore returns the game folder to its original contents.
 --compare-with PACKAGE installs another package (for example the previous tester) the same way and lists the files
 whose presence or bytes differ. --variant NAME checks a package.json variant (its own never_ship rules); for the
-enabler-free one (intel-free-2x) also that the package's libxess_fg.dll proxy is what the game folder gets and that
+enabler-free ones (intel-free-mfg, intel-free-2x) also that the package's libxess_fg.dll proxy is what the game folder gets and that
 nothing of the XeSSMFG enabler is installed.
 
   python3 release/smoke_install.py --deps ~/.cache/bc250-xefg-testers/payload [--compare-with OTHER_PACKAGE]

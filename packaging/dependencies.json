@@ -74,7 +74,24 @@
    "file": "bc250-fsr4-dll-4.0.0-rc11.zip",
    "sha256": "95ef0c6ea887e0506a3a92f7e4648e7ab7e1100e99f5eff2f70dd33b8dff2a72",
    "size": 50865005
+  },
+  "helixsr": {
+   "url": "https://github.com/lonewolf0622/HelixSR/releases/download/v2.0.0/HelixSR-2.0.0.zip",
+   "file": "HelixSR-2.0.0.zip",
+   "sha256": "0d60686eddbb0abd680b27d12a088344b212464ebf0a2dc18d10387e1c817f52",
+   "size": 136997025
   }
+ },
+ "helixsr": {
+  "Version": "2.0.0",
+  "Input": "helixsr",
+  "Folder": "HelixSR-2.0.0",
+  "Releases": {
+   "82b612a73759117d4203f0ca76f18b325e1c6f3c61c64481c94750abce392a09": "2.0.0"
+  },
+  "Project": "https://github.com/lonewolf0622/HelixSR",
+  "Author": "lonewolf0622",
+  "Provenance": "HelixSR is a separate, closed-source project by lonewolf0622 under its own licence (HelixSR Freeware License: free use; redistribution only of the complete, unmodified official release, free of charge; no modification, reverse engineering, decompilation or disassembly; the network files its setup builds from NVIDIA's DLSS DLL are NVIDIA's and must not be shared). It is optional and never part of this project's package. Input helixsr is the complete official release archive HelixSR-2.0.0.zip of github.com/lonewolf0622/HelixSR release v2.0.0 (published 2026-10-19; its SHA256SUMS.txt lists the same SHA-256, as does GitHub's asset digest; downloaded and hashed 2026-10-19). install.py helixsr (or Setup, on the user's choice of HelixSR) downloads it from the author's release page and unpacks it unchanged into the download cache as HelixSR-2.0.0/. Releases maps the SHA-256 of the official HelixSR-fsrfg/amd_fidelityfx_dx12.dll as shipped in that archive (7,997,952 bytes) to its version: a DLL is used only when its bytes before the network HelixSR's own setup appended (behind the HXSRNET1 footer) hash to one of these. Only HelixSR's own setup (helixsr-setup.sh --no-fg, run by the user) downloads NVIDIA's DLSS DLL, after asking, and builds the network; the installer never does. A newer HelixSR release needs a new pin here."
  },
  "sources": {
   "nvngx_dlss.dll": {"input": "dlss"},

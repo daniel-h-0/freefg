@@ -8,13 +8,42 @@ code next to Intel's runtime.
 
 Open an issue at <https://github.com/daniel-h-0/freefg/issues> with:
 
-- the game (store and version), your Proton, Mesa, kernel and gamescope versions, and whether it ran in Steam Game Mode;
+- the game (store and version), your Proton, Mesa, kernel and gamescope versions, and whether it ran in Steam Game Mode
+  (for a game that does or does not work at all, the Check report is enough: see [Game recipes](#game-recipes));
 - resolution, HDR on or off, the upscaler mode, the frame-generation input, and what you saw;
 - `BC250-MFG.log` and `BC250-XeFG-fast.log` from the game folder, the output of `python3 install.py doctor`, and, for
   pacing problems, the `BC250_PACE` lines from the game's standard error (launch option `PROTON_LOG=1 %command%`).
 
 Check the logs before you post them: they contain the game's path, which can include your user name. Never attach
 game files, saves, shader caches, captures of Intel's runtime, or anything from your Steam or launcher accounts.
+
+## Game recipes
+
+A report of a game on a BC-250, working or not, can become a recipe that Setup applies for everyone. Run
+`python3 install.py check '/path/to/Game.exe' --report` (or Setup's **Check**) after playing, and paste its text into an
+issue with the game report form. The text holds no paths or user name; check it before you post anyway.
+
+A community recipe (one JSON file in the source repository's `research/recipes/community/`; its fields and rules are
+in that folder's `README.md`) is built into Setup as **Community-reported on BC-250** once a maintainer has reviewed it. A maintainer who reproduces it on the maintainers' BC-250 makes it a verified
+recipe. The checklist:
+
+| Step | Community recipe | Verified recipe |
+| --- | --- | --- |
+| Hardware | a BC-250 | a BC-250 run by a maintainer |
+| Install | Setup from an unmodified game folder; the Check report attached | the same, on the maintainers' library |
+| Generation | 2.0 presents per game frame (the OptiScaler overlay or the logs) over at least 10 minutes of gameplay, not a menu | measured with the project's tools over gameplay |
+| Stability | 3 starts without a hang or crash | 5 or more starts |
+| Pacing | VRR on, no obvious stutter | `BC250_PACE` holding while generating, passing through in menus |
+| Restore | Restore run; Status and the launcher show nothing left | the game folder and launcher entry compared byte for byte before and after |
+| Game settings | the file and key, the value before and after | applied and reverted key by key by the installer |
+| Review | a maintainer reviews the JSON in a pull request | a maintainer reproduces it and updates the README's table |
+
+What a recipe may set: one DirectX 12 launch switch; OptiScaler keys the shipped build reads, but never HUDFix, GPU
+spoofing, Reflex or quality and colour settings, and never a key OptiScaler's own fix for the game sets; game settings
+by file, key and value. A game frame-generation input needs the setting that turns the game's frame generation on. A
+maintainer builds every recipe into the recipe file with the project's recipe builder, which refuses one that breaks
+these rules. No quotes from other sources go into a recipe. A report that fails becomes a known problem: Check shows it, and a repeated failure of
+one input takes that input out of the automatic choice.
 
 ## Clean-room rules
 
@@ -63,7 +92,7 @@ write it. Leave out where the knowledge came from in that issue; say only what y
   python3 release/build_layer.py
   python3 release/build_proxy.py
   python3 release/ci/installer_tests.py
-  python3 release/assemble.py --variant intel-free-2x --no-source-companion
+  python3 release/assemble.py --variant intel-free-mfg --no-source-companion
   python3 release/check_proxy_wine.py
   ```
 

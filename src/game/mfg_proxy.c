@@ -6,10 +6,20 @@
  * after a size and FNV-1a check (original_manifest.h). No Intel code is patched: every call reaches the runtime through
  * its own export table, and the SDK sees only the scoped D3D12 objects it is given.
  *
- * Without the XeSSMFG enabler, XeFG generates one frame per real frame on this GPU, the limit Intel's runtime applies
- * to GPUs other than its own. So this build has no multiplier hook, no frame-start pacer (it acts at 3x/4x only) and no
- * pooled model sets, and keeps the one-frame model checks (no XEFG_MFG_RESEARCH): the SDK initialises its 27-buffer
- * native set only. A context that would generate more than one frame per real frame keeps Intel's shaders.
+ * Two builds come from this file. intel-free-2x (release/intel_free_2x.json): without the XeSSMFG enabler, XeFG
+ * generates one frame per real frame on this GPU, the limit Intel's runtime applies to GPUs other than its own. So that
+ * build has no multiplier hook, no frame-start pacer (it acts at 3x/4x only) and no pooled model sets, and keeps the
+ * one-frame model checks (no XEFG_MFG_RESEARCH): the SDK initialises its 27-buffer native set only. A context that would
+ * generate more than one frame per real frame keeps Intel's shaders.
+ *
+ * intel-free-mfg (release/intel_free_mfg.json, XEFG_PROXY_MFG): the same at any frame count Intel's runtime runs. It
+ * keeps the multi-frame network support of the enabler-era Intel-free build (model census of the 2x, multi-frame or both
+ * model sets, mfg-finish kernels, pooled model sets and pipelines, retirement), takes the frame count from
+ * xefgSwapChainSetNumInterpolatedFrames, and counts the frames the SDK reports presented for the pacing layer. It
+ * changes no limit itself: beyond one generated frame per real frame it accelerates only beside another module the
+ * user installed that hooks Intel's runtime (to lift Intel's limit), and only OptiScaler's own contexts there; it then
+ * keeps that module's view of its callers and steps aside rather than end the game (mfg_proxy_coexist.h). Without such
+ * a module it accelerates what the 2x build accelerates. No frame-start pacer: such a module paces frame starts itself.
  */
 #define WIDL_C_INLINE_WRAPPERS
 #define COBJMACROS
@@ -32,6 +42,9 @@ static void proxy_log(const char*s){if(logfile!=INVALID_HANDLE_VALUE){AcquireSRW
 #include "mfg_settings.h"
 #include "scoped_com.h"
 #include "fast_trial.h"
+#include "mfg_scoped_retire.h"
+static volatile LONG64 proxy_status_generated;  /* mfg_proxy_coexist.h; the pacing signal adds it */
+static void proxy_snapshot_entries(const wchar_t*path);
 #include "mfg_pace_signal.h"
 static int original_verified(const wchar_t*path){
  HANDLE f=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);if(f==INVALID_HANDLE_VALUE)return 0;
@@ -51,7 +64,8 @@ static BOOL CALLBACK mfg_initialize(PINIT_ONCE once,PVOID arg,PVOID*out){(void)o
  original_module=LoadLibraryExW(path,NULL,LOAD_WITH_ALTERED_SEARCH_PATH);
  if(!original_module){char line[120];snprintf(line,sizeof(line),"MFG proxy: Intel XeFG runtime did not load (error %lu)\n",GetLastError());proxy_log(line);return FALSE;}
  mfg_pace_signal_start();
- proxy_log("MFG proxy ready: Intel's XeFG runtime unmodified beside it, own shaders only, one generated frame per real frame (2x)\n");
+ proxy_snapshot_entries(path);
+ proxy_log("MFG proxy ready: Intel's XeFG runtime unmodified beside it, own shaders only, at the frame count the runtime runs\n");
  return TRUE;
 }
 /* The Intel runtime's entry point, once this module is initialised and the runtime verified; NULL otherwise. */
@@ -65,7 +79,10 @@ static FARPROC resolve(const char*name){
  * on GPUs it supports for that (an Intel GPU with BC250_XEFG_ANY_GPU=1); such a context keeps Intel's shaders instead of
  * meeting model checks written for the one-frame network. Called on the initialising thread, before the SDK's own
  * initialisation; xefgSwapChainGetProperties reports maxSupportedInterpolations before it. A context created without
- * a scoped device (not a candidate: BC250_XEFG_DISABLE=1, another GPU, a second context) is not asked. */
+ * a scoped device (not a candidate: BC250_XEFG_DISABLE=1, another GPU, a second context) is not asked.
+ * The multi-frame proxy asks the same on its ordinary path (no other module hooks Intel's runtime), where every check
+ * stays fatal, so without such a module it accelerates exactly what the 2x build accelerates; beside one, its
+ * initialisation takes the foreign path (mfg_proxy_coexist.h) at any frame count. */
 static int mfg_proxy_one_frame(xefg_swapchain_handle_t handle,const xefg_swapchain_d3d12_init_params_t*params){
  if(!handle||!params||!fast_context_scope(handle))return 0;  /* the SDK rejects the call, or fast_begin_init would skip it */
  UINT32 frames=params->maxInterpolatedFrames;
@@ -75,7 +92,8 @@ static int mfg_proxy_one_frame(xefg_swapchain_handle_t handle,const xefg_swapcha
   frames=properties.maxSupportedInterpolations;
  }
  if(frames==1)return 1;
- char line[200];snprintf(line,sizeof(line),"FAST_SKIP this context generates up to %u frames per real frame; this build accelerates one (2x)\n",frames);proxy_log(line);
+ char line[300];snprintf(line,sizeof(line),"FAST_SKIP this context generates up to %u frames per real frame with no other module hooking Intel's XeFG "
+                         "runtime; this build accelerates more than one only beside such a module (Intel's shaders here)\n",frames);proxy_log(line);
  return 0;
 }
 /* BC250_CAPTURE_TAG_FRAMES=1 (latency captures): Intel's markers on generated frames. */
@@ -85,6 +103,7 @@ static void mfg_tag_capture(xefg_swapchain_handle_t handle){
  if(!tag||tag(handle,XEFG_SWAPCHAIN_DEBUG_FEATURE_TAG_INTERPOLATED_FRAMES,1,NULL)!=0)model_fail("MFG capture tagging failed");
  proxy_log("MFG_CAPTURE generated-frame markers enabled\n");
 }
+#include "mfg_proxy_coexist.h"
 #include "mfg_proxy_exports.h"
 /* The research harness and OptiScaler-plugin builds call this; here it only runs the lazy initialisation early. */
 __declspec(dllexport) BOOL WINAPI BC250MFGInitialize(void){return InitOnceExecuteOnce(&mfg_once,mfg_initialize,NULL,NULL);}

@@ -19,17 +19,21 @@ typedef enum _xell_latency_marker_type_t _xell_latency_marker_type_t;
 int _fltused;
 /* Hooks the multi-frame build (XEFG_MFG_RESEARCH) calls from the core below: the add-on build defines these two as
  * no-ops (release/build_addon.py PROBE_PATCHES finds them by their exact text). */
-#ifdef XEFG_MFG_RESEARCH
 static void mfg_note_queue(ID3D12CommandQueue*);
 static void mfg_capture_dispatch(ID3D12GraphicsCommandList*,uint64_t);
-#endif
+static void mfg_trace_hash(HMODULE);
+static void mfg_install_capture(ID3D12Device*,ID3D12GraphicsCommandList*);
+static void mfg_capture_report(void);
 static HANDLE output;
+/* The output folder of save(): only the standalone probe and the diagnostic game builds named here write files. */
+static char directory[1024];
 static char patchdir[1024];
 static void logline(const char*s){DWORD n;WriteFile(output,s,(DWORD)strlen(s),&n,NULL);}
 static void check(long r,const char*s){if(r<0){char b[512];snprintf(b,sizeof(b),"FAIL %s: %lx\n",s,r);logline(b);ExitProcess(10);}}
 #define HR(x) check((x),#x)
 #define LOAD(lib,n) __typeof__(&n) p_##n=(void*)GetProcAddress(lib,#n);if(!p_##n)ExitProcess(2)
 static void logger(const char*s,xefg_swapchain_logging_level_t l,void*u){(void)l;(void)u;logline(s);logline("\n");}
+static void save(const char*name,const void*data,size_t size){char path[1200];snprintf(path,sizeof(path),"%s\\%s",directory,name);HANDLE f=CreateFileA(path,GENERIC_WRITE,0,NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);if(f==INVALID_HANDLE_VALUE){if(GetLastError()==ERROR_FILE_EXISTS)return;ExitProcess(11);}DWORD n;WriteFile(f,data,(DWORD)size,&n,NULL);CloseHandle(f);}
 static ID3D12Resource* buffer(ID3D12Device*d,UINT64 size,D3D12_HEAP_TYPE heap){
  D3D12_HEAP_PROPERTIES h={.Type=heap,.CreationNodeMask=1,.VisibleNodeMask=1};D3D12_RESOURCE_DESC r={.Dimension=D3D12_RESOURCE_DIMENSION_BUFFER,.Width=size,.Height=1,.DepthOrArraySize=1,.MipLevels=1,.SampleDesc={1,0},.Layout=D3D12_TEXTURE_LAYOUT_ROW_MAJOR};ID3D12Resource*b;
  HR(ID3D12Device_CreateCommittedResource(d,&h,0,&r,heap==D3D12_HEAP_TYPE_UPLOAD?D3D12_RESOURCE_STATE_GENERIC_READ:D3D12_RESOURCE_STATE_COPY_DEST,NULL,&IID_ID3D12Resource,(void**)&b));return b;
@@ -66,6 +70,7 @@ static void load_dispatch_scale(const char*path,int xyz){
 static HRESULT (STDMETHODCALLTYPE *queue_original)(ID3D12Device*,const D3D12_COMMAND_QUEUE_DESC*,REFIID,void**);
 static HRESULT STDMETHODCALLTYPE queue_hook(ID3D12Device*d,const D3D12_COMMAND_QUEUE_DESC*desc,REFIID iid,void**out){
  HRESULT r=queue_original(d,desc,iid,out);char line[256];snprintf(line,sizeof(line),"QUEUE type=%u priority=%d flags=%u node=%u result=%lx pointer=%p\n",desc->Type,desc->Priority,desc->Flags,desc->NodeMask,(long)r,SUCCEEDED(r)?*out:NULL);logline(line);
+ if(SUCCEEDED(r))mfg_note_queue(*out);
  return r;
 }
 static HRESULT (STDMETHODCALLTYPE *compute_original)(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,REFIID,void**);
@@ -76,6 +81,11 @@ static UINT env_uint(const char*,UINT);
 /* Intel-free add-on (release/INTEL-FREE.md): a replacement named <hash>.dxil loads only when the add-on's profile manifest
  * lists it, so files an earlier build left in the profile folder never run; every other shader stays Intel's original. */
 static int profile_lists_replacement(uint64_t);
+static void flow_capture_pso(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,uint64_t,ID3D12PipelineState*);
+static int flow_dispatch_pso(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT);
+static void frame_capture_pso(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,uint64_t,ID3D12PipelineState*);
+static int frame_dispatch_pso(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT);
+static void frame_finish_dispatch(ID3D12GraphicsCommandList*,uint64_t);
 static HRESULT STDMETHODCALLTYPE compute_hook(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,REFIID iid,void**out){
  uint64_t h=hash(desc->CS.pShaderBytecode,desc->CS.BytecodeLength);D3D12_COMPUTE_PIPELINE_STATE_DESC copy=*desc;void*replacement=NULL;char path[1200],line[256];
  if(model_shader_bytes(h))model_root_check(desc->pRootSignature);
@@ -83,6 +93,8 @@ static HRESULT STDMETHODCALLTYPE compute_hook(ID3D12Device*d,const D3D12_COMPUTE
     &&profile_lists_replacement(h)
     ){snprintf(path,sizeof(path),"%s\\%016llx.dxil",patchdir,(unsigned long long)h);HANDLE f=CreateFileA(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);if(f!=INVALID_HANDLE_VALUE){DWORD size=GetFileSize(f,NULL),n;replacement=malloc(size);if(!ReadFile(f,replacement,size,&n,NULL)||n!=size)ExitProcess(12);CloseHandle(f);copy.CS.pShaderBytecode=replacement;copy.CS.BytecodeLength=size;copy.CachedPSO=(D3D12_CACHED_PIPELINE_STATE){0};snprintf(line,sizeof(line),"REPLACE %016llx %lu\n",(unsigned long long)h,size);logline(line);}}
  HRESULT hr=compute_original(d,&copy,iid,out);free(replacement);
+ if(SUCCEEDED(hr))flow_capture_pso(d,desc,h,*out);
+ if(SUCCEEDED(hr))frame_capture_pso(d,desc,h,*out);
  if(SUCCEEDED(hr)){LONG i=InterlockedIncrement(&npsos)-1;if(i>=XEFG_PROBE_PSOS){PROBE_TABLE_FULL("pipeline table full");}psos[i].p=*out;psos[i].hash=h;warp_split_capture(d,desc,h,*out);snprintf(line,sizeof(line),"PSO %p %016llx\n",*out,(unsigned long long)h);logline(line);}return hr;
 }
 #define MAXPASSES 16000
@@ -102,6 +114,8 @@ static void STDMETHODCALLTYPE set_hook(ID3D12GraphicsCommandList*l,ID3D12Pipelin
 static void(STDMETHODCALLTYPE *dispatch_original)(ID3D12GraphicsCommandList*,UINT,UINT,UINT);
 static int graph_dispatch(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT);
 static void dispatch_selected(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UINT y,UINT z){
+ if(flow_dispatch_pso(l,shader,x,y,z))return;
+ if(frame_dispatch_pso(l,shader,x,y,z))return;
  if(warp_split_requested&&shader==0x3a7d9dfa831ba4f3ULL){
   ID3D12PipelineState*original=NULL;for(UINT b=0;b<nbinding;b++)if(bindings[b].l==l)original=bindings[b].p;
   if(!original||!x||!y||z!=1)ExitProcess(61);
@@ -113,16 +127,26 @@ static void dispatch_selected(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x
   ExitProcess(61);
  }
  if(!graph_dispatch(l,shader,x,y,z))dispatch_original(l,x,y,z);
+ mfg_capture_dispatch(l,shader);
+ frame_finish_dispatch(l,shader);
 }
 static void capture_dispatch(ID3D12GraphicsCommandList*,uint64_t);static void tap_dispatch(ID3D12GraphicsCommandList*,uint64_t);static void const_override(ID3D12GraphicsCommandList*,uint64_t);
 static void model_dispatch_check(ID3D12GraphicsCommandList*,uint64_t);
+/* The multi-frame proxy beside another module hooking Intel's XeFG runtime (src/game/mfg_proxy_coexist.h). */
+static int proxy_census_soft(const char*);static int proxy_aside_active(void);static int proxy_dispatch_unready(uint64_t);
+static void proxy_aside_dispatch(ID3D12GraphicsCommandList*,UINT,UINT,UINT);
+static void flow_cap_dispatch(ID3D12GraphicsCommandList*,uint64_t,UINT*,UINT*,UINT*);
 /* XeFG's final output pass, recorded once for every generated frame on every route and factor (the pacing signal). */
 static LONG64 frame_outputs_recorded;
 static void STDMETHODCALLTYPE dispatch_hook(ID3D12GraphicsCommandList*l,UINT x,UINT y,UINT z){
  uint64_t shader=0;
  for(UINT b=0;b<nbinding;b++)if(bindings[b].l==l)for(LONG s=0;s<npsos;s++)if(psos[s].p==bindings[b].p)shader=psos[s].hash;
  if(shader==0x977942d5d9337711ULL||shader==0x7da098e8e69a54f8ULL)InterlockedIncrement64(&frame_outputs_recorded);
+ flow_cap_dispatch(l,shader,&x,&y,&z);
+ /* Stepped aside (or stepping aside now): this dispatch as Intel recorded it. */
+ if(proxy_dispatch_unready(shader)||proxy_aside_active()){proxy_aside_dispatch(l,x,y,z);return;}
  model_dispatch_check(l,shader);
+ if(proxy_aside_active()){proxy_aside_dispatch(l,x,y,z);return;}
  for(UINT s=0;s<split_count;s++)if(split_z[s].shader==shader){
   int sx=split_z[s].x,sy=split_z[s].y;
   // Negative X/Y factors mean ceiling division for larger shader workgroups.
@@ -153,6 +177,8 @@ static UINT env_uint(const char*k,UINT v){char b[32];if(GetEnvironmentVariableA(
 #include "capture_off.h"  /* game builds never install the standalone probe's capture hooks */
 #include "model_owner.h"
 #include "winograd_graph.h"
+#include "flow_cap.h"
+#include "mfg_heap_lifetime.h"
 /* Game builds compile the core above: they slice this file at the next line (release/build_addon.py PROBE_SPLIT). Only
  * the standalone probe, which is not part of the public tree, reads on. */
 #include "scene_motion.h"

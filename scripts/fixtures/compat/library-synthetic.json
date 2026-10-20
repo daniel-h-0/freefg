@@ -1,0 +1,668 @@
+{
+ "about": "A synthetic library: made-up games, one or two per verdict group, in the shape of packaging/gamescan.py scans reduced to the fields packaging/compat.py reads (Steam IDs 9990001 and up are not real games). test_compat.py checks the verdicts against them.",
+ "games": [
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d11",
+     "d3d12",
+     "dxgi"
+    ],
+    "confidence": "medium",
+    "current_switch": [],
+    "default": "d3d12",
+    "dx12": true,
+    "switch": "-dx12",
+    "switch_kind": "harmless (DX12 is probably the default already)"
+   },
+   "complete": true,
+   "dlss_copy": true,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "major": "UE5",
+    "name": "unreal",
+    "version": "UE5"
+   },
+   "exe": {
+    "best": "Synth/Binaries/Win64/Synth-Win64-Shipping.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "Synth/Binaries/Win64/Synth-Win64-Shipping.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [
+    "Unreal FSR 3 frame interpolation",
+    "Unreal Streamline DLSS-G"
+   ],
+   "game_fg": {
+    "dlssg": true,
+    "fsrfg30": false,
+    "fsrfg_combined": true,
+    "fsrfg_sdk2": true
+   },
+   "id": "9990001",
+   "name": "Synthetic Unreal 5 game with DLSS, FSR 3.1 and XeSS",
+   "native_xefg": false,
+   "native_xefg_elsewhere": "Synth/Plugins/Intel/XeSS/Binaries/ThirdParty/Win64/libxess_fg.dll",
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [
+    "dlss",
+    "fsr31",
+    "xess"
+   ],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d11",
+     "d3d12?",
+     "vulkan?"
+    ],
+    "confidence": "high",
+    "current_switch": [],
+    "default": "d3d11",
+    "dx12": true,
+    "switch": "-force-d3d12",
+    "switch_kind": "needed"
+   },
+   "complete": true,
+   "dlss_copy": true,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unity",
+    "version": "2022.3.1"
+   },
+   "exe": {
+    "best": "SynthUnity.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "SynthUnity.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990002",
+   "name": "Synthetic Unity HDRP game whose code uses DLSS",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [
+    "dlss"
+   ],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d12",
+     "dxgi",
+     "streamline"
+    ],
+    "confidence": "high",
+    "current_switch": [],
+    "default": "d3d12",
+    "dx12": true,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": true,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unknown",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": "bin/x64/synth.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "bin/x64/synth.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": true,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990003",
+   "name": "Synthetic game with its own XeSS frame generation",
+   "native_xefg": true,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "gog",
+   "upscalers": [
+    "dlss",
+    "xess"
+   ],
+   "xefg_beside": true
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d12?",
+     "opengl",
+     "vulkan?"
+    ],
+    "confidence": "high",
+    "current_switch": [],
+    "default": "d3d11",
+    "dx12": true,
+    "switch": "-force-d3d12",
+    "switch_kind": "needed"
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unity",
+    "version": "2019.4.2"
+   },
+   "exe": {
+    "best": "SynthNoInput.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "SynthNoInput.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990004",
+   "name": "Synthetic Unity DX12 game without an upscaler",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "epic",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d11",
+     "d3d12?",
+     "dxgi"
+    ],
+    "confidence": "high",
+    "current_switch": [],
+    "default": "d3d11",
+    "dx12": true,
+    "switch": "-dx12",
+    "switch_kind": "likely needed"
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "major": "UE4",
+    "name": "unreal",
+    "version": "UE4"
+   },
+   "exe": {
+    "best": "SynthU4/Binaries/Win64/SynthU4-Win64-Shipping.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "SynthU4/Binaries/Win64/SynthU4-Win64-Shipping.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990005",
+   "name": "Synthetic Unreal 4 DX12 game without an upscaler",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d12?",
+     "opengl",
+     "vulkan?"
+    ],
+    "confidence": "medium",
+    "current_switch": [],
+    "default": "d3d11",
+    "dx12": true,
+    "switch": "-force-d3d12",
+    "switch_kind": "likely needed"
+   },
+   "complete": true,
+   "dlss_copy": true,
+   "dlss_unconfirmed": "nvngx_dlss.dll and NVUnityPlugin.dll come with Unity's NVIDIA module, and the game's code never names DLSS (12 code files read)",
+   "engine": {
+    "name": "unity",
+    "version": "2021.3.2"
+   },
+   "exe": {
+    "best": "SynthBundled.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "SynthBundled.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990006",
+   "name": "Synthetic Unity game with only the bundled DLSS DLL",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [],
+    "confidence": "low",
+    "current_switch": [],
+    "default": null,
+    "dx12": false,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unity (Linux build)",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": null,
+    "bits": null,
+    "confidence": "low",
+    "imports": false,
+    "native_linux": [
+     "Synth.x86_64"
+    ],
+    "selected": null,
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {},
+   "id": "9990007",
+   "name": "Synthetic native Linux build",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d11",
+     "dxgi"
+    ],
+    "confidence": "medium",
+    "current_switch": [],
+    "default": "d3d11",
+    "dx12": false,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "gamemaker",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": "synth32.exe",
+    "bits": 32,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "synth32.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990008",
+   "name": "Synthetic 32-bit game",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "streamline",
+     "vulkan",
+     "vulkan?"
+    ],
+    "confidence": "medium",
+    "current_switch": [],
+    "default": "vulkan",
+    "dx12": false,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unknown",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": "Binaries/SynthVk.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "Binaries/SynthVk.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": true,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990009",
+   "name": "Synthetic Vulkan game",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [
+    "dlss",
+    "xess"
+   ],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "opengl"
+    ],
+    "confidence": "medium",
+    "current_switch": [],
+    "default": "opengl",
+    "dx12": false,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unknown",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": "SynthGL.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "SynthGL.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990010",
+   "name": "Synthetic OpenGL game",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [
+     "d3d11",
+     "opengl",
+     "vulkan?"
+    ],
+    "confidence": "medium",
+    "current_switch": [],
+    "default": "d3d11",
+    "dx12": false,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unknown",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": "SynthDX11_x64.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "SynthDX11_x64.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990011",
+   "name": "Synthetic DirectX 11 game",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [],
+    "confidence": "low",
+    "current_switch": [],
+    "default": null,
+    "dx12": false,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unknown",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": "synthunknown.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "synthunknown.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990012",
+   "name": "Synthetic game with no API found",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [],
+   "api": {
+    "apis": [],
+    "confidence": "low",
+    "current_switch": [],
+    "default": null,
+    "dx12": false,
+    "switch": null,
+    "switch_kind": null
+   },
+   "complete": true,
+   "dlss_copy": false,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "name": "unknown",
+    "version": "unknown"
+   },
+   "exe": {
+    "best": null,
+    "bits": null,
+    "confidence": "low",
+    "imports": false,
+    "native_linux": [],
+    "selected": null,
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {},
+   "id": "9990013",
+   "name": "Synthetic tool without a game executable",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [],
+   "xefg_beside": false
+  },
+  {
+   "anticheat": [
+    {
+     "evidence": [
+      "EasyAntiCheat/"
+     ],
+     "name": "Easy Anti-Cheat"
+    }
+   ],
+   "api": {
+    "apis": [
+     "d3d11",
+     "d3d12",
+     "dxgi"
+    ],
+    "confidence": "medium",
+    "current_switch": [],
+    "default": "d3d12",
+    "dx12": true,
+    "switch": "-dx12",
+    "switch_kind": "harmless (DX12 is probably the default already)"
+   },
+   "complete": true,
+   "dlss_copy": true,
+   "dlss_unconfirmed": null,
+   "engine": {
+    "major": "UE5",
+    "name": "unreal",
+    "version": "UE5"
+   },
+   "exe": {
+    "best": "SynthAC/Binaries/Win64/SynthAC-Win64-Shipping.exe",
+    "bits": 64,
+    "confidence": "high",
+    "imports": true,
+    "native_linux": [],
+    "selected": "SynthAC/Binaries/Win64/SynthAC-Win64-Shipping.exe",
+    "stub": null
+   },
+   "fg_toggle_hints": [],
+   "game_fg": {
+    "dlssg": false,
+    "fsrfg30": false,
+    "fsrfg_combined": false,
+    "fsrfg_sdk2": false
+   },
+   "id": "9990014",
+   "name": "Synthetic game with anti-cheat",
+   "native_xefg": false,
+   "native_xefg_elsewhere": null,
+   "protonfix": null,
+   "store": "steam",
+   "upscalers": [
+    "dlss",
+    "fsr31"
+   ],
+   "xefg_beside": false
+  }
+ ]
+}

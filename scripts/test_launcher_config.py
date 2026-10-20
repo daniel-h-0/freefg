@@ -148,6 +148,48 @@ class LauncherTests(unittest.TestCase):
                                                         {'key':'VKD3D_CONFIG','value':'dxr'},{'key':'USER_NEW','value':'yes'}])
         self.assertTrue(restored['enableHDR'])
 
+    def test_second_installation_on_one_entry_is_refused(self):
+        # One Heroic entry covers the whole install folder: an installation in bin/x64_dx12 and a second one in bin/x64
+        # (The Witcher 3's two executables) would share it, and the two could not both be restored exactly.
+        config = self.heroic();original = config.read_bytes()
+        first = self.game/'bin/x64_dx12/witcher3.exe';second = self.game/'bin/x64/witcher3.exe'
+        for exe in (first, second):self.write(exe, b'fixture')
+        operations = l.plan(first,'dxgi.dll',self.home);l.apply(operations,self.write)
+        self.assertEqual(l.conflicts(first, l.discover(first, self.home)), [])  # its own folder: no conflict
+        found = l.conflicts(second, l.discover(second, self.home))
+        self.assertEqual([c['code'] for c in found], ['shared-entry'])
+        self.assertIn(str((self.game/'bin/x64_dx12').resolve()), found[0]['text'])
+        with self.assertRaisesRegex(ValueError, r'\[shared-entry\]'):l.plan(second,'dxgi.dll',self.home)
+        l.apply(operations,self.write,restore=True)
+        self.assertEqual(json.loads(config.read_bytes()), json.loads(original))
+        self.assertEqual(l.conflicts(second, l.discover(second, self.home)), [])  # restored: the entry is free again
+
+    def test_ge_proton_upscaler_variables_are_refused(self):
+        config = self.heroic();doc = json.loads(config.read_text())
+        doc['123']['enviromentOptions'].append({'key':'PROTON_FSR4_UPGRADE','value':'1'})
+        config.write_text(json.dumps(doc))
+        found = l.conflicts(self.exe, l.discover(self.exe, self.home))
+        self.assertEqual([c['code'] for c in found], ['ge-optiscaler'])
+        self.assertIn('PROTON_FSR4_UPGRADE', found[0]['way'])
+        with self.assertRaisesRegex(ValueError, r'\[ge-optiscaler\]'):l.plan(self.exe,'dxgi.dll',self.home)
+        doc['123']['enviromentOptions'][-1]['value'] = '0'  # turned off: no conflict
+        config.write_text(json.dumps(doc))
+        self.assertEqual(l.conflicts(self.exe, l.discover(self.exe, self.home)), [])
+        found = l.conflicts(self.exe, l.discover(self.exe, self.home), environ={'PROTON_USE_OPTISCALER': '1', 'PROTON_LOG': '1'})
+        self.assertEqual([(c['code'], c['way']) for c in found], [('ge-optiscaler', 'Unset PROTON_USE_OPTISCALER for this game.')])
+        # Steam: the assignments before %command%.
+        self.assertEqual(l._ge_variables(l.split_steam('PROTON_DLSS_UPGRADE=1 PROTON_LOG=1 %command%')[0]), ['PROTON_DLSS_UPGRADE'])
+
+    def test_extra_environment_is_installed_and_restored(self):
+        config = self.heroic();original = config.read_bytes()
+        operations = l.plan(self.exe,'dxgi.dll',self.home,extra_env={'PROTONFIXES_DISABLE':'1'});l.apply(operations,self.write)
+        env = {e['key']:e['value'] for e in json.loads(config.read_text())['123']['enviromentOptions']}
+        self.assertEqual(env['PROTONFIXES_DISABLE'],'1')
+        l.apply(operations,self.write,restore=True)
+        self.assertEqual(json.loads(config.read_bytes()), json.loads(original))
+        self.assertIn('PROTONFIXES_DISABLE=1', l.steam_options('%command%', self.game, 'dxgi.dll', extra_env={'PROTONFIXES_DISABLE':'1'}).split())
+        with self.assertRaises(ValueError):l.environment(self.game,'dxgi.dll',{},extra={'BAD NAME':'1'})
+
     def test_steam_library_config_roundtrip_is_lossless(self):
         steam = self.home/'.local/share/Steam';library=self.home/'Other Library'
         game = library/'steamapps/common/Actual Game';game.mkdir(parents=True)

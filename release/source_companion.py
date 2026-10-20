@@ -253,7 +253,8 @@ def fork_files(config):
     pins = dict(
         commit=commit, tree=tree_id, tag=source['tag'], tag_commit=source['tag_commit'], build_route=route_record,
         branch=source['branch'], upstream=source['upstream'],
-        upstream_base=source['upstream_base'], reverted_upstream=source['reverted_upstream'],
+        upstream_base=source['upstream_base'],
+        **{key: source[key] for key in ('reverted_upstream', 'fixed_upstream') if key in source},
         fork_commits=[dict(commit=c, subject=s) for c, s in commits],
         build=source['build'],
         submodules=submodules(folder, commit, entries),

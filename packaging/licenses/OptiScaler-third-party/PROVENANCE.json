@@ -1,9 +1,9 @@
 {
  "about": "Licence texts of the third-party code compiled or linked into the shipped opti/OptiScaler.dll, copied byte for byte from the files named below (url = the file at its commit). release/package.json ships them as licenses/OptiScaler-third-party/ (component optiscaler-fork) with README.md, the index for players; release/test_release_tools.py checks every sha256 and that package.json ships every file.",
  "dll": {
-  "sha256": "244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d",
-  "source_commit": "a7932870f9988b86692aabf9e8908e2adc61e1f0",
-  "method": "The reference build of 18 October 2026 (tools/bc250-build.py of the fork): every file of the fork tree in ninja's dependency log (1411 files over 200 objects) and every library on the link line, read for copyright and licence statements; licence texts from each component's repository at the commit named (the pinned submodule commit where the component is a submodule)."
+  "sha256": "5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6",
+  "source_commit": "f971ed143de0bdbbbac6d526c95a20227c22e1c6",
+  "method": "The reference build of 18 October 2026 (tools/bc250-build.py of the fork): every file of the fork tree in ninja's dependency log (1411 files over 200 objects) and every library on the link line, read for copyright and licence statements; licence texts from each component's repository at the commit named (the pinned submodule commit where the component is a submodule). Checked again for the build of 19 October 2026 (fork commit f971ed14 on upstream master c2e44a8b, sha256 5e570dff): ninja's dependency log of that build (228 objects) names the same third-party folders as the build of 18 October (fork commit a7932870, sha256 244eca5c); its new folders are OptiScaler's own shaders (camera_motion, menu_blur, ui_unblend), which carry no third-party notice; OptiScaler/library (the libraries on the link line) is unchanged; the third-party files that changed between the two commits are external/streamline/sl_helpers_vk.h (NVIDIA, the MIT text of NVIDIA-Streamline-2.txt) and a six-line addition to Dear ImGui's Vulkan backend (OptiScaler's own)."
  },
  "files": {
   "AMD-Anti-Lag-2-SDK.txt": {

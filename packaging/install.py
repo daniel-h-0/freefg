@@ -7,6 +7,7 @@ from pathlib import Path
 # This file imports its sibling modules by name (doctor, launcher_config, which imports steam_config and vendor). An
 # isolated interpreter (python3 -I) does not put a script's own folder on sys.path, so put it there first.
 if str(Path(__file__).resolve().parent) not in sys.path:sys.path.insert(0,str(Path(__file__).resolve().parent))
+import helixsr
 
 STATE='.bc250-xefg-experimental'
 DLL='amd_fidelityfx_upscaler_dx12.dll'
@@ -18,6 +19,11 @@ PROXY_LOGS=['BC250-MFG.log','BC250-XeFG-fast.log']
 # NVIDIA's DLSS helper (DLSS Super Resolution, dependencies.json 'dlss'): placed beside the game executable only in a fresh
 # OptiScaler setup on a DLSS input, and only when OptiScaler's own search finds no copy of the game's (dlss_helper_plan).
 DLSS_HELPER='nvngx_dlss.dll'
+# The DirectX 12 upscaler OptiScaler runs through its FidelityFX (FSR 3.1) interface, from the file at Libraries.FfxDx12SRPath
+# (OptiScaler/amd_fidelityfx_upscaler_dx12.dll in a fresh setup): the BC-250 build of FSR 4 (default) or HelixSR, a separate
+# project by lonewolf0622 that the user's own HelixSR setup built on this computer (helixsr.py). Frame generation is XeFG
+# either way.
+UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC11)','helixsr':helixsr.LABEL}
 CHANGES={('Upscalers','Dx12Upscaler'):'ffx',('FSR','UpscalerIndex'):'0',
          ('FSR','Fsr4ForceModel'):'2',('FSR','Fsr4EnableWatermark'):'auto',
          ('FrameGen','Enabled'):'false',('fakenvapi','UseFakenvapi'):'false'}
@@ -388,6 +394,7 @@ def dlss_helper_plan(exe,route,fg_input,ini,choice='auto'):
     if found:return dict(base,placed=False,reason='OptiScaler finds the game’s own nvngx_dlss.dll',dlss_input=dlss_input,dxgi_spoofing=None)
     if choice=='no':placed,reason=False,'not requested (--dlss-helper no)'
     elif choice=='yes':placed,reason=True,'requested (--dlss-helper yes)'
+    elif choice=='detected':placed,reason=True,'DLSS is the game’s only upscaler and it ships no copy (detection)'
     elif route=='opti' and fg_input=='dlssg':placed,reason=True,'DLSS FG input'
     elif dlss_input:placed,reason=True,'OptiScaler’s DLSS inputs are on (Inputs.EnableDlssInputs=true)'
     else:placed,reason=False,'not a DLSS input'
@@ -411,6 +418,34 @@ def helper_line(helper):
                'an NVIDIA one (OptiScaler’s own default in a game without DLSS); --dlss-helper yes places the helper and keeps '
                'NVIDIA spoofing on.')
     return line
+def upscaler_line(upscaler):
+    """One line naming a game's upscaler (records of earlier builds have none: FSR 4)."""
+    if (upscaler or {}).get('name')!='helixsr':return 'Upscaler: FSR 4 (BC-250 build RC11).'
+    return ('Upscaler: HelixSR '+str(upscaler.get('version'))+', a separate project by '+helixsr.AUTHOR+' ('+helixsr.PROJECT+') under its '
+            'own licence, running NVIDIA’s DLSS network; built on this computer by HelixSR’s own setup. In the game, choose the '
+            'upscaler as for FSR 4. Frame generation stays XeFG (HelixSR’s own frame generation is off in '+upscaler['ini']+').')
+
+def log_path(root,relative):
+    """A log's path in the game folder, or None when it (or a folder above it) is a symlink or not a file: such a log is
+    left alone, never followed or moved."""
+    try:return safe(root,relative)
+    except ValueError:return None
+
+def put_back_helixsr_log(root,state,upscaler,notes):
+    """HelixSR's log out of the game, kept with the backups; an earlier one that was set aside goes back. Returns notes."""
+    log=log_path(root,upscaler['log']);held=state/'displaced-logs'/helixsr.LOG
+    if log is None:
+        notes.append('Left '+upscaler['log']+' as it is: a symlink or folder by that name'+(' (the earlier log stays in '+str(held)+')' if held.is_file() else '')+'.')
+        return notes
+    # Every helixsr.log there is this installation's, except an earlier one an interrupted installation never set aside.
+    if log.is_file() and not log.is_symlink() and not (upscaler.get('displaced_log') and not held.is_file()):
+        folder=state/('runtime-logs-'+uuid.uuid4().hex[:12]);folder.mkdir();os.replace(log,folder/helixsr.LOG)
+    if upscaler.get('displaced_log') and held.is_file():
+        if log.exists() or log.is_symlink():notes.append('Left the earlier '+upscaler['log']+' in '+str(held)+': the game folder has another one.')
+        else:os.replace(held,log)
+        with contextlib.suppress(OSError):held.parent.rmdir()
+    return notes
+
 def recipes_module():
     import importlib.util
     spec=importlib.util.spec_from_file_location('bc250_recipes',Path(__file__).resolve().parent/'recipes.py')
@@ -586,14 +621,124 @@ def previous_settings(state,record,rm):
         slot.update({k:dict(recipe=item['values'][k],original=originals[k]) for k in keys if k in originals})
     return {slot:keys for slot,keys in out.items() if keys}
 
+def preconditions(package,exe,recipe=None):
+    """What in the game folder makes install() refuse before it changes anything, as compatibility refusals (code, kind
+    'hard', text, way) for Check and Setup: an installation not restored, a folder path that is not ASCII, another
+    mod's version.dll or XeSSMFG folder, the files of a fresh OptiScaler setup already there, an OptiScaler setup this
+    package does not take over, HelixSR's own installation where the upscaler DLL goes, a verified game's other
+    executable. Reads only (no hashes of package files, no network);
+    install() keeps its own checks of the same conditions, which test_compat_install compares with these."""
+    out=[];root=exe.parent.resolve()
+    def add(code,text,way):out.append(dict(code=code,kind='hard',text=text,way=way))
+    def helixsr_installed(target):
+        # install(): HelixSR's own installer keeps its record beside a drop-in it placed where the upscaler DLL goes.
+        if (root/Path(target).parent/helixsr.HELIXSR_MARKER).exists():
+            add('helixsr-installer','HelixSR’s own installer placed HelixSR beside '+target+' ('+helixsr.HELIXSR_MARKER+').',
+                'Remove it with HelixSR’s uninstaller or HelixSR Desktop first; then choose HelixSR in Setup instead.')
+    expected=((recipe[1] or {}).get('match',{}).get('exe') or []) if recipe else []
+    if expected and exe.name.lower() not in expected:
+        add('recipe-exe','For '+recipe[1]['title']+' choose the game’s own executable ('+' or '.join(expected)+'), not '+exe.name+'.','Choose that executable.')
+    if not str(root).isascii():add('ascii-path','This build’s shader loader needs an ASCII-only game folder path.','Move the game to a library whose path is ASCII only.')
+    state=root/STATE
+    if state.is_symlink():add('installed','The installation state folder is a symlink.','Remove it, then Check again.')
+    elif state.exists():
+        try:status=json.loads(safe(root,STATE+'/state.json').read_text()).get('status')
+        except (OSError,ValueError,AttributeError):status=None
+        if status!='restored':
+            # The rest of the folder (OptiScaler, an enabler) is that installation's until its Restore: nothing more to say.
+            add('installed','An installation record already exists in this game folder.','Restore it first (Setup: Restore), then Install again.');return out
+    try:
+        manifest=json.loads((package/'manifest.json').read_text())
+        pins=json.loads(safe(package,'dependencies.json').read_bytes()) if (package/'dependencies.json').is_file() else None
+        custom=safe(package,'opti/OptiScaler.dll').read_bytes() if (package/'opti/OptiScaler.dll').is_file() else None
+    except (OSError,ValueError):return out
+    proxy=manifest.get('addon_entry')==PROXY_ENTRY
+    if not proxy and (root/'version.dll').exists():add('version-dll','version.dll is occupied by another mod (this package loads its enabler as version.dll).','Restore or remove that mod first.')
+    if (root/'XeSSMFG').exists():add('xessmfg','An existing XeSSMFG folder (another frame-generation mod) is in the game folder.','Remove or restore that mod first.')
+    if not pins or 'Files' not in pins.get('payload',{}):return out
+    if not (root/'OptiScaler.ini').exists():
+        taken=[setup_target(n) for n in pins['payload']['Files'] if (setup_target(n)=='dxgi.dll' or setup_target(n).startswith('OptiScaler/')) and (root/setup_target(n)).exists()]
+        if taken:add('existing-files','Existing file needs manual mod chaining: '+taken[0]+' (another mod, or an OptiScaler setup without its OptiScaler.ini).','Remove or restore it first.')
+        else:helixsr_installed('OptiScaler/'+DLL)
+        return out
+    accepted={pins['payload'].get('ProxyHash'),*pins['payload'].get('CompatibleProxyHashes',[])}
+    if custom is not None:accepted.add(digest(custom))
+    proxies=[name+'.dll' for name in ['dxgi','winmm','d3d12','wininet','version','winhttp','dbghelp','OptiScaler']]+['OptiScaler.asi']
+    # A setup linked in from outside the game folder (a shared payload): install() reads it through safe(), which
+    # refuses symlinks, whatever build it is.
+    linked=[n for n in proxies+['OptiScaler'] if (root/n).is_symlink()]
+    if linked:
+        add('existing-optiscaler','Existing OptiScaler here is linked from outside the game folder ('+', '.join(linked)+(' is a symlink' if len(linked)==1 else ' are symlinks')+'); a symlink needs a manual installation.',
+            'Restore or remove that OptiScaler setup first (with the tool that linked it).')
+        return out
+    try:found=[n for n in proxies if (root/n).is_file() and digest((root/n).read_bytes()) in accepted]
+    except OSError:found=[]
+    if not found:
+        add('existing-optiscaler','Existing OptiScaler in the game folder is another build than the ones this package installs over (its OptiScaler.ini is there, a matching proxy DLL is not).',
+            'Restore or remove that OptiScaler setup first (OptiScaler.ini, its proxy DLL and the OptiScaler folder).')
+        return out
+    try:parsed=read_ini(safe(root,'OptiScaler.ini').read_bytes())
+    except (OSError,ValueError,UnicodeDecodeError,configparser.Error):
+        add('existing-optiscaler','Existing OptiScaler.ini in the game folder cannot be read.','Fix or remove it first.');return out
+    if any(section=='libraries' and key in ['ffxdx12path','xefgpath','xellpath'] and value.lower() not in ['','auto'] for (section,key),value in parsed.items()):
+        add('optiscaler-paths','OptiScaler here uses a custom DLL path.','Use its normal local DLL layout first (those paths back to auto in OptiScaler.ini).')
+        return out
+    # install(): the existing setup's FSR4 DLL (OptiScaler's folder, or beside the executable) must be where it says.
+    opti=parsed.get(('libraries','optidllpath'),'auto')
+    default=('OptiScaler' if opti.lower() in ['','auto'] else opti.replace('\\','/'))+'/'+DLL
+    if opti.lower() in ['','auto'] and not (root/default).is_file() and (root/DLL).is_file():default=DLL
+    try:
+        target=relative_library(root,parsed,'ffxdx12srpath',default)
+        if not (root/target).is_file():raise ValueError
+    except ValueError:add('optiscaler-paths','Cannot find OptiScaler’s configured local FSR4 DLL.','Repair or remove that OptiScaler setup first.');return out
+    helixsr_installed(target)
+    return out
+
+def compat_verdict(package,exe,route=None,fg_input=None,launcher_home=None,accept=()):
+    """(verdict, scan, recipe data, identity) of exe from compat.py (packaging/compat.py, gamescan.py): read only, no
+    network. route/fg_input are the user's explicit choice, None for Automatic. None when the package lacks the
+    modules or the scan fails unexpectedly (the install then goes on as 0.9.0 did, and says so)."""
+    here=Path(__file__).resolve().parent
+    if not all((here/name).is_file() for name in ['compat.py','gamescan.py','recipes.py']):return None
+    try:
+        import compat,gamescan,launcher_config
+    except ImportError:
+        return None
+    try:
+        rm=recipes_module()
+        data=rm.load(package/'recipes/recipes.json') if (package/'recipes/recipes.json').is_file() else None
+        try:launchers=launcher_config.discover(exe,launcher_home)
+        except Exception:launchers=[]  # noqa: BLE001 - discover reports unreadable files itself
+        ids=rm.identity(exe,launchers,launcher_home)
+        # One matcher for verified recipes: the one the installer applies them with (recipe_for, recipes.match).
+        recipe=recipe_for(package,exe,launcher_home)
+        scan=gamescan.scan_exe(exe,Path(launcher_home) if launcher_home else Path.home())
+        conflicts=launcher_config.conflicts(exe,launchers,os.environ)
+        choice=dict(route=route,fg_input=fg_input) if route else None
+        setup=preconditions(package,exe,recipe)
+        return compat.decide(scan,data,ids,choice,None,accept,conflicts,launchers,verified=recipe[1] if recipe else None,setup=setup),scan,data,ids
+    except Exception as error:  # noqa: BLE001 - the check is advice; an unexpected failure must not block an install
+        print('Compatibility check skipped ('+type(error).__name__+': '+str(error)[:200]+').',file=sys.stderr)
+        return None
+
+def verdict_notes(verdict):
+    """The lines Install prints about the verdict: the verdict, its notes and the user's numbered steps."""
+    lines=['Compatibility: '+verdict['line']]
+    lines+=['Note: '+w for w in verdict['warnings'] if not w.startswith('Known on BC-250: ')]
+    lines+=['Accepted: '+r['code']+' ('+r['text']+')' for r in verdict['refusals'] if r['code'] in verdict['accepted']]
+    if verdict['manual_steps']:lines+=['Your steps:']+['  '+str(n)+'. '+s for n,s in enumerate(verdict['manual_steps'],1)]
+    return lines
+
 # OptiScaler.ini keys a user sets for themselves (the MFG multiplier from OptiScaler's menu, the Reflex override), kept
 # across Restore and Install of a fresh OptiScaler setup: (section, key, description).
 CARRIED_INI=[('XeFG','InterpolationCount','multiplier'),('fakenvapi','ForceReflex','Reflex override')]
 
 @locked
-def install(package,exe,preview=False,route="native",fg_input="upscaler",dependency_dir=None,launcher_home=None,extra_args=(),dlss_helper='auto'):
+def install(package,exe,preview=False,route="native",fg_input="upscaler",dependency_dir=None,launcher_home=None,extra_args=(),dlss_helper='auto',
+            upscaler='fsr4',helixsr_dir=None,accept=(),verdict=None):
     if route not in ["native","opti"] or fg_input not in ["upscaler","dlssg","fsrfg","fsrfg30"]:raise ValueError("Unknown integration route")
     if dlss_helper not in ['auto','yes','no']:raise ValueError('Unknown DLSS helper choice (auto, yes or no)')
+    if upscaler not in UPSCALERS:raise ValueError('Unknown upscaler (fsr4 or helixsr)')
     if exe.is_symlink() or not exe.is_file() or exe.suffix.lower()!='.exe':raise ValueError('Choose the actual game .exe, not a symlink')
     check_exe(exe)
     root=exe.parent.resolve();idle(root);state=root/STATE
@@ -605,7 +750,10 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         if record.get('status')!='restored':raise ValueError('An installation record already exists; use restore before installing again')
         archive_state=root/(STATE+'-restored-'+uuid.uuid4().hex[:12])
     # Settings the user changed in the previous installation, saved by its Restore. Reinstalling keeps them.
-    carried={}
+    carried={};previous_helixsr_ini=None
+    if archive_state and record.get('preserved_helixsr_ini'):
+        try:previous_helixsr_ini=safe(state,record['preserved_helixsr_ini']).read_bytes()
+        except (OSError,ValueError):previous_helixsr_ini=None
     if archive_state:
         for path,relative in (record.get('preserved_settings') or {}).items():
             carried[path]=safe(state,relative).read_bytes()
@@ -625,6 +773,22 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
                 if value and value.lower()!='auto':carried_ini[(section,key)]=value
         except (OSError,ValueError,configparser.Error):carried_ini={}
     if route=='native' and not (root/'libxess_fg.dll').is_file():raise ValueError('This build needs a game with native XeSS Frame Generation (libxess_fg.dll beside its .exe)')
+    # Per-game recipe (recipes.py) and compatibility verdict (compat.py): both read only, and every refusal comes before
+    # the first download or write. A verdict main() made for Automatic is used as it is; otherwise the route and input
+    # given here are the user's explicit choice.
+    recipe=recipe_for(package,exe,launcher_home)
+    expected=((recipe[1] or {}).get('match',{}).get('exe') or []) if recipe else []
+    if expected and exe.name.lower() not in expected:
+        # The launcher ID matched a verified game, but this .exe is not the one it renders from (a launcher or
+        # bootstrap stub in the game root): the DLLs would sit beside a process that never loads them.
+        found=sorted({str(p.relative_to(root)) for p in root.rglob('*') if p.name.lower() in expected and p.is_file()})[:3]
+        raise ValueError('For '+recipe[1]['title']+' choose the game’s own executable ('+' or '.join(found or expected)+'), not '+exe.name+'.')
+    if verdict is None or (verdict['route'],verdict['fg_input'])!=(route,fg_input):
+        found=compat_verdict(package,exe,route,fg_input,launcher_home,accept)
+        verdict=found[0] if found else None
+    if verdict:
+        import compat
+        compat.preflight(verdict)
     package_record=json.loads((package/'manifest.json').read_text())
     if package_record.get('runtime')!='xemfg' or package_record.get('launcher_setup')!='automatic':
         raise ValueError('This installer installs only frame-generation packages with automatic launcher setup; use the installer of the package being installed')
@@ -637,6 +801,13 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     fresh=not ini.exists();files=payload(package);owner_module='dxgi.dll'
     if 'dependencies.json' not in files:raise ValueError('Package lacks its pinned dependency list (dependencies.json)')
     pins=check_pins(json.loads(files['dependencies.json']));runtime=pins['runtime']
+    # HelixSR: a release on this computer whose network HelixSR's own setup has built, checked before anything is fetched.
+    helix=None
+    if upscaler=='helixsr':
+        helix=helixsr.find(package,explicit=helixsr_dir)
+        if helix['state']!='ready':raise ValueError(helixsr.guidance(helix))
+        # A folder named with --helixsr is remembered, so later runs and Setup find it without the option.
+        if helixsr_dir is not None and not preview:helixsr.remember(helixsr_dir)
     if proxy and 'ProxyPackage' not in runtime:raise ValueError('install.py and dependencies.json come from different builds (no proxy runtime layout); use one package’s files')
     layout=runtime['ProxyPackage' if proxy else 'Package']
     custom_opti=files.get('opti/OptiScaler.dll')
@@ -679,6 +850,10 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if not fresh and opti.lower() in ['', 'auto'] and not (root/default).is_file() and (root/DLL).is_file():default=DLL
     fsr_target=relative_library(root,parsed,'ffxdx12srpath',default)
     if not fresh and not (root/fsr_target).is_file():raise ValueError('Cannot find OptiScaler’s configured local FSR4 DLL')
+    # HelixSR's own installers keep a record beside a drop-in they placed: that file is theirs to update and remove.
+    helix_ini=(Path(fsr_target).parent/helixsr.INI).as_posix();helix_log=(Path(fsr_target).parent/helixsr.LOG).as_posix()
+    if safe(root,(Path(fsr_target).parent/helixsr.HELIXSR_MARKER).as_posix()).exists():
+        raise ValueError('HelixSR’s own installer placed HelixSR beside '+fsr_target+' ('+helixsr.HELIXSR_MARKER+'): remove it with HelixSR’s uninstaller or HelixSR Desktop first')
     changes=dict(CHANGES)
     if route=='opti':
         changes.update({('FrameGen','Enabled'):'true',('FrameGen','FGInput'):fg_input,('FrameGen','FGOutput'):'xefg',('fakenvapi','UseFakenvapi'):'true',('Libraries','XeFGPath'):'OptiScaler',('Libraries','XeLLPath'):'OptiScaler'})
@@ -689,6 +864,12 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         # user wrote is kept.
         if parsed.get(('xefg','forceborderless'),'auto').strip().lower() in ['','auto']:changes[('XeFG','ForceBorderless')]='true'
     if not proxy:changes[('Plugins','LoadAsiPlugins')]='true'  # the add-on is OptiScaler's BC250-MFG.asi plugin
+    # A fresh setup places OptiPatcher (OptiScaler/plugins/OptiPatcher.asi, dependencies.json 'payload'), which unlocks
+    # the DLSS/XeSS inputs of about 200 games on GPUs other than NVIDIA's; OptiScaler loads ASI plugins only with
+    # LoadAsiPlugins=true (the pinned INI's auto means false), so a proxy package's fresh setup turns it on too. An
+    # existing OptiScaler setup keeps its own plugin choice.
+    elif fresh and any(setup_target(n).lower().endswith('.asi') for n in pins['payload']['Files']) and \
+            parsed.get(('plugins','loadasiplugins'),'auto').strip().lower() in ['','auto']:changes[('Plugins','LoadAsiPlugins')]='true'
     changes.update({('Libraries','XeFGPath'):r'.\libxess_fg.dll',('Libraries','XeLLPath'):r'.\libxell.dll'})
     if route=='opti':
         # OptiScaler's MFG menu owns the multiplier: default to 2x, but keep a count the user already chose. Without the
@@ -707,14 +888,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         # 1 = force off) is kept.
         if fg_input in ['upscaler','fsrfg','fsrfg30'] and parsed.get(('fakenvapi','forcereflex'),'auto').strip().lower() in ['','auto']:changes[('fakenvapi','ForceReflex')]='2'
     # Per-game recipe (recipes.py): verified keys where the INI says auto, OptiScaler quirks left free, game settings.
-    recipe=recipe_for(package,exe,launcher_home)
-    expected=((recipe[1] or {}).get('match',{}).get('exe') or []) if recipe else []
-    if expected and exe.name.lower() not in expected:
-        # The launcher ID matched a verified game, but this .exe is not the one it renders from (a launcher or
-        # bootstrap stub in the game root): the DLLs would sit beside a process that never loads them.
-        found=sorted({str(p.relative_to(root)) for p in root.rglob('*') if p.name.lower() in expected and p.is_file()})[:3]
-        raise ValueError('For '+recipe[1]['title']+' choose the game’s own executable ('+' or '.join(found or expected)+'), not '+exe.name+'.')
-    settings_plan=[];launch_args=[];notes=[]
+    settings_plan=[];launch_args=[];notes=[];community=None
     if recipe:
         rm,verified,wiki,leave,backports,_=recipe
         recipe_input=(verified or {}).get('fg_input')
@@ -735,11 +909,23 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
                     older=json.loads(safe(old,'state.json').read_text())
                     if older.get('game_settings'):earlier=previous_settings(old,older,rm);break
                 except (OSError,ValueError):continue
-        settings_plan=rm.settings_plan(verified,user,route,fg_input if route=='opti' else None,earlier)
-        launch_args=rm.launch_args(verified,wiki)
+        # The recipe whose game settings apply: the verified one, else a community recipe the verdict found (tier B).
+        community=None if verified else ((verdict or {}).get('recipe_entry') if (verdict or {}).get('tier')=='B' else None)
+        settings_plan=rm.settings_plan(verified or community,user,route,fg_input if route=='opti' else None,earlier)
+        # A verified game keeps 0.9.0's argument; any other game takes the verdict's (community recipe, the wiki's DX12
+        # argument from a strong match or a title match detection confirms, or detection's own switch).
+        launch_args=rm.launch_args(verified,wiki) if verified or verdict is None else list(verdict['launch_args'])
         notes+=rm.suggestions(verified,wiki,fg_input,route)
         if verified:notes.insert(0,'Recipe (verified on BC-250): '+verified['title'])
-        if verified and not user and verified.get('game_settings'):notes.append('Game settings not changed: no Proton prefix found for this game yet. Start it once, then use Settings (configure) to apply them.')
+        if (verified or community) and not user and (verified or community).get('game_settings'):notes.append('Game settings not changed: no Proton prefix found for this game yet. Start it once, then use Settings (configure) to apply them.')
+    elif verdict:launch_args=list(verdict['launch_args'])
+    if verdict:
+        # Community-recipe and reviewed wiki keys (never a key a quirk sets for the exe), only where the INI says auto.
+        for (section,key),value in verdict['ini'].items():
+            if parsed.get((section.lower(),key.lower()),'auto').strip().lower() in ['','auto']:changes[(section,key)]=value
+        # DLSS is the game's only upscaler and it ships no copy: the helper keeps DLSS (and so OptiFG's input) visible.
+        if dlss_helper=='auto' and verdict['dlss_helper']=='yes':dlss_helper='detected'
+        notes=verdict_notes(verdict)+notes
     # Game arguments a caller asks for (such as the maintainers' library tool's DX12 switches), after the recipe's. A graphics API
     # switch replaces the recipe's own: a game gets one API switch.
     if extra_args:
@@ -755,7 +941,8 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     ini_after=patch_ini(original_ini,changes)
     # The launcher's own fields carry the loader overrides and the Vulkan layer: no wrapper script.
     import launcher_config
-    launchers=launcher_config.plan(exe,owner_module,home=launcher_home,runtime='xemfg-proxy' if proxy else 'xemfg',route=route,args=launch_args)
+    launchers=launcher_config.plan(exe,owner_module,home=launcher_home,runtime='xemfg-proxy' if proxy else 'xemfg',route=route,args=launch_args,
+                                   extra_env=(verdict or {}).get('extra_env'))
     # The runtime: the package's own copies when it carries them all (checked above), otherwise the pinned downloads,
     # fetched below once every check has passed.
     packaged_runtime={source:files[name] for name,source in layout.items() if name in files}
@@ -786,7 +973,14 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
             if path=='XeSSMFG/settings.ini' and route=='native' and read_ini(previous).get(('xessmfg','multiplier'),'').strip()=='0':skip={('xessmfg','multiplier')}
             replacements[path],values=carry_settings(replacements[path],previous,skip)
             kept+=[path+' '+section+'.'+key+'='+value for (section,key),value in values.items()]
-    replacements[fsr_target]=files['fsr4/'+DLL]
+    if helix:
+        # HelixSR's DLL as its setup built it (checked again as read), and helixsr.ini beside it with HelixSR's own DLSS
+        # frame generation off. Nothing else of HelixSR's goes into the game (no helixsr-fg folder).
+        replacements[fsr_target]=helixsr.dll_bytes(helix,helixsr.pins(package))
+        # The game's own helixsr.ini when it has one; otherwise the user's edited copy an earlier Restore kept, if any.
+        existing=safe(root,helix_ini);base=existing.read_bytes() if existing.is_file() else previous_helixsr_ini
+        replacements[helix_ini]=helixsr.ini_bytes(base)
+    else:replacements[fsr_target]=files['fsr4/'+DLL]
     replacements['OptiScaler.ini']=ini_after
     # Last refusals (a symlink or folder where a file goes), then the runtime downloads: no check waits on the network.
     # A preview fetches them too, so a preview that succeeds proves the install has every byte it needs: the
@@ -811,25 +1005,35 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     # already in the game folder is set aside until Restore, so the proxy's log never overwrites it and Restore puts
     # it back as it was.
     displaced=[name for name in PROXY_LOGS if proxy and (root/name).is_file() and not (root/name).is_symlink()]
+    # HelixSR writes helixsr.log beside its DLL: one there already (an earlier HelixSR) is set aside until Restore.
+    helix_displaced=bool(helix) and safe(root,helix_log).is_file()
+    upscaler_record=dict(name=upscaler,target=fsr_target)
+    if helix:upscaler_record.update(version=helix['version'],release=helix['folder'],ini=helix_ini,log=helix_log,displaced_log=helix_displaced)
     if preview:
         print('\n'.join(item['path'] for item in plan))
         for name in displaced:print('Set aside until Restore: '+name+' (an earlier log by the same name)')
         for target in launchers:print('Configure '+target['launcher']+': '+target['path'])
         for item in settings_plan:print(('Game setting: ' if item['after'] is not None else 'Game setting (pending): ')+item['file'])
         if helper:print(helper_line(helper))
+        print(upscaler_line(upscaler_record))
         for line in notes:print(line)
         return
-    print('Installing FSR 4, frame generation and launcher settings; saving original files.')
+    print('Installing '+('HelixSR' if helix else 'FSR 4')+', frame generation and launcher settings; saving original files.')
     if archive_state:state.rename(archive_state)
     # wrapper=None: records of wrapper-based builds named their run.sh here.
     record=dict(status='prepared',runtime='xemfg',route=route,fresh=fresh,wrapper=None,game=str(exe.resolve()),files=plan,package=package_record.get('name'),
-                ini_changes=[dict(section=s,key=k,value=v) for (s,k),v in changes.items()],launchers=launchers,launch_args=launch_args)
+                ini_changes=[dict(section=s,key=k,value=v) for (s,k),v in changes.items()],launchers=launchers,launch_args=launch_args,
+                launch_args_added=launcher_config.added_args(launchers))
     record['created_dirs']=created_dirs
+    record['upscaler']=upscaler_record
     # displaced_logs (also when empty) tells Restore that every proxy log in the game folder is this installation's.
     if proxy:record.update(addon_entry=PROXY_ENTRY,max_factor=package_record.get('max_factor',2),displaced_logs=displaced)
     if helper:record['dlss_helper']=helper
+    if verdict:record['compat']=dict(tier=verdict['tier'],line=verdict['line'],choice=verdict['choice'],launch_source=verdict['launch_source'],
+                                     ini_sources=verdict['ini_sources'],accepted=verdict['accepted'],extra_env=verdict['extra_env'])
     if recipe:
-        record['recipe']=dict(title=(recipe[1] or {}).get('title'),status='verified-bc250' if recipe[1] else None,
+        entry=recipe[1] or community
+        record['recipe']=dict(title=(entry or {}).get('title'),status='verified-bc250' if recipe[1] else 'community-bc250' if entry else None,
                               wiki=[w['title'] for w in recipe[2]],launch_args=launch_args)
         record['game_settings']=[settings_record(item) for item in settings_plan]
     staging=Path(tempfile.mkdtemp(prefix=STATE+'-preparing-',dir=root))
@@ -845,12 +1049,13 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
             if target['launcher'] in launcher_config.WHOLE_FILE:
                 path=Path(target['path']);data=path.read_bytes();write(staging/'launcher-files'/str(i),data,0o600)
                 target['file_backup']=dict(path='launcher-files/'+str(i),sha256=digest(data),mtime_ns=path.stat().st_mtime_ns)
-        if displaced:(staging/'displaced-logs').mkdir()
+        if displaced or helix_displaced:(staging/'displaced-logs').mkdir()
         write(staging/'state.json',(json.dumps(record,indent=2)+'\n').encode())
         os.replace(staging,state)
     finally:
         if staging.exists():shutil.rmtree(staging)
     for name in displaced:os.replace(root/name,state/'displaced-logs'/name)
+    if helix_displaced:os.replace(root/helix_log,state/'displaced-logs'/helixsr.LOG)
     for item in plan:
         # A file that already holds the bytes it gets (the package's OptiScaler where it is installed) stays as it is.
         if item['before'] is not None and item['before']==item['after']:continue
@@ -873,8 +1078,12 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         if item['status']=='pending':print('Game setting pending: '+setting_line(item)+' ('+(item.get('reason') or 'start the game once, then Settings')+')')
         else:print({'applied':'Game setting applied: ','unchanged':'Game setting already set: '}[item['status']]+setting_line(item))
     if displaced:print('Set aside until Restore: '+', '.join(displaced)+' (an earlier log by the same name; in '+str(state/'displaced-logs')+')')
-    if launch_args and launchers:print('Launch option added: '+' '.join(launch_args))
+    added=launcher_config.added_args(launchers)
+    if added:print('Launch option added: '+' '.join(added))
+    skipped=[a for a in launch_args if a not in added]
+    if skipped and launchers:print('Launch option not added: '+' '.join(skipped)+' (the launch options already choose a graphics API, or the launcher’s arguments are not managed)')
     if helper and (helper['placed'] or helper['game_copy'] or helper.get('dxgi_spoofing') or dlss_helper!='auto'):print(helper_line(helper))
+    print(upscaler_line(upscaler_record))
     for line in notes:print(line)
     print('In game: '+('select native XeSS Frame Generation.' if route=='native' else 'open OptiScaler with Insert; confirm FG Input / XeFG Output and Active. Save Settings and restart after changing the input.'))
     if proxy:print('This build generates 2× (one generated frame per real frame).')
@@ -906,6 +1115,12 @@ def restore(exe):
             relative='preserved-ini/'+digest(current)+'.ini'
             preserve.append((safe(state,relative),current))
             record['preserved_ini']=relative
+        elif Path(item['path']).name.lower()==helixsr.INI and current is not None and now!=item['after']:
+            # HelixSR's settings file, edited since installation (its documented settings): the edited copy is kept with
+            # the backups (and carried into the next HelixSR installation), and the file goes back to what it was.
+            relative='preserved-ini/helixsr-'+digest(current)+'.ini'
+            preserve.append((safe(state,relative),current))
+            record['preserved_helixsr_ini']=relative
         elif item['path'] in ['XeSSMFG/settings.ini','BC250-XeFG/settings.ini'] and current is not None:
             # Keep every settings file, edited since install or carried into it, for the next Install.
             read_ini(current)
@@ -962,6 +1177,7 @@ def restore(exe):
     # The proxy's logs: every one in the game folder is this installation's, except one that was there before it and
     # was never set aside (an interrupted installation). Records of earlier builds set nothing aside.
     displaced=record.get('displaced_logs');held=state/'displaced-logs';notes=[]
+    if (record.get('upscaler') or {}).get('name')=='helixsr':put_back_helixsr_log(root,state,record['upscaler'],notes)
     logs=[name for name in PROXY_LOGS if record.get('addon_entry')==PROXY_ENTRY and (root/name).is_file() and not (root/name).is_symlink()
           and not (displaced is not None and name in displaced and not (held/name).is_file())]
     if logs:
@@ -986,14 +1202,108 @@ def restore(exe):
     record['status']='restored';write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
     print(('Original files and launcher settings restored. ' if record.get('launchers') else 'Original files restored; later INI edits preserved. Remove the earlier build’s run.sh launch wrapper from the game’s launch options. ')+'Backups remain in '+str(state))
     if record.get('preserved_ini'):print('Settings from the removed fresh OptiScaler setup: '+str(state/record['preserved_ini']))
+    if record.get('preserved_helixsr_ini') and any(Path(item['path']).name.lower()==helixsr.INI for item in record['files']):
+        print('Your edited '+helixsr.INI+' is kept in '+str(state/record['preserved_helixsr_ini'])+' (the next HelixSR installation starts from it).')
     for path,i in kept:
         print('Kept '+path+': it changed after installation (a game update or another tool), so it is the game’s own now'+
               ('; the version from before installation is '+str(state/'backups'/str(i)) if i is not None else '')+'.')
     for line in launcher_notes+left+notes:print(line)
 
+def upscaler_target(record,pins):
+    """(installation's upscaler record, the managed file that holds the upscaler DLL). Records of earlier builds have no
+    upscaler record: their FSR 4 DLL is the managed file installed with the pinned FSR 4 bytes."""
+    upscaler=dict(record.get('upscaler') or {})
+    if not upscaler:
+        fsr4=pins['runtime']['Files'].get('fsr4/'+DLL)
+        found=[item['path'] for item in record['files'] if item['after']==fsr4 and Path(item['path']).name.lower()==DLL]
+        if len(found)!=1:raise ValueError('This installation’s upscaler DLL cannot be identified; Restore, then Install with --upscaler')
+        upscaler=dict(name='fsr4',target=found[0])
+    if upscaler['target'] not in {item['path'] for item in record['files']}:raise ValueError('This installation does not manage the upscaler DLL; Restore, then Install with --upscaler')
+    return upscaler
+
+def switch_upscaler(package,root,record,upscaler,helixsr_dir=None,dependency_dir=None):
+    """Switch an installed game between FSR 4 and HelixSR in place (configure --upscaler); returns its messages. Only the
+    upscaler DLL and HelixSR's helixsr.ini beside it change. Each stays a managed file of the installation, so Restore still
+    puts back exactly what was there before installation. The record names the new bytes in a pending update before any
+    file changes (as earlier builds' updates did): an interrupted switch is resolved by Restore."""
+    if upscaler not in UPSCALERS:raise ValueError('Unknown upscaler (fsr4 or helixsr)')
+    state=root/STATE;files=payload(package);pins=check_pins(json.loads(files['dependencies.json']))
+    current=upscaler_target(record,pins);target=current['target'];items={item['path']:item for item in record['files']}
+    path=safe(root,target);now=digest(path.read_bytes()) if path.is_file() else None
+    if now!=items[target]['after']:raise ValueError(target+' changed since installation (a game update or another tool): Restore, then Install again')
+    ini_rel=(Path(target).parent/helixsr.INI).as_posix();log_rel=(Path(target).parent/helixsr.LOG).as_posix()
+    ini_path=safe(root,ini_rel);ini_item=items.get(ini_rel)
+    ini_now=digest(ini_path.read_bytes()) if ini_path.is_file() else None
+    # helixsr.ini is HelixSR's settings file: the user may have edited it (HelixSR documents its settings there). An edit
+    # never blocks a switch. Going to FSR 4, the edited copy is kept with the backups and the original goes back; going to
+    # HelixSR, the file is built from what is there now (or from that kept copy), with HelixSR's frame generation off.
+    edited=ini_item is not None and ini_now!=ini_item['after']
+    def kept_ini():
+        try:return safe(state,record['preserved_helixsr_ini']).read_bytes() if record.get('preserved_helixsr_ini') else None
+        except (OSError,ValueError):return None
+    def original_ini():
+        """helixsr.ini's bytes from before installation (None when there was none)."""
+        if ini_item is None:return ini_path.read_bytes() if ini_path.is_file() else None
+        if ini_item['before'] is None:return None
+        data=safe(state,'backups/'+str(record['files'].index(ini_item))).read_bytes()
+        if digest(data)!=ini_item['before']:raise ValueError('Backup checksum mismatch: '+ini_rel)
+        return data
+    messages=[];found=None
+    if upscaler=='helixsr':
+        found=helixsr.find(package,explicit=helixsr_dir)
+        if found['state']!='ready':raise ValueError(helixsr.guidance(found))
+        new=helixsr.dll_bytes(found,helixsr.pins(package))
+        base=ini_path.read_bytes() if ini_path.is_file() else None
+        # Back from FSR 4 with the original helixsr.ini in place (or none): start from the user's kept edits, if any.
+        if current['name']!='helixsr' and not edited and kept_ini() is not None:base=kept_ini()
+        ini_new=helixsr.ini_bytes(base)
+        if helixsr_dir is not None:helixsr.remember(helixsr_dir)
+        if current['name']=='helixsr' and digest(new)==now and digest(ini_new)==ini_now:return ['The game already uses HelixSR '+found['version']+'.']
+    else:
+        if current['name']=='fsr4':return ['The game already uses FSR 4.']
+        layout=pins['runtime']['ProxyPackage' if record.get('addon_entry')==PROXY_ENTRY else 'Package']
+        new=pinned(package,pins,['runtime'],dependency_dir)[layout['fsr4/'+DLL]];ini_new=original_ini()
+        if edited and ini_path.is_file():
+            data=ini_path.read_bytes();relative='preserved-ini/helixsr-'+digest(data)+'.ini'
+            write(safe(state,relative),data);record['preserved_helixsr_ini']=relative
+            messages.append('Your edited '+ini_rel+' is kept in '+str(state/relative)+' (switching back to HelixSR starts from it).')
+    # helixsr.ini becomes a managed file the first time HelixSR comes in: its state before installation is backed up now.
+    if ini_item is None and upscaler=='helixsr':
+        before=ini_path.read_bytes() if ini_path.is_file() else None
+        ini_item=dict(path=ini_rel,before=digest(before) if before is not None else None,after=digest(before) if before is not None else None,
+                      mode=stat.S_IMODE(ini_path.stat().st_mode) if before is not None else 0o644)
+        if before is not None:
+            ini_item['mtime_ns']=ini_path.stat().st_mtime_ns;write(state/'backups'/str(len(record['files'])),before,ini_item['mode'])
+        record['files'].append(ini_item)
+    pending={target:dict(before=items[target]['after'],after=digest(new))}
+    if ini_item is not None:pending[ini_rel]=dict(before=ini_item['after'],after=digest(ini_new) if ini_new is not None else None)
+    record['pending_update']=dict(files=pending);write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
+    write(path,new,items[target]['mode'])
+    if ini_item is not None:
+        if ini_new is None:ini_path.unlink(missing_ok=True)
+        else:write(ini_path,ini_new,ini_item['mode'])
+    for item in record['files']:
+        if item['path'] in pending:item['after']=pending[item['path']]['after']
+    record.pop('pending_update')
+    log=log_path(root,log_rel);held=state/'displaced-logs'/helixsr.LOG
+    if upscaler=='helixsr':
+        new_record=dict(name='helixsr',target=target,version=found['version'],release=found['folder'],ini=ini_rel,log=log_rel,
+                        displaced_log=bool(current.get('displaced_log')))
+        # A helixsr.log there now is not this installation's (the FSR 4 side moves HelixSR's away): set aside until Restore.
+        if current['name']!='helixsr' and log is not None and log.is_file() and not held.exists():
+            held.parent.mkdir(exist_ok=True);os.replace(log,held);new_record['displaced_log']=True
+    else:
+        notes=put_back_helixsr_log(root,state,dict(current,log=log_rel),[]) if current['name']=='helixsr' else []
+        new_record=dict(name='fsr4',target=target,displaced_log=False);messages+=notes
+    record['upscaler']=new_record;write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
+    messages.append('Upscaler switched. '+upscaler_line(new_record))
+    return messages
+
 @locked
-def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=None,upscale=None):
-    """Change user settings for an installed MFG package; never touch runtime files."""
+def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=None,upscale=None,upscaler=None,helixsr_dir=None,package=None,dependency_dir=None):
+    """Change user settings for an installed package. Runtime files stay as they are, except the upscaler DLL (and HelixSR's
+    helixsr.ini beside it) when upscaler names one: switch_upscaler runs first, so a settings error after it leaves the
+    switch in place (each part is complete and recorded on its own)."""
     if factor not in [None,2,3,4]:raise ValueError('Invalid setting')
     if resolution not in [None,'output','scale','limit'] or (percent is not None and not 50<=percent<=100) or limit not in [None,720,1080,1440,2160]:raise ValueError('Invalid resolution setting')
     down_filters={'bilinear':0,'area':1}
@@ -1009,6 +1319,9 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     proxy=record.get('addon_entry')==PROXY_ENTRY
     if factor is not None and factor>record.get('max_factor',4):
         raise ValueError('This build generates 2× only (one generated frame per real frame: the most Intel’s runtime generates on GPUs other than Intel’s)')
+    switched=[]
+    if upscaler is not None:switched=switch_upscaler(Path(package or Path(__file__).resolve().parent),root,record,upscaler,helixsr_dir,dependency_dir)
+    for line in switched:print(line)
     done,waiting=apply_pending_settings(exe,root,record)
     for item in done:print(('Game setting applied: ' if item['status']=='applied' else 'Game setting already set: ')+setting_line(item))
     for line in waiting:print('Game setting pending: '+line)
@@ -1037,7 +1350,8 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
         if name not in managed:raise ValueError('Settings need the updated installer; Restore then Install this build')
         path=safe(root,name);plan.append((path,patch_ini(path.read_bytes(),values)))
     if not plan and not done:
-        print('Nothing to change.');return
+        if not switched:print('Nothing to change.')
+        return
     if 'OptiScaler.ini' in changes:
         # Restore reverts a key only while it still holds the value recorded for it: record the user's choice.
         recorded={(c['section'].lower(),c['key'].lower()):c for c in record['ini_changes']}
@@ -1062,9 +1376,20 @@ def status(exe):
         p=safe(root,item['path']);actual=digest(p.read_bytes()) if p.exists() else None
         if actual!=item['after']:changed.append(item['path'])
     print('Changed since installation: '+(', '.join(changed) if changed else 'none'))
-    if record.get('recipe',{}).get('title'):print('Recipe: '+record['recipe']['title']+(' (launch option '+' '.join(record['recipe']['launch_args'])+')' if record['recipe'].get('launch_args') else ''))
+    if record.get('compat'):print('Compatibility at installation: '+record['compat']['line'])
+    # The launch option the installation actually added (records before launch_args_added name the recipe's).
+    added=record.get('launch_args_added',record.get('recipe',{}).get('launch_args') or [])
+    if record.get('recipe',{}).get('title'):print('Recipe: '+record['recipe']['title']+(' (launch option '+' '.join(added)+')' if added else ''))
+    elif added:print('Launch option added: '+' '.join(added))
     for item in record.get('game_settings',[]):print('Game setting '+item['status']+': '+item['file']+(' ('+item['reason']+')' if item.get('reason') else ''))
     if record.get('dlss_helper'):print(helper_line(record['dlss_helper']))
+    upscaler=record.get('upscaler') or {}
+    print(upscaler_line(upscaler))
+    if upscaler.get('name')=='helixsr':
+        log=log_path(root,upscaler['log'])
+        print('HelixSR log: '+(str(log) if log is not None and log.is_file() else
+                               'not a regular file: '+upscaler['log'] if log is None else
+                               'none yet (HelixSR writes '+upscaler['log']+' while the game runs)'))
     if record.get('launchers'):
         import launcher_config
         for target in record['launchers']:
@@ -1083,9 +1408,94 @@ def status(exe):
         else:print('No generated-frame scaling recorded in this log.')
         print('Logs describe the last recorded session; they do not prove current frame generation or visual correctness.')
     else:print('No acceleration log yet. Launch normally with FG active.' if record.get('launchers') else 'No acceleration log yet. Launch through the installed wrapper with FG active.')
+    try:
+        import compat
+        for line in compat.last_run_lines(compat.last_run(root)):print('Last run: '+line)
+    except ImportError:pass
+
+def check(package,exe,accept=(),report=False):
+    """install.py check: the compatibility verdict of one game, what the OptiScaler wiki says about it with every
+    condition evaluated, and what the logs say after a run. Reads only; writes nothing, starts nothing, no network."""
+    import compat
+    found=compat_verdict(package,exe,None,None,None,accept)
+    if not found:raise ValueError('The compatibility check needs compat.py and gamescan.py beside install.py')
+    verdict,scan,data,ids=found
+    root=exe.parent.resolve();installed=None;run=None
+    try:
+        record=json.loads(safe(root,STATE+'/state.json').read_text())
+        installed=record['status']+' ('+('native XeSS FG' if record.get('route')=='native' else 'OptiScaler route')+')'
+    except (OSError,ValueError,KeyError):record=None
+    # The logs describe this installer's last run only where it installed (a record, restored or not); an OptiScaler log
+    # without one comes from another setup (an earlier OptiScaler, Luma, another tool) and says nothing about this one.
+    if record:run=compat.last_run(root)
+    lines=compat.check_lines(verdict,scan,compat.wiki_advice(data,ids,verdict),run,installed)
+    if not record and any((root/n).is_file() for n in ['OptiScaler.log',*PROXY_LOGS]):lines+=['','Logs from another setup are in the game folder (not read: no installation of this build is recorded here).']
+    print('\n'.join(lines))
+    if report:
+        versions={}
+        try:
+            import doctor
+            versions={item:text for _,item,text in doctor.checks(package=package) if item in ('GPU','Kernel','gamescope','Proton')}
+        except Exception:pass  # noqa: BLE001 - the report is still useful without them
+        name=None
+        try:name=json.loads((package/'manifest.json').read_text()).get('name')
+        except (OSError,ValueError):pass
+        print('\n'+compat.report(verdict,scan,versions,run,name))
+
+def check_all(package,home=None):
+    """install.py check --all: one verdict line per installed Steam and Heroic game (no launcher edits, no network)."""
+    import compat,gamescan
+    rm=recipes_module();data=rm.load(package/'recipes/recipes.json') if (package/'recipes/recipes.json').is_file() else None
+    counts={}
+    for game in gamescan.installed_games(home):
+        try:scan=gamescan.scan_folder(game,home=home)
+        except Exception as error:print(f'{game.get("name")}: not checked ({type(error).__name__})');continue  # noqa: BLE001
+        exe=((scan.get('exe') or {}).get('selected') or '')
+        ids=dict(exe=exe.rsplit('/',1)[-1].lower(),steam=set(),gog=set(),epic=set(),titles={rm.norm(game.get('name') or '')},
+                 folders={rm.norm(p) for p in Path(exe).parts[:-1]}-{''})
+        if game.get('store') in ('steam','gog','epic'):ids[game['store']].add(str(game['id']))
+        verdict=compat.decide(scan,data,ids)
+        key=verdict['blocking'][0]['code'] if verdict['blocking'] else verdict['tier']
+        counts[key]=counts.get(key,0)+1
+        print(f'{game.get("name")} [{game.get("store")} {game.get("id")}]: {verdict["line"]}')
+    print('\n'+', '.join(f'{k} {v}' for k,v in sorted(counts.items(),key=lambda kv:-kv[1])))
+
+def zipfile_errors():
+    import zipfile
+    return zipfile.BadZipFile
+
+def helixsr_command(package,folder=None,download=None):
+    """install.py helixsr [--helixsr FOLDER]: where HelixSR is and whether it is ready. Without --helixsr and with no HelixSR
+    on this computer, it downloads the official release the package pins from HelixSR's GitHub releases into the download
+    cache (the user asked for it by running this command, or by choosing HelixSR in Setup). It never runs HelixSR's setup:
+    it prints the command that does, which asks before downloading NVIDIA's DLSS DLL and builds the network."""
+    found=helixsr.find(package,explicit=folder)
+    # Nothing usable on this computer: no release, or only one this installer does not know (another version, or a
+    # changed DLL). The official release the package pins is downloaded; an unknown folder found is left as it is.
+    if folder is None and found['state'] in ('missing','unknown'):
+        if found['state']=='unknown':print('Not used: '+found['message'],flush=True)
+        print('Downloading the official HelixSR '+str(found['pinned'])+' release from '+helixsr.PROJECT+'/releases (complete and '
+              'unmodified, checked by SHA-256). HelixSR is a separate project by '+helixsr.AUTHOR+' under its own licence.',flush=True)
+        helixsr.download_release(package,download)
+        found=helixsr.find(package)
+    if folder is not None and found['state'] in ('ready','unbuilt'):helixsr.remember(folder)
+    if found['state']=='ready':
+        print(found['message']+'\nChoose it with Install (Upscaler: HelixSR) in Setup, install.py install GAME.exe --upscaler helixsr, '
+              'or, for an installed game, Upscaler in Setup or install.py configure GAME.exe --upscaler helixsr.')
+        return 0
+    print(helixsr.guidance(found))
+    return 0 if found['state']=='unbuilt' else 1
+
+def accepted_for(accept,exe):
+    """The soft-refusal codes --accept gives one game: CODE for every game, CODE=EXE for that executable only."""
+    out=[]
+    for item in accept:
+        code,_,path=item.partition('=')
+        if not path or Path(path).expanduser().absolute().resolve()==Path(exe).expanduser().absolute().resolve():out.append(code)
+    return out
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
     parser.add_argument('--factor',type=int,choices=[2,3,4])
     parser.add_argument('--resolution',choices=['output','scale','limit']);parser.add_argument('--percent',type=int);parser.add_argument('--limit',type=int,choices=[720,1080,1440,2160])
     parser.add_argument('--downscale',choices=['bilinear','area']);parser.add_argument('--upscale',choices=['bilinear','bicubic','lanczos2','fsr1'])
@@ -1094,10 +1504,25 @@ def main():
                              'OptiScaler’s DLSS inputs set to true, yes = also otherwise (a DLSS upscaler input on OptiFG; keeps '
                              'OptiScaler’s NVIDIA GPU spoofing on), no = never; never where OptiScaler finds the game’s own copy, '
                              'never over a game file')
+    parser.add_argument('--upscaler',choices=list(UPSCALERS),
+                        help='install: the upscaler (default fsr4); configure: switch an installed game. helixsr = HelixSR, a separate '
+                             'project by lonewolf0622 that its own setup builds on this computer (see install.py helixsr)')
+    parser.add_argument('--helixsr',type=Path,metavar='FOLDER',help='a HelixSR release folder (the one with helixsr-setup.sh); '
+                        'default: the one found on this computer')
+    parser.add_argument('--accept',action='append',default=[],metavar='CODE[=EXE]',
+                        help='install despite a soft refusal (install.py check names them: protonfix-api, wiki-not-working, '
+                             'input-unconfirmed, and with an explicit --route/--fg-input no-input, no-dx12, api-*); CODE=EXE '
+                             'accepts it for that game only (Setup passes one per game it listed)')
+    parser.add_argument('--all',action='store_true',help='check: every installed Steam and Heroic game, one line each')
+    parser.add_argument('--report',action='store_true',help='check: also print a redacted report for a GitHub issue')
     args=parser.parse_args()
+    if args.command=='check' and args.all:return check_all(Path(__file__).resolve().parent)
     if args.command=='doctor':
         import doctor
         return doctor.main()
+    if args.command=='helixsr':
+        try:return helixsr_command(Path(__file__).resolve().parent,args.helixsr.absolute() if args.helixsr else None)
+        except (ValueError,OSError,zipfile_errors()) as error:print(str(error),file=sys.stderr);return 1
     if not args.exe:parser.error('choose at least one game executable')
     failed=False
     for exe in args.exe:
@@ -1105,10 +1530,19 @@ def main():
         try:
             if args.command=='restore':restore(exe.absolute())
             elif args.command=='status':status(exe.absolute())
-            elif args.command=='configure':configure(exe.absolute(),args.factor,args.resolution,args.percent,args.limit,args.downscale,args.upscale)
+            elif args.command=='configure':configure(exe.absolute(),args.factor,args.resolution,args.percent,args.limit,args.downscale,args.upscale,
+                                                     upscaler=args.upscaler,helixsr_dir=args.helixsr.absolute() if args.helixsr else None)
+            elif args.command=='check':check(Path(__file__).resolve().parent,exe.absolute(),accepted_for(args.accept,exe),args.report)
             else:
                 route,fg_input=args.route,args.fg_input
                 if route=='auto' and fg_input!='auto':route='opti'  # an explicit OptiScaler input names the route
+                verdict=None
+                if route=='auto' and fg_input=='auto':
+                    # Automatic: the compatibility verdict picks the route and input (a verified recipe's, else detection's).
+                    found=compat_verdict(Path(__file__).resolve().parent,exe.absolute(),None,None,None,accepted_for(args.accept,exe))
+                    if found:
+                        verdict=found[0];route,fg_input=verdict['route'],verdict['fg_input']
+                        print('Frame-generation input: '+('native XeSS FG' if route=='native' else {'upscaler':'OptiFG','dlssg':'DLSS FG','fsrfg':'FSR 3.1 FG','fsrfg30':'FSR 3.0 FG'}[fg_input])+' ('+verdict['reason']+')')
                 if route=='auto' and fg_input=='auto':
                     # A recipe verified on BC-250 chooses the input (it may differ from what the game ships: Crimson Desert).
                     found=recipe_for(Path(__file__).resolve().parent,exe.absolute())
@@ -1122,7 +1556,8 @@ def main():
                     fg_input=detected[1] if fg_input=='auto' else fg_input
                     print('Frame-generation input: '+detected[2]+('' if (route,fg_input)==detected[:2] else ' (overridden: '+route+'/'+fg_input+')'))
                 if fg_input=='auto':fg_input='upscaler'
-                install(Path(__file__).resolve().parent,exe.absolute(),args.command=='preview',route,fg_input,dlss_helper=args.dlss_helper)
+                install(Path(__file__).resolve().parent,exe.absolute(),args.command=='preview',route,fg_input,dlss_helper=args.dlss_helper,
+                        upscaler=args.upscaler or 'fsr4',helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted_for(args.accept,exe),verdict=verdict)
         except (ValueError,OSError,configparser.Error,subprocess.SubprocessError) as error:print(str(error),file=sys.stderr);failed=True
         except Exception as error:  # noqa: BLE001 - one game's unexpected failure must not skip the others
             import traceback

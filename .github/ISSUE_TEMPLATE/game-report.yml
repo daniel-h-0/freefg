@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: MIT
+name: Game report
+description: A game on a BC-250, working or not (it can become a community recipe; CONTRIBUTING.md "Game recipes")
+title: "Game report: "
+labels: ["game report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Play the game first, then run `python3 install.py check '/path/to/Game.exe' --report` (or Setup's Check) and
+        paste its output below. The report replaces your home folder, user name and library folders; read it before
+        you post anyway. Never attach game files, saves or anything from your launcher accounts.
+  - type: textarea
+    id: report
+    attributes:
+      label: Check report
+      description: The text from install.py check --report (it starts with "### Game report").
+      render: markdown
+    validations:
+      required: true
+  - type: dropdown
+    id: generated
+    attributes:
+      label: Did frames generate?
+      description: 2.0 presents per game frame in the OptiScaler overlay, or XeFG started in the report's "After the last run".
+      options: ["Yes, 2.0 in gameplay", "Only in menus", "No", "Not sure"]
+    validations:
+      required: true
+  - type: input
+    id: minutes
+    attributes:
+      label: Minutes of gameplay and number of starts
+      placeholder: "30 minutes, 3 starts"
+    validations:
+      required: true
+  - type: dropdown
+    id: restore
+    attributes:
+      label: Restore checked?
+      description: After Restore, Status and the launcher's launch options show nothing of the installation.
+      options: ["Yes", "No"]
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What you saw
+      description: HUD, crashes or hangs, HDR on or off, VRR, resolution, upscaler mode, anything you changed in the game.

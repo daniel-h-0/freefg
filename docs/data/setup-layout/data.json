@@ -1,0 +1,225 @@
+{
+ "figure": "setup-file-layout",
+ "question": "What does Setup put into a game folder and its launcher entry, and what does Restore take back?",
+ "example": {
+  "game": "Echo Point Nova (Steam), frame-generation input OptiFG chosen by its recipe, 2026-10-19 (live install of 0.9.0; 1.0.0 places the same files plus five shaders)",
+  "executable_folder": "the folder of the game's rendering .exe"
+ },
+ "entries": [
+  {
+   "path": "dxgi.dll",
+   "kind": "package",
+   "what": "OptiScaler, this project's build of its 19 Oct 2026 master",
+   "note": "an OptiScaler already in the game keeps its name (here winmm.dll)"
+  },
+  {
+   "path": "OptiScaler.ini",
+   "kind": "settings",
+   "what": "OptiScaler's settings: frame generation on, its input, XeFG output through libxess_fg.dll"
+  },
+  {
+   "path": "OptiScaler/",
+   "kind": "download",
+   "what": "OptiScaler's support files and OptiPatcher (12 files)",
+   "note": "only when the game has no OptiScaler yet"
+  },
+  {
+   "path": "OptiScaler/amd_fidelityfx_upscaler_dx12.dll",
+   "kind": "download",
+   "what": "FSR 4, a BC-250 build"
+  },
+  {
+   "path": "libxess_fg.dll",
+   "kind": "package",
+   "what": "FreeFG: the proxy that runs its own shaders"
+  },
+  {
+   "path": "bc250_xefg_original.dll",
+   "kind": "download",
+   "what": "Intel's XeFG runtime, unmodified"
+  },
+  {
+   "path": "libxell.dll",
+   "kind": "download",
+   "what": "Intel's XeLL (latency), unmodified"
+  },
+  {
+   "path": "nvngx_dlss.dll",
+   "kind": "download",
+   "what": "NVIDIA DLSS, for a DLSS input",
+   "note": "only when OptiScaler finds no copy of the game's own"
+  },
+  {
+   "path": "BC250-XeFG/layer/",
+   "kind": "package",
+   "what": "the pacing layer (Vulkan), 2 files"
+  },
+  {
+   "path": "BC250-XeFG/shaders/",
+   "kind": "package",
+   "what": "33 own shaders and 9 small control files"
+  },
+  {
+   "path": "BC250-XeFG/settings.ini",
+   "kind": "package",
+   "what": "FreeFG's settings"
+  },
+  {
+   "path": ".bc250-xefg-experimental/",
+   "kind": "backup",
+   "what": "the original of every file Setup replaces, the install record and the logs; Restore reads it",
+   "note": "an existing OptiScaler/libxess_fg.dll and libxell.dll move in here (the runtime sits beside the game)"
+  }
+ ],
+ "managed_paths_in_example": [
+  "winmm.dll",
+  "BC250-XeFG/layer/layer.json",
+  "BC250-XeFG/layer/libxefg_wave.so",
+  "BC250-XeFG/settings.ini",
+  "BC250-XeFG/shaders/08155f47bc92811b.dxil",
+  "BC250-XeFG/shaders/1a3b0782583fef19.dxil",
+  "BC250-XeFG/shaders/1f27b449fb99a587.dxil",
+  "BC250-XeFG/shaders/4bb52a635e6d221a.dxil",
+  "BC250-XeFG/shaders/558c3931ba6fb064.dxil",
+  "BC250-XeFG/shaders/5654aa3800432b13.dxil",
+  "BC250-XeFG/shaders/60edebbbd2f9fb69.dxil",
+  "BC250-XeFG/shaders/9e0080eee00255f2.dxil",
+  "BC250-XeFG/shaders/b3941ac8ff95efe7.dxil",
+  "BC250-XeFG/shaders/b3ddf030f661d487.dxil",
+  "BC250-XeFG/shaders/dispatch-scale.txt",
+  "BC250-XeFG/shaders/e83e868f8d5d2c0f.dxil",
+  "BC250-XeFG/shaders/f030948d38e74671.dxil",
+  "BC250-XeFG/shaders/f2e2e13fea432d20.dxil",
+  "BC250-XeFG/shaders/graph-finish224-17-n32.dxil",
+  "BC250-XeFG/shaders/graph-finish224-17.dxil",
+  "BC250-XeFG/shaders/graph-finish224-n32.dxil",
+  "BC250-XeFG/shaders/graph-finish224.dxil",
+  "BC250-XeFG/shaders/graph-finish64-16.dxil",
+  "BC250-XeFG/shaders/graph-finish64-17.dxil",
+  "BC250-XeFG/shaders/graph-matmul224-n32.dxil",
+  "BC250-XeFG/shaders/graph-matmul224.dxil",
+  "BC250-XeFG/shaders/graph-matmul64.dxil",
+  "BC250-XeFG/shaders/graph-prepare224-n32.dxil",
+  "BC250-XeFG/shaders/graph-prepare224.dxil",
+  "BC250-XeFG/shaders/graph-prepare64.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-18-n32.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-18-n48.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-19-n32.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-19-n48.dxil",
+  "BC250-XeFG/shaders/mfg-finish64-18-n32.dxil",
+  "BC250-XeFG/shaders/model-owner.required",
+  "BC250-XeFG/shaders/waves.txt",
+  "BC250-XeFG/shaders/wino-enc16.required",
+  "BC250-XeFG/shaders/wino-ref64-16.dxil",
+  "BC250-XeFG/shaders/wino-ref64-17.dxil",
+  "BC250-XeFG/shaders/wino-ref64-18.dxil",
+  "BC250-XeFG/shaders/wino-ref64.required",
+  "BC250-XeFG/shaders/winograd-adaptive.required",
+  "BC250-XeFG/shaders/winograd-coarse17.required",
+  "BC250-XeFG/shaders/winograd-refine-pitch.required",
+  "BC250-XeFG/shaders/winograd.required",
+  "libxess_fg.dll",
+  "bc250_xefg_original.dll",
+  "libxell.dll",
+  "OptiScaler/libxess_fg.dll",
+  "OptiScaler/libxell.dll",
+  "OptiScaler/amd_fidelityfx_upscaler_dx12.dll",
+  "OptiScaler.ini"
+ ],
+ "launch_options_added": [
+  {
+   "key": "WINEDLLOVERRIDES",
+   "value": "+ winmm=n,b",
+   "what": "Wine loads OptiScaler's DLL from the game folder"
+  },
+  {
+   "key": "VK_LAYER_PATH",
+   "value": "<game folder>/BC250-XeFG/layer",
+   "what": "where the pacing layer is"
+  },
+  {
+   "key": "VK_INSTANCE_LAYERS",
+   "value": "VK_LAYER_BC250_xefg_wave",
+   "what": "turns the pacing layer on"
+  },
+  {
+   "key": "XEFG_WAVE_CONFIG",
+   "value": "<game folder>/BC250-XeFG/shaders/waves.txt",
+   "what": "the layer's list of shader wave sizes"
+  },
+  {
+   "key": "VKD3D_CONFIG",
+   "value": "no_staggered_submit",
+   "what": "a vkd3d-proton submission option"
+  }
+ ],
+ "package_payload": [
+  "BC250-XeFG/layer/layer.json",
+  "BC250-XeFG/layer/libxefg_wave.so",
+  "BC250-XeFG/settings.ini",
+  "BC250-XeFG/shaders/08155f47bc92811b.dxil",
+  "BC250-XeFG/shaders/1a3b0782583fef19.dxil",
+  "BC250-XeFG/shaders/1f27b449fb99a587.dxil",
+  "BC250-XeFG/shaders/4bb52a635e6d221a.dxil",
+  "BC250-XeFG/shaders/558c3931ba6fb064.dxil",
+  "BC250-XeFG/shaders/5654aa3800432b13.dxil",
+  "BC250-XeFG/shaders/60edebbbd2f9fb69.dxil",
+  "BC250-XeFG/shaders/9e0080eee00255f2.dxil",
+  "BC250-XeFG/shaders/b3941ac8ff95efe7.dxil",
+  "BC250-XeFG/shaders/b3ddf030f661d487.dxil",
+  "BC250-XeFG/shaders/dispatch-scale.txt",
+  "BC250-XeFG/shaders/e83e868f8d5d2c0f.dxil",
+  "BC250-XeFG/shaders/f030948d38e74671.dxil",
+  "BC250-XeFG/shaders/f2e2e13fea432d20.dxil",
+  "BC250-XeFG/shaders/graph-finish224-17-n32.dxil",
+  "BC250-XeFG/shaders/graph-finish224-17.dxil",
+  "BC250-XeFG/shaders/graph-finish224-n32.dxil",
+  "BC250-XeFG/shaders/graph-finish224.dxil",
+  "BC250-XeFG/shaders/graph-finish64-16.dxil",
+  "BC250-XeFG/shaders/graph-finish64-17.dxil",
+  "BC250-XeFG/shaders/graph-matmul224-n32.dxil",
+  "BC250-XeFG/shaders/graph-matmul224.dxil",
+  "BC250-XeFG/shaders/graph-matmul64.dxil",
+  "BC250-XeFG/shaders/graph-prepare224-n32.dxil",
+  "BC250-XeFG/shaders/graph-prepare224.dxil",
+  "BC250-XeFG/shaders/graph-prepare64.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-18-n32.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-18-n48.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-19-n32.dxil",
+  "BC250-XeFG/shaders/mfg-finish224-19-n48.dxil",
+  "BC250-XeFG/shaders/mfg-finish64-18-n32.dxil",
+  "BC250-XeFG/shaders/model-owner.required",
+  "BC250-XeFG/shaders/waves.txt",
+  "BC250-XeFG/shaders/wino-enc16.required",
+  "BC250-XeFG/shaders/wino-ref64-16.dxil",
+  "BC250-XeFG/shaders/wino-ref64-17.dxil",
+  "BC250-XeFG/shaders/wino-ref64-18.dxil",
+  "BC250-XeFG/shaders/wino-ref64.required",
+  "BC250-XeFG/shaders/winograd-adaptive.required",
+  "BC250-XeFG/shaders/winograd-coarse17.required",
+  "BC250-XeFG/shaders/winograd-refine-pitch.required",
+  "BC250-XeFG/shaders/winograd.required",
+  "libxess_fg.dll"
+ ],
+ "fresh_setup_files": [
+  "Licenses/DirectX_LICENSE.txt",
+  "Licenses/FidelityFX_v2_LICENSE.md",
+  "Licenses/XeSS_LICENSE.txt",
+  "OptiScaler/D3D12_OptiScaler/D3D12Core.dll",
+  "OptiScaler/Streamlined_fetcher_windows.bat",
+  "OptiScaler/amd_fidelityfx_framegeneration_dx12.dll",
+  "OptiScaler/amd_fidelityfx_loader_dx12.dll",
+  "OptiScaler/amd_fidelityfx_vk.dll",
+  "OptiScaler/dlssg_to_fsr3_amd_is_better.dll",
+  "OptiScaler/libxess.dll",
+  "OptiScaler/libxess_dx11.dll",
+  "OptiScaler/plugins/OptiPatcher.asi"
+ ],
+ "sources": [
+  "Maintainer evidence, live install and Restore of the final 0.9.0 package (2026-10-19): echo-step3-preview.out (install.py preview: the paths it manages in Echo Point Nova) and the Steam launch options before (echo-s2) and after (echo-s3) the install",
+  "The 0.9.0 package's manifest.json (its payload/ files and opti/OptiScaler.dll)",
+  "packaging/dependencies.json (runtime ProxyPackage layout, the fresh-setup and DLSS downloads)",
+  "packaging/install.py install() (dxgi.dll in a fresh setup, an existing OptiScaler's name kept, the backup folder) and packaging/launcher_config.py environment() (the launcher variables)",
+  "The 1.0.0 package's manifest.json: the same payload as 0.9.0's plus five shaders (BC250-XeFG/shaders/mfg-finish*.dxil, the multi-frame network's last layer), a different libxess_fg.dll and opti/OptiScaler.dll (the fork's build of OptiScaler master of 19 October 2026); the file layout is otherwise 0.9.0's"
+ ]
+}

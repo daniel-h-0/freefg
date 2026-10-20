@@ -15,7 +15,7 @@ comparison into a warning; the CI workflow passes it because release/ci/report.p
 that decides about hash mismatches (failure with the pinned toolchain, warning with the current one). The source
 companion is skipped (it needs the fork's git checkout); nothing is archived.
 
-  python3 release/ci/assemble_ci.py [--variant intel-free-2x] [--summary FILE] [--allow-reference-mismatch]
+  python3 release/ci/assemble_ci.py [--variant intel-free-mfg] [--summary FILE] [--allow-reference-mismatch]
 """
 import argparse
 import json
@@ -66,7 +66,7 @@ def ci_spec(config, variant):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--variant', default='intel-free-2x', help='package.json variant (default intel-free-2x)')
+    parser.add_argument('--variant', default='intel-free-mfg', help='package.json variant (default intel-free-mfg)')
     parser.add_argument('--summary', type=Path, help='write the CI summary as JSON')
     parser.add_argument('--allow-reference-mismatch', action='store_true',
                         help='report an add-on that differs from the lock as a warning (unpinned toolchain)')

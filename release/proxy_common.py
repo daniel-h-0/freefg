@@ -82,6 +82,74 @@ API_HOOKS = {
 }
 API_HEADERS = ['inc/xess_fg/xefg_swapchain.h', 'inc/xess_fg/xefg_swapchain_d3d12.h']
 
+# The multi-frame proxy's wrapped entries (variant intel-free-mfg, release/intel_free_mfg.json "hooks": "MFG_PROXY_HOOKS";
+# C side: src/game/mfg_proxy_coexist.h). "before", "replace" and "after" are the ordinary path, as API_HOOKS (without the
+# enabler's frame-start pacer and status map). With "tail_when" true (another module hooks Intel's runtime) the entry
+# runs "tail_before" and then tail-calls Intel's (musttail, so Intel's entry sees this entry's caller), passing the
+# argument named in "tail_replace" as the given expression; work after the call moves to later calls (the first call
+# that carries the handle afterwards runs it before reaching Intel: proxy_ready_first). "always_tail" entries do "before"
+# and always tail-call. GetLastPresentStatus and SetNumInterpolatedFrames take the handle first and stay ordinary calls
+# on both paths. The ordinary initialisation keeps the 2x build's one-frame gate (mfg_proxy_one_frame), so without
+# another module the build accelerates what the 2x build accelerates.
+MFG_PROXY_HOOKS = {
+    'xefgSwapChainD3D12CreateContext': dict(
+        before='proxy_finish_deferred(NULL);'
+               'AcquireSRWLockExclusive(&fast_lifecycle_lock);ID3D12Device*scoped=pDevice&&fast_candidate(pDevice,'
+               '__builtin_return_address(0))?scoped_begin(pDevice):NULL;ReleaseSRWLockExclusive(&fast_lifecycle_lock);',
+        replace=('pDevice', 'scoped?scoped:pDevice'),
+        after='if(scoped){if(result==0&&phSwapChain)scoped_remember(*phSwapChain,scoped);else{scoped_remember((void*)scoped,'
+              'scoped);scoped_destroy((void*)scoped);}}',
+        tail_when='proxy_foreign_hooks()',
+        tail_before='ID3D12Device*tail=proxy_create_foreign(pDevice,phSwapChain,__builtin_return_address(0));',
+        tail_replace=('pDevice', 'tail?tail:pDevice')),
+    'xefgSwapChainD3D12InitFromSwapChain': dict(
+        before='proxy_finish_deferred(hSwapChain);proxy_handle_alive(hSwapChain);proxy_claim(hSwapChain,pCmdQueue);'
+               'if(mfg_proxy_one_frame(hSwapChain,pInitParams))fast_begin_init(hSwapChain);'
+               'ID3D12CommandQueue*scoped=scoped_application_queue(hSwapChain,pCmdQueue);',
+        replace=('pCmdQueue', 'scoped?scoped:pCmdQueue'),
+        after='if(scoped)scoped_release((void*)scoped);if(result==0){proxy_frames_init(hSwapChain,pInitParams);'
+              'fast_ready(hSwapChain);mfg_tag_capture(hSwapChain);}'
+              'if(result==0&&fast_scope&&fast_context_scope(hSwapChain)==fast_scope)mfg_settings_note_context(hSwapChain);',
+        tail_when='proxy_foreign_hooks()',
+        tail_before='proxy_frames_init(hSwapChain,pInitParams);ID3D12CommandQueue*tail=proxy_init_foreign(hSwapChain,pCmdQueue);',
+        tail_replace=('pCmdQueue', 'tail?tail:pCmdQueue')),
+    'xefgSwapChainD3D12InitFromSwapChainDesc': dict(
+        before='proxy_finish_deferred(hSwapChain);proxy_handle_alive(hSwapChain);proxy_claim(hSwapChain,pCmdQueue);'
+               'if(mfg_proxy_one_frame(hSwapChain,pInitParams))fast_begin_init(hSwapChain);'
+               'ID3D12CommandQueue*scoped=scoped_application_queue(hSwapChain,pCmdQueue);',
+        replace=('pCmdQueue', 'scoped?scoped:pCmdQueue'),
+        after='if(scoped)scoped_release((void*)scoped);if(result==0){proxy_frames_init(hSwapChain,pInitParams);'
+              'fast_ready(hSwapChain);mfg_tag_capture(hSwapChain);}'
+              'if(result==0&&fast_scope&&fast_context_scope(hSwapChain)==fast_scope)mfg_settings_note_context(hSwapChain);',
+        tail_when='proxy_foreign_hooks()',
+        tail_before='proxy_frames_init(hSwapChain,pInitParams);ID3D12CommandQueue*tail=proxy_init_foreign(hSwapChain,pCmdQueue);',
+        tail_replace=('pCmdQueue', 'tail?tail:pCmdQueue')),
+    'xefgSwapChainDestroy': dict(
+        before='proxy_claim(hSwapChain,NULL);proxy_ready_drop(hSwapChain);proxy_frames_forget(hSwapChain);'
+               'int settings_owned=fast_scope&&fast_context_scope(hSwapChain)==fast_scope;fast_report(hSwapChain);',
+        after='if(result==0){AcquireSRWLockExclusive(&fast_lifecycle_lock);fast_finish(hSwapChain);scoped_destroy(hSwapChain);'
+              'ReleaseSRWLockExclusive(&fast_lifecycle_lock);}'
+              'if(result==0&&settings_owned)mfg_settings_clear_context();',
+        tail_when='proxy_foreign_hooks()',
+        tail_before='proxy_frames_forget(hSwapChain);proxy_destroy_foreign(hSwapChain);'),
+    'xefgSwapChainGetLastPresentStatus': dict(
+        before='proxy_ready_first(hSwapChain);',
+        after='if(result==0&&pPresentStatus){proxy_status_from_caller(pPresentStatus);if(calls<=4||calls%300==0){'
+              'char line[160];snprintf(line,sizeof(line),"MFG_PRESENT enabled=%u status=%d presents=%u\\n",'
+              'pPresentStatus->isFrameGenEnabled,pPresentStatus->frameGenResult,pPresentStatus->framesPresented);'
+              'proxy_log(line);}}'),
+    'xefgSwapChainSetNumInterpolatedFrames': dict(
+        before='proxy_ready_first(hSwapChain);',
+        after='if(result==0)proxy_frames_changed(hSwapChain,numInterpolatedFrames);'),
+    # Callers ask for the swap chain right after a successful initialisation, before any frame-count change: with the
+    # initialisation tail-called, its deferred work (model census, network) runs here.
+    'xefgSwapChainD3D12GetSwapChainPtr': dict(
+        before='proxy_ready_first(hSwapChain);', always_tail=True),
+    'xefgSwapChainTagFrameConstants': dict(
+        before='proxy_frame_tick(hSwapChain);', always_tail=True),
+}
+HOOK_TABLES = {'MFG_PROXY_HOOKS': MFG_PROXY_HOOKS}
+
 # The add-on's copy of the probe core: src/probe.c up to this include, with these replacements (each must match once).
 PROBE_SPLIT = '#include "scene_motion.h"'
 PROBE_PATCHES = [

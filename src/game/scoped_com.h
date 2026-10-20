@@ -21,6 +21,18 @@ static ULONG STDMETHODCALLTYPE scoped_addref(struct scoped_com*p){return Interlo
 static ULONG STDMETHODCALLTYPE scoped_release(struct scoped_com*p){
  ULONG refs=InterlockedDecrement(&p->refs);if(!refs){IUnknown_Release(p->real);if(!InterlockedDecrement(&p->tables->refs))HeapFree(GetProcessHeap(),0,p->tables);HeapFree(GetProcessHeap(),0,p);}return refs;
 }
+static void mfg_retire_scoped(struct scoped_com*);
+/* Only the adapter's lifetime reference remains. The SDK has released every
+ * external wrapper reference; active SDK lists/queues cannot enter this set. */
+static void scoped_collect_idle(UINT scope){
+ struct scoped_com*retired=NULL;AcquireSRWLockExclusive(&scoped_lock);
+ struct scoped_com**link=&scoped_objects;while(*link){struct scoped_com*p=*link;
+  if(p->scope==scope&&p->kind!=SCOPED_DEVICE&&InterlockedCompareExchange(&p->refs,0,0)==1){*link=p->next;p->next=retired;retired=p;}
+  else link=&p->next;
+ }
+ ReleaseSRWLockExclusive(&scoped_lock);
+ while(retired){struct scoped_com*p=retired;retired=p->next;mfg_retire_scoped(p);scoped_release(p);}
+}
 static int scoped_iid(UINT kind,REFIID iid){
  if(IsEqualGUID(iid,&IID_IUnknown)||IsEqualGUID(iid,&IID_ID3D12Object))return 1;
  if(kind==SCOPED_DEVICE)return IsEqualGUID(iid,&IID_ID3D12Device)||IsEqualGUID(iid,&IID_ID3D12Device1)||IsEqualGUID(iid,&IID_ID3D12Device2)||IsEqualGUID(iid,&IID_ID3D12Device3)||IsEqualGUID(iid,&IID_ID3D12Device4)||IsEqualGUID(iid,&IID_ID3D12Device5)||IsEqualGUID(iid,&IID_ID3D12Device6)||IsEqualGUID(iid,&IID_ID3D12Device7)||IsEqualGUID(iid,&IID_ID3D12Device8)||IsEqualGUID(iid,&IID_ID3D12Device9)||IsEqualGUID(iid,&IID_ID3D12Device10);

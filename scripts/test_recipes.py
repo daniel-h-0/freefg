@@ -196,6 +196,96 @@ class MatchTests(unittest.TestCase):
         self.assertIn('granblue_fantasy_relink.exe', data['leave_auto'])
 
 
+class BuildTests(unittest.TestCase):
+    """research/recipes/build_recipes.py: what the shipped recipe file keeps, and what the build refuses."""
+    ROOT = Path(__file__).resolve().parents[1]
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('build_recipes', cls.ROOT/'research/recipes/build_recipes.py')
+        cls.b = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.b)
+        cls.data = r.load(cls.ROOT/'packaging/recipes/recipes.json')
+        import compat
+        cls.compat = compat
+
+    def test_every_condition_survives(self):
+        # 0.9.0 kept six condition keys, so Hellraiser's AlwaysCaptureFSRFGSwapchain=true lost "if stuck on boot".
+        hell = next(w for w in self.data['wiki'] if w['title'].startswith("Clive Barker's Hellraiser"))
+        item = next(i for i in hell['ini'] if i['key'] == 'OptiFG.AlwaysCaptureFSRFGSwapchain')
+        self.assertEqual(item['when']['condition'], 'stuck on boot')
+        extra = [i for w in self.data['wiki'] for i in w.get('ini', []) if set(i.get('when', {})) - {'fg_input', 'gpu', 'upscaler_input', 'os', 'api', 'fg_output'}]
+        self.assertGreaterEqual(len(extra), 49)
+        # A conditional DX12 argument is not L1 (ODDRoom: "if DLSS input doesn't work").
+        odd = next(w for w in self.data['wiki'] if w['title'] == 'ODDRoom')
+        self.assertNotIn('launch_args', odd)
+        self.assertIn('-dx12', odd['other_launch_args'])
+
+    def test_sources_and_backports_follow_the_shipped_build(self):
+        self.assertEqual(self.data['sources']['optiscaler_pinned'], 'f971ed143de0bdbbbac6d526c95a20227c22e1c6')
+        self.assertTrue(self.data['sources']['wiki'].startswith('9812e2d'))
+        self.assertEqual(list(self.data['backports']), ['beamng.drive.x64.exe'])
+        self.assertEqual(sorted(self.data['leave_auto']), ['dcs.exe', 'endfield.exe', 'granblue_fantasy_relink.exe'])
+        # Q2 answered: the shipped build itself keeps CONTROL Resonant's FG swap chain unpreserved (a runtime quirk).
+        control = self.data['quirk_keys']['controlresonant.exe']
+        self.assertEqual([v for k, v in control.items() if 'PreserveSwapChain' in k], ['false'])
+
+    def test_every_verified_recipe_has_its_evidence(self):
+        for v in self.data['verified']:
+            self.assertIn(v['evidence'], ('gameplay', 'generates', 'startup', 'installed', 'fails'), v['title'])
+            self.assertTrue(v['observed'], v['title'])
+
+    def test_installer_keys_alike(self):
+        self.assertEqual(self.compat.INSTALLER_KEYS, self.b.INSTALLER_KEYS)
+
+    def test_promotion_needs_the_drafts_item_and_an_allowed_key(self):
+        wk = [dict(title='Game', match=dict(title=['game']), ini=[dict(key='Hotfix.ColorResourceBarrier', value='4'),
+                                                                 dict(key='OptiFG.HUDFix', value='true')])]
+        with tempfile.TemporaryDirectory() as tmp:
+            review = Path(tmp)/'review.json'
+            review.write_text(json.dumps(dict(items=[dict(title='Game', key='Hotfix.ColorResourceBarrier', value='4', decision='promote'),
+                                                     dict(title='Game', key='OptiFG.HUDFix', value='true', decision='reject')])))
+            self.assertEqual(self.b.promote(wk, review), 1)
+            self.assertEqual(wk[0]['promoted'], [dict(key='Hotfix.ColorResourceBarrier', value='4')])
+            for item, message in [(dict(title='Game', key='Hotfix.ColorResourceBarrier', value='8', decision='promote'), 'not an INI item'),
+                                  (dict(title='Game', key='OptiFG.HUDFix', value='true', decision='promote'), 'H1')]:
+                review.write_text(json.dumps(dict(items=[item])))
+                with self.assertRaisesRegex(SystemExit, message):
+                    self.b.promote([dict(wk[0], promoted=[])], review)
+        shipped = [(w['title'], p['key']) for w in self.data['wiki'] for p in w.get('promoted', [])]
+        self.assertIn(('Soulstice', 'Hotfix.ColorResourceBarrier'), shipped)
+        self.assertNotIn('Alan Wake II', [t for t, _ in shipped])  # its condition ("if crashing") was missed: rejected
+
+    GOOD = dict(title='Game', match=dict(steam=['42'], exe=['game-win64-shipping.exe']), status='community-bc250', route='opti',
+                fg_input='upscaler', ini={'Hotfix.ColorResourceBarrier': '4'}, game_settings=[], launch_args=['-dx12'],
+                manual_steps=['Choose DLSS.'], reports=[dict(issue=1, freefg='0.9.1', proton='GE-Proton11-7', ratio=2.0, minutes=30,
+                                                             starts=3, restore_checked=True, date='2026-11-02')],
+                reviewed_by='maintainer', reviewed='2026-11-03')
+
+    def test_community_recipes_are_checked(self):
+        self.assertEqual(self.b.check_community(self.GOOD), [])
+        cases = [(dict(ini={'OptiFG.HUDFix': 'true'}), 'H1'), (dict(ini={'fakenvapi.ForceReflex': '0'}), 'installer'), (dict(ini={'fakenvapi.EnableLogs': 'true'}), 'R1'),
+                 (dict(ini={'Spoofing.Dxgi': 'false'}), 'D1'), (dict(fg_input='fsrfg30'), 'FSR 3.0'),
+                 (dict(fg_input='dlssg', manual_steps=[]), 'F2'), (dict(launch_args=['-dx11']), 'DX12 switches'),
+                 (dict(game_settings=[dict(file='/tmp/a.ini', format='ini', section='S', values={'a': '1'})]), 'relative'),
+                 (dict(reports=[dict(self.GOOD['reports'][0], ratio=1.0)]), 'below the bar'), (dict(status='verified-bc250'), 'status'),
+                 (dict(match=dict(exe=['game.exe']), title=''), 'missing title')]
+        for change, message in cases:
+            self.assertTrue(any(message in p for p in self.b.check_community(dict(self.GOOD, **change))), (change, message))
+        quirks = {'game-win64-shipping.exe': {'Hotfix.ColorResourceBarrier': '4'}}
+        self.assertTrue(any('Q1' in p for p in self.b.check_community(self.GOOD, quirks)))
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp)/'42.json').write_text(json.dumps(dict(self.GOOD, ini={'OptiFG.HUDFix': 'true'})))
+            with self.assertRaisesRegex(SystemExit, '42.json'):
+                self.b.community(Path(tmp))
+            (Path(tmp)/'42.json').write_text(json.dumps(self.GOOD))
+            self.assertEqual([c['title'] for c in self.b.community(Path(tmp))], ['Game'])
+            built = self.b.compact(dict(schema=1, sources=dict(wiki_url='u/'), verified=[], community=self.b.community(Path(tmp)),
+                                        leave_auto={}, backports={}, wiki=[]), '0')
+            self.assertEqual(built['community'][0]['reports'], 1)
+
+
 class RecipeInstallTests(unittest.TestCase):
     """The installer with a Steam library layout, a Proton prefix and a recipe."""
     def setUp(self):
@@ -253,6 +343,7 @@ class RecipeInstallTests(unittest.TestCase):
         self.assertEqual(json.loads(self.renderer.read_bytes())['m_eDLSSFGMode'], 1)
         self.assertTrue(self.options().endswith('%command% --skip-intro -dx12'))
         record = json.loads((self.game/self.m.STATE/'state.json').read_text())
+        self.assertEqual(record['launch_args_added'], ['-dx12'])
         self.assertEqual(record['recipe']['title'], 'Test Game')
         self.assertEqual(record['game_settings'][0]['status'], 'applied')
         self.m.restore(self.exe)
@@ -549,8 +640,14 @@ class RecipeInstallTests(unittest.TestCase):
     def test_user_api_argument_wins(self):
         self.original_config = self.original_config.replace(b'--skip-intro', b'-dx11')
         self.config.write_bytes(self.original_config)
-        self.m.install(self.package, self.exe, route='opti', fg_input='dlssg')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.m.install(self.package, self.exe, route='opti', fg_input='dlssg')
         self.assertNotIn('-dx12', self.options())
+        # Said as it is: the recipe's switch was not added (0.9.0 printed "Launch option added: -dx12").
+        self.assertNotIn('Launch option added', out.getvalue())
+        self.assertIn('Launch option not added: -dx12', out.getvalue())
+        self.assertEqual(self.record()['launch_args_added'], [])
         self.m.restore(self.exe)
         self.assertOriginal()
 

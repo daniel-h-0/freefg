@@ -42,6 +42,15 @@ class Doctor(unittest.TestCase):
     ENABLER = dict(name='x', files={'payload/version.dll': '0' * 64,
                                     'payload/OptiScaler/plugins/BC250-XeFG/shaders/mfg-frame-settings.required': '0' * 64})
 
+    def test_games_row_points_to_the_compatibility_check(self):
+        card(self.drm, 'card0', '0x1002', '0x13fe')
+        package = self.drm / 'package'
+        package.mkdir()
+        (package / 'compat.py').write_text('')
+        level, text = self.rows(self.PROXY)['Games']
+        self.assertEqual(level, 'INFO')
+        self.assertIn('install.py check --all', text)
+
     def test_proxy_build_on_another_gpu_promises_no_pacing_or_scaling(self):
         card(self.drm, 'card0', '0x1002', '0x731f')
         rows = self.rows(self.PROXY)

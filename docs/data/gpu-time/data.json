@@ -1,0 +1,90 @@
+{
+ "figure": "gpu-time-per-generated-frame",
+ "question": "Where does the GPU time of one generated frame go, and which part does FreeFG run with its own shaders?",
+ "conditions": {
+  "gpu": "AMD BC-250",
+  "test": "the project's XeFG SDK test program, headless, output 2560x1440 SDR, engine motion vectors, 2x, GPU timestamps around every dispatch of the frame-generation graph",
+  "freefg": "the released proxy (3bb43859), 3 runs x 220 generated frames of the synthetic scene with 1280x720 inputs, 2026-10-18",
+  "intel": "Intel's runtime with its own shaders, 1 run x 180 generated frames of replayed game inputs at 2560x1440, 2026-09-27"
+ },
+ "stages": [
+  {
+   "stage": "Reconstruction network",
+   "freefg_runs": "own shaders",
+   "intel_ms": 5.118,
+   "freefg_ms": 1.93,
+   "intel_shader_count": 11,
+   "freefg_shader_count": 11
+  },
+  {
+   "stage": "Optical flow: 224-channel layers",
+   "freefg_runs": "own shaders",
+   "intel_ms": 1.235,
+   "freefg_ms": 0.438,
+   "intel_shader_count": 2,
+   "freefg_shader_count": 4
+  },
+  {
+   "stage": "Optical flow: 64-channel refinement",
+   "freefg_runs": "own shaders",
+   "intel_ms": 1.294,
+   "freefg_ms": 0.565,
+   "intel_shader_count": 2,
+   "freefg_shader_count": 2
+  },
+  {
+   "stage": "Warp",
+   "freefg_runs": "Intel's shaders",
+   "intel_ms": 0.818,
+   "freefg_ms": 0.819,
+   "intel_shader_count": 1,
+   "freefg_shader_count": 1
+  },
+  {
+   "stage": "Other optical-flow passes",
+   "freefg_runs": "Intel's shaders",
+   "intel_ms": 0.602,
+   "freefg_ms": 0.456,
+   "intel_shader_count": 11,
+   "freefg_shader_count": 11
+  },
+  {
+   "stage": "Motion splat and compose",
+   "freefg_runs": "Intel's shaders",
+   "intel_ms": 0.693,
+   "freefg_ms": 0.291,
+   "intel_shader_count": 2,
+   "freefg_shader_count": 2
+  }
+ ],
+ "totals": {
+  "intel_ms": 9.76,
+  "freefg_ms": 4.5,
+  "freefg_own_ms": 2.93,
+  "freefg_intel_ms": 1.57,
+  "gaps_between_dispatches_ms": {
+   "freefg": 0.2656,
+   "intel": 0.2514
+  },
+  "saved_ms": 5.26,
+  "replaced_stages_intel_ms": 7.65,
+  "saved_in_replaced_stages_ms": 4.71,
+  "kept_stages_difference_ms": 0.55
+ },
+ "cross_check": {
+  "note": "Cyberpunk 2077, headless, 2x SDR (figure cyberpunk-2x-fps): measured FPS change with the proxy against Intel's shaders",
+  "intel_fps": 85.31,
+  "freefg_fps": 103.28,
+  "measured_change_percent": 21.1
+ },
+ "notes": [
+  "Stage times are sums of dispatch times; the gaps between dispatches are not included.",
+  "The two bars come from different runs: the Intel reference replayed captured game inputs at 2560x1440, the FreeFG runs used a synthetic scene with 1280x720 inputs (both with 2560x1440 output). Passes that FreeFG leaves to Intel's shaders therefore differ between the bars (the motion splat most: a 320x180 grid against 160x90). The reference run used another variant of Intel's 2x warp, on the same 160x45 grid.",
+  "saved_ms includes the difference in the passes that run Intel's shaders in both bars (kept_stages_difference_ms), which comes from the different inputs; saved_in_replaced_stages_ms compares only the stages FreeFG runs with its own shaders.",
+  "Intel shaders that FreeFG's own helper passes stand in for (the 224- and 64-channel optical-flow layers) are matched by dispatch grid and call count."
+ ],
+ "sources": [
+  "Maintainer evidence, per-dispatch GPU budget of the release pipeline (a later GPU-budget study, 2026-10-19): summary.json rows \"sdr-engine-2x\" (SDK runs abl1-t-base-sdr-engine-2x-{1,8,15}) and \"intel-stock-2x-reference\" (SDK replay run replay-long1-stock-2x), from the probe's TIME lines",
+  "Cross-check: docs/data/cyberpunk-fps/data.json"
+ ]
+}

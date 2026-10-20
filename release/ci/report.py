@@ -22,12 +22,18 @@ from common import ReleaseError, annotate, build_config, load_lock, sha256, step
 
 # Lock output key -> (build directory, file, toolchain key for the system-header digest), or None when CI cannot build it.
 OUTPUTS = {
-    'libxess_fg.dll (intel-free-2x)': ('addon-intel-free-2x', 'libxess_fg.dll', 'addon (intel-free-2x)'),
+    'libxess_fg.dll (intel-free-mfg)': ('addon-intel-free-mfg', 'libxess_fg.dll', 'addon (intel-free-mfg)'),
     'libxefg_wave.so': ('layer', 'libxefg_wave.so', 'layer'),
+    'libxess_fg.dll (intel-free-2x)': None,
     'BC250-MFG.asi': None,
     'BC250-MFG.asi (intel-free)': None,
 }
 NOT_BUILDABLE = 'a maintainers\' build that needs private work-directory inputs'
+# Lock outputs CI cannot build for another reason than private inputs.
+NOT_BUILDABLE_NOTES = {
+    'libxess_fg.dll (intel-free-2x)': '0.9.0\'s 2x-only proxy: the public sources are resolved for the multi-frame build '
+                                      '(intel-free-mfg), so this tree does not build it',
+}
 
 
 def compare(config):
@@ -37,7 +43,8 @@ def compare(config):
         where = OUTPUTS.get(key)
         row = dict(output=key, reference=reference)
         if where is None:
-            row.update(status='not buildable here', note=NOT_BUILDABLE if key in OUTPUTS else 'unknown output')
+            row.update(status='not buildable here', note=NOT_BUILDABLE_NOTES.get(key, NOT_BUILDABLE) if key in OUTPUTS
+                       else 'unknown output')
             rows.append(row)
             continue
         folder, name, toolchain_key = where

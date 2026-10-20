@@ -133,6 +133,22 @@ class ProxyInstallTests(ProxyFixture):
         values=self.opti_ini();self.assertEqual(values[('xefg','interpolationcount')],'1');self.assertEqual(values[('fakenvapi','forcereflex')],'0')
         self.assertEqual(self.env()['WINEDLLOVERRIDES'],'dxgi=n,b')
         m.restore(self.exe);self.assertFalse(ini.exists())
+    def test_fresh_setup_loads_optipatcher(self):
+        # A fresh setup places OptiPatcher (dependencies.json payload) and must let OptiScaler load it: the pinned INI's
+        # LoadAsiPlugins=auto means false, which left OptiPatcher unloaded in 0.9.0's proxy packages.
+        deps=self.fresh();m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        self.assertTrue((self.game/'OptiScaler/plugins/OptiPatcher.asi').is_file())
+        self.assertEqual(self.opti_ini()[('plugins','loadasiplugins')],'true')
+        self.assertIn(dict(section='Plugins',key='LoadAsiPlugins',value='true'),self.record()['ini_changes'])
+        m.restore(self.exe);self.assertFalse((self.game/'OptiScaler.ini').exists())
+        self.assertFalse((self.game/'OptiScaler/plugins/OptiPatcher.asi').exists())
+    def test_fresh_setup_keeps_an_explicit_plugin_choice(self):
+        # A pinned INI that already says something other than auto is OptiScaler's own choice: left alone.
+        pins=json.loads((self.package/'dependencies.json').read_text());ini=b'[Plugins]\nLoadAsiPlugins=false\n'
+        m.write(self.deps/'OptiScaler.ini',ini);pins['payload']['Files']['OptiScaler.ini']=m.digest(ini)
+        set_package_file(self.package,'dependencies.json',json.dumps(pins).encode())
+        deps=self.fresh();m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        self.assertEqual(self.opti_ini()[('plugins','loadasiplugins')],'false');m.restore(self.exe)
     def test_another_mods_version_dll_is_left_alone(self):
         (self.game/'version.dll').write_bytes(b'other mod')
         m.install(self.package,self.exe,route='opti');self.assertEqual((self.game/'version.dll').read_bytes(),b'other mod')

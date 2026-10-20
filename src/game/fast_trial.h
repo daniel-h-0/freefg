@@ -13,6 +13,8 @@ static int profile_lists_replacement(uint64_t shader){
  return 0;
 }
 #include "timing.h"
+#include "mfg_pipeline_cache.h"
+static void proxy_pair_note(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,ID3D12PipelineState*);static void proxy_owner_released(void);
 static UINT fast_scope;
 static LONG fast_claimed;
 static SRWLOCK fast_record_lock=SRWLOCK_INIT;
@@ -20,6 +22,9 @@ static SRWLOCK fast_lifecycle_lock=SRWLOCK_INIT;
 /* Called only after successful SDK destruction and confirmed GPU completion.
  * Counts alone are insufficient: reused slots contain descriptor/root state. */
 static void fast_reset_tracking(void){
+ mfg_pool_release();mfg_release_pipeline_cache();
+ memset(flow_lists,0,sizeof(flow_lists));flow_list_count=0;flow_cap_enabled=0;flow_frames=0;
+ memset(flow_psos,0,sizeof(flow_psos));flow_pso_count=0;
  memset(psos,0,sizeof(psos));npsos=0;
  memset(bindings,0,sizeof(bindings));nbinding=0;
  memset(split_z,0,sizeof(split_z));split_count=0;
@@ -29,6 +34,7 @@ static void fast_reset_tracking(void){
  memset(model_lists,0,sizeof(model_lists));model_list_count=0;
  memset(model_roots,0,sizeof(model_roots));memset(model_graph_roots,0,sizeof(model_graph_roots));model_root_count=0;
  memset(graph_prepare,0,sizeof(graph_prepare));memset(graph_multiply,0,sizeof(graph_multiply));
+ memset(graph_finish_mfg,0,sizeof(graph_finish_mfg));
  memset(graph_finish,0,sizeof(graph_finish));memset(graph_finish_coarse17,0,sizeof(graph_finish_coarse17));
  memset(graph_input,0,sizeof(graph_input));memset(graph_output,0,sizeof(graph_output));memset(graph_capacity,0,sizeof(graph_capacity));
  memset(graph_retired,0,sizeof(graph_retired));graph_retired_count=0;
@@ -39,7 +45,8 @@ static void fast_reset_tracking(void){
 }
 static HRESULT STDMETHODCALLTYPE fast_compute(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,REFIID iid,void**out){
  AcquireSRWLockExclusive(&fast_record_lock);HRESULT hr;
- hr=compute_hook(d,desc,iid,out);if(SUCCEEDED(hr))ID3D12PipelineState_AddRef((ID3D12PipelineState*)*out);
+ hr=mfg_cached_compute(d,desc,iid,out);
+ if(SUCCEEDED(hr))proxy_pair_note(d,desc,*out);  /* beside another module: Intel's original next to a replacement */
  ReleaseSRWLockExclusive(&fast_record_lock);return hr;
 }
 static void STDMETHODCALLTYPE fast_set(ID3D12GraphicsCommandList*l,ID3D12PipelineState*p){
@@ -124,6 +131,7 @@ static __attribute__((noinline)) int fast_prepare(ID3D12Device*d){
  set_original=l->lpVtbl->SetPipelineState;dispatch_original=l->lpVtbl->Dispatch;
  replace((void*)&l->lpVtbl->SetPipelineState,fast_set);replace((void*)&l->lpVtbl->Dispatch,fast_dispatch);
  install_graph(d,q);
+ install_flow_cap(l,0,0);
  ID3D12CommandQueue_Release(q);ID3D12GraphicsCommandList_Release(l);ID3D12CommandAllocator_Release(a);
  fast_scope=((struct scoped_com*)d)->scope;
  logline("PRIVATE GAME TRIAL scoped prepared-model and Winograd path installed\n");
@@ -145,9 +153,13 @@ static void fast_begin_init(xefg_swapchain_handle_t handle){
  }
  if(d)scoped_release(d);ReleaseSRWLockExclusive(&fast_lifecycle_lock);
 }
-static void fast_ready(xefg_swapchain_handle_t handle){if(fast_scope&&fast_context_scope(handle)==fast_scope&&!graph_ready){model_seal_allocations();graph_initialize();}}
+static void fast_ready(xefg_swapchain_handle_t handle){if(fast_scope&&fast_context_scope(handle)==fast_scope&&!graph_ready){model_seal_allocations();if(!proxy_aside_active())graph_initialize();}}
 static void fast_report(xefg_swapchain_handle_t handle){
+ if(fast_scope&&fast_context_scope(handle)==fast_scope)frame_report();
+ if(fast_scope&&fast_context_scope(handle)==fast_scope){char line[120];snprintf(line,sizeof(line),"FLOW_CAP frames=%llu\n",(unsigned long long)flow_frames);logline(line);}
 if(fast_scope&&fast_context_scope(handle)==fast_scope){game_timing_dump();graph_report();
+ char pool_line[160];snprintf(pool_line,sizeof(pool_line),"MFG_POOL unique=%u reused=%llu aliases=%u pipelines=%u pipeline_hits=%llu roots=%u\n",model_count,(unsigned long long)mfg_pool_hits,mfg_alias_count,mfg_pipeline_count,(unsigned long long)mfg_pipeline_hits,mfg_root_cache_count);logline(pool_line);
+ char tracking_line[240];snprintf(tracking_line,sizeof(tracking_line),"MFG_TRACKING heaps=%u descriptors=%u model_lists=%u flow_lists=%u frame_lists=%u graph_lists=%u bindings=%u\n",model_heap_count,model_descriptor_count,model_list_count,flow_list_count,frame_list_count,graph_list_count,nbinding);logline(tracking_line);
 }}
 static void fast_finish(xefg_swapchain_handle_t handle){
  if(!handle)return;
@@ -160,21 +172,26 @@ static void fast_finish(xefg_swapchain_handle_t handle){
   if(fence)ID3D12Fence_Release(fence);if(event)CloseHandle(event);
   if(!idle){proxy_log("FAST_RETAIN GPU completion unconfirmed; resources held until process exit\n");return;}
  }
+ frame_release();
+ for(UINT i=0;i<flow_pso_count;i++)ID3D12PipelineState_Release(flow_psos[i].capped);
  for(UINT i=0;i<3;i++){if(graph_prepare[i])ID3D12PipelineState_Release(graph_prepare[i]);if(graph_multiply[i])ID3D12PipelineState_Release(graph_multiply[i]);}
  game_timing_release();
  for(UINT i=0;i<4;i++)if(graph_finish[i])ID3D12PipelineState_Release(graph_finish[i]);
+ for(UINT i=0;i<5;i++)if(graph_finish_mfg[i])ID3D12PipelineState_Release(graph_finish_mfg[i]);
  for(UINT i=0;i<3;i++)if(graph_ref64_pso[i]){ID3D12PipelineState_Release(graph_ref64_pso[i]);graph_ref64_pso[i]=NULL;}
  for(UINT i=0;i<2;i++){if(graph_finish_coarse17[i])ID3D12PipelineState_Release(graph_finish_coarse17[i]);if(graph_input[i])ID3D12Resource_Release(graph_input[i]);if(graph_output[i])ID3D12Resource_Release(graph_output[i]);}
  for(UINT i=0;i<graph_retired_count;i++)ID3D12Resource_Release(graph_retired[i]);
  for(LONG i=0;i<npsos;i++)ID3D12PipelineState_Release((ID3D12PipelineState*)psos[i].p);
  for(UINT i=0;i<model_count;i++){if(models[i].upload)ID3D12Resource_Release(models[i].upload);ID3D12Resource_Release(models[i].r);}
  for(UINT i=0;i<model_root_count;i++)ID3D12RootSignature_Release(model_roots[i]);
- for(UINT i=0;i<model_heap_count;i++)ID3D12DescriptorHeap_Release(model_heaps[i].h);
+ mfg_release_roots();
  if(graph_queue)ID3D12CommandQueue_Release(graph_queue);
  /* Restore this context's private forwarding before allowing a fresh owner. */
  AcquireSRWLockExclusive(&scoped_lock);
  for(UINT i=0;i<16;i++)if(scoped_contexts[i].handle==handle){struct scoped_tables*t=scoped_contexts[i].device->tables;memcpy(t->device,scoped_device_vtable,sizeof(t->device));memcpy(t->list,scoped_list_vtable,sizeof(t->list));memcpy(t->queue,scoped_queue_vtable,sizeof(t->queue));break;}
  ReleaseSRWLockExclusive(&scoped_lock);fast_scope=0;CloseHandle(output);output=INVALID_HANDLE_VALUE;
  proxy_log("FAST_RELEASED GPU completion verified; private resources released\n");
- fast_reset_tracking();InterlockedExchange(&fast_claimed,0);
+ fast_reset_tracking();
+ proxy_owner_released();
+ InterlockedExchange(&fast_claimed,0);
 }

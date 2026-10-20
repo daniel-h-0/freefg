@@ -54,6 +54,79 @@ def wait_closed(installer,selected,launchers):
         if result.returncode:return False
     return True
 
+# The upscaler choice (install.py --upscaler). HelixSR is a separate project by lonewolf0622: Setup downloads its official
+# release from its GitHub releases when the user asks, and the user builds it once with HelixSR's own setup.
+UPSCALER_ROWS=['FSR 4','Default: the BC-250 build of AMD FSR 4, downloaded by checked hash',
+               'HelixSR (by lonewolf0622)','NVIDIA’s DLSS network as compute shaders: a separate project by lonewolf0622, under its own licence']
+HELIXSR_ABOUT=('HelixSR is a separate project by lonewolf0622 (github.com/lonewolf0622/HelixSR), under its own licence (the '
+               'HelixSR Freeware License). It runs NVIDIA’s DLSS network as compute shaders. This package ships none of it.')
+
+def run_and_show(args,text):
+    """Run install.py with args under a progress window, then show what it printed."""
+    with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
+        output=Path(temporary)/'result.txt'
+        with output.open('w') as stream:
+            process=subprocess.Popen([sys.executable,'-u',str(ROOT/'install.py'),*args],stdout=stream,stderr=subprocess.STDOUT)
+            progress=subprocess.Popen(['zenity','--progress','--pulsate','--no-cancel','--auto-close','--title='+NAME,'--text='+text],
+                                      stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            process.wait()
+            try:progress.communicate(b'100\n',timeout=10)
+            except (subprocess.TimeoutExpired,BrokenPipeError):progress.terminate();progress.wait()
+        dialog('--text-info','--width=1000','--height=520','--filename='+str(output))
+
+def helixsr_ready(installer):
+    """True when a HelixSR release built by its own setup is on this computer. Otherwise, on the user's go, Setup
+    downloads the official release and shows how to build it once with HelixSR's own setup (False: back to the menu)."""
+    if installer is None:
+        dialog('--error','--text=Setup cannot read install.py; use the command line (README.md).');return False
+    try:found=installer.helixsr.find(ROOT)
+    except Exception as error:  # noqa: BLE001 - a broken pin or folder is shown, never a crash
+        dialog('--error','--text='+str(error));return False
+    if found['state']=='ready':return True
+    if found['state'] in ('missing','unknown'):
+        # No HelixSR here, or only one this package does not know (another version or a changed DLL): offer the official one.
+        size=installer.helixsr.pins(ROOT)['input']['size']
+        ignored=('Not used: '+found['message']+'\n\n') if found['state']=='unknown' else ''
+        if dialog('--question','--width=700','--text='+ignored+HELIXSR_ABOUT+'\n\nDownload the official HelixSR '+str(found['pinned'])+
+                  ' release from its GitHub releases ('+str(round(size/1e6))+' MB, complete and unmodified, checked by SHA-256)?\n'
+                  'Setup then shows how to build it once with HelixSR’s own setup, which asks you before it downloads NVIDIA’s DLSS DLL.') is None:
+            return False
+        run_and_show(['helixsr'],'Downloading HelixSR from github.com/lonewolf0622/HelixSR.')
+        return False
+    with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
+        note=Path(temporary)/'helixsr.txt';note.write_text(installer.helixsr.guidance(found)+'\n')
+        dialog('--text-info','--width=1000','--height=520','--filename='+str(note))
+    return False
+
+def choose_upscaler(installer,text):
+    """install.py arguments for the upscaler the user picks, or None (cancelled, or HelixSR not ready yet)."""
+    choice=dialog('--list','--width=900','--height=300','--column=Upscaler','--column=About',*UPSCALER_ROWS,'--text='+text)
+    if not choice:return None
+    if choice=='FSR 4':return ['--upscaler','fsr4']
+    return ['--upscaler','helixsr'] if helixsr_ready(installer) else None
+
+def verdicts(installer,selected,route=None,fg_input=None):
+    """[(game, exe, compatibility verdict or None)] for every selected game (install.py compat_verdict: read only, no
+    network), for Automatic (route None) or the route and input chosen for the batch."""
+    out=[]
+    for exe in selected:
+        try:found=installer.compat_verdict(ROOT,Path(exe).absolute(),route,fg_input)
+        except Exception:found=None
+        out.append((Path(exe).name,exe,found[0] if found else None))
+    return out
+
+def soft_refusals(found_verdicts):
+    """[(exe, code, line)]: every soft refusal of every game, one line each (a code shared by two games is listed and
+    accepted once per game, never for a game that was not listed)."""
+    return [(exe,r['code'],name+': '+r['text']+' '+r['way']) for name,exe,v in found_verdicts if v for r in v['blocking'] if r['kind']=='soft']
+
+def show_text(command,selected):
+    """Run install.py command on the selected games and show its output (Check system, Check)."""
+    with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
+        output=Path(temporary)/'result.txt'
+        with output.open('w') as stream:subprocess.run([sys.executable,'-u',str(ROOT/'install.py'),*command,*map(str,selected)],stdout=stream,stderr=subprocess.STDOUT)
+        dialog('--text-info','--width=1000','--height=600','--filename='+str(output))
+
 def main():
     if not shutil.which('zenity'):
         print('The desktop installer needs zenity. The command-line route is in README.md.',file=sys.stderr);return 1
@@ -66,8 +139,10 @@ def main():
             'Install','Install '+NAME+' into selected games',
             # A 2×-only package (no 3×/4×, no generated-frame scaling) has nothing for Settings to change.
             *(['Settings','Choose '+'/'.join(FACTORS)+' and generated-frame resolution'] if MFG and len(FACTORS)>1 else []),
+            'Upscaler','Switch installed games between FSR 4 and HelixSR (by lonewolf0622)',
             'Restore','Restore original files in selected games',
             'Status','Check installed files and the last acceleration log',
+            'Check','Compatibility of each selected game: what Install would do, or why it refuses (changes nothing)',
             'Check system','Driver, gamescope, Proton and memory checks for this BC-250 (changes nothing)',
             'Clear','Clear the selection',
             '--text='+('Selected:\n'+'\n'.join(str(p) for p in selected) if selected else 'Frame generation for DirectX 12 games under Proton on the AMD BC-250. Add games to begin.'))
@@ -80,14 +155,14 @@ def main():
                 p=Path(path).absolute()
                 if p not in selected:selected.append(p)
             continue
-        if action=='Check system':
-            with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
-                output=Path(temporary)/'result.txt'
-                with output.open('w') as stream:subprocess.run([sys.executable,'-u',str(ROOT/'install.py'),'doctor'],stdout=stream,stderr=subprocess.STDOUT)
-                dialog('--text-info','--width=1000','--height=500','--filename='+str(output))
-            continue
+        if action=='Check system':show_text(['doctor'],[]);continue
         if not selected:dialog('--info','--text=Add games first.');continue
-        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure'}[action];extra=[]
+        # Check prints each game's verdict and the redacted report a game report issue asks for (CONTRIBUTING.md).
+        if action=='Check':show_text(['check','--report'],selected);continue
+        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure'}[action];extra=[]
+        if action=='Upscaler':
+            extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed):\n'+HELIXSR_ABOUT)
+            if not extra:continue
         if action=='Settings':
             selected_settings=dialog('--forms','--width=620','--separator=|',
                 '--text=Close the selected games first; the settings apply when a game starts.\nOptiScaler also has these controls under Frame Generation → XeFG scaling.',
@@ -108,11 +183,15 @@ def main():
             if down!='Keep current':extra+=['--downscale',down.lower()]
             if up!='Keep current':extra+=['--upscale','fsr1' if up=='FSR1 (EASU)' else up.lower()]
         if action=='Install':
-            # What each selected game ships, so the input can be chosen per batch (install.detect_input's scan).
-            try:found='\n'.join(Path(exe).name+': '+installer.detect_input(Path(exe))[2] for exe in selected[:8])
-            except Exception:found=''
+            # Each selected game's compatibility verdict (install.py check), so the input can be chosen per batch.
+            found_verdicts=verdicts(installer,selected) if installer else []
+            lines=[name+': '+v['line'] for name,_,v in found_verdicts if v]
+            found='\n'.join(lines[:12]+([f'... and {len(lines)-12} more (Check lists every game)'] if len(lines)>12 else []))
+            if installer and not found:
+                try:found='\n'.join(Path(exe).name+': '+installer.detect_input(Path(exe))[2] for exe in selected[:8])
+                except Exception:found=''
             route=dialog('--list','--width=850','--height=420','--column=Route','--column=Use',
-                'Automatic','Native XeSS FG where the game ships it, otherwise OptiFG; reports other FG inputs each game has',
+                'Automatic per game','A verified recipe\'s input, else native XeSS FG where the game ships it, else OptiFG; refuses games that cannot work',
                 'OptiFG','Games without native FG: uses the upscaler input; may affect HUDs',
                 'DLSS FG','Games with supported DLSS FG (Streamline 2+)',
                 'FSR 3.1 FG','Games with native FSR 3.1 frame generation',
@@ -122,7 +201,24 @@ def main():
             source={'OptiFG':'upscaler','DLSS FG':'dlssg','FSR 3.1 FG':'fsrfg','FSR 3.0 FG':'fsrfg30'}
             if not route:continue
             extra=['--route','auto','--fg-input','auto'] if route.startswith('Automatic') else ['--route','native'] if route=='Native XeSS FG' else ['--route','opti','--fg-input',source[route]]
-            if dialog('--question','--width=680','--text=Setup will configure '+NAME+' and each game’s launch settings.\nThe first installation downloads checked upstream files (FSR4 and Intel’s XeFG runtime);\na fresh OptiScaler setup also fetches OptiScaler and OptiPatcher, and NVIDIA’s DLSS helper only for a DLSS input\nwhere OptiScaler finds no copy of the game’s own.\nAfter installation, reopen your launcher and play normally.') is None:continue
+            upscaler=choose_upscaler(installer,'Choose the upscaler for these games. Frame generation is XeFG with either. Upscaler switches it later.\n'+HELIXSR_ABOUT)
+            if not upscaler:continue
+            extra+=upscaler
+            # An explicit input changes the verdicts (the user's choice wins; refusals that rest on detection alone become
+            # soft): ask them again for that choice.
+            if installer and not route.startswith('Automatic'):
+                found_verdicts=verdicts(installer,selected,'native' if route=='Native XeSS FG' else 'opti',source.get(route))
+            # The steps a game needs from the user beyond choosing its upscaler, before anything is confirmed.
+            steps=''.join('\n\n'+name+':\n'+'\n'.join(f'  {n}. {s}' for n,s in enumerate(v['manual_steps'],1)) for name,_,v in found_verdicts
+                          if v and v['needs_step'] and not any(r['kind']=='hard' for r in v['blocking']))
+            steps=('\n\nYour steps:'+steps) if steps else ''
+            # Soft refusals (a GE-Proton fix that leaves DirectX 12, the wiki's "not working") need an explicit yes.
+            soft=soft_refusals(found_verdicts)
+            if soft and dialog('--question','--width=760','--ok-label=Install anyway','--cancel-label=Skip those games',
+                               '--text=These games would be refused unless you accept:\n\n'+'\n'.join(line for _,_,line in soft)) is not None:
+                # Each accept names its game: install.py applies CODE=EXE to that executable only.
+                for exe,code,_ in soft:extra+=['--accept',code+'='+str(exe)]
+            if dialog('--question','--width=680','--text=Setup will configure '+NAME+' and each game’s launch settings.\nThe first installation downloads checked upstream files (FSR4 and Intel’s XeFG runtime);\na fresh OptiScaler setup also fetches OptiScaler and OptiPatcher, and NVIDIA’s DLSS helper only for a DLSS input\nwhere OptiScaler finds no copy of the game’s own.\nAfter installation, reopen your launcher and play normally.'+steps) is None:continue
         if command!='status' and not wait_closed(installer,selected,command in ['install','restore']):continue
         with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
             output=Path(temporary)/'result.txt'

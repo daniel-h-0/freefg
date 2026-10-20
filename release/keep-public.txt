@@ -1,19 +1,21 @@
-# Public source tree: what the enabler-free build (variant intel-free-2x), the present-pacing layer, the installer and
+# Public source tree: what the enabler-free build (variant intel-free-mfg), the present-pacing layer, the installer and
 # their tests need, and nothing else (release/export_tree.py --public exports exactly these files).
 # One tracked path per line; "#" starts a comment. Every entry must also be in keep.txt (the public tree is a subset of
-# the lean release tree). export_tree.py --public refuses when a file the intel-free-2x package or the libxess_fg.dll and
+# the lean release tree). export_tree.py --public refuses when a file the intel-free-mfg package or the libxess_fg.dll and
 # libxefg_wave.so build records read is missing, imports every exported release/ tool in the export and runs the
 # installer tests there. It writes public versions of the C sources (resolved for the public build's configuration),
-# of release/inputs.lock.json, of release/intel_material.json and of release/package.json (the intel-free-2x package
+# of release/inputs.lock.json, of release/intel_material.json and of release/package.json (the intel-free-mfg package
 # only, so release/assemble.py with no --variant builds it); a header that holds nothing in that configuration is not
 # listed here and is left out of the export together with its #include lines. It also writes the files GitHub shows for
 # a repository, which this list must not name: README.md, LICENSE and NOTICE.md at the top and SECURITY.md and
 # CONTRIBUTING.md in .github/, copies of packaging/public/ with their links adjusted (export_tree.py PUBLIC_ROOT).
 #
-# Not public (the maintainers' list, keep.txt, has them): the maintainers' earlier add-on builds and their multi-frame,
-# scaling and dispatch-guard features (their builder, release/build_addon.py, included), the standalone measurement
-# program, research scripts other than the recipe builder the installer tests run, host runbooks and the notes of the
-# private builds. keep.txt itself is not exported: in a public tree read_keep() reads this list.
+# Not public (the maintainers' list, keep.txt, has them): the maintainers' earlier add-on builds with the XeSSMFG enabler
+# and their scaling and dispatch-guard features (their builder, release/build_addon.py, included), the 2x-only proxy of
+# 0.9.0 (release/intel_free_2x.json: the public C sources are resolved for the multi-frame build, so it cannot be built
+# from them), the standalone measurement program, research scripts other than the recipe builder the installer tests
+# run, host runbooks and the notes of the private builds. keep.txt itself is not exported: in a public tree read_keep()
+# reads this list.
 
 # Release tooling: configuration, pinned inputs, the proxy and layer builds, packaging, the static Intel-free check, the
 # CPU-only Wine loader check of the proxy, the offline installer smoke test and this export
@@ -30,9 +32,9 @@ release/check_proxy_wine.py
 release/export_tree.py
 release/keep-public.txt
 release/inputs.lock.json
-release/package.json  # exported as its public version (the intel-free-2x package)
+release/package.json  # exported as its public version (the intel-free-mfg package)
 release/intel_free.json
-release/intel_free_2x.json
+release/intel_free_mfg.json
 release/intel_material.json  # exported as its public version (digests by category)
 # The helpers of the proxy build (Intel header parsing, the probe-core slice, the Intel-free profile, COM thunks, build
 # records), which the maintainers' other add-on builds share
@@ -110,7 +112,9 @@ src/kernels/wino_row16.hlsl
 src/kernels/wino_rs16.hlsl
 
 # libxess_fg.dll proxy (src/game/mfg_proxy.c): the probe core it slices (src/probe.c up to its scene_motion.h include)
-# and every header the build includes (its build record's "sources"); the Wine loader check's program
+# and every header the build includes (its build record's "sources": with the multi-frame network, pooled model sets,
+# retirement at frame-count changes and the coexistence with another module hooking Intel's runtime); the Wine loader
+# check's programs (the loader, the stand-in callers and the unit test of the coexistence bookkeeping)
 src/game/mfg_proxy.c
 src/probe.c
 src/capture_off.h
@@ -122,12 +126,28 @@ src/mfg_settings_contract.h
 src/warp_split.h
 src/winograd_geometry.h
 src/winograd_graph.h
+src/flow_cap.h
+src/flow_cap_contract.h
+src/frame_cap.h
+src/frame_cap_contract.h
+src/mfg_frame_contract.h
+src/mfg_frame_geometry.h
+src/mfg_geometry_math.h
+src/mfg_heap_lifetime.h
+src/mfg_model_alias.h
+src/mfg_model_pool.h
+src/mfg_root_cache.h
 src/game/fast_trial.h
 src/game/mfg_pace_signal.h
 src/game/mfg_settings.h
+src/game/mfg_pipeline_cache.h
+src/game/mfg_proxy_coexist.h
+src/game/mfg_scoped_retire.h
 src/game/scoped_com.h
 src/game/timing.h
 src/game/test_proxy_load.c
+src/game/test_proxy_caller.c
+src/game/test_proxy_coexist.c
 
 # libxefg_wave.so present-pacing layer and its unit tests
 src/game/wave_layer.c
@@ -142,16 +162,21 @@ packaging/mfg/setup.py
 packaging/launcher_config.py
 packaging/steam_config.py
 packaging/recipes.py
+packaging/compat.py
+packaging/gamescan.py
 packaging/recipes/recipes-runtime.json
 packaging/dependencies.json
 packaging/dependencies.py
 packaging/doctor.py
+packaging/helixsr.py
 packaging/Start-BC250-XeFG.sh
 # Read by the installer tests: the launch wrapper (test_mfg_install), the full recipe file and the builder of its
 # compact form (test_recipes)
 packaging/mfg/run.sh
 packaging/recipes/recipes.json
 research/recipes/build_recipes.py
+# The community recipe schema (packaging/public/CONTRIBUTING.md "Game recipes" points to it)
+research/recipes/community/README.md
 
 # PyYAML used by the launcher configuration
 packaging/vendor/__init__.py
@@ -220,7 +245,7 @@ packaging/extras/steam-screensaver-in-game/install.sh
 packaging/extras/steam-screensaver-in-game/uninstall.sh
 
 # Public documents (the public package.json's "documents" component ships the nine .md files; package.json variant
-# intel-free-2x calls it "documents-public"), the licence text of this project's code (packaging/public/LICENSE: the MIT
+# intel-free-mfg calls it "documents-public"), the licence text of this project's code (packaging/public/LICENSE: the MIT
 # text with the holder still a placeholder, shipped as licenses/freefg.txt in place of LICENSE.new-code) and the
 # documents' read-only checker (host paths, the old name, placeholders, links, PRIVACY.md against dependencies.json).
 # README.md, LICENSE, NOTICE.md, SECURITY.md and CONTRIBUTING.md are also the sources of the repository's top files.
@@ -236,9 +261,32 @@ packaging/public/SECURITY.md
 packaging/public/LICENSE
 packaging/public/check_public_docs.py
 
+# Figures of the public documents (README, ARCHITECTURE, MEASUREMENTS): each docs/data/<figure>/plot.py draws its
+# docs/assets/ SVG and PNG from the data.json beside it, byte for byte (docs/data/figstyle.py: fonts, colours, checks).
+# The repository has them; the package ships the documents only, whose image links then show their alt text.
+docs/data/figstyle.py
+docs/data/cyberpunk-fps/data.json
+docs/data/cyberpunk-fps/plot.py
+docs/assets/cyberpunk-2x-fps.svg
+docs/assets/cyberpunk-2x-fps.png
+docs/data/gpu-time/data.json
+docs/data/gpu-time/plot.py
+docs/assets/gpu-time-per-generated-frame.svg
+docs/assets/gpu-time-per-generated-frame.png
+docs/data/vrr-pacing/data.json
+docs/data/vrr-pacing/plot.py
+docs/assets/vrr-pacing.svg
+docs/assets/vrr-pacing.png
+docs/data/setup-layout/data.json
+docs/data/setup-layout/plot.py
+docs/assets/setup-file-layout.svg
+docs/assets/setup-file-layout.png
+
 # Continuous integration of the public tree (.github/workflows; release/ci/ holds its helpers and toolchain pins)
 .github/workflows/ci.yml
 .github/workflows/pins.yml
+# The issue form for game reports (packaging/public/CONTRIBUTING.md "Game recipes")
+.github/ISSUE_TEMPLATE/game-report.yml
 release/ci/ci.lock.json
 release/ci/common.py
 release/ci/toolchain.py
@@ -259,6 +307,13 @@ scripts/test_dependencies.py
 scripts/test_screensaver_extra.py
 scripts/test_doctor.py
 scripts/test_proxy_install.py
+scripts/test_helixsr_install.py
+scripts/test_gamescan.py
+scripts/test_compat.py
+scripts/test_compat_install.py
+# The synthetic library (made-up games, one or two per verdict group) that test_compat checks verdicts against; the
+# maintainers' own library scans and their test stay in the maintainers' tree (keep.txt)
+scripts/fixtures/compat/library-synthetic.json
 
 # The ignore rule for build/ (this project's licence text is packaging/public/LICENSE above; LICENSE.new-code, which
 # names the internal project as copyright holder, stays in the maintainers' tree)

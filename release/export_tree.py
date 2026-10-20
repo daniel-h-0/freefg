@@ -7,9 +7,10 @@ and its tests, the package's documents and static files, and the release tooling
 inputs.lock.json (fetched or read from XEMFG_WORK) at build time.
 
 --public exports the public tree instead: keep-public.txt, a subset of keep.txt with only what the enabler-free build
-(package.json variant intel-free-2x: the libxess_fg.dll proxy over Intel's unmodified runtime), the present-pacing layer,
+(package.json variant intel-free-mfg: the libxess_fg.dll proxy over Intel's unmodified runtime), the present-pacing layer,
 the installer and their tests need. It has no XeSSMFG enabler integration (src/game/mfg_addon.c, the enabler hook table,
-the frame-start pacer, scaling and dispatch-guard code), no standalone measurement program, and no
+the frame-start pacer, scaling and dispatch-guard code; the 2x-only build of 0.9.0, intel-free-2x, whose sources resolve
+differently), no standalone measurement program, and no
 research script besides the recipe builder the installer tests run. keep.txt is not exported, so in a public tree
 read_keep() (and assemble.py through it) reads keep-public.txt, and this script exports the public list by default.
 
@@ -30,12 +31,12 @@ leaves them as they are):
                                 prepared release fetch group stay.
   release/intel_material.json   the check's reference data as digests by category and the weight tables' checksums,
                                 without names, run folders or provenance (check_intel_free.public_material).
-  release/package.json          the intel-free-2x package only (public_package): package.json's variant with its
-                                components swapped in, so release/assemble.py with no --variant builds the 2x package
+  release/package.json          the intel-free-mfg package only (public_package): package.json's variant with its
+                                components swapped in, so release/assemble.py with no --variant builds that package
                                 (no XeSSMFG enabler, default add-on or Intel-derived profile to miss). The documents
                                 component is named "documents"; this project's licence text is packaging/public/LICENSE
                                 (PUBLIC_SOURCES); the source companion lists only exported files. "variants" keeps an
-                                intel-free-2x entry that changes nothing, so --variant intel-free-2x (CI, smoke_install.py,
+                                intel-free-mfg entry that changes nothing, so --variant intel-free-mfg (CI, smoke_install.py,
                                 check_public_docs.py) declares the same package.
 The rebuilt proxy and layer are byte-identical to the private builds (the export's purpose; acceptance rebuilds them).
 
@@ -49,14 +50,14 @@ export renames its copies (public_rename): release/rename.py's user-visible rewr
 documents' [PRODUCT], Setup's titles, the User-Agents, the MIT holder and the public package name, plus the families
 "chosen" adds) are applied to every exported text file except names.json "exclude", after the public versions and the
 top files above are made and before anything is checked or written. The public package.json's name then follows
-names.json package-name public_template (today {slug}-0.9.0), which release/assemble.py accepts. This tree keeps the
+names.json package-name public_template (today {slug}-1.0.0), which release/assemble.py accepts. This tree keeps the
 internal names, and compatibility identifiers (folders, records, switches, file names compiled into the binaries) are
 not rewritten. With "chosen" empty (until the name is decided) nothing is renamed and the export is the same as
 without this step. --names FILE reads "chosen" from another copy of names.json (a trial; the export still copies this
 tree's names.json).
 
 Before copying, the list is checked against what the release build reads: every "repo:" source in package.json (with
---public: of the intel-free-2x package), every installer test, and every source file recorded by a build under the build
+--public: of the intel-free-mfg package), every installer test, and every source file recorded by a build under the build
 directory (all four builds; with --public the libxess_fg.dll and libxefg_wave.so builds) must be listed; no entry may
 lie in the build directory or the download cache. A build record whose sources no longer match this tree is stale: its
 sources still count (as far as they are still files of this tree), it is named under "stale_build_records", and
@@ -64,14 +65,14 @@ sources still count (as far as they are still files of this tree), it is named u
 the export, which catches a module the list lacks, and the installer tests run in the exported directory, which catches
 files they read that the list lacks (--no-tests skips both). A public export is then checked as exported: its
 package.json declares only sources it has (exported files, inputs its lock pins, the proxy and layer builds), --variant
-intel-free-2x declares the same package, and the copies at the top reach their links. Then, from the exported directory:
+intel-free-mfg declares the same package, and the copies at the top reach their links. Then, from the exported directory:
 
   python3 release/export_tree.py /path/to/new-dir
   cd /path/to/new-dir && python3 release/build_addon.py && python3 release/build_layer.py
 
   python3 release/export_tree.py --public /path/to/public-dir
   cd /path/to/public-dir && python3 release/build_proxy.py && python3 release/build_layer.py
-  python3 release/assemble.py --no-source-companion        # the intel-free-2x package (--variant intel-free-2x: same)
+  python3 release/assemble.py --no-source-companion        # the intel-free-mfg package (--variant intel-free-mfg: same)
 
 The source companion's extra files (package.json source_companion "files", research build drivers that hold host
 paths) are not exported; assemble.py in an exported tree therefore needs --no-source-companion (a public tree's
@@ -85,6 +86,7 @@ copied.
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -99,9 +101,9 @@ import unifdef  # noqa: E402
 KEEP = RELEASE / 'keep.txt'
 KEEP_PUBLIC = RELEASE / 'keep-public.txt'
 # The package variant the public tree builds, and the build records (<build>/<kind>/build.json) each list must cover.
-PUBLIC_VARIANT = 'intel-free-2x'
-BUILD_KINDS = ('addon', 'layer', 'addon-intel-free', 'addon-intel-free-2x')
-PUBLIC_BUILD_KINDS = ('layer', 'addon-intel-free-2x')
+PUBLIC_VARIANT = 'intel-free-mfg'
+BUILD_KINDS = ('addon', 'layer', 'addon-intel-free', 'addon-intel-free-2x', 'addon-intel-free-mfg')
+PUBLIC_BUILD_KINDS = ('layer', 'addon-intel-free-mfg')
 # Public versions of private files (see the module documentation).
 C_SUFFIXES = ('.c', '.h')
 PROJECT_MACROS = ('XEFG_', 'PACE_', 'BC250_')
@@ -114,9 +116,10 @@ FORK_GROUP = 'optiscaler-fork'
 # The OptiScaler fork group in the public lock: this description, and its source record without these maintainers'
 # notes (evidence files that are not exported, the work checkout, the build the private testers shipped before).
 PUBLIC_FORK = {
-    'description': 'OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll: OptiScaler nightly-20260929 with four '
-                   'commits. Its source is the commit below with the submodules that commit pins; the tag commit adds '
-                   'only FORK.md, which documents the build, and tools/bc250-build.py, which ran it. Until the fork\'s '
+    'description': 'OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll: OptiScaler master of 19 October '
+                   '2026 (c2e44a8b) with three commits. Its source is the commit below with the submodules that commit '
+                   'pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which '
+                   'ran it. Until the fork\'s '
                    'release is public, release/assemble.py reads the DLL from XEMFG_OPTISCALER and the source companion '
                    'reads the fork\'s git checkout from XEMFG_OPTISCALER_SOURCE; release_fetch is the fetch group '
                    'prepared for that release.',
@@ -135,30 +138,30 @@ PUBLIC_PROFILE = {
                'directory.',
 }
 PACKAGE = 'release/package.json'
-# The public package.json (public_package): package.json's intel-free-2x package with these renames and source swaps.
+# The public package.json (public_package): package.json's intel-free-mfg package with these renames and source swaps.
 # "documents": assemble.py's apply_variant() names a variant's documents component after what the variant puts in place
-# of "documents"; the public package replaces nothing, so --variant intel-free-2x keeps that name. The licence text of
+# of "documents"; the public package replaces nothing, so --variant intel-free-mfg keeps that name. The licence text of
 # this project's code is the public one (standard MIT text, holder placeholder) that the repository root also shows.
 PUBLIC_COMPONENT_NAMES = {'documents-public': 'documents'}
 PUBLIC_DOCUMENTS = 'documents'
 PUBLIC_SOURCES = {'repo:LICENSE.new-code': 'repo:packaging/public/LICENSE'}
 PUBLIC_ABOUT = (
-    'Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free 2x build '
-    '(variant intel-free-2x; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to '
+    'Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build '
+    '(variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to '
     'sources: "repo:<path>" (a file of this tree), "input:<lock group>/<file>" (a file pinned in inputs.lock.json) and '
     '"build:<kind>", "build:<kind>-record", "build:<kind>-profile/<file>" (outputs of release/build_proxy.py and '
     'release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel\'s '
     'unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); '
     'release/check_intel_free.py must report "pass" with no allowed component. Written by release/export_tree.py --public '
-    'from the maintainers\' package declaration; "variants" keeps the name intel-free-2x for tools that pass '
-    '--variant intel-free-2x, and that entry changes nothing.')
+    'from the maintainers\' package declaration; "variants" keeps the name intel-free-mfg for tools that pass '
+    '--variant intel-free-mfg, and that entry changes nothing.')
 # The public package.json's manifest text: assemble.py writes the public build's own text (PUBLIC_MANIFEST, with the
 # product's name and version) into every manifest assembled in a public tree, so package.json's maintainers' wording
 # (status, profile.research) is replaced by these neutral lines.
-PUBLIC_PACKAGE_STATUS = ('The public 2x build. release/assemble.py writes its status text (PUBLIC_MANIFEST, with the '
+PUBLIC_PACKAGE_STATUS = ('The public build. release/assemble.py writes its status text (PUBLIC_MANIFEST, with the '
                          'product\'s name and version) into the manifest in place of this line.')
 PUBLIC_VARIANT_ABOUT = ('The package above, under the name the maintainers\' tree gives it: release/assemble.py '
-                        '--variant intel-free-2x builds exactly what release/assemble.py builds.')
+                        '--variant intel-free-mfg builds exactly what release/assemble.py builds.')
 PUBLIC_COMPANION = ('<name>-source.zip beside the package (release/source_companion.py): under <name>-source/source/ '
                     'every keep-public.txt file, the files below, the OptiScaler fork tree at its locked commit with '
                     'FORK.md and tools/bc250-build.py of its locked tag commit (optiscaler_dir, read from its git '
@@ -230,7 +233,7 @@ def read_keep(config=None, public=None):
 
 
 def package_spec(public, names=None):
-    """package.json, or with public the public package.json (public_package: the intel-free-2x package; names, the
+    """package.json, or with public the public package.json (public_package: the intel-free-mfg package; names, the
     exported files, limit its source companion)."""
     spec = json.loads((REPO / PACKAGE).read_text())
     if public:
@@ -451,10 +454,10 @@ def public_lock(lock):
 
 
 def public_package(spec, names=None):
-    """(the public package.json, report): the intel-free-2x package of spec flattened into the top level (name,
+    """(the public package.json, report): the intel-free-mfg package of spec flattened into the top level (name,
     variant, documents_version, documents_component, package_dir, allowed_components, manifest, components and
     never_ship as release/assemble.py's apply_variant() gives them), with PUBLIC_COMPONENT_NAMES and PUBLIC_SOURCES
-    applied and, when names are given, only the source companion files among them; "variants" holds an intel-free-2x
+    applied and, when names are given, only the source companion files among them; "variants" holds an intel-free-mfg
     entry that replaces nothing. A public package.json projects to itself, so exporting a public tree again keeps it."""
     from assemble import apply_variant  # local import: assemble imports this module
     package = apply_variant(spec, PUBLIC_VARIANT)
@@ -513,7 +516,7 @@ def package_sources(spec):
 def public_package_problems(spec, lock, has_file):
     """What makes spec (a public package.json) declare something a public tree cannot build: a "repo:" source that
     has_file(path) does not find, an "input:" source its lock (the public lock) does not pin, a "build:" source of a
-    build other than the proxy and the layer (PUBLIC_BUILD_KINDS); and --variant intel-free-2x must declare the same
+    build other than the proxy and the layer (PUBLIC_BUILD_KINDS); and --variant intel-free-mfg must declare the same
     package as no variant."""
     from assemble import BUILD_OUTPUTS, apply_variant  # local import
     problems = []
@@ -560,7 +563,8 @@ def link_target(copy, source, target, available):
     path, hash_, anchor = target.partition('#')
     if not path:
         return target
-    linked = str(Path(source).parent / path)
+    # A link may climb out of packaging/public/ to another file of the tree (the figures in docs/assets/), never out of it.
+    linked = os.path.normpath(Path(source).parent / path)
     if '..' in Path(linked).parts:
         return None
     top = [name for name, origin in PUBLIC_ROOT.items() if origin == linked and '/' not in name]
@@ -761,7 +765,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('destination', type=Path, help='new or empty directory')
     parser.add_argument('--public', action='store_true',
-                        help='export the public tree (release/keep-public.txt: the intel-free-2x build, the layer and the '
+                        help='export the public tree (release/keep-public.txt: the intel-free-mfg build, the layer and the '
                              'installer); the default in a tree that was itself exported with --public')
     parser.add_argument('--strict', action='store_true',
                         help='refuse the export, before copying, when an exported file names a host path or a build '

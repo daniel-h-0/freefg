@@ -5,7 +5,8 @@
 or linked into the DLL. This folder holds their licence texts, unchanged.
 
 The list below comes from the build of the DLL itself (fork commit `a7932870`, 18 October 2026): every source file its
-compiler read and every library its linker used. The repository, commit and SHA-256 of each text are in
+compiler read and every library its linker used. It was checked again for the shipped build (fork commit `f971ed14`,
+19 October 2026), which compiles the same third-party code. The repository, commit and SHA-256 of each text are in
 `packaging/licenses/OptiScaler-third-party/PROVENANCE.json` in the source.
 
 **FreeType credit:** Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org). All

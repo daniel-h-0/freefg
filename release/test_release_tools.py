@@ -185,7 +185,7 @@ class PublicLock(unittest.TestCase):
 
 
 def tiny_package():
-    """A package declaration in package.json's shape: a default package and an intel-free-2x variant."""
+    """A package declaration in package.json's shape: a default package and an intel-free-mfg variant."""
     return {'about': 'x', 'name': 'bc250-fsr4-xemfg-private-test-99', 'manifest': {'runtime': 'xemfg', 'status': 'a'},
             'components': {
                 'documents': {'files': {'README.md': 'repo:packaging/v99/README.md'}},
@@ -196,14 +196,14 @@ def tiny_package():
             'never_ship': {'paths': ['payload/libxell.dll'], 'prefixes': ['fsr4/'], 'sha256': {}},
             'source_companion': {'description': 'd', 'files': {'scripts/x.py': 'repo:scripts/x.py'}},
             'installer_tests': ['test_a'],
-            'variants': {'intel-free-2x': {
-                'about': 'v', 'name': 'bc250-fsr4-xemfg-private-test-99-intel-free-2x', 'package_dir': 'package-2x',
+            'variants': {'intel-free-mfg': {
+                'about': 'v', 'name': 'bc250-fsr4-xemfg-private-test-99-intel-free-mfg', 'package_dir': 'package-2x',
                 'documents_version': 'public', 'manifest': {'status': 'b', 'max_factor': 2}, 'allowed_components': {},
-                'replace': {'addon': 'addon-intel-free-2x', 'xessmfg-enabler': None, 'documents': 'documents-public'},
+                'replace': {'addon': 'addon-intel-free-mfg', 'xessmfg-enabler': None, 'documents': 'documents-public'},
                 'components': {
-                    'addon-intel-free-2x': {'files': {'payload/libxess_fg.dll': 'build:addon-intel-free-2x',
+                    'addon-intel-free-mfg': {'files': {'payload/libxess_fg.dll': 'build:addon-intel-free-mfg',
                                                       'payload/BC250-XeFG/shaders/a.dxil':
-                                                          'build:addon-intel-free-2x-profile/a.dxil'}},
+                                                          'build:addon-intel-free-mfg-profile/a.dxil'}},
                     'documents-public': {'files': {'README.md': 'repo:packaging/public/README.md'}}},
                 'never_ship': {'paths': ['payload/bc250_xefg_original.dll'], 'prefixes': ['fsr4/'], 'sha256': {}}}}}
 
@@ -213,7 +213,7 @@ TINY_LOCK = {'fetch': {'intel-xess': {'files': {'LICENSE.txt': {'sha256': '1'}}}
 
 
 class PublicPackage(unittest.TestCase):
-    """export_tree.public_package: the public package.json declares the intel-free-2x package at the top level."""
+    """export_tree.public_package: the public package.json declares the intel-free-mfg package at the top level."""
 
     def setUp(self):
         import export_tree
@@ -224,9 +224,9 @@ class PublicPackage(unittest.TestCase):
         before = copy.deepcopy(private)
         public, report = self.export_tree.public_package(private, TINY_NAMES)
         self.assertEqual(private, before)  # the input is not changed
-        self.assertEqual(public['variant'], 'intel-free-2x')
-        self.assertEqual(public['name'], 'bc250-fsr4-xemfg-private-test-99-intel-free-2x')
-        self.assertEqual(list(public['components']), ['documents', 'addon-intel-free-2x', 'licenses'])
+        self.assertEqual(public['variant'], 'intel-free-mfg')
+        self.assertEqual(public['name'], 'bc250-fsr4-xemfg-private-test-99-intel-free-mfg')
+        self.assertEqual(list(public['components']), ['documents', 'addon-intel-free-mfg', 'licenses'])
         self.assertEqual(public['components']['documents']['files'], {'README.md': 'repo:packaging/public/README.md'})
         self.assertEqual(public['components']['licenses']['files']['licenses/BC250-XeFG.txt'],
                          'repo:packaging/public/LICENSE')
@@ -243,7 +243,7 @@ class PublicPackage(unittest.TestCase):
     def test_variant_flag_declares_the_same_package(self):
         from assemble import apply_variant
         public, _ = self.export_tree.public_package(tiny_package(), TINY_NAMES)
-        self.assertEqual(apply_variant(public, 'intel-free-2x'), {k: v for k, v in public.items() if k != 'variants'})
+        self.assertEqual(apply_variant(public, 'intel-free-mfg'), {k: v for k, v in public.items() if k != 'variants'})
 
     def test_idempotent(self):
         public, _ = self.export_tree.public_package(tiny_package(), TINY_NAMES)
@@ -263,18 +263,18 @@ class PublicPackage(unittest.TestCase):
             self.assertEqual(len(found), 1, (source, found))
             self.assertIn(source, found[0])
         broken = copy.deepcopy(public)
-        broken['variants']['intel-free-2x']['manifest'] = {'status': 'other'}
+        broken['variants']['intel-free-mfg']['manifest'] = {'status': 'other'}
         self.assertEqual(problems(broken, TINY_LOCK, TINY_NAMES.__contains__),
-                         ['--variant intel-free-2x declares a different package'])
-        broken['variants']['intel-free-2x']['replace'] = {'addon': 'x'}
-        self.assertIn('--variant intel-free-2x fails', problems(broken, TINY_LOCK, TINY_NAMES.__contains__)[0])
+                         ['--variant intel-free-mfg declares a different package'])
+        broken['variants']['intel-free-mfg']['replace'] = {'addon': 'x'}
+        self.assertIn('--variant intel-free-mfg fails', problems(broken, TINY_LOCK, TINY_NAMES.__contains__)[0])
         broken = copy.deepcopy(public)
         broken['components']['documents']['files']['README.md'] = 'repo:packaging/v99/README.md'
         self.assertEqual(len(problems(broken, TINY_LOCK, lambda name: True)), 1)
 
     def test_this_tree(self):
         """This tree's package.json projects to a package that only the proxy, the layer, exported files and the public
-        lock supply; in the maintainers' tree it ships the same files as the intel-free-2x variant."""
+        lock supply; in the maintainers' tree it ships the same files as the intel-free-mfg variant."""
         from assemble import apply_variant
         export_tree = self.export_tree
         spec = json.loads((export_tree.REPO / export_tree.PACKAGE).read_text())
@@ -345,6 +345,19 @@ class PublicRoot(unittest.TestCase):
         _out, missing = self.copy('README.md', '[a](MISSING.md) [b](../outside.md) [c](PRIVACY.md)\n')
         self.assertEqual(missing, ['MISSING.md', '../outside.md'])
 
+    def test_links_that_climb_to_a_file_of_the_tree(self):
+        """A figure in docs/assets/ linked from packaging/public/ is reached from every copy; nothing outside the tree."""
+        import export_tree
+        available = self.AVAILABLE | {'docs/assets/f.svg'}
+        text = '![f](../../docs/assets/f.svg) [x](../../../outside.md)\n'
+        out, missing = export_tree.root_copy('README.md', 'packaging/public/README.md', text, available)
+        self.assertTrue(out.endswith('![f](docs/assets/f.svg) [x](../../../outside.md)\n'))
+        self.assertEqual(missing, ['../../../outside.md'])
+        out, missing = export_tree.root_copy('.github/SECURITY.md', 'packaging/public/SECURITY.md',
+                                             '![f](../../docs/assets/f.svg)\n', available)
+        self.assertTrue(out.endswith('![f](../docs/assets/f.svg)\n'))
+        self.assertEqual(missing, [])
+
     def test_licence_is_copied_verbatim(self):
         self.assertEqual(self.copy('LICENSE', 'MIT License\n[x](y)\n'), ('MIT License\n[x](y)\n', []))
 
@@ -414,12 +427,12 @@ def fixture_package(public=False):
              'licenses/BC250-XeFG.txt': 'repo:packaging/public/LICENSE',
              'extras/x/bc250-xemfg-gamescope-cap.hook': 'repo:packaging/extras/x/bc250-xemfg-gamescope-cap.hook'}
     if public:
-        name = 'bc250-fsr4-xemfg-private-test-31-intel-free-2x'
-        return {'name': name, 'variant': 'intel-free-2x', 'components': {'installer': {'files': files}},
-                'variants': {'intel-free-2x': {'name': name}}}
+        name = 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg'
+        return {'name': name, 'variant': 'intel-free-mfg', 'components': {'installer': {'files': files}},
+                'variants': {'intel-free-mfg': {'name': name}}}
     return {'name': 'bc250-fsr4-xemfg-private-test-31', 'components': {'installer': {'files': files}},
             'variants': {'intel-free': {'name': 'bc250-fsr4-xemfg-private-test-31-intel-free'},
-                         'intel-free-2x': {'name': 'bc250-fsr4-xemfg-private-test-31-intel-free-2x'}}}
+                         'intel-free-mfg': {'name': 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg'}}}
 
 
 FIXTURE = {
@@ -566,7 +579,7 @@ class RenameTool(unittest.TestCase):
         self.assertEqual(spec['name'], 'bc250-fsr4-xemfg-private-test-31')
         self.assertTrue(OWNER.search(spec['name']))  # the library owner still finds private builds
         self.assertEqual(spec['variants']['intel-free']['name'], 'bc250-fsr4-xemfg-private-test-31-intel-free')
-        self.assertEqual(spec['variants']['intel-free-2x']['name'], 'lumen-pace-31-2x')
+        self.assertEqual(spec['variants']['intel-free-mfg']['name'], 'lumen-pace-31-2x')
         self.assertIsNone(OWNER.search('lumen-pace-31-2x'))
         self.assertEqual(result['public_package_name'], 'lumen-pace-31-2x')
         self.assertIsNone(result['assemble_accepts_public_name'])  # no assemble.py in the fixture
@@ -631,11 +644,11 @@ class RenameTool(unittest.TestCase):
         root = self.tree(package=fixture_package(public=True))
         self.apply(root, write=True)
         spec = json.loads((root / 'release/package.json').read_text())
-        self.assertEqual((spec['name'], spec['variants']['intel-free-2x']['name']), ('lumen-pace-31-2x',) * 2)
+        self.assertEqual((spec['name'], spec['variants']['intel-free-mfg']['name']), ('lumen-pace-31-2x',) * 2)
 
     def test_private_names_never_change(self):
         package = fixture_package()
-        package['name'] = 'bc250-fsr4-xemfg-private-test-31-intel-free-2x'  # a private tree's top-level name
+        package['name'] = 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg'  # a private tree's top-level name
         with self.assertRaisesRegex(self.rename.RenameError, 'private package name'):
             self.apply(self.tree(package=package))
 
@@ -688,7 +701,7 @@ class RenameTool(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             package = Path(folder) / 'package'
             package.mkdir()
-            for name in ('install.py', 'launcher_config.py', 'steam_config.py'):
+            for name in ('install.py', 'launcher_config.py', 'steam_config.py', 'helixsr.py'):
                 shutil.copy2(TREE / 'packaging' / name, package / name)
             shutil.copytree(TREE / 'packaging/vendor', package / 'vendor')
             # A stand-in for doctor.py that imports what the real modules import, without probing this system.
@@ -835,7 +848,7 @@ class ExportRename(unittest.TestCase):
         spec = json.loads(out['release/package.json'])
         expected = self.rename.public_package_name(names, self.rename.template_fields('Lumen Pace', 'lumen-pace'), '31')
         self.assertEqual(expected, 'lumen-pace-31-2x')
-        self.assertEqual((spec['name'], spec['variants']['intel-free-2x']['name']), (expected, expected))
+        self.assertEqual((spec['name'], spec['variants']['intel-free-mfg']['name']), (expected, expected))
         self.assertIsNone(OWNER.search(expected))
         self.assertEqual(spec['components'], fixture_package(public=True)['components'])  # package paths stay
         for name in ('packaging/install.py', 'packaging/launcher_config.py', 'src/x.c', 'release/config.py',
@@ -896,7 +909,7 @@ class ExportRename(unittest.TestCase):
                                     (('{slug}-32-2x', '\\1{slug}-32-2x\\3'), 'lumen-pace-32-2x', 'v32-2x')):
             out, report = self.export_tree.public_rename(export_contents(), names_with(CHOSEN, form))
             spec = json.loads(out['release/package.json'])
-            self.assertEqual((spec['name'], spec['variants']['intel-free-2x']['name']), (name, name), form)
+            self.assertEqual((spec['name'], spec['variants']['intel-free-mfg']['name']), (name, name), form)
             self.assertEqual((report['public_package_name'], report['version'], report['receipt']),
                              (name, version, f'qualification/lumen-pace-{version}-package.json'), form)
             self.assertIsNone(OWNER.search(name))
@@ -943,7 +956,7 @@ DEPENDENCIES = {'runtime': {'ProxyPackage': {'payload/bc250_xefg_original.dll': 
 
 
 def assembly_package():
-    """A private package.json in release/package.json's shape (a default package and its intel-free-2x variant) that
+    """A private package.json in release/package.json's shape (a default package and its intel-free-mfg variant) that
     assemble.assemble() builds from FakeSources."""
     manifest = dict(runtime='xemfg', launcher_setup='automatic', profile={'name': 'p'}, default_factor=2,
                     default_cap='match output', fsr4='f', enabler='e', status='s', frame_start_pacing={},
@@ -960,15 +973,15 @@ def assembly_package():
         'never_ship': {'paths': [], 'prefixes': ['fsr4/'], 'sha256': {}},
         'source_companion': {'description': 'd', 'files': {}},
         'installer_tests': [],
-        'variants': {'intel-free-2x': {
-            'about': 'v', 'name': 'bc250-fsr4-xemfg-private-test-31-intel-free-2x', 'package_dir': 'package-intel-free-2x',
+        'variants': {'intel-free-mfg': {
+            'about': 'v', 'name': 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg', 'package_dir': 'package-intel-free-mfg',
             'documents_version': 'public', 'manifest': {'addon_entry': 'libxess_fg-proxy', 'max_factor': 2},
-            'allowed_components': {}, 'replace': {'addon': 'addon-intel-free-2x', 'documents': 'documents-public'},
+            'allowed_components': {}, 'replace': {'addon': 'addon-intel-free-mfg', 'documents': 'documents-public'},
             'components': {
-                'addon-intel-free-2x': {'files': {
-                    'payload/libxess_fg.dll': 'build:addon-intel-free-2x',
-                    'payload/BC250-XeFG/shaders/a.dxil': 'build:addon-intel-free-2x-profile/a.dxil',
-                    'qualification/addon-build.json': 'build:addon-intel-free-2x-record'}},
+                'addon-intel-free-mfg': {'files': {
+                    'payload/libxess_fg.dll': 'build:addon-intel-free-mfg',
+                    'payload/BC250-XeFG/shaders/a.dxil': 'build:addon-intel-free-mfg-profile/a.dxil',
+                    'qualification/addon-build.json': 'build:addon-intel-free-mfg-record'}},
                 'documents-public': {'files': {'README.md': 'repo:packaging/public/README.md'}}},
             'never_ship': {'paths': ['payload/bc250_xefg_original.dll'], 'prefixes': ['fsr4/'],
                            'sha256': {'0' * 64: "Intel's runtime"}}}}}
@@ -1026,7 +1039,7 @@ class PublicNameAssembly(unittest.TestCase):
     def test_private_names_as_before(self):
         assemble = self.assemble
         for name in ('bc250-fsr4-xemfg-private-test-31', 'bc250-fsr4-xemfg-private-test-31-intel-free',
-                     'bc250-fsr4-xemfg-private-test-31-intel-free-2x', 'bc250-fsr4-xemfg-private-test-7',
+                     'bc250-fsr4-xemfg-private-test-31-intel-free-mfg', 'bc250-fsr4-xemfg-private-test-7',
                      'bc250-fsr4-xemfg-private-test-100-x2'):
             version = self.old_version_of(name)
             self.assertEqual(assemble.version_of(name), version, name)
@@ -1078,12 +1091,12 @@ class PublicNameAssembly(unittest.TestCase):
             self.assertEqual(assemble.package_naming('lumen-pace-31', names)['version'], 'v31')
         finally:
             family['public_template'] = BUILD_NUMBER_FORM[0]
-        for name in ('bc250-fsr4-xemfg-private-test-0.1.0', 'bc250-fsr4-xemfg-private-test-0.1.0-intel-free-2x'):
+        for name in ('bc250-fsr4-xemfg-private-test-0.1.0', 'bc250-fsr4-xemfg-private-test-0.1.0-intel-free-mfg'):
             with self.assertRaises(assemble.ReleaseError, msg=name):
                 assemble.package_naming(name, names)
-        self.assertEqual(assemble.package_naming('bc250-fsr4-xemfg-private-test-31-intel-free-2x', names),
-                         dict(kind='private', version='v31-intel-free-2x',
-                              receipt='xemfg-v31-intel-free-2x-package.json'))
+        self.assertEqual(assemble.package_naming('bc250-fsr4-xemfg-private-test-31-intel-free-mfg', names),
+                         dict(kind='private', version='v31-intel-free-mfg',
+                              receipt='xemfg-v31-intel-free-mfg-package.json'))
 
     def test_fixed_version_templates(self):
         """Once decided, public_template may carry the version as fixed text in place of {number}."""
@@ -1121,7 +1134,7 @@ class PublicNameAssembly(unittest.TestCase):
         self.assertTrue(public['pattern'].fullmatch(name), name)
         self.assertEqual(self.assemble.package_naming(name, names)['kind'], 'public')
         replaced = names['_by_id']['package-name']['replacements'][0]
-        old = '"name": "bc250-fsr4-xemfg-private-test-31-intel-free-2x"'
+        old = '"name": "bc250-fsr4-xemfg-private-test-31-intel-free-mfg"'
         self.assertEqual(replaced['_pattern'].sub(replaced['template'].format(**fields), old), f'"name": "{name}"')
 
     def test_templates(self):
@@ -1199,9 +1212,9 @@ class PublicNameAssembly(unittest.TestCase):
         spec = self.public_spec(CHOSEN)
         self.assertEqual(spec['name'], 'lumen-pace-31-2x')
         out, manifest, receipt, root = self.assembled(spec)
-        self.assertEqual(out, root / 'build/package-intel-free-2x/lumen-pace-31-2x')
+        self.assertEqual(out, root / 'build/package-intel-free-mfg/lumen-pace-31-2x')
         self.assertEqual((manifest['name'], manifest['variant'], manifest['candidate']),
-                         ('lumen-pace-31-2x', 'intel-free-2x', True))
+                         ('lumen-pace-31-2x', 'intel-free-mfg', True))
         self.assertEqual(sorted(p.name for p in (out / 'qualification').iterdir()),
                          ['addon-build.json', 'lumen-pace-v31-2x-package.json'])
         on_disk = json.loads((out / 'qualification/lumen-pace-v31-2x-package.json').read_text())
@@ -1213,30 +1226,30 @@ class PublicNameAssembly(unittest.TestCase):
         _out, manifest, staged, _root = self.assembled(spec, receipt={'results': 'ok'})
         self.assertEqual((staged['status'], manifest['candidate']), ('pass', False))
         with self.assertRaisesRegex(self.assemble.ReleaseError, 'qualifies'):
-            self.assembled(spec, receipt={'version': 'v31-intel-free-2x'})
+            self.assembled(spec, receipt={'version': 'v31-intel-free-mfg'})
         # an earlier, different build under the same public version in evidence/ is refused
         with self.assertRaisesRegex(self.assemble.ReleaseError, 'already names a different build'):
             self.assembled(spec, evidence={'lumen-pace-v31-2x-package.json': {'payload': {}}})
 
     def test_private_name_assembles_as_before(self):
         spec = self.public_spec()
-        self.assertEqual(spec['name'], 'bc250-fsr4-xemfg-private-test-31-intel-free-2x')
+        self.assertEqual(spec['name'], 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg')
         out, manifest, receipt, _root = self.assembled(spec)
         self.assertEqual(out.name, spec['name'])
-        self.assertTrue((out / 'qualification/xemfg-v31-intel-free-2x-package.json').is_file())
-        self.assertEqual((receipt['version'], receipt['package']), ('v31-intel-free-2x', spec['name']))
+        self.assertTrue((out / 'qualification/xemfg-v31-intel-free-mfg-package.json').is_file())
+        self.assertEqual((receipt['version'], receipt['package']), ('v31-intel-free-mfg', spec['name']))
         with self.assertRaisesRegex(self.assemble.ReleaseError, 'already names a different build'):
-            self.assembled(spec, evidence={'xemfg-v31-intel-free-2x-package.json': {'payload': {}}})
+            self.assembled(spec, evidence={'xemfg-v31-intel-free-mfg-package.json': {'payload': {}}})
 
     def test_assembles_under_a_decided_version(self):
         names = names_with(CHOSEN, FIXED_SEMVER_FORM)
         spec = self.public_spec(CHOSEN, FIXED_SEMVER_FORM)
         self.assertEqual(spec['name'], 'lumen-pace-0.1.0')
         out, manifest, receipt, root = self.assembled(spec, names=names)
-        self.assertEqual(out, root / 'build/package-intel-free-2x/lumen-pace-0.1.0')
+        self.assertEqual(out, root / 'build/package-intel-free-mfg/lumen-pace-0.1.0')
         self.assertTrue((out / 'qualification/lumen-pace-v0.1.0-package.json').is_file())
         self.assertEqual((receipt['version'], receipt['package']), ('v0.1.0', 'lumen-pace-0.1.0'))
-        self.assertTrue(manifest['status'].startswith('Lumen Pace v0.1.0: 2x frame generation'), manifest['status'])
+        self.assertTrue(manifest['status'].startswith('Lumen Pace v0.1.0: frame generation'), manifest['status'])
 
     # the public build's manifest text
 
@@ -1281,13 +1294,13 @@ class PublicNameAssembly(unittest.TestCase):
         _out, manifest, _receipt, _root = self.assembled(fixture, names=names_with(CHOSEN), public_tree=True)
         self.assertEqual(manifest['status'], 's')  # no public documents: not the public build
         _out, manifest, _receipt, _root = self.assembled(self.public_spec(), names=names_with(CHOSEN), public_tree=True)
-        self.assertTrue(manifest['status'].startswith('[PRODUCT] v31-intel-free-2x: '), manifest['status'])
+        self.assertTrue(manifest['status'].startswith('[PRODUCT] v31-intel-free-mfg: '), manifest['status'])
         self.assertEqual(manifest['profile']['research'], self.assemble.PUBLIC_MANIFEST['profile.research'])
 
     def test_package_json_public_variant_wording(self):
-        """What the public build no longer ships: this tree's intel-free-2x manifest text (the maintainers' wording)."""
+        """What the public build no longer ships: this tree's intel-free-mfg manifest text (the maintainers' wording)."""
         spec = json.loads((RELEASE_DIR / 'package.json').read_text())
-        variant = spec['variants']['intel-free-2x']['manifest'] if 'intel-free-2x' in spec.get('variants', {}) else {}
+        variant = spec['variants']['intel-free-mfg']['manifest'] if 'intel-free-mfg' in spec.get('variants', {}) else {}
         manifest = dict(spec['manifest'], **variant)
         public = self.assemble.public_manifest(manifest, 'v31-2x', 'Lumen Pace')
         self.assertIsNone(self.PRIVATE_WORDING.search(public['status'] + public['profile']['research']))
@@ -1334,7 +1347,7 @@ class PublicNameAssembly(unittest.TestCase):
         # private builds: no public gate
         self.archive_gate(assembly_package(), names, docs_errors=None, receipt={'note': '[DRAFT]'})
         out, _manifest = self.archive_gate(self.public_spec(), names, receipt={})  # private name, public documents
-        self.assertEqual(out.name, 'bc250-fsr4-xemfg-private-test-31-intel-free-2x')
+        self.assertEqual(out.name, 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg')
         with self.assertRaisesRegex(error, 'check_public_docs'):
             self.archive_gate(self.public_spec(), names, ['README.md: placeholders {\'[PRODUCT]\': 27}'])
 
@@ -1404,13 +1417,15 @@ class PublicArchiveGate(unittest.TestCase):
         cls.assemble = assemble
 
     def tree(self):
-        """A folder with what check_public_docs.py reads: packaging/public/, packaging/dependencies.json,
-        release/package.json and release/inputs.lock.json, copied from this tree."""
+        """A folder with what check_public_docs.py reads: packaging/public/, the figures its documents link to
+        (docs/assets/), packaging/dependencies.json, release/package.json and release/inputs.lock.json, copied from this
+        tree."""
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         root = Path(folder.name)
         shutil.copytree(TREE / 'packaging/public', root / 'packaging/public',
                         ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copytree(TREE / 'docs/assets', root / 'docs/assets')
         for name in ('packaging/dependencies.json', 'release/package.json', 'release/inputs.lock.json'):
             (root / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(TREE / name, root / name)
@@ -1909,6 +1924,230 @@ class OptiScalerForkLock(unittest.TestCase):
         for key in ('commit', 'tree', 'tag', 'tag_commit', 'build_route', 'upstream_base'):
             self.assertEqual(group['source'][key], self.group['source'][key])
         self.assertEqual(export_tree.public_lock(public)[0], public)
+
+
+class HelixSRNeverShipped(unittest.TestCase):
+    """HelixSR (a separate project, optional) never reaches a package or the scheduled pin check: assemble.py refuses a
+    HelixSR DLL its setup has built (NVIDIA's network appended behind the HXSRNET1 footer), and release/ci/check_pins.py
+    never downloads HelixSR's release (players download it only by their own choice)."""
+
+    def test_assembly_refuses_a_built_helixsr_dll(self):
+        import struct
+        import assemble
+        with tempfile.TemporaryDirectory() as scratch:
+            built, plain = Path(scratch) / 'built.dll', Path(scratch) / 'plain.dll'
+            built.write_bytes(b'MZ' + b'\0' * 64 + b'w' * 8 + b'k' * 8 + b'HXSRNET1' + struct.pack('<QQQ', 8, 8, 1))
+            plain.write_bytes(b'MZ' + b'\0' * 64)
+
+            class Sources:
+                def resolve(self, source):
+                    return Path(scratch) / source
+            spec = dict(never_ship=dict(paths=[], prefixes=[], sha256={}),
+                        components=dict(c=dict(files={'payload/x.dll': 'plain.dll'})))
+            self.assertEqual(list(assemble.plan(spec, Sources())), ['payload/x.dll'])
+            spec['components']['c']['files']['payload/x.dll'] = 'built.dll'
+            with self.assertRaisesRegex(assemble.ReleaseError, 'HelixSR'):
+                assemble.plan(spec, Sources())
+
+    def test_pin_check_never_fetches_helixsr(self):
+        import subprocess
+        release = Path(__file__).resolve().parent
+        pins = json.loads((release.parent / 'packaging/dependencies.json').read_text())
+        if not isinstance(pins.get('helixsr'), dict):
+            self.skipTest('this tree pins no HelixSR')
+        command = [sys.executable, '-I', '-B', str(release / 'ci/check_pins.py'), '--list', '--only', 'installer']
+        listed = json.loads(subprocess.run(command, check=True, capture_output=True, text=True).stdout)
+        names = [pin['name'] for pin in listed]
+        self.assertTrue(names)
+        self.assertFalse([n for n in names if n.startswith('inputs.' + pins['helixsr']['Input'] + ' ')], names)
+        self.assertNotIn(pins['inputs'][pins['helixsr']['Input']]['url'], [pin['url'] for pin in listed])
+        self.assertEqual(len(names), len(pins['inputs']) - 1)
+
+
+MFG_DEFINITION = Path(__file__).resolve().parent / 'intel_free_mfg.json'
+TWO_DEFINITION = Path(__file__).resolve().parent / 'intel_free_2x.json'
+
+
+@unittest.skipUnless(MFG_DEFINITION.is_file(), 'the multi-frame proxy is not part of this tree (public export)')
+class MultiFrameProxy(unittest.TestCase):
+    """The multi-frame proxy (variant intel-free-mfg): its definitions, its wrapped entries with their tail-calling
+    paths, the 2x variant left as it was, and its package declaration. No build."""
+    LIFECYCLE = ('xefgSwapChainD3D12CreateContext', 'xefgSwapChainD3D12InitFromSwapChain',
+                 'xefgSwapChainD3D12InitFromSwapChainDesc', 'xefgSwapChainDestroy')
+    ORDINARY = ('xefgSwapChainGetLastPresentStatus', 'xefgSwapChainSetNumInterpolatedFrames')
+    ALWAYS_TAIL = ('xefgSwapChainTagFrameConstants', 'xefgSwapChainD3D12GetSwapChainPtr')
+
+    def headers(self):
+        """Declarations of the wrapped entries in the form of Intel's headers (enough for exports_header)."""
+        return """
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12CreateContext(ID3D12Device* pDevice, xefg_swapchain_handle_t* phSwapChain);
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12InitFromSwapChain(xefg_swapchain_handle_t hSwapChain,
+    ID3D12CommandQueue* pCmdQueue, const xefg_swapchain_d3d12_init_params_t* pInitParams);
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12InitFromSwapChainDesc(xefg_swapchain_handle_t hSwapChain,
+    HWND hWnd, const DXGI_SWAP_CHAIN_DESC1* pSwapChainDesc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pFullscreenDesc,
+    ID3D12CommandQueue* pCmdQueue, IDXGIFactory2* pDxgiFactory, const xefg_swapchain_d3d12_init_params_t* pInitParams);
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainDestroy(xefg_swapchain_handle_t hSwapChain);
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainGetLastPresentStatus(xefg_swapchain_handle_t hSwapChain, xefg_swapchain_present_status_t* pPresentStatus);
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainSetNumInterpolatedFrames(
+    xefg_swapchain_handle_t hSwapChain, uint32_t numInterpolatedFrames);
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainTagFrameConstants(xefg_swapchain_handle_t hSwapChain,
+    uint32_t presentId, const xefg_swapchain_frame_constant_data_t* pConstants);
+XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xefg_swapchain_handle_t hSwapChain, REFIID riid, void** ppSwapChain);
+"""
+
+    def wrappers(self, code):
+        import re
+        return dict(re.findall(r'xefg_swapchain_result_t (xefg\w+)\((.*?)\n', code))
+
+    def test_definitions(self):
+        import build_proxy
+        _base, definition, defines = build_proxy.definitions('intel-free-mfg')
+        for kept in ('XEFG_INTEL_FREE=1', 'XEFG_MFG_RESEARCH=1', 'XEFG_MFG_POOL=1', 'XEFG_MFG_RETIRE=1',
+                     'XEFG_FRAME_CAP_RESEARCH=1', 'XEFG_FLOW_CAP_RESEARCH=1', 'XEFG_PROXY_MFG=1'):
+            self.assertIn(kept, defines)
+        for dropped in ('XEFG_MFG_XELL_PACE=1', 'XEFG_MFG_NO_ENABLER_UI=1', 'XEFG_MFG_GUARD_FULL=1'):
+            self.assertNotIn(dropped, defines)
+        self.assertEqual(definition['addon']['output_dir'], 'addon-intel-free-mfg')
+        self.assertEqual(definition['profile']['drop'], {})
+        if TWO_DEFINITION.is_file():  # 0.9.0's 2x build: the maintainers' tree only
+            _base, two, two_defines = build_proxy.definitions('intel-free-2x')
+            self.assertNotIn('XEFG_PROXY_MFG=1', two_defines)
+            self.assertNotIn('XEFG_MFG_RESEARCH=1', two_defines)
+        from config import ReleaseError
+        with self.assertRaises(ReleaseError):
+            build_proxy.definitions('intel-free-3x')
+
+    def test_wrappers(self):
+        import build_proxy
+        _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
+        hooks = build_proxy.proxy_hooks(definition)
+        self.assertEqual(sorted(hooks), sorted(self.LIFECYCLE + self.ORDINARY + self.ALWAYS_TAIL))
+        code = build_proxy.exports_header(self.headers(), hooks)
+        wrappers = self.wrappers(code)
+        self.assertEqual(len(wrappers), 8)
+        for name in self.LIFECYCLE:
+            body = wrappers[name]
+            self.assertEqual(body.count('__attribute__((musttail)) return original('), 1, name)
+            self.assertIn('if(proxy_foreign_hooks()){', body, name)
+            self.assertIn(' result=original(', body, name)  # the ordinary path
+        self.assertIn('original(tail?tail:pDevice, phSwapChain)', wrappers['xefgSwapChainD3D12CreateContext'])
+        self.assertIn('original(scoped?scoped:pDevice, phSwapChain)', wrappers['xefgSwapChainD3D12CreateContext'])
+        self.assertIn('pFullscreenDesc, tail?tail:pCmdQueue, pDxgiFactory, pInitParams)',
+                      wrappers['xefgSwapChainD3D12InitFromSwapChainDesc'])
+        tag = wrappers['xefgSwapChainTagFrameConstants']
+        self.assertIn('proxy_frame_tick(hSwapChain);__attribute__((musttail)) return original(hSwapChain, presentId, pConstants);}', tag)
+        self.assertNotIn(' result=original(', tag)
+        # The first call after a tail-called initialisation runs its deferred work before reaching Intel (the census
+        # then holds what the initialisation allocated, not what a frame-count change allocates).
+        chain = wrappers['xefgSwapChainD3D12GetSwapChainPtr']
+        self.assertIn('proxy_ready_first(hSwapChain);__attribute__((musttail)) return original(hSwapChain, riid, ppSwapChain);}', chain)
+        self.assertNotIn(' result=original(', chain)
+        for name in self.ORDINARY:
+            self.assertNotIn('musttail', wrappers[name], name)
+            body = wrappers[name]
+            self.assertLess(body.index('proxy_ready_first(hSwapChain);'), body.index(' result=original('), name)
+        # Claims: by output pointer or the initialisation queue's device; at destruction by output pointer.
+        for name in ('xefgSwapChainD3D12InitFromSwapChain', 'xefgSwapChainD3D12InitFromSwapChainDesc'):
+            ordinary = wrappers[name].split('__attribute__((musttail))', 1)[1]
+            self.assertIn('proxy_claim(hSwapChain,pCmdQueue);if(mfg_proxy_one_frame(hSwapChain,pInitParams))fast_begin_init(hSwapChain);',
+                          ordinary, name)
+            foreign = wrappers[name].split('__attribute__((musttail))', 1)[0]
+            self.assertNotIn('mfg_proxy_one_frame', foreign, name)  # beside another module: any frame count
+        destroy = wrappers['xefgSwapChainDestroy'].split('__attribute__((musttail))', 1)[1]
+        self.assertIn('proxy_claim(hSwapChain,NULL);', destroy)
+        self.assertIn('proxy_status_from_caller(pPresentStatus)', wrappers['xefgSwapChainGetLastPresentStatus'])
+        self.assertIn('proxy_frames_changed(hSwapChain,numInterpolatedFrames)', wrappers['xefgSwapChainSetNumInterpolatedFrames'])
+        for leftover in ('mfg_xell_pace', 'mfg_status_', 'mfg_enabler'):
+            self.assertNotIn(leftover, code)
+
+    @unittest.skipUnless(TWO_DEFINITION.is_file(), '0.9.0\'s 2x proxy is not part of this tree (public export)')
+    def test_the_2x_variant_is_unchanged(self):
+        import build_proxy
+        _base, definition, _defines = build_proxy.definitions('intel-free-2x')
+        hooks = build_proxy.proxy_hooks(definition)
+        self.assertEqual(sorted(hooks), sorted(self.LIFECYCLE + ('xefgSwapChainGetLastPresentStatus',)))
+        code = build_proxy.exports_header(self.headers(), hooks)
+        self.assertNotIn('musttail', code)
+        for name in ('proxy_foreign_hooks', 'proxy_frame_tick', 'proxy_status_', 'proxy_frames_', 'proxy_finish_deferred'):
+            self.assertNotIn(name, code)
+        self.assertIn('if(mfg_proxy_one_frame(hSwapChain,pInitParams))fast_begin_init(hSwapChain);', code)
+
+    def test_unknown_hook_table_refused(self):
+        import build_proxy
+        from config import ReleaseError
+        _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
+        with self.assertRaises(ReleaseError):
+            build_proxy.proxy_hooks(dict(definition, addon=dict(definition['addon'], hooks='NO_SUCH_TABLE')))
+
+    def test_package_declaration(self):
+        from assemble import apply_variant, check_documents
+        from config import ReleaseError
+        spec = json.loads((Path(__file__).resolve().parent / 'package.json').read_text())
+        package = apply_variant(spec, 'intel-free-mfg')
+        self.assertNotIn('documents_base', package)
+        self.assertEqual(package['documents_version'], 'public')
+        profile = package['components']['profile-intel-free-mfg']['files']
+        self.assertEqual(len(profile), 42)
+        self.assertEqual(sum(1 for path in profile if '/mfg-finish' in path), 5)
+        self.assertEqual(package['components']['addon-intel-free-mfg']['files']['payload/libxess_fg.dll'], 'build:addon-intel-free-mfg')
+        self.assertEqual(package['manifest']['addon_entry'], 'libxess_fg-proxy')
+        self.assertEqual(package['manifest']['max_factor'], 2)  # Setup offers 2x; 3x/4x come from OptiScaler's menu
+        self.assertNotIn('xessmfg-enabler', package['components'])
+        # The variant keeps its own copy of never_ship; it must not fall behind the 2x variant's (e.g. HelixSR's DLL).
+        if 'intel-free-2x' in spec.get('variants', {}):
+            self.assertEqual(spec['variants']['intel-free-mfg']['never_ship'],
+                             spec['variants']['intel-free-2x']['never_ship'])
+        documents = package['components'][package['documents_component']]['files']
+        self.assertEqual(documents['README.md'], 'repo:packaging/public/README.md')
+        self.assertEqual(documents['ARCHITECTURE.md'], 'repo:packaging/public/ARCHITECTURE.md')
+        self.assertEqual(documents['NOTICE.md'], 'repo:packaging/public/NOTICE.md')
+        with tempfile.TemporaryDirectory() as folder:
+            files = {}
+            for target in documents:
+                path = Path(folder) / target
+                path.write_text('text')
+                files[target] = (None, path)
+            self.assertEqual(check_documents(package, package['documents_version'], files), ([], []))
+            stray = copy.deepcopy(package)
+            stray['components'][stray['documents_component']]['files']['README.md'] = 'repo:packaging/v27/README.md'
+            with self.assertRaises(ReleaseError):
+                check_documents(stray, stray['documents_version'], files)
+
+    def test_wine_check_version_resource(self):
+        """check_proxy_wine.py writes the stand-in callers' version resource itself: the bytes llvm-rc writes for the
+        same VERSIONINFO (checked once with llvm-rc 22.1.8 -no-preprocess; pinned here by hash), and a walk of its nodes
+        as src/game/mfg_proxy_coexist.h reads them finds the product."""
+        import hashlib
+        import struct
+        import check_proxy_wine
+        data = check_proxy_wine.version_resource('OptiScaler')
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+                         'b8b3b8ecc41a46ed196780315ad8d4ae9abcc7d9bd219bcbab83fed8260ed6a1')
+        size, header = struct.unpack_from('<II', data, 32)
+        info = data[32 + header:32 + header + size]
+
+        def nodes(block, start, end):
+            """(key, value, start of children, end) of each node from start to end (offsets within the resource)."""
+            while start + 6 <= end:
+                length, value_length, kind = struct.unpack_from('<HHH', block, start)
+                key_end = start + 6
+                while block[key_end:key_end + 2] != b'\0\0':
+                    key_end += 2
+                value = (key_end + 2 + 3) // 4 * 4
+                size = value_length * 2 if kind == 1 else value_length
+                yield block[start + 6:key_end].decode('utf-16-le'), block[value:value + size], (value + size + 3) // 4 * 4, start + length
+                start = (start + length + 3) // 4 * 4
+
+        found = {}
+        for key, _value, children, end in nodes(info, 0, len(info)):
+            self.assertEqual(key, 'VS_VERSION_INFO')
+            for block, _v, table_start, block_end in nodes(info, children, end):
+                self.assertEqual(block, 'StringFileInfo')
+                for _table, _v2, strings, table_end in nodes(info, table_start, block_end):
+                    for name, value, _c, _e in nodes(info, strings, table_end):
+                        found[name] = value.decode('utf-16-le').rstrip('\0')
+        self.assertEqual(found, {'ProductName': 'OptiScaler', 'OriginalFilename': 'OptiScaler.dll'})
+        self.assertNotEqual(check_proxy_wine.version_resource('Other product'), data)
 
 
 if __name__ == '__main__':

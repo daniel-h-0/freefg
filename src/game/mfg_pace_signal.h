@@ -5,7 +5,8 @@
  * (both visible here: C:\\ and GetCurrentProcessId; /proc/self would name the wineserver, which opens files for Wine).
  * This thread maps that page through Z: and stores, every 20 ms, a running count that advances for every generated frame
  * (XeFG's final output pass as recorded, plus the accelerated network and warp counters, plus the frames Intel's SDK
- * reports sent after each Present, mfg_xell_pace.h) and a heartbeat. The network counters alone would miss 2x, whose
+ * reports sent after each Present: mfg_xell_pace.h in the enabler build, mfg_proxy_coexist.h in the multi-frame proxy)
+ * and a heartbeat. The network counters alone would miss 2x, whose
  * accelerated path is the warp; the SDK status is what moves with Intel's shaders (BC250_XEFG_DISABLE=1, or another GPU
  * without BC250_XEFG_ANY_GPU=1), where no accelerated counter does. The layer holds while the count moved within
  * the last 250 ms. Without the layer the page never appears and the thread only retries once a second. */
@@ -16,6 +17,7 @@ static UINT64 mfg_pace_generated(void){
  UINT64 sum=(UINT64)InterlockedCompareExchange64(&frame_outputs_recorded,0,0)+*(volatile UINT64*)&graph_geometry_fallbacks;
  for(size_t i=0;i<sizeof(graph_counts)/sizeof(graph_counts[0]);i++)sum+=*(volatile UINT64*)&graph_counts[i];
  for(size_t i=0;i<sizeof(graph_ref64_counts)/sizeof(graph_ref64_counts[0]);i++)sum+=*(volatile UINT64*)&graph_ref64_counts[i];
+ sum+=(UINT64)InterlockedCompareExchange64(&proxy_status_generated,0,0);  /* the multi-frame proxy's SDK status count */
  return sum;
 }
 static struct mfg_pace_page*mfg_pace_open(void){

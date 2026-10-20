@@ -159,6 +159,33 @@ def kernel_compute_fixes():
 SIDE_DRIVERS=[('/usr/local/lib/bc250-radv/share/vulkan/icd.d','bc250-async-compute-bazzite'),('/opt/bc250-gfx1013/share/vulkan/icd.d','bc250-gfx1013-fix')]
 
 
+def helixsr_row(home, package=None):
+    """(level, item, text) for the optional HelixSR upscaler (helixsr.py): where it is and whether HelixSR's own setup has
+    built it on this computer. None when the package pins no HelixSR. Downloads nothing."""
+    folder = Path(package or Path(__file__).resolve().parent)
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('bc250_helixsr_doctor', Path(__file__).resolve().parent/'helixsr.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        found = module.find(folder, home=home)
+    except Exception as error:  # noqa: BLE001 - a check never stops the others
+        return ('INFO', 'HelixSR', 'cannot check: ' + str(error))
+    credit = 'optional upscaler; a separate project by lonewolf0622 under its own licence, ' + module.PROJECT
+    if found['state'] == 'unsupported':
+        return None
+    if found['state'] == 'ready':
+        return ('OK', 'HelixSR', found['message'] + ' (' + credit + ')')
+    if found['state'] == 'unbuilt':
+        return ('INFO', 'HelixSR', found['message'] + ' Build it once with HelixSR\'s own setup: ' +
+                module.setup_command(found['folder']) + ' (' + credit + ')')
+    if found['state'] == 'unknown':
+        return ('INFO', 'HelixSR', found['message'] + ' Setup\'s Upscaler choice or install.py helixsr downloads the official '
+                'HelixSR ' + str(found['pinned']) + ' release.')
+    return ('INFO', 'HelixSR', 'not on this computer (' + credit + '). Setup\'s Upscaler choice or install.py helixsr '
+            'downloads the official HelixSR ' + str(found['pinned']) + ' release.')
+
+
 def checks(home=None, drm=None, package=None):
     home = Path(home or Path.home())
     info = package_info(package)
@@ -254,6 +281,12 @@ def checks(home=None, drm=None, package=None):
         'enabled for the next Steam start (for extras/steam-screensaver-in-game)' if flag else
         'not reachable; only needed by the optional Steam screensaver helper (Decky Loader enables it, or '
         'touch ~/.steam/steam/.cef-enable-remote-debugging and restart Steam)')
+    helix = helixsr_row(home, package)
+    if helix:
+        add(*helix)
+    if info is None or (Path(package or Path(__file__).resolve().parent)/'compat.py').is_file():
+        add('INFO', 'Games', 'which games work, and how: Setup\'s Check, or install.py check GAME.exe (one game, with the OptiScaler '
+            'wiki\'s notes and the last run) and install.py check --all (every installed Steam and Heroic game); nothing is changed')
     return rows
 
 

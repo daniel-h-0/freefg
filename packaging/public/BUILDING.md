@@ -6,7 +6,7 @@ twice per run, and both builds must match. The result is compared with the refer
 
 | Output | Built by | sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
 
 A different compiler, Wine or glibc version normally changes the bytes. The build then warns, and the result is a new
@@ -69,8 +69,8 @@ python3 release/fetch.py                     # pinned public inputs (also fetche
 python3 release/build_layer.py               # unit tests under ASan/UBSan and TSan, then libxefg_wave.so twice
 python3 release/build_proxy.py               # libxess_fg.dll twice, plus its ABI checks
 python3 release/check_proxy_wine.py          # the proxy under Wine's real loader, CPU only (needs wine)
-python3 release/assemble.py --variant intel-free-2x --no-source-companion
-python3 release/check_intel_free.py check build/package-intel-free-2x/<package name>   # result "pass", exit 0
+python3 release/assemble.py --variant intel-free-mfg --no-source-companion
+python3 release/check_intel_free.py check build/package-intel-free-mfg/<package name>   # result "pass", exit 0
 ```
 
 `assemble.py` and `check_intel_free.py` need DXC (`XEMFG_DXC`, the extracted release of [The shader
@@ -84,16 +84,20 @@ Outputs go to `build/` (`XEMFG_BUILD`), which git ignores. What each step checks
   AddressSanitizer/UBSan and ThreadSanitizer. Any sanitizer report fails the build. Then it builds the layer twice and
   writes `build/layer/build.json`, with no absolute paths.
 - **`build_proxy.py`** checks its inputs against the lock and prepares the shader profile. It generates the export
-  definitions from Intel's DLL: 57 exports at their ordinals, 5 wrapped and 52 forwarded to `bc250_xefg_original`. It
-  compiles `src/game/mfg_proxy.c` twice and requires identical output. Then it checks the result: Intel's export table
-  reproduced ordinal by ordinal, imports only from `kernel32.dll` and `ucrtbase.dll`, and no reference to any other
-  loader. It writes `build/addon-intel-free-2x/build.json`.
+  definitions from Intel's DLL: 57 exports at their ordinals, 8 wrapped and 49 forwarded to `bc250_xefg_original`,
+  plus the 4 exports of FreeFG's settings interface. It compiles `src/game/mfg_proxy.c` twice and requires identical
+  output. Then it checks the result: Intel's export table reproduced ordinal by ordinal, imports only from
+  `kernel32.dll` and `ucrtbase.dll`, and no reference to any other loader. It writes
+  `build/addon-intel-free-mfg/build.json`.
 - **`check_proxy_wine.py`** runs a small test program under Wine in a private prefix, with no GPU and no display, in
-  three layouts. With the pinned runtime, a forwarded call reaches Intel's DLL and a wrapped one reaches Intel's code.
-  With a runtime altered by one byte, and with no runtime, the wrapped call refuses without loading anything.
+  four layouts. With the pinned runtime, a forwarded call reaches Intel's DLL and a wrapped one reaches Intel's code.
+  With a runtime altered by one byte, and with no runtime, the wrapped call refuses without loading anything. With a
+  stand-in module that hooks eight of Intel's entries, each hooked entry is reached once with the caller it would see
+  without the proxy, and only a stand-in carrying OptiScaler's version resource gets an accelerated context. A unit test
+  of the proxy's bookkeeping beside such a module (`src/game/test_proxy_coexist.c`) runs under Wine too.
 - **`assemble.py`** runs the installer's unit tests first. It refuses stale builds, files the package must not carry
   (Intel's runtime, the FSR 4 DLL) and, when archiving, documents that still carry the draft marker. It writes
-  `build/package-intel-free-2x/<name>/` with `manifest.json` (every file's SHA-256, the git commit, and which shipped
+  `build/package-intel-free-mfg/<name>/` with `manifest.json` (every file's SHA-256, the git commit, and which shipped
   files differ from it), then runs the static check and removes the package if that check fails.
 - **`check_intel_free.py check`** reads every file of the package. It fails on a file whose SHA-256 is that of an Intel
   file or of one of the shader programs of Intel's runtime, on any DXIL that is not one of the profile's own shaders (also
@@ -102,15 +106,15 @@ Outputs go to `build/` (`XEMFG_BUILD`), which git ignores. What each step checks
   `release/ci/check_controls.py` proves each detector on synthetic material.
 
 **Installer tests and an offline install:** `python3 release/ci/installer_tests.py` runs the installer's unit tests on
-their own. `python3 release/smoke_install.py --variant intel-free-2x --deps <dir>` installs the assembled package into
+their own. `python3 release/smoke_install.py --variant intel-free-mfg --deps <dir>` installs the assembled package into
 a throwaway game folder and restores it, offline. `<dir>` holds the installer's prepared downloads, for example
 `~/.cache/bc250-xefg-testers/payload` after one Setup run.
 
 ## The shader profile
 
-The 28 shaders and 9 tables of `payload/BC250-XeFG/shaders/` are this project's own. The tree holds the compiled
-profile in `release/profile/` (33 shaders and 9 tables and markers: the 2× package leaves out five multi-frame
-shaders) and the HLSL it is compiled from in `src/kernels/`. Each file is pinned by SHA-256 in
+The 33 shaders and 9 tables of `payload/BC250-XeFG/shaders/` are this project's own. The tree holds the compiled
+profile in `release/profile/` (the same 33 shaders and 9 tables and markers) and the HLSL it is compiled from in
+`src/kernels/`. Each file is pinned by SHA-256 in
 `release/inputs.lock.json`, with origin `own`. The builds read `release/profile/` unless `XEMFG_PROFILE` names another
 directory.
 
@@ -127,9 +131,9 @@ compiles the same sources to different bytes.
 
 ## What a public build cannot produce yet
 
-- **The OptiScaler build** (`opti/OptiScaler.dll`, GPL-3.0, sha256 `244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d`).
+- **The OptiScaler build** (`opti/OptiScaler.dll`, GPL-3.0, sha256 `5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6`).
   The package ships this DLL. Its source is the OptiScaler fork at <https://github.com/daniel-h-0/OptiScaler>, tag
-  `bc250-a793287` (see [NOTICE.md](NOTICE.md)). The release tooling does not download the built DLL, so CI assembles
+  `bc250-f971ed1` (see [NOTICE.md](NOTICE.md)). The release tooling does not download the built DLL, so CI assembles
   the package without it. That is the only component it may leave out.
 - **The source companion** (`assemble.py` without `--no-source-companion`) reads a git checkout of the OptiScaler fork
   (`XEMFG_OPTISCALER_SOURCE`).

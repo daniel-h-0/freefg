@@ -7,7 +7,9 @@ Pins checked, each downloaded in full and hashed (nothing downloaded is executed
   build     release/inputs.lock.json "fetch": every file of every group at its locked commit (the URLs fetch.py uses)
   installer packaging/dependencies.json "inputs": every download an installation makes, with its size when pinned;
             then the installer's own dependencies.prepare() runs on those downloads in a scratch cache, which unpacks
-            each pinned member and checks it against its per-file pin, exactly as a player's first install does
+            each pinned member and checks it against its per-file pin, exactly as a player's first install does.
+            Not checked: the release of HelixSR (the "helixsr" entry's input), a separate project that a player's
+            installer downloads only when that player chooses HelixSR; this check never fetches it
   ci        release/ci/ci.lock.json: the Arch Linux Archive package files (snapshot and package archive), the DXC
             release, and the container image digest (a registry manifest request, no layers downloaded)
 
@@ -46,9 +48,18 @@ def pins_build():
                        url=entry['url'].format(commit=entry['commit'], path=item.get('source', name)))
 
 
+def opt_in_inputs(pins):
+    """Inputs downloaded only on a player's own choice of a separate project (HelixSR): never fetched by this check."""
+    entry = pins.get('helixsr')
+    return {entry['Input']} if isinstance(entry, dict) and entry.get('Input') else set()
+
+
 def pins_installer():
     pins = json.loads(DEPENDENCIES.read_text())
+    skipped = opt_in_inputs(pins)
     for key, item in pins.get('inputs', {}).items():
+        if key in skipped:
+            continue
         yield dict(kind='installer', name=f'inputs.{key} ({item.get("file", "")})', url=item['url'], sha256=item['sha256'],
                    bytes=item.get('size'), key=key, file=item.get('file'))
 

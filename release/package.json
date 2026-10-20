@@ -1,32 +1,32 @@
 {
- "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free 2x build (variant intel-free-2x; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-2x for tools that pass --variant intel-free-2x, and that entry changes nothing.",
- "name": "freefg-0.9.0",
- "variant": "intel-free-2x",
+ "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build (variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-mfg for tools that pass --variant intel-free-mfg, and that entry changes nothing.",
+ "name": "freefg-1.0.0",
+ "variant": "intel-free-mfg",
  "documents_version": "public",
  "documents_component": "documents",
- "package_dir": "package-intel-free-2x",
+ "package_dir": "package-intel-free-mfg",
  "allowed_components": {},
  "manifest": {
   "runtime": "xemfg",
   "launcher_setup": "automatic",
   "profile": {
-   "name": "cl-wino-q33-intel-free-2x",
-   "research": "this project's own shaders only, built from its HLSL sources (src/kernels), for one generated frame per real frame"
+   "name": "cl-wino-q33-intel-free-mfg",
+   "research": "this project's own shaders only, built from its HLSL sources (src/kernels), for the one-frame and multi-frame networks"
   },
   "default_factor": 2,
   "default_cap": "match output (this build has no generated-frame scaling)",
   "fsr4": "4.1.1 RC11 INT8 (downloaded by the installer, see dependencies.json)",
-  "enabler": "none: libxess_fg.dll proxy over Intel's unmodified XeFG runtime (bc250_xefg_original.dll, downloaded by the installer)",
-  "status": "The public 2x build. release/assemble.py writes its status text (PUBLIC_MANIFEST, with the product's name and version) into the manifest in place of this line.",
+  "enabler": "none: libxess_fg.dll proxy over Intel's unmodified XeFG runtime (bc250_xefg_original.dll, downloaded by the installer); another module that lifts Intel's frame limit is the user's own addition, never shipped",
+  "status": "The public build. release/assemble.py writes its status text (PUBLIC_MANIFEST, with the product's name and version) into the manifest in place of this line.",
   "frame_start_pacing": {
-   "research": "none: 2x only (the frame-start pacer acts at 3x/4x); present pacing by the layer while the accelerated path generates"
+   "research": "none: a module that lifts Intel's frame limit paces frame starts itself; present pacing by the layer while XeFG generates (accelerated counters and the SDK's present status)"
   },
   "enabler_overlay": "not applicable (no XeSSMFG enabler)",
   "optiscaler": {
-   "source_commit": "a7932870f9988b86692aabf9e8908e2adc61e1f0",
-   "upstream_base": "92337ebfbf07d533eabe3731fd8de1bb19437aea (OptiScaler nightly-20260929)",
-   "reverted": [
-    "f6db41dfa7bacb16ac50bd1e5787fdb44362da47 Try to prevent race conditions when hooking sl plugins"
+   "source_commit": "f971ed143de0bdbbbac6d526c95a20227c22e1c6",
+   "upstream_base": "c2e44a8bc911010d7ed3e4fa63843185fbb55d03 (OptiScaler master, 19 October 2026)",
+   "fixed": [
+    "f6db41dfa7bacb16ac50bd1e5787fdb44362da47 Try to prevent race conditions when hooking sl plugins (lock order: the loader lock before a Streamline plugin mutex)"
    ]
   },
   "extras": {
@@ -39,17 +39,20 @@
  },
  "components": {
   "installer": {
-   "description": "Installer, Setup front end, launcher configuration, recipes and dependency pins (one line per file)",
+   "description": "Installer, Setup front end, launcher configuration, recipes, the compatibility check (compat.py, gamescan.py) and dependency pins (one line per file)",
    "files": {
     "install.py": "repo:packaging/install.py",
     "setup.py": "repo:packaging/mfg/setup.py",
     "launcher_config.py": "repo:packaging/launcher_config.py",
     "steam_config.py": "repo:packaging/steam_config.py",
     "recipes.py": "repo:packaging/recipes.py",
+    "compat.py": "repo:packaging/compat.py",
+    "gamescan.py": "repo:packaging/gamescan.py",
     "recipes/recipes.json": "repo:packaging/recipes/recipes-runtime.json",
     "dependencies.json": "repo:packaging/dependencies.json",
     "dependencies.py": "repo:packaging/dependencies.py",
     "doctor.py": "repo:packaging/doctor.py",
+    "helixsr.py": "repo:packaging/helixsr.py",
     "Start-freefg.sh": "repo:packaging/Start-BC250-XeFG.sh"
    }
   },
@@ -106,11 +109,11 @@
     "SECURITY.md": "repo:packaging/public/SECURITY.md"
    }
   },
-  "addon-intel-free-2x": {
-   "description": "Enabler-free BC250 add-on: libxess_fg.dll proxy for Intel's unmodified XeFG runtime, built with XEFG_INTEL_FREE (release/build_proxy.py), and its build record",
+  "addon-intel-free-mfg": {
+   "description": "Multi-frame enabler-free BC250 add-on: libxess_fg.dll proxy for Intel's unmodified XeFG runtime, built with XEFG_INTEL_FREE and XEFG_PROXY_MFG (release/build_proxy.py --variant intel-free-mfg), and its build record",
    "files": {
-    "payload/libxess_fg.dll": "build:addon-intel-free-2x",
-    "qualification/addon-build.json": "build:addon-intel-free-2x-record"
+    "payload/libxess_fg.dll": "build:addon-intel-free-mfg",
+    "qualification/addon-build.json": "build:addon-intel-free-mfg-record"
    }
   },
   "layer": {
@@ -127,46 +130,51 @@
     "payload/BC250-XeFG/settings.ini": "repo:release/files/BC250-XeFG-settings.ini"
    }
   },
-  "profile-intel-free-2x": {
-   "description": "Shader profile cl-wino-q33-intel-free-2x: the Intel-free profile without the multi-frame kernels (release/intel_free_2x.json), beside the proxy in BC250-XeFG/shaders",
+  "profile-intel-free-mfg": {
+   "description": "Shader profile cl-wino-q33-intel-free-mfg: the Intel-free profile with the multi-frame kernels (release/intel_free_mfg.json), beside the proxy in BC250-XeFG/shaders",
    "files": {
-    "payload/BC250-XeFG/shaders/08155f47bc92811b.dxil": "build:addon-intel-free-2x-profile/08155f47bc92811b.dxil",
-    "payload/BC250-XeFG/shaders/1a3b0782583fef19.dxil": "build:addon-intel-free-2x-profile/1a3b0782583fef19.dxil",
-    "payload/BC250-XeFG/shaders/1f27b449fb99a587.dxil": "build:addon-intel-free-2x-profile/1f27b449fb99a587.dxil",
-    "payload/BC250-XeFG/shaders/4bb52a635e6d221a.dxil": "build:addon-intel-free-2x-profile/4bb52a635e6d221a.dxil",
-    "payload/BC250-XeFG/shaders/558c3931ba6fb064.dxil": "build:addon-intel-free-2x-profile/558c3931ba6fb064.dxil",
-    "payload/BC250-XeFG/shaders/5654aa3800432b13.dxil": "build:addon-intel-free-2x-profile/5654aa3800432b13.dxil",
-    "payload/BC250-XeFG/shaders/60edebbbd2f9fb69.dxil": "build:addon-intel-free-2x-profile/60edebbbd2f9fb69.dxil",
-    "payload/BC250-XeFG/shaders/9e0080eee00255f2.dxil": "build:addon-intel-free-2x-profile/9e0080eee00255f2.dxil",
-    "payload/BC250-XeFG/shaders/b3941ac8ff95efe7.dxil": "build:addon-intel-free-2x-profile/b3941ac8ff95efe7.dxil",
-    "payload/BC250-XeFG/shaders/b3ddf030f661d487.dxil": "build:addon-intel-free-2x-profile/b3ddf030f661d487.dxil",
-    "payload/BC250-XeFG/shaders/dispatch-scale.txt": "build:addon-intel-free-2x-profile/dispatch-scale.txt",
-    "payload/BC250-XeFG/shaders/e83e868f8d5d2c0f.dxil": "build:addon-intel-free-2x-profile/e83e868f8d5d2c0f.dxil",
-    "payload/BC250-XeFG/shaders/f030948d38e74671.dxil": "build:addon-intel-free-2x-profile/f030948d38e74671.dxil",
-    "payload/BC250-XeFG/shaders/f2e2e13fea432d20.dxil": "build:addon-intel-free-2x-profile/f2e2e13fea432d20.dxil",
-    "payload/BC250-XeFG/shaders/graph-finish224-17-n32.dxil": "build:addon-intel-free-2x-profile/graph-finish224-17-n32.dxil",
-    "payload/BC250-XeFG/shaders/graph-finish224-17.dxil": "build:addon-intel-free-2x-profile/graph-finish224-17.dxil",
-    "payload/BC250-XeFG/shaders/graph-finish224-n32.dxil": "build:addon-intel-free-2x-profile/graph-finish224-n32.dxil",
-    "payload/BC250-XeFG/shaders/graph-finish224.dxil": "build:addon-intel-free-2x-profile/graph-finish224.dxil",
-    "payload/BC250-XeFG/shaders/graph-finish64-16.dxil": "build:addon-intel-free-2x-profile/graph-finish64-16.dxil",
-    "payload/BC250-XeFG/shaders/graph-finish64-17.dxil": "build:addon-intel-free-2x-profile/graph-finish64-17.dxil",
-    "payload/BC250-XeFG/shaders/graph-matmul224-n32.dxil": "build:addon-intel-free-2x-profile/graph-matmul224-n32.dxil",
-    "payload/BC250-XeFG/shaders/graph-matmul224.dxil": "build:addon-intel-free-2x-profile/graph-matmul224.dxil",
-    "payload/BC250-XeFG/shaders/graph-matmul64.dxil": "build:addon-intel-free-2x-profile/graph-matmul64.dxil",
-    "payload/BC250-XeFG/shaders/graph-prepare224-n32.dxil": "build:addon-intel-free-2x-profile/graph-prepare224-n32.dxil",
-    "payload/BC250-XeFG/shaders/graph-prepare224.dxil": "build:addon-intel-free-2x-profile/graph-prepare224.dxil",
-    "payload/BC250-XeFG/shaders/graph-prepare64.dxil": "build:addon-intel-free-2x-profile/graph-prepare64.dxil",
-    "payload/BC250-XeFG/shaders/model-owner.required": "build:addon-intel-free-2x-profile/model-owner.required",
-    "payload/BC250-XeFG/shaders/waves.txt": "build:addon-intel-free-2x-profile/waves.txt",
-    "payload/BC250-XeFG/shaders/wino-enc16.required": "build:addon-intel-free-2x-profile/wino-enc16.required",
-    "payload/BC250-XeFG/shaders/wino-ref64-16.dxil": "build:addon-intel-free-2x-profile/wino-ref64-16.dxil",
-    "payload/BC250-XeFG/shaders/wino-ref64-17.dxil": "build:addon-intel-free-2x-profile/wino-ref64-17.dxil",
-    "payload/BC250-XeFG/shaders/wino-ref64-18.dxil": "build:addon-intel-free-2x-profile/wino-ref64-18.dxil",
-    "payload/BC250-XeFG/shaders/wino-ref64.required": "build:addon-intel-free-2x-profile/wino-ref64.required",
-    "payload/BC250-XeFG/shaders/winograd-adaptive.required": "build:addon-intel-free-2x-profile/winograd-adaptive.required",
-    "payload/BC250-XeFG/shaders/winograd-coarse17.required": "build:addon-intel-free-2x-profile/winograd-coarse17.required",
-    "payload/BC250-XeFG/shaders/winograd-refine-pitch.required": "build:addon-intel-free-2x-profile/winograd-refine-pitch.required",
-    "payload/BC250-XeFG/shaders/winograd.required": "build:addon-intel-free-2x-profile/winograd.required"
+    "payload/BC250-XeFG/shaders/08155f47bc92811b.dxil": "build:addon-intel-free-mfg-profile/08155f47bc92811b.dxil",
+    "payload/BC250-XeFG/shaders/1a3b0782583fef19.dxil": "build:addon-intel-free-mfg-profile/1a3b0782583fef19.dxil",
+    "payload/BC250-XeFG/shaders/1f27b449fb99a587.dxil": "build:addon-intel-free-mfg-profile/1f27b449fb99a587.dxil",
+    "payload/BC250-XeFG/shaders/4bb52a635e6d221a.dxil": "build:addon-intel-free-mfg-profile/4bb52a635e6d221a.dxil",
+    "payload/BC250-XeFG/shaders/558c3931ba6fb064.dxil": "build:addon-intel-free-mfg-profile/558c3931ba6fb064.dxil",
+    "payload/BC250-XeFG/shaders/5654aa3800432b13.dxil": "build:addon-intel-free-mfg-profile/5654aa3800432b13.dxil",
+    "payload/BC250-XeFG/shaders/60edebbbd2f9fb69.dxil": "build:addon-intel-free-mfg-profile/60edebbbd2f9fb69.dxil",
+    "payload/BC250-XeFG/shaders/9e0080eee00255f2.dxil": "build:addon-intel-free-mfg-profile/9e0080eee00255f2.dxil",
+    "payload/BC250-XeFG/shaders/b3941ac8ff95efe7.dxil": "build:addon-intel-free-mfg-profile/b3941ac8ff95efe7.dxil",
+    "payload/BC250-XeFG/shaders/b3ddf030f661d487.dxil": "build:addon-intel-free-mfg-profile/b3ddf030f661d487.dxil",
+    "payload/BC250-XeFG/shaders/dispatch-scale.txt": "build:addon-intel-free-mfg-profile/dispatch-scale.txt",
+    "payload/BC250-XeFG/shaders/e83e868f8d5d2c0f.dxil": "build:addon-intel-free-mfg-profile/e83e868f8d5d2c0f.dxil",
+    "payload/BC250-XeFG/shaders/f030948d38e74671.dxil": "build:addon-intel-free-mfg-profile/f030948d38e74671.dxil",
+    "payload/BC250-XeFG/shaders/f2e2e13fea432d20.dxil": "build:addon-intel-free-mfg-profile/f2e2e13fea432d20.dxil",
+    "payload/BC250-XeFG/shaders/graph-finish224-17-n32.dxil": "build:addon-intel-free-mfg-profile/graph-finish224-17-n32.dxil",
+    "payload/BC250-XeFG/shaders/graph-finish224-17.dxil": "build:addon-intel-free-mfg-profile/graph-finish224-17.dxil",
+    "payload/BC250-XeFG/shaders/graph-finish224-n32.dxil": "build:addon-intel-free-mfg-profile/graph-finish224-n32.dxil",
+    "payload/BC250-XeFG/shaders/graph-finish224.dxil": "build:addon-intel-free-mfg-profile/graph-finish224.dxil",
+    "payload/BC250-XeFG/shaders/graph-finish64-16.dxil": "build:addon-intel-free-mfg-profile/graph-finish64-16.dxil",
+    "payload/BC250-XeFG/shaders/graph-finish64-17.dxil": "build:addon-intel-free-mfg-profile/graph-finish64-17.dxil",
+    "payload/BC250-XeFG/shaders/graph-matmul224-n32.dxil": "build:addon-intel-free-mfg-profile/graph-matmul224-n32.dxil",
+    "payload/BC250-XeFG/shaders/graph-matmul224.dxil": "build:addon-intel-free-mfg-profile/graph-matmul224.dxil",
+    "payload/BC250-XeFG/shaders/graph-matmul64.dxil": "build:addon-intel-free-mfg-profile/graph-matmul64.dxil",
+    "payload/BC250-XeFG/shaders/graph-prepare224-n32.dxil": "build:addon-intel-free-mfg-profile/graph-prepare224-n32.dxil",
+    "payload/BC250-XeFG/shaders/graph-prepare224.dxil": "build:addon-intel-free-mfg-profile/graph-prepare224.dxil",
+    "payload/BC250-XeFG/shaders/graph-prepare64.dxil": "build:addon-intel-free-mfg-profile/graph-prepare64.dxil",
+    "payload/BC250-XeFG/shaders/mfg-finish224-18-n32.dxil": "build:addon-intel-free-mfg-profile/mfg-finish224-18-n32.dxil",
+    "payload/BC250-XeFG/shaders/mfg-finish224-18-n48.dxil": "build:addon-intel-free-mfg-profile/mfg-finish224-18-n48.dxil",
+    "payload/BC250-XeFG/shaders/mfg-finish224-19-n32.dxil": "build:addon-intel-free-mfg-profile/mfg-finish224-19-n32.dxil",
+    "payload/BC250-XeFG/shaders/mfg-finish224-19-n48.dxil": "build:addon-intel-free-mfg-profile/mfg-finish224-19-n48.dxil",
+    "payload/BC250-XeFG/shaders/mfg-finish64-18-n32.dxil": "build:addon-intel-free-mfg-profile/mfg-finish64-18-n32.dxil",
+    "payload/BC250-XeFG/shaders/model-owner.required": "build:addon-intel-free-mfg-profile/model-owner.required",
+    "payload/BC250-XeFG/shaders/waves.txt": "build:addon-intel-free-mfg-profile/waves.txt",
+    "payload/BC250-XeFG/shaders/wino-enc16.required": "build:addon-intel-free-mfg-profile/wino-enc16.required",
+    "payload/BC250-XeFG/shaders/wino-ref64-16.dxil": "build:addon-intel-free-mfg-profile/wino-ref64-16.dxil",
+    "payload/BC250-XeFG/shaders/wino-ref64-17.dxil": "build:addon-intel-free-mfg-profile/wino-ref64-17.dxil",
+    "payload/BC250-XeFG/shaders/wino-ref64-18.dxil": "build:addon-intel-free-mfg-profile/wino-ref64-18.dxil",
+    "payload/BC250-XeFG/shaders/wino-ref64.required": "build:addon-intel-free-mfg-profile/wino-ref64.required",
+    "payload/BC250-XeFG/shaders/winograd-adaptive.required": "build:addon-intel-free-mfg-profile/winograd-adaptive.required",
+    "payload/BC250-XeFG/shaders/winograd-coarse17.required": "build:addon-intel-free-mfg-profile/winograd-coarse17.required",
+    "payload/BC250-XeFG/shaders/winograd-refine-pitch.required": "build:addon-intel-free-mfg-profile/winograd-refine-pitch.required",
+    "payload/BC250-XeFG/shaders/winograd.required": "build:addon-intel-free-mfg-profile/winograd.required"
    }
   },
   "optiscaler-fork": {
@@ -236,12 +244,14 @@
    "fsr4/",
    "qualification/earlier/",
    "qualification/baseline/",
-   "source/"
+   "source/",
+   "helixsr/"
   ],
   "sha256": {
    "ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27": "Intel libxess_fg.dll 1.3.1.78",
    "d2030dcd694fda8f2ec7e044b13e6db8f0b56d4ba9113a5efad334e3f3ded8c7": "Intel libxell.dll 1.3.2.10",
-   "8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175": "FSR4 RC11 amd_fidelityfx_upscaler_dx12.dll"
+   "8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175": "FSR4 RC11 amd_fidelityfx_upscaler_dx12.dll",
+   "82b612a73759117d4203f0ca76f18b325e1c6f3c61c64481c94750abce392a09": "HelixSR 2.0.0 amd_fidelityfx_dx12.dll as shipped by its author (lonewolf0622; a separate project under its own licence, fetched by installations from its GitHub releases on request)"
   }
  },
  "source_companion": {
@@ -259,13 +269,17 @@
   "test_dependencies",
   "test_screensaver_extra",
   "test_doctor",
-  "test_proxy_install"
+  "test_proxy_install",
+  "test_helixsr_install",
+  "test_gamescan",
+  "test_compat",
+  "test_compat_install"
  ],
  "variants": {
-  "intel-free-2x": {
-   "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-2x builds exactly what release/assemble.py builds.",
-   "name": "freefg-0.9.0",
-   "package_dir": "package-intel-free-2x",
+  "intel-free-mfg": {
+   "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-mfg builds exactly what release/assemble.py builds.",
+   "name": "freefg-1.0.0",
+   "package_dir": "package-intel-free-mfg",
    "documents_version": "public",
    "replace": {},
    "components": {},

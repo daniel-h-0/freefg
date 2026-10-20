@@ -1,6 +1,7 @@
 # Build and check the public tree: the pacing layer (with its sanitizer tests) and the enabler-free libxess_fg.dll
-# proxy, both against the reference hashes in release/inputs.lock.json; the installer tests; the intel-free-2x package
-# with check_intel_free.py; synthetic controls of that check; and the proxy under Wine's loader (CPU only, no GPU).
+# proxy, both against the reference hashes in release/inputs.lock.json; the installer tests; the intel-free-mfg package
+# with check_intel_free.py; synthetic controls of that check; and the proxy under Wine's loader with its coexistence
+# checks (CPU only, no GPU).
 #
 # Toolchain (release/ci/toolchain.py explains it in full): an Arch Linux container image pinned by digest, whose pacman
 # is pointed at one Arch Linux Archive snapshot; the output-relevant packages are also pinned by file sha256 in
@@ -9,7 +10,8 @@
 # effort: mismatches are warnings).
 #
 # Not built here: the maintainers' other BC250-MFG.asi add-on builds, which need private inputs that this repository
-# does not have. Not run here: check_intel_free.py self-test (it needs private material; release/ci/check_controls.py
+# does not have, and 0.9.0's 2x-only proxy (intel-free-2x), which the public sources, resolved for the multi-frame
+# build, do not build. Not run here: check_intel_free.py self-test (it needs private material; release/ci/check_controls.py
 # covers every detector with synthetic material instead), and the byte-for-byte rebuild of release/profile
 # (release/build_profile.py check without --no-rebuild needs Microsoft's 515 MB DXC v1.9.2607 release; the other
 # profile checks run).
@@ -138,9 +140,9 @@ jobs:
       - name: Installer tests
         run: python3 release/ci/installer_tests.py --fail-on-skip --unprivileged-user ci-tests --report "$CI_REPORTS/installer-tests.json"
 
-      - name: Assemble intel-free-2x and run check_intel_free.py
+      - name: Assemble intel-free-mfg and run check_intel_free.py
         run: |
-          python3 release/ci/assemble_ci.py --variant intel-free-2x --summary "$CI_REPORTS/package.json" --allow-reference-mismatch
+          python3 release/ci/assemble_ci.py --variant intel-free-mfg --summary "$CI_REPORTS/package.json" --allow-reference-mismatch
           package=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["directory"])' "$CI_REPORTS/package.json")
           python3 release/check_intel_free.py check "$XEMFG_BUILD/$package" --report "$CI_REPORTS/intel-free-check.json"
           cp "$XEMFG_BUILD/$package/manifest.json" "$CI_REPORTS/package-manifest.json"
@@ -164,7 +166,7 @@ jobs:
         if: ${{ always() && env.CI_REPORTS != '' }}
         run: |
           mkdir -p "$CI_REPORTS"
-          for kind in layer addon-intel-free-2x; do
+          for kind in layer addon-intel-free-mfg; do
             if [ -f "$XEMFG_BUILD/$kind/build.json" ]; then cp "$XEMFG_BUILD/$kind/build.json" "$CI_REPORTS/$kind-build.json"; fi
           done
 

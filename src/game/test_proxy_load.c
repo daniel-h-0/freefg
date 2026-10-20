@@ -3,6 +3,16 @@
  * its export forwarders to bc250_xefg_original.dll, its wrapped entry reaches Intel's runtime only after the size and hash
  * check, and its settings exports answer. No D3D12 device is created and no GPU work is submitted.
  * PROXY_CHECK_FORWARDERS=1 also calls a forwarded entry (xefgSwapChainGetVersion) first.
+ * PROXY_CHECK_HOOKS=1 (the multi-frame proxy) then stands in for another module that hooks Intel's runtime: it writes a
+ * jump at eight of Intel's entries in this process to a stub that records its return address and returns -77, and calls
+ * the proxy's entries: the lifecycle ones, D3D12GetSwapChainPtr and TagFrameConstants must reach the stub with this
+ * program as the caller (tail calls), GetLastPresentStatus and SetNumInterpolatedFrames with the proxy as the caller
+ * (ordinary calls), each with one stub call (no status read for a NULL handle). CreateContext gets a device pointer the
+ * proxy must not use: this program's call is not OptiScaler's, so the proxy logs that it is not accelerated and never
+ * looks at the device. The stand-in modules beside the program (test_proxy_caller.c, built with a version resource)
+ * then call CreateContext themselves: the one whose product is OptiScaler must reach the proxy's candidate check
+ * (CONTEXT_CALLER in the log; BC250_XEFG_DISABLE=1 ends it there, before the device is used), the other must not, and
+ * the stub must see each module as the caller.
  */
 #include <windows.h>
 #include <stdio.h>
@@ -15,6 +25,42 @@ static HANDLE out;
 static void say(const char*s){DWORD n;WriteFile(out,s,(DWORD)strlen(s),&n,NULL);}
 static HMODULE owner(const void*address){
  HMODULE module=NULL;GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)address,&module);return module;
+}
+static void*volatile stub_caller;static volatile LONG stub_calls;
+static __attribute__((noinline)) int stub(void){stub_caller=__builtin_return_address(0);InterlockedIncrement(&stub_calls);return -77;}
+#define HOOKED 8
+static const char*const hooked_names[HOOKED]={"xefgSwapChainD3D12CreateContext","xefgSwapChainD3D12InitFromSwapChain",
+ "xefgSwapChainD3D12InitFromSwapChainDesc","xefgSwapChainDestroy","xefgSwapChainTagFrameConstants",
+ "xefgSwapChainGetLastPresentStatus","xefgSwapChainSetNumInterpolatedFrames","xefgSwapChainD3D12GetSwapChainPtr"};
+static void*fake_device[8];  /* a device pointer the proxy must never use (see above) */
+/* An absolute jump (FF 25, then the target) over the entry's first 14 bytes, as an inline hook writes one. */
+static int hook_entry(HMODULE runtime,const char*name){
+ unsigned char*entry=(void*)GetProcAddress(runtime,name);DWORD old;if(!entry||!VirtualProtect(entry,14,PAGE_EXECUTE_READWRITE,&old))return 0;
+ static const unsigned char jump[6]={0xff,0x25,0,0,0,0};void*target=(void*)stub;memcpy(entry,jump,6);memcpy(entry+6,&target,8);
+ VirtualProtect(entry,14,old,&old);FlushInstructionCache(GetCurrentProcess(),entry,14);return 1;
+}
+static void hooked_call(HMODULE fg,int which){
+ char line[300];void*p=(void*)GetProcAddress(fg,hooked_names[which]);int r=-9999;stub_caller=NULL;stub_calls=0;
+ xefg_swapchain_present_status_t status={0};
+ if(p)switch(which){
+  case 0:{xefg_swapchain_handle_t h=NULL;r=((__typeof__(&xefgSwapChainD3D12CreateContext))p)((ID3D12Device*)fake_device,&h);break;}
+  case 1:r=((__typeof__(&xefgSwapChainD3D12InitFromSwapChain))p)(NULL,NULL,NULL);break;
+  case 2:r=((__typeof__(&xefgSwapChainD3D12InitFromSwapChainDesc))p)(NULL,NULL,NULL,NULL,NULL,NULL,NULL);break;
+  case 3:r=((__typeof__(&xefgSwapChainDestroy))p)(NULL);break;
+  case 4:r=((__typeof__(&xefgSwapChainTagFrameConstants))p)(NULL,0,NULL);break;
+  case 5:r=((__typeof__(&xefgSwapChainGetLastPresentStatus))p)(NULL,&status);break;
+  case 6:r=((__typeof__(&xefgSwapChainSetNumInterpolatedFrames))p)(NULL,2);break;
+  case 7:{static const GUID none;void*chain=NULL;r=((__typeof__(&xefgSwapChainD3D12GetSwapChainPtr))p)(NULL,&none,&chain);break;}
+ }
+ snprintf(line,sizeof(line),"HOOKED %s result=%d caller_in_program=%d caller_in_proxy=%d calls=%ld\n",hooked_names[which],r,
+          stub_caller&&owner(stub_caller)==GetModuleHandleA(NULL),stub_caller&&owner(stub_caller)==fg,stub_calls);say(line);
+}
+/* A stand-in module (test_proxy_caller.c) calls the proxy's CreateContext. */
+static void caller_call(HMODULE fg,const char*module){
+ char line[300];HMODULE m=LoadLibraryA(module);int r=-9999;stub_caller=NULL;stub_calls=0;
+ int(*create)(void*,ID3D12Device*,xefg_swapchain_handle_t*)=m?(void*)GetProcAddress(m,"ProxyCheckCreate"):NULL;
+ xefg_swapchain_handle_t h=NULL;if(create)r=create((void*)GetProcAddress(fg,"xefgSwapChainD3D12CreateContext"),(ID3D12Device*)fake_device,&h);
+ snprintf(line,sizeof(line),"CALLER %s loaded=%d result=%d caller_in_module=%d calls=%ld\n",module,m!=NULL,r,m&&stub_caller&&owner(stub_caller)==m,stub_calls);say(line);
 }
 void mainCRTStartup(void){
  out=GetStdHandle(STD_OUTPUT_HANDLE);char line[600],name[MAX_PATH];
@@ -41,6 +87,13 @@ void mainCRTStartup(void){
   BOOL(WINAPI*init)(void)=(void*)GetProcAddress(shim,"BC250MFGInitialize");BOOL(WINAPI*query)(struct bc250_fg_status*)=(void*)GetProcAddress(shim,"BC250MFGGetFrameSettings");
   struct bc250_fg_status via={.size=sizeof(via),.version=BC250_FG_SETTINGS_VERSION};BOOL ready=init&&init(),answered=query&&query(&via);
   snprintf(line,sizeof(line),"SHIM initialize=%d settings=%d forwarded_to_proxy=%d\n",ready,answered,query&&owner((void*)query)==fg);say(line);
+ }
+ if(GetEnvironmentVariableA("PROXY_CHECK_HOOKS",flag,sizeof(flag))&&flag[0]=='1'&&original){
+  int all=1;for(int i=0;i<HOOKED;i++)all&=hook_entry(original,hooked_names[i]);
+  snprintf(line,sizeof(line),"HOOKS written=%d\n",all);say(line);
+  SetEnvironmentVariableA("BC250_XEFG_DISABLE","1");  /* a context that reaches the candidate check stops there */
+  for(int i=0;i<HOOKED;i++)hooked_call(fg,i);
+  caller_call(fg,"stand_in_optiscaler.dll");caller_call(fg,"stand_in_other.dll");
  }
  snprintf(line,sizeof(line),"ENABLER version_dll_loaded=%d\n",GetModuleHandleA("version.dll")!=NULL);say(line);
  say("DONE\n");ExitProcess(0);

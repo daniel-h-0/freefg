@@ -3,7 +3,7 @@
  "schema": 1,
  "placeholder": "[PRODUCT]",
  "file_list": "release/keep-public.txt",
- "public_variant": "intel-free-2x",
+ "public_variant": "intel-free-mfg",
  "chosen": {
   "about": "The decided public name, empty (null) until it is decided: name (the product name), slug (its lower-case, hyphenated form), holder (the MIT copyright holder; null: '{name} contributors') and families (user-visible families to rewrite besides the defaults: launcher-script, licence-file, layer-description). With a name and slug here, release/export_tree.py --public applies rename.py's user-visible rewrites (the default families plus these) to the exported copies only: this tree keeps the internal names, and the public package.json's name follows package-name's public_template. Compatibility families are not rewritten by the export (rename.py apply --include-compat or --family in an export, deliberately). rename.py chosen_name() checks this block like apply's arguments. Fill it in only with the decided name; a test or trial uses a scratch copy.",
   "name": "FreeFG",
@@ -213,27 +213,27 @@
    "id": "package-name",
    "class": "user-visible",
    "default": true,
-   "current": "bc250-fsr4-xemfg-private-test-NN (private, top-level 'name'), -NN-intel-free (private variant), -NN-intel-free-2x (the public variant)",
+   "current": "bc250-fsr4-xemfg-private-test-NN (private, top-level 'name'), -NN-intel-free (private variant), -NN-intel-free-2x (the 0.9.0 public variant), -NN-intel-free-mfg (the public variant since 1.0.0)",
    "appears_in": [
     "release/package.json ('name' and each variant's 'name')",
     "release/assemble.py (package_naming: bc250-fsr4-xemfg-private-test-NN[-variant], or public_template)",
     "scripts/test_game_install.py (fixture name)"
    ],
-   "public_template": "{slug}-0.9.0",
+   "public_template": "{slug}-1.0.0",
    "public_receipt_template": "{slug}-{version}-package.json",
    "patterns": [
     "(?:bc250-fsr4-xemfg-)?private-test-(?:\\d+|NN|\\(\\\\d\\+\\))(?:-[a-z0-9]+)*"
    ],
    "replacements": [
     {
-     "pattern": "(\"name\": \")bc250-fsr4-xemfg-private-test-(\\d+)-intel-free-2x(\")",
-     "template": "\\1{slug}-0.9.0\\3",
+     "pattern": "(\"name\": \")bc250-fsr4-xemfg-private-test-(\\d+)-intel-free-mfg(\")",
+     "template": "\\1{slug}-1.0.0\\3",
      "files": [
       "release/package.json"
      ]
     }
    ],
-   "compatibility": "The installer records the package name in state.json for Status only; Restore does not compare it. The private library owner's pattern private-test-(\\d+)$ keeps matching the private names, which apply leaves alone; the public variant never matched it (the owner does not deploy it). release/assemble.py accepts the private names as before (version vNN[-variant], receipt qualification/xemfg-vNN[-variant]-package.json) and a name of public_template's form ({slug}: name_rules slug; {number}: a build number, the integer the private builds count, or a dotted semantic version MAJOR.MINOR.PATCH such as 0.1.0): its version is 'v' + number + public_template's text after {number} (v31-2x, v0.1.0-2x), its receipt qualification/ + public_receipt_template ({slug}, {version}, {number}: lumen-pace-v31-2x-package.json); a public name the library owner's pattern would match, or whose slug carries a refused word, is refused. The package-name replacement below must produce public_template (rename.py checks it). The version is decided: 0.9.0 (the private pre-release for review; the public release that follows is 1.0.0, the same two edits), written as fixed text in public_template ({slug}-0.9.0) and in the replacement's template (\\1{slug}-0.9.0\\3), so the package is <slug>-0.9.0 (version v0.9.0, receipt <slug>-v0.9.0-package.json). Before the version was decided, public_template {slug}-{number}-2x kept the private build number (the replacement's \\2). A later version is the same two edits, the version as fixed text in place of the old one in public_template and in the replacement's template, the same in both: {slug}-0.1.0 with \\1{slug}-0.1.0\\3 gives <slug>-0.1.0 (version v0.1.0, receipt <slug>-v0.1.0-package.json); {slug}-0.1.0-2x keeps the 2x suffix (v0.1.0-2x, which semantic versioning reads as a pre-release of 0.1.0); {slug}-32-2x gives v32-2x. Nothing else changes: assemble.py accepts a template with a fixed version (a build number or MAJOR.MINOR.PATCH, then text such as -2x), rename.py compares the rewritten name with public_template, and the release tests fix their own copy of this family in the build-number form.",
+   "compatibility": "The installer records the package name in state.json for Status only; Restore does not compare it. The private library owner's pattern private-test-(\\d+)$ keeps matching the private names, which apply leaves alone; the public variant never matched it (the owner does not deploy it). release/assemble.py accepts the private names as before (version vNN[-variant], receipt qualification/xemfg-vNN[-variant]-package.json) and a name of public_template's form ({slug}: name_rules slug; {number}: a build number, the integer the private builds count, or a dotted semantic version MAJOR.MINOR.PATCH such as 0.1.0): its version is 'v' + number + public_template's text after {number} (v31-2x, v0.1.0-2x), its receipt qualification/ + public_receipt_template ({slug}, {version}, {number}: lumen-pace-v31-2x-package.json); a public name the library owner's pattern would match, or whose slug carries a refused word, is refused. The package-name replacement below must produce public_template (rename.py checks it). The version is decided: 1.0.0 (0.9.0 was the private pre-release for review, the 2x-only variant intel-free-2x), written as fixed text in public_template ({slug}-1.0.0) and in the replacement's template (\\1{slug}-1.0.0\\3), so the package is <slug>-1.0.0 (version v1.0.0, receipt <slug>-v1.0.0-package.json); since 1.0.0 the replacement's pattern names the public variant intel-free-mfg. Before the version was decided, public_template {slug}-{number}-2x kept the private build number (the replacement's \\2). A later version is the same two edits, the version as fixed text in place of the old one in public_template and in the replacement's template, the same in both: {slug}-0.1.0 with \\1{slug}-0.1.0\\3 gives <slug>-0.1.0 (version v0.1.0, receipt <slug>-v0.1.0-package.json); {slug}-0.1.0-2x keeps the 2x suffix (v0.1.0-2x, which semantic versioning reads as a pre-release of 0.1.0); {slug}-32-2x gives v32-2x. Nothing else changes: assemble.py accepts a template with a fixed version (a build number or MAJOR.MINOR.PATCH, then text such as -2x), rename.py compares the rewritten name with public_template, and the release tests fix their own copy of this family in the build-number form.",
    "rebuild": [],
    "alias_required": false,
    "policy": "rename the public variant only",
