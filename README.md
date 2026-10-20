@@ -120,8 +120,13 @@ work that is still Intel's, on OptiScaler's frame generation ([how](packaging/pu
 
 ## Game compatibility
 
-Setup has recipes for 19 games and gives every game a verdict, with the way forward for a refused one, before it writes
-anything ([COMPATIBILITY.md](packaging/public/COMPATIBILITY.md)).
+Before it writes anything, Setup gives every game a verdict, with the way forward for a refused one
+([COMPATIBILITY.md](packaging/public/COMPATIBILITY.md)):
+
+- 19 games have a verified recipe from the BC-250.
+- 758 games have an entry from the OptiScaler wiki. Its inputs, launch options and compatibility-list verdict guide the
+  automatic setup; other advice is shown with its condition.
+- Any other 64-bit DirectX 12 game with an upscaler or frame-generation input gets an automatic setup from detection.
 
 ## In the game
 

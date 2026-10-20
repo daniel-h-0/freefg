@@ -46,7 +46,7 @@ check is, before anything is downloaded or written; a refusal stops there.
 | --- | --- |
 | Verified on BC-250 | A recipe [above](#supported-games); its input, settings and launch option are applied. |
 | Community-reported on BC-250 | A reviewed recipe from other BC-250 owners, not reproduced by the maintainers; applied and labelled. |
-| Automatic, guided by the OptiScaler wiki | No recipe. The [OptiScaler wiki](https://github.com/optiscaler/OptiScaler/wiki) identifies the game and supplies a DirectX 12 launch option, rules out an input it reports broken, or supplies one of six promoted fixes. |
+| Automatic, guided by the OptiScaler wiki | No recipe; one of the 758 games with a wiki entry. The [OptiScaler wiki](https://github.com/optiscaler/OptiScaler/wiki) identifies the game and supplies a DirectX 12 launch option, rules out an input it reports broken, or supplies one of six promoted fixes. |
 | Automatic (no recipe) | Detection found a 64-bit DirectX 12 executable with an input: native XeSS FG beside it, else OptiFG from the game's upscaler, else the game's own frame generation. |
 | Not supported | A [refusal](#refusals), with the way forward. |
 
