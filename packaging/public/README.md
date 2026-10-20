@@ -165,7 +165,7 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.0.0, 19 October 2026. Tested only on the AMD BC-250 under Proton in Steam Game Mode, with a short qualification:
+1.0.0, 20 October 2026. Tested only on the AMD BC-250 under Proton in Steam Game Mode, with a short qualification:
 checks without a GPU, then one short start per question on one BC-250 ([checks](MEASUREMENTS.md#checks-of-100)).
 Everything else is untested. The 2×-only pre-release 0.9.0, with the same shaders at 2×, had the longer qualification
 in [MEASUREMENTS.md](MEASUREMENTS.md).

@@ -2,7 +2,7 @@
 
 Changes in each release of FreeFG. The private test builds made before 0.9.0 are not covered.
 
-## 1.0.0 – 2026-10-19
+## 1.0.0 – 2026-10-20
 
 First public release. The proxy `libxess_fg.dll` is a new build with the multi-frame code compiled in. The figures in
 [MEASUREMENTS.md](MEASUREMENTS.md) were measured with 0.9.0 and not repeated with this build.
