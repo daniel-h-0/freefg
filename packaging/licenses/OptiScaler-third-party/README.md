@@ -1,16 +1,22 @@
 # Third-party code in OptiScaler.dll
 
 `opti/OptiScaler.dll` is a modified build of OptiScaler, licensed under the GNU GPL version 3
-(`licenses/OptiScaler.txt`). The OptiScaler source it is built from contains code of other projects, which is compiled
-or linked into the DLL. This folder holds their licence texts, unchanged.
+(`licenses/OptiScaler.txt`). The OptiScaler source it is built from contains code of other projects, compiled or linked
+into the DLL. This folder holds their licence texts, unchanged.
 
-The list below comes from the build of the DLL itself (fork commit `a7932870`, 18 October 2026): every source file its
-compiler read and every library its linker used. It was checked again for the shipped build (fork commit `f971ed14`,
-19 October 2026), which compiles the same third-party code. The repository, commit and SHA-256 of each text are in
-`packaging/licenses/OptiScaler-third-party/PROVENANCE.json` in the source.
+FreeType credit: Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org). All rights
+reserved.
 
-**FreeType credit:** Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org). All
-rights reserved.
+## How this list was made
+
+- From the build of the DLL itself (fork commit `a7932870`, 18 October 2026): every source file its compiler read and
+  every library its linker used.
+- Checked again for the shipped build (fork commit `f971ed14`, 19 October 2026), which compiles the same third-party
+  code.
+- The repository, commit and SHA-256 of each licence text are in
+  `packaging/licenses/OptiScaler-third-party/PROVENANCE.json` in the source.
+
+## Components
 
 | Component | Where in the OptiScaler source | Licence | Text in this folder | Copyright |
 | --- | --- | --- | --- | --- |
@@ -43,20 +49,28 @@ rights reserved.
 | Intel XeSS, XeLL and XeSS Frame Generation SDK headers | `external/xess/inc` | Intel Simplified Software License | `licenses/Intel-XeSS.txt` (the same text as in that submodule) | © 2021-2024 Intel Corporation |
 | NVIDIA NGX (DLSS SDK) headers | `external/nvngx_dlss_sdk` | NVIDIA's DLSS SDK licence (NVIDIA RTX SDKs License, https://github.com/NVIDIA/DLSS) | `NVIDIA-DLSS-SDK.txt` (the text of DLSS SDK 310.7.0; the headers come from an earlier SDK release) | © 2018-2023 NVIDIA Corporation & affiliates |
 
-**Prebuilt libraries.** Some of the code above reaches the DLL as static libraries that the OptiScaler source carries
-as binaries, as upstream OptiScaler does: `detours.lib` (Microsoft Detours 4.0.1, source at
-https://github.com/microsoft/Detours), `freetype.lib` (FreeType 2.13.3 with zlib 1.3, source at
-https://github.com/freetype/freetype, tag `VER-2-13-3`), the FSR 2.2 and FSR 2.1.2 libraries in `OptiScaler/library/fsr2`
-and `fsr2_212` (source at https://github.com/GPUOpen-Effects/FidelityFX-FSR2), the FSR 3.1 libraries in
-`OptiScaler/library/fsr31` (source at https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, release 1.1) and
-`vulkan-1.lib`, the import library of the Vulkan loader (https://github.com/KhronosGroup/Vulkan-Loader). The OptiScaler
-source does not record which exact commit each binary was built from; the versions are the ones the headers beside
-them name.
+## Prebuilt libraries
+
+Some of the code above reaches the DLL as static libraries that the OptiScaler source carries as binaries, as upstream
+OptiScaler does. The OptiScaler source does not record which exact commit each binary was built from; the versions are
+the ones the headers beside them name.
+
+| Library | Contents | Source |
+| --- | --- | --- |
+| `detours.lib` | Microsoft Detours 4.0.1 | https://github.com/microsoft/Detours |
+| `freetype.lib` | FreeType 2.13.3 with zlib 1.3 | https://github.com/freetype/freetype, tag `VER-2-13-3` |
+| `OptiScaler/library/fsr2`, `fsr2_212` | FSR 2.2 and FSR 2.1.2 | https://github.com/GPUOpen-Effects/FidelityFX-FSR2 |
+| `OptiScaler/library/fsr31` | FSR 3.1 | https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, release 1.1 |
+| `vulkan-1.lib` | import library of the Vulkan loader | https://github.com/KhronosGroup/Vulkan-Loader |
+
+## Not in this DLL
 
 In the OptiScaler source but not compiled into this DLL: fmt (spdlog uses `std::format` here), stb_truetype (FreeType
-builds the fonts), `external/FidelityFX-SDK-v2`, `external/directx_agility_sdk`, `OptiScaler/library/d3dx/d3dx11.lib` and
-the import libraries in `external/xess/lib`.
+builds the fonts), `external/FidelityFX-SDK-v2`, `external/directx_agility_sdk`, `OptiScaler/library/d3dx/d3dx11.lib`
+and the import libraries in `external/xess/lib`.
 
-From the build toolchain, not from the OptiScaler source: the Microsoft C/C++ runtime and the Windows SDK import
-libraries (the DLL uses the shared runtime) and the parts of Microsoft's C++ standard library that are compiled in
-(Apache-2.0 with the LLVM exception, which needs no notice in object code).
+## From the build toolchain
+
+Not from the OptiScaler source: the Microsoft C/C++ runtime and the Windows SDK import libraries (the DLL uses the
+shared runtime), and the parts of Microsoft's C++ standard library that are compiled in (Apache-2.0 with the LLVM
+exception, which needs no notice in object code).

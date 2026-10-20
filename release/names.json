@@ -67,7 +67,7 @@
    "default": true,
    "current": "[PRODUCT] (the placeholder for the undecided name; the internal names are BC250 XeFG / XeMFG)",
    "appears_in": [
-    "packaging/public/*.md (README, NOTICE, PRIVACY, ARCHITECTURE, MEASUREMENTS, BUILDING, CHANGELOG, CONTRIBUTING, SECURITY)",
+    "packaging/public/*.md (README, NOTICE, PRIVACY, ARCHITECTURE, MEASUREMENTS, COMPATIBILITY, TROUBLESHOOTING, BUILDING, CHANGELOG, CONTRIBUTING, SECURITY)",
     "release/profile/ORIGIN.md",
     "in a public export also README.md, NOTICE.md, .github/SECURITY.md, .github/CONTRIBUTING.md (export_tree.py copies)"
    ],
@@ -354,7 +354,7 @@
     "packaging/dependencies.py",
     "scripts/test_dependencies.py",
     "release/smoke_install.py (help text)",
-    "packaging/public/PRIVACY.md, README.md, BUILDING.md"
+    "packaging/public/PRIVACY.md, README.md, BUILDING.md, TROUBLESHOOTING.md"
    ],
    "patterns": [
     "bc250-xefg-testers"
@@ -407,7 +407,7 @@
     "packaging/dependencies.json (runtime.ProxyPackage)",
     "packaging/install.py (comment)",
     "release/package.json (description)",
-    "packaging/public/README.md, ARCHITECTURE.md, BUILDING.md, NOTICE.md"
+    "packaging/public/README.md, ARCHITECTURE.md, BUILDING.md, MEASUREMENTS.md, NOTICE.md, TROUBLESHOOTING.md"
    ],
    "patterns": [
     "bc250_xefg_original"
@@ -493,7 +493,7 @@
     "src/game/mfg_proxy.c, fast_trial.h",
     "packaging/install.py (PROXY_LOGS, Status)",
     "packaging/doctor.py",
-    "packaging/public/README.md, ARCHITECTURE.md, CONTRIBUTING.md, PRIVACY.md"
+    "packaging/public/ARCHITECTURE.md, CONTRIBUTING.md, PRIVACY.md, TROUBLESHOOTING.md"
    ],
    "patterns": [
     "BC250-MFG\\.log",

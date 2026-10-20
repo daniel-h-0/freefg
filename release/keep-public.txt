@@ -244,7 +244,7 @@ packaging/extras/steam-screensaver-in-game/bc250-steam-screensaver-in-game.servi
 packaging/extras/steam-screensaver-in-game/install.sh
 packaging/extras/steam-screensaver-in-game/uninstall.sh
 
-# Public documents (the public package.json's "documents" component ships the nine .md files; package.json variant
+# Public documents (the public package.json's "documents" component ships the eleven .md files; package.json variant
 # intel-free-mfg calls it "documents-public"), the licence text of this project's code (packaging/public/LICENSE: the MIT
 # text with the holder still a placeholder, shipped as licenses/freefg.txt in place of LICENSE.new-code) and the
 # documents' read-only checker (host paths, the old name, placeholders, links, PRIVACY.md against dependencies.json).
@@ -254,6 +254,8 @@ packaging/public/NOTICE.md
 packaging/public/PRIVACY.md
 packaging/public/ARCHITECTURE.md
 packaging/public/MEASUREMENTS.md
+packaging/public/COMPATIBILITY.md
+packaging/public/TROUBLESHOOTING.md
 packaging/public/BUILDING.md
 packaging/public/CHANGELOG.md
 packaging/public/CONTRIBUTING.md
@@ -261,7 +263,7 @@ packaging/public/SECURITY.md
 packaging/public/LICENSE
 packaging/public/check_public_docs.py
 
-# Figures of the public documents (README, ARCHITECTURE, MEASUREMENTS): each docs/data/<figure>/plot.py draws its
+# Figures of the public documents (README, MEASUREMENTS): each docs/data/<figure>/plot.py draws its
 # docs/assets/ SVG and PNG from the data.json beside it, byte for byte (docs/data/figstyle.py: fonts, colours, checks).
 # The repository has them; the package ships the documents only, whose image links then show their alt text.
 docs/data/figstyle.py

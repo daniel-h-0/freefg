@@ -96,13 +96,15 @@
    }
   },
   "documents": {
-   "description": "Public documents of the enabler-free build (packaging/public/): what it is, licences and notices, downloads, how it works, measurements, building, changes, contributing, security",
+   "description": "Public documents of the enabler-free build (packaging/public/): what it is, licences and notices, downloads, how it works, measurements, game compatibility, troubleshooting, building, changes, contributing, security",
    "files": {
     "README.md": "repo:packaging/public/README.md",
     "NOTICE.md": "repo:packaging/public/NOTICE.md",
     "PRIVACY.md": "repo:packaging/public/PRIVACY.md",
     "ARCHITECTURE.md": "repo:packaging/public/ARCHITECTURE.md",
     "MEASUREMENTS.md": "repo:packaging/public/MEASUREMENTS.md",
+    "COMPATIBILITY.md": "repo:packaging/public/COMPATIBILITY.md",
+    "TROUBLESHOOTING.md": "repo:packaging/public/TROUBLESHOOTING.md",
     "BUILDING.md": "repo:packaging/public/BUILDING.md",
     "CHANGELOG.md": "repo:packaging/public/CHANGELOG.md",
     "CONTRIBUTING.md": "repo:packaging/public/CONTRIBUTING.md",

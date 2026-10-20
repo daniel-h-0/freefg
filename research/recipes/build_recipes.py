@@ -55,9 +55,10 @@ NOTES = {
 }
 
 
-# What each verified game showed on a BC-250 (public README "Supported games"): the evidence level packaging/compat.py
-# shows (gameplay: generated in gameplay; generates: 2.0 presents per game frame, context not recorded; startup: at
-# start-up or in the menu; installed: generation not checked; fails: a known open problem) and the observation.
+# What each verified game showed on a BC-250 (public COMPATIBILITY.md "Supported games"): the evidence level
+# packaging/compat.py shows (gameplay: generated in gameplay; generates: 2.0 presents per game frame, context not
+# recorded; startup: at start-up or in the menu; installed: generation not checked; fails: a known open problem) and the
+# observation.
 EVIDENCE = {
     '3669870': ('generates', '2.0 presents per game frame'), '3321460': ('gameplay', 'played at 2x'),
     '1423049311': ('gameplay', 'played at 2x'), '3404260': ('generates', '2.0'), '1836730': ('generates', '2.0'),
