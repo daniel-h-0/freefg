@@ -124,8 +124,9 @@ def render():
         notes[b].set_zorder(4)
 
     s.check_inside(fig, W, H)
-    description = '; '.join(f'{b["label"]}: {values[b["id"]]:.2f} {PLOT["unit"]}' for b in bars)
-    description += ''.join(f'; {difference(d, values)}' for d in differences)
+    description = '; '.join(f'{b["group"]} {b["label"]}: {values[b["id"]]:.2f} {PLOT["unit"]}' for b in bars)
+    description += ''.join(f'; {b["group"]} {difference(d, values)}' for d in differences
+                           for b in bars if b['id'] == d['to'])
     return s.save(fig, DATA['figure'], plain(PLOT['title']),
                   plain(f'{PLOT["subtitle"]}. {description}. Source: docs/data/cyberpunk-fps/data.json.'))
 

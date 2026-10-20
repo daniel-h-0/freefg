@@ -28,7 +28,8 @@ REPO = HERE.parents[1]
 DOCS = sorted(HERE.glob('*.md'))
 VARIANT = 'intel-free-mfg'
 RELEASED_OUTPUTS = ('libxess_fg.dll (intel-free-mfg)', 'libxefg_wave.so')
-# The binaries MEASUREMENTS.md's figures were measured with: 0.9.0's 2x proxy (the same 2x shaders and the same layer).
+# The binaries of MEASUREMENTS.md's 0.9.0 measurements (generated images, TV, GPU time, live install): 0.9.0's 2x proxy
+# (the same 2x shaders and layer as 1.0.0). The Cyberpunk and 3x/4x figures use the released 1.0.0 binaries above.
 MEASURED_OUTPUTS = ('libxess_fg.dll (intel-free-2x)', 'libxefg_wave.so')
 # Written in pieces so that this file does not match its own patterns.
 HOST_PATHS = [re.compile(p) for p in (r'/' + r'home/[A-Za-z0-9_.-]+', r'/var' + r'/home/', r'/run' + r'/media/',

@@ -188,9 +188,9 @@ documents, its files are 1.0.0's. 1.0.0 had a short qualification, one start per
 ([checks](MEASUREMENTS.md#checks-of-100)), then same-day frame-rate measurements at 2×, 3× and 4× in Cyberpunk 2077
 ([MEASUREMENTS.md](MEASUREMENTS.md)). Everything else is untested.
 
-![Cyberpunk 2077 frame rate at 2× on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance, headless): XeFG with Intel's shaders 85.31 FPS; FreeFG 0.9.0 103.28 FPS, +21.1%.](../../docs/assets/cyberpunk-2x-fps.svg)
+![Cyberpunk 2077 frame rate at 2× on an AMD BC-250 (2560×1440, FSR 4 Performance, headless): SDR, XeFG with Intel's shaders 85.40 FPS and FreeFG 1.0.0 103.09 FPS (+20.7%); HDR10, 84.16 and 101.28 FPS (+20.3%).](../../docs/assets/cyberpunk-2x-fps.svg)
 
-Headless; the two arms ran a day apart, bridged by a reference build. HDR10 and TV figures:
+Headless, both arms on the same day, 4 runs each in SDR and HDR10. Details and TV figures:
 [MEASUREMENTS.md](MEASUREMENTS.md#frame-rate-cyberpunk-2077).
 
 ## Known limitations

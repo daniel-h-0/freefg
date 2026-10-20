@@ -5,10 +5,11 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 ## Scope
 
 - One AMD BC-250 ([test system](#test-system)).
-- Most measurements are at 2× with 0.9.0, the 2×-only pre-release. 1.0.0 keeps its pacing layer and 28 shaders for 2×
-  and adds five multi-frame shaders, with a proxy built from the same source with the multi-frame code compiled in.
-  1.0.0 had the shorter [checks](#checks-of-100), then two same-day blocks: [against 0.9.0 at
-  2×](#100-against-090-at-2-same-day) and [at 3× and 4× with MFG Unlocker](#3-and-4-with-mfg-unlocker).
+- 1.0.0 had the shorter [checks](#checks-of-100), then three same-day blocks: [against 0.9.0 at
+  2×](#100-against-090-at-2-same-day), [against Intel's shaders at 2×](#frame-rate-cyberpunk-2077) in SDR and HDR10, and
+  [at 3× and 4× with MFG Unlocker](#3-and-4-with-mfg-unlocker). The other measurements are at 2× with 0.9.0, the
+  2×-only pre-release. 1.0.0 keeps its pacing layer and 28 shaders for 2× and adds five multi-frame shaders, with a
+  proxy built from the same source with the multi-frame code compiled in.
 - 1.0.1 ships the same proxy, pacing layer, shader profile and OptiScaler as 1.0.0; 1.0.0's measurements apply to it.
 - Most runs are headless; one campaign ran [on a TV with VRR](#on-a-tv-with-vrr). Headless and TV figures are not
   comparable. Some comparisons cross two days, as marked.
@@ -140,8 +141,8 @@ Saved per generated frame = (1 / FPS alone − 1 / FPS FreeFG) / (frames per pre
 Results:
 
 - With `XeFGModel=default`, FreeFG saves 4.1 ms per generated frame at both 3× and 4×; the game runs 34% faster at
-  3× and 43% at 4×. At 2×, the same formula gives 4.08 ms in the [Cyberpunk benchmark](#frame-rate-cyberpunk-2077)
-  (0.9.0 against Intel's shaders, on other days, the game's own XeSS frame generation, pacing on).
+  3× and 43% at 4×. At 2×, the same formula gives 4.02 ms in the [Cyberpunk benchmark](#frame-rate-cyberpunk-2077)
+  (the game's own XeSS frame generation, pacing on).
 - On MFG Unlocker's model, FreeFG replaces 7 shaders instead of 13 and gains 11% and 17%. With FreeFG, `default`
   is 20% (3×) and 25% (4×) faster than MFG Unlocker's model; MFG Unlocker alone is within about 2% on either model.
 - Presents per second (frames per present × game FPS), `default`: FreeFG 125 at 3× and 140 at 4×, MFG Unlocker alone
@@ -206,35 +207,35 @@ Setup:
 - Cyberpunk 2077 2.31 (GOG build, started with umu-launcher), built-in benchmark, one pass per run, headless; 2560×1440
   output, FSR 4 Performance, ray tracing off, the game's native XeSS frame generation at 2×, pacing layer on
   (`BC250_XEFG_PACE=auto`). FPS is the benchmark's average, which counts generated frames.
-- Arms alternated in ABBA blocks each day (2026-10-16: `b p p b b p p b` for SDR, `b p p b` for HDR10; b is the
-  reference, p is FreeFG). Figures are means ± sample standard deviation.
-- The Intel's-shaders arm ran XeFG through the reference's loader with acceleration off (`BC250_XEFG_DISABLE=1`) and the
-  same pacing layer, which held presents while XeFG generated.
+- One block on 2026-10-20 with 1.0.0's files (1.0.1 ships the same). The Intel's-shaders arm is the same files with
+  `BC250_XEFG_DISABLE=1`: the proxy accelerates no context, so Intel's runtime runs its own shaders, with the same
+  OptiScaler, `OptiScaler.ini` and pacing layer. The layer held presents while XeFG generated in both arms.
+- Per condition, one discarded warm-up start per arm, then 4 runs per arm in mirrored order (SDR `P I I P P I I P`,
+  HDR10 `I P P I I P P I`; P is FreeFG, I is Intel's shaders). All 20 starts valid: 2.000 presents per game frame, no
+  `FAIL` line, no GPU error in the kernel log. No outliers. Figures are means ± sample standard deviation.
 
-| Arm | Date | SDR 2× (FPS) | HDR10 2× (FPS) |
+| Condition | Intel's shaders, FPS (n = 4) | FreeFG 1.0.0, FPS (n = 4) | Difference (SE) |
 | --- | --- | --- | --- |
-| FreeFG | 2026-10-16 | 103.28 ± 0.09 (103.40, 103.18, 103.28, 103.25) | 101.58 ± 0.15 (101.69, 101.47) |
-| Reference (same kernels, internal loader) | 2026-10-16 | 103.03 ± 0.14 | 101.28 ± 0.25 |
-| Reference | 2026-10-15 | 103.05 ± 0.07 | — |
-| Intel's shaders | 2026-10-15 | 85.31 ± 0.08 (85.27, 85.25, 85.44, 85.30) | not measured |
+| SDR | 85.40 ± 0.08 | 103.09 ± 0.13 | +20.72% (0.10) |
+| HDR10 | 84.16 ± 0.07 | 101.28 ± 0.08 | +20.34% (0.07) |
 
 Results:
 
-- FreeFG against Intel's shaders, SDR: +21.1% (103.28 against 85.31 FPS; 9.68 against 11.72 ms per displayed frame),
-  on different days, bridged by the reference build run on both days in the same harness (103.05, then 103.03 FPS, a
-  change of 0.02%); indicative, not a same-session comparison.
-- Against the reference, same session: +0.24% in SDR (blocks +0.31%, +0.17%) and +0.30% in HDR10; FreeFG's loader is
-  not slower than the internal one.
-- Benchmark minimum FPS: FreeFG 94.0–94.4 (SDR) and 93.3 (HDR10); Intel's shaders 79.6–79.9 (SDR).
-- In all six FreeFG runs: Intel's runtime reported ready, the accelerated path active from the first context, two
-  presented frames per game frame, no `FAIL`, `FAST_SKIP` or `FAST_FALLBACK` line, and presents held while XeFG
-  generated and passed through otherwise.
+- FreeFG against Intel's shaders: +20.72% in SDR and +20.34% in HDR10; 9.70 against 11.71 and 9.87 against 11.88 ms
+  per displayed frame.
+- Benchmark minimum FPS: FreeFG 93.6–94.3 (SDR) and 92.4–93.0 (HDR10); Intel's shaders 79.7 and 78.6–78.8.
+- Every FreeFG run took the accelerated path, with no `FAST_SKIP` or `FAST_FALLBACK` line; no run with Intel's
+  shaders replaced a shader.
+- Earlier series, 0.9.0 on two days: 103.28 ± 0.09 FPS in SDR (n = 4) and 101.58 ± 0.15 in HDR10 (n = 2) on 2026-10-16;
+  Intel's shaders, through an internal reference build's loader, 85.31 ± 0.08 in SDR (n = 4) on 2026-10-15. The SDR gain
+  across the two days, +21.1% (bridged by the reference build: 103.05, then 103.03 FPS), agrees with the same-day result
+  within 0.4 points.
 
 Figure: [README.md](README.md#status).
 
 Not covered: other resolutions and upscaler modes; a real display, VRR and gamescope's real refresh behaviour (the
-headless compositor runs a fixed 120 Hz timer); input latency; frame-time distribution and pacing quality; HDR10 against
-Intel's shaders; stock Mesa without the compute queue; power and temperature; longer sessions.
+headless compositor runs a fixed 120 Hz timer); input latency; frame-time distribution and pacing quality; stock Mesa
+without the compute queue; power and temperature; longer sessions.
 
 ## On a TV with VRR
 
@@ -268,7 +269,8 @@ Results:
   in HDR10 the SDs differ by 0.02 ms. The maintainer saw no difference on the TV (a subjective check).
 - Frame rate: FreeFG is 0.89% lower in SDR (blocks −0.97%, −0.81%) and 1.33% lower in HDR10 (−1.41%, −1.25%), a gap
   headless measurements predicted; it comes from the passes FreeFG leaves to Intel's shaders.
-- On the TV the benchmark runs about 3% below the headless figures (about 99 against 103 FPS).
+- On the TV the benchmark runs about 4% below the headless figures (about 99 against 103 FPS in SDR, 97 against 101 in
+  HDR10).
 
 The figure's first two rows come from an earlier session with the same harness and TV (2026-09-29; earlier private
 builds, no compute queue; 2 runs without pacing and 3 with a layer that paces from the game's queue, 30 s each). They
@@ -309,8 +311,8 @@ to FreeFG's by dispatch grid and call count.
 | Motion splat and compose | 0.69 ms | 0.29 ms | Intel's shaders |
 | Sum of dispatches | 9.76 ms | 4.50 ms | 2.93 ms own, 1.57 ms Intel's |
 
-For scale: in the Cyberpunk benchmark, the time per real frame at 2× fell by 4.08 ms (23.44 to 19.36 ms; 85.31 to
-103.28 FPS), a whole game frame with the game's own work and waits, so the two numbers need not match.
+For scale: in the Cyberpunk benchmark, the time per real frame at 2× fell by 4.02 ms (23.42 to 19.40 ms; 85.40 to
+103.09 FPS), a whole game frame with the game's own work and waits, so the two numbers need not match.
 
 ![GPU time per generated frame at 2×: 9.76 ms with Intel's shaders, 4.50 ms with FreeFG 0.9.0; in the stages it replaces, 5.12 to 1.93, 1.24 to 0.44 and 1.29 to 0.56 ms.](../../docs/assets/gpu-time-per-generated-frame.svg)
 
