@@ -170,8 +170,8 @@ DLSS input without a game copy. Setup waits until the game, and for launcher set
 
 ![Files Setup places in a game folder, coloured by origin (package, pinned download, written by Setup, kept for Restore), and the five launcher variables it adds.](docs/assets/setup-file-layout.svg)
 
-Recorded in a live install of 0.9.0 (Echo Point Nova, Steam, OptiFG input, 19 October 2026); 1.0.0 adds five shaders,
-1.1.0 F4Q's seven.
+Recorded in a live install of 0.9.0 (Echo Point Nova, Steam, OptiFG input, 19 October 2026); 1.0.0 adds five shaders
+and 1.1.0 seven.
 
 ## Restore and uninstall
 
