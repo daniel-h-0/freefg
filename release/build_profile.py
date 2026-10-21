@@ -31,6 +31,12 @@ Pipelines (origin.json "build.pipeline"):
 A recipe whose rebuild cannot be reproduced is marked in origin.json "rebuild" as "committed-binary, rebuild
 unverified: <reason>"; check reports it and does not compile it. Today every shader rebuilds byte for byte.
 
+Variant folders (VARIANT_PROFILES): release/profile-mfg holds the own files that only the multi-frame build ships, in
+place of a release/profile file of the same name ("replaces": XU-1) or beside them, with their recipes in its own
+origin.json and their pins in inputs.lock.json tree group "profile-intel-free-mfg". check runs the same file, shader
+and rebuild steps on it (the report's "variant_profiles"); its files must be exactly what intel_free_mfg.json
+"replace" and "add" name, and each replacement keeps the wave size of the file it replaces.
+
 XEMFG_DXC (or --dxc) names the DXC directory (bin/dxc, bin/opt, bin/dxa, bin/dxv, lib/libdxcompiler.so). Without it,
 check runs every step but the rebuild and says so; --no-rebuild skips the rebuild on purpose.
 
@@ -54,6 +60,9 @@ PROFILE = RELEASE / 'profile'
 ORIGIN = PROFILE / 'origin.json'
 KERNELS = REPO / 'src' / 'kernels'
 LOCK_GROUP = 'profile-cl-wino-q33'
+# Own files that only a variant ships, in place of a file of release/profile ("replaces") or beside them: their folder,
+# inputs.lock.json tree group and the variant definitions that list them (profile "replace" and "add").
+VARIANT_PROFILES = {RELEASE / 'profile-mfg': ('profile-intel-free-mfg', [RELEASE / 'intel_free_mfg.json'])}
 TOOLCHAIN_KEY = 'profile'
 TOOLS = ('bin/dxc', 'bin/opt', 'bin/dxa', 'bin/dxv', 'lib/libdxcompiler.so', 'lib/libdxil.so')
 PROFILE_SUFFIXES = ('.dxil', '.txt', '.required', '.rs')  # the file types the add-on and the builds read from a profile
@@ -320,57 +329,148 @@ def check_toolchain(dxc, lock):
                 pin=dict(release=pin.get('release'), version=pin.get('version')) if pin else None)
 
 
+def check_variant_files(folder, group, definitions, lock, findings):
+    """A variant's own folder (VARIANT_PROFILES): exactly the files its origin.json lists, each with the recorded sha256
+    and size and the sha256 the lock's tree group pins (origin "own"); exactly the files the variant definitions replace
+    or add; each replacement in place of the release/profile file it names, with that file's wave size; the recorded
+    shader models. Returns {name: entry} of its shaders and its origin.json."""
+    where = folder.relative_to(REPO)
+    origin = json.loads((folder / 'origin.json').read_text())
+    if origin.get('schema') != 1:
+        raise ReleaseError(f'{where}/origin.json: unknown schema')
+    files = origin['files']
+    present = {p.name for p in folder.iterdir() if p.is_file() and p.suffix in PROFILE_SUFFIXES}
+    for name in sorted(present - set(files)):
+        findings.append(f'files: {name} is in {where} but not in its origin.json')
+    for name in sorted(set(files) - present):
+        findings.append(f'files: {name} is missing from {where}')
+    locked = lock.get('tree', {}).get(group, {}).get('files', {})
+    if lock.get('tree', {}).get(group, {}).get('path') != str(where):
+        findings.append(f'files: inputs.lock.json tree group {group} does not name {where}')
+    for name, entry in sorted(files.items()):
+        path = folder / name
+        if not path.is_file():
+            continue
+        digest = sha256(path)
+        if digest != entry['sha256'] or path.stat().st_size != entry['bytes']:
+            findings.append(f'files: {where}/{name} differs from its origin.json')
+        pin = locked.get(name)
+        if pin is None or pin['sha256'] != digest or pin.get('origin') != 'own':
+            findings.append(f'files: {where}/{name} is not pinned with origin "own" in inputs.lock.json tree group {group}')
+    from check_intel_free import shader_model  # the static check's DXIL container parser
+    base = load_origin()['files']
+    base_waves = {}
+    for line in (PROFILE / 'waves.txt').read_text().splitlines():
+        if line.split():
+            base_waves[line.split()[0]] = int(line.split()[1])
+    wanted = set()
+    for path in definitions:
+        spec = json.loads(path.read_text())['profile']
+        if spec.get('own_files') == group:
+            wanted |= set(spec.get('replace', {})) | set(spec.get('add', {}))
+    if set(files) != wanted:
+        findings.append(f'files: {where}/origin.json does not list exactly what the variant definitions replace and add '
+                        f'(missing {sorted(wanted - set(files))}, extra {sorted(set(files) - wanted)})')
+    shaders = {}
+    for name, entry in sorted(files.items()):
+        if entry['kind'] != 'shader':
+            continue
+        shaders[name] = entry
+        path = folder / name
+        if path.is_file() and shader_model(path.read_bytes()) != entry['shader_model']:
+            findings.append(f'shaders: {where}/{name} is not shader model {entry["shader_model"]}')
+        replaced = entry.get('replaces')
+        if replaced:
+            target = REPO / replaced['file']
+            if replaced['file'] != f'release/profile/{name}' or base.get(name, {}).get('sha256') != replaced['sha256']:
+                findings.append(f'shaders: {where}/{name} does not replace the release/profile file of its name as recorded')
+            elif target.is_file() and base_waves.get(fnv1a64(target.read_bytes())) != entry['wave']:
+                findings.append(f'shaders: {where}/{name} has wave {entry["wave"]}, its release/profile file another')
+    return shaders, origin
+
+
+def rebuild_rows(dxc, shaders, folder, committed_dir, toolchain, findings, label=''):
+    """{name: status} of compiling each shader again into folder and comparing it with the committed file."""
+    rows = {}
+    for name, entry in sorted(shaders.items()):
+        if entry['rebuild'].startswith(UNVERIFIED):
+            rows[name] = entry['rebuild']
+            continue
+        work = folder / (label + Path(name).stem)
+        work.mkdir(exist_ok=True)
+        try:
+            output = rebuild(dxc, name, entry['build'], work)
+        except ReleaseError as error:
+            rows[name] = f'failed: {error}'
+            findings.append(f'rebuild: {label}{name} failed: {error}')
+            continue
+        # Compared with the committed file (the file checks compare that with origin.json and the lock).
+        committed = committed_dir / name
+        expected = sha256(committed) if committed.is_file() else entry['sha256']
+        digest = sha256(output)
+        if digest == expected:
+            rows[name] = 'byte-identical'
+        else:
+            rows[name] = f'differs ({digest})'
+            findings.append(f'rebuild: {label}{name} rebuilt as {digest[:16]}…, committed {expected[:16]}…'
+                            + ('' if toolchain['matches_pin'] else ' (DXC is not the pinned release)'))
+    return rows
+
+
 def check(config, out=None, only=(), no_rebuild=False):
     origin, lock = load_origin(), config.lock
     findings = []
     check_files(origin, lock, findings)
     shaders = check_shaders(origin, findings)
     sources = check_sources(origin, findings)
+    variants = {}
+    for folder, (group, definitions) in VARIANT_PROFILES.items():
+        if folder.is_dir():  # the multi-frame build's own files (absent from a tree that cannot build it)
+            variants[folder] = check_variant_files(folder, group, definitions, lock, findings)
+    used = {entry['build']['source'] for _shaders, own in variants.values() for entry in own['files'].values()
+            if entry.get('build')}
+    for source in sorted(used):
+        if not (REPO / source).is_file():
+            findings.append(f'sources: {source} (named by a variant origin.json) is missing')
     if only:
-        unknown = sorted(set(only) - set(shaders))
+        unknown = sorted(set(only) - set(shaders) - {f'{f.relative_to(REPO)}/{n}' for f, (s, _o) in variants.items() for n in s})
         if unknown:
             raise ReleaseError('--only names no shader of the profile: ' + ', '.join(unknown))
-        shaders = {name: shaders[name] for name in only}
+        shaders = {name: shaders[name] for name in only if name in shaders}
+        variants = {f: ({n: e for n, e in s.items() if f'{f.relative_to(REPO)}/{n}' in only}, o) for f, (s, o) in variants.items()}
     binary = None if no_rebuild else config.dxc()
     dxc = Dxc(binary) if binary else None
     toolchain = check_toolchain(dxc, lock)
-    rows = {}
+    rows, variant_rows = {}, {}
     if dxc is None:
         for name in shaders:
             rows[name] = 'skipped (--no-rebuild)' if no_rebuild else 'not rebuilt (no XEMFG_DXC)'
+        for folder, (own, _origin) in variants.items():
+            variant_rows[folder] = {name: rows.get(name, 'skipped (--no-rebuild)' if no_rebuild else 'not rebuilt (no XEMFG_DXC)')
+                                    for name in own}
     else:
         with tempfile.TemporaryDirectory(prefix='build-profile-') as scratch:
             folder = Path(out).resolve() if out else Path(scratch)
             folder.mkdir(parents=True, exist_ok=True)
-            for name, entry in sorted(shaders.items()):
-                if entry['rebuild'].startswith(UNVERIFIED):
-                    rows[name] = entry['rebuild']
-                    continue
-                work = folder / Path(name).stem
-                work.mkdir(exist_ok=True)
-                try:
-                    output = rebuild(dxc, name, entry['build'], work)
-                except ReleaseError as error:
-                    rows[name] = f'failed: {error}'
-                    findings.append(f'rebuild: {name} failed: {error}')
-                    continue
-                # Compared with the committed file (check_files compares that with origin.json and the lock).
-                committed = PROFILE / name
-                expected = sha256(committed) if committed.is_file() else entry['sha256']
-                digest = sha256(output)
-                if digest == expected:
-                    rows[name] = 'byte-identical'
-                else:
-                    rows[name] = f'differs ({digest})'
-                    findings.append(f'rebuild: {name} rebuilt as {digest[:16]}…, committed {expected[:16]}…'
-                                    + ('' if toolchain['matches_pin'] else ' (DXC is not the pinned release)'))
+            rows = rebuild_rows(dxc, shaders, folder, PROFILE, toolchain, findings)
+            for own_folder, (own, _origin) in variants.items():
+                variant_rows[own_folder] = rebuild_rows(dxc, own, folder, own_folder, toolchain, findings,
+                                                        label=own_folder.name + '-')
     identical = sum(1 for status in rows.values() if status == 'byte-identical')
     unverified = sorted(name for name, status in rows.items() if status.startswith(UNVERIFIED))
     complete = dxc is not None and identical == len(shaders) - len(unverified)
+    variant_report = {}
+    for folder, (own, own_origin) in variants.items():
+        vrows = variant_rows[folder]
+        same = sum(1 for status in vrows.values() if status == 'byte-identical')
+        vunverified = sorted(name for name, status in vrows.items() if status.startswith(UNVERIFIED))
+        complete = complete and (dxc is not None and same == len(own) - len(vunverified))
+        variant_report[str(folder.relative_to(REPO))] = dict(files=len(own_origin['files']), shaders=len(own),
+                                                             rebuilt_byte_identical=same, unverified=vunverified, rebuild=vrows)
     report = dict(
         result='pass' if not findings and (complete or no_rebuild) else 'fail',
         files=len(origin['files']), shaders=len(shaders), rebuilt_byte_identical=identical, unverified=unverified,
-        rebuild=rows, sources=sources, toolchain=toolchain, findings=findings,
+        rebuild=rows, variant_profiles=variant_report, sources=sources, toolchain=toolchain, findings=findings,
         rebuilt_into=str(Path(out).resolve()) if out and dxc else None,
     )
     if dxc is None and not no_rebuild:
@@ -379,11 +479,14 @@ def check(config, out=None, only=(), no_rebuild=False):
 
 
 def show():
-    for name, entry in sorted(load_origin()['files'].items()):
-        build = entry.get('build')
-        recipe = (f'{build["source"]} {build["pipeline"]} {" ".join(build.get("defines", []))}' if build
-                  else 'data file')
-        print(f'{name:34} {entry["kind"]:7} {entry["rebuild"][:24]:24} {recipe}')
+    listed = [('', load_origin()['files'])] + [(f'{folder.name}/', json.loads((folder / 'origin.json').read_text())['files'])
+                                               for folder in VARIANT_PROFILES if folder.is_dir()]
+    for prefix, files in listed:
+        for name, entry in sorted(files.items()):
+            build = entry.get('build')
+            recipe = (f'{build["source"]} {build["pipeline"]} {" ".join(build.get("options", []) + build.get("defines", []))}'
+                      if build else 'data file')
+            print(f'{prefix + name:46} {entry["kind"]:7} {entry["rebuild"][:24]:24} {recipe}')
 
 
 def main():

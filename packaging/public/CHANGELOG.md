@@ -2,6 +2,66 @@
 
 Changes in each release of FreeFG. The private test builds made before 0.9.0 are not covered.
 
+## 1.1.0 – 2026-10-21
+
+Faster generated frames. The proxy and the shader profile change; the pacing layer, OptiScaler, Intel's runtime pin
+and the installer are 1.0.1's.
+
+In Cyberpunk 2077 (headless, one block, warm shader caches), 1.1.0 shows 1.4% more frames per second than 1.0.x at 2×
+in SDR and 1.2% in HDR10; with MFG Unlocker and `XeFGModel=default`, 2.1% more at 3× and 2.6% at 4× (2 runs per arm).
+Against Intel's shaders it shows 22% more at 2× ([MEASUREMENTS.md](MEASUREMENTS.md#frame-rate-cyberpunk-2077)). The
+gain comes from the faster U-Net shaders and F4Q; the new wave sizes for five of Intel's shaders took no effect in
+these runs.
+
+### Changed
+
+- Nine of the network's U-Net shaders compute their input transform in FP16 pairs, which hold its small integers
+  exactly; their results are unchanged.
+- F4Q, on by default: two U-Net layers (the decoder `b3941ac8` and the encoder `f030948d`) run Winograd F(4×4)
+  kernels instead of F(2×2), which need fewer multiplications. Their results were identical in every test, but they
+  are not proven for every input ([ARCHITECTURE.md](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)). To turn
+  F4Q off, set `BC250_XEFG_F4Q=0` in the launch options or `F4Q=0` under `[BC250]` in the game folder's
+  `BC250-XeFG/settings.ini`; Setup keeps either on reinstall.
+- `waves.txt` lists 130 shaders (1.0.x: 123): F4Q's two kernels, and five of Intel's shaders (four 2× warp shaders and
+  a convolution) at wave size 32. These five lines took no effect in the Cyberpunk measurements, because the shader
+  caches kept the pipelines compiled before the lines existed; no gain is claimed for them
+  ([MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)).
+- The shader profile holds 49 files, 40 of them shaders (1.0.x: 42 and 33). The package's `settings.ini` has an
+  `F4Q=1` line.
+
+### Added
+
+- `BC250_XEFG_F4Q_SHADOW=1`, a diagnostic: F4Q's kernels run beside the F(2×2) kernels, which keep the output, and
+  the fast log counts equal and differing outputs ([TROUBLESHOOTING.md](TROUBLESHOOTING.md#environment-variables)).
+
+### Documents
+
+- Both figures show 1.1.0's block, in frames shown per second; 1.0.0's series are earlier series in MEASUREMENTS.
+  README's 2× figure follows the intro.
+- MEASUREMENTS adds [Shader caches](MEASUREMENTS.md#shader-caches), the cache state of the measurements.
+
+### Checked
+
+Results, conditions and what was not checked: [MEASUREMENTS.md](MEASUREMENTS.md#checks-of-110).
+
+- Without a GPU: reproducible build hashes (also from the public source export), the shaders rebuilt byte for byte,
+  the static check with no allowance, the Wine loader check with ten F4Q cases, the installer tests.
+- On one BC-250, the SDK test program: generated images identical to Intel's shaders' in 20 configurations, with F4Q
+  on and with it off.
+- Cyberpunk 2077, headless: F4Q's diagnostic compared fingerprints of the two layers' outputs 96,480 times in 7
+  benchmark runs (2× and 3×, SDR), none differing; one frame-rate block of 54 starts against 1.0.x and Intel's
+  shaders; one start with `BC250_XEFG_F4Q=0`, which turned F4Q off.
+
+### Known limitations
+
+- F4Q is identical in every test, not proven for every input. In games it was compared only in Cyberpunk 2077, at 2×
+  and 3× in SDR, with its diagnostic on.
+- A `waves.txt` line applies only to pipelines that the shader caches do not already hold compiled without it. 1.1.0's
+  new lines for five of Intel's shaders take no effect in a game that ran with 1.0.x, and are expected to take none in
+  a game that ran its own XeSS frame generation before (not measured).
+- Not checked with 1.1.0: a live install with Setup, other games, a VRR display, gameplay, MFG Unlocker's own model,
+  HDR10 at 3× and 4×.
+
 ## 1.0.1 – 2026-10-20
 
 The installer and the documents change. The proxy, pacing layer, shader profile and OptiScaler are byte-identical to

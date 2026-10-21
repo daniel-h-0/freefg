@@ -72,7 +72,7 @@
   "kept_stages_difference_ms": 0.55
  },
  "cross_check": {
-  "note": "Cyberpunk 2077, headless, 2x SDR (figure cyberpunk-2x-fps, same-day block of 2026-10-20 with FreeFG 1.0.0, whose 2x shaders are 0.9.0's): measured FPS change with the proxy against Intel's shaders",
+  "note": "Cyberpunk 2077, headless, 2x SDR (docs/data/cyberpunk-fps key earlier_1_0_0: the same-day block of 2026-10-20 with FreeFG 1.0.0, whose 2x shaders are 0.9.0's): measured FPS change with the proxy against Intel's shaders",
   "intel_fps": 85.4,
   "freefg_fps": 103.09,
   "measured_change_percent": 20.7

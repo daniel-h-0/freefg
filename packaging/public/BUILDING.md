@@ -4,7 +4,7 @@
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
 
 Each script builds its binary twice, requires both builds to be identical, and exits with status 1 when the result
@@ -119,21 +119,24 @@ needs v1.9.2607 ([The shader profile](#the-shader-profile)).
 
 ## The shader profile
 
-The package's `payload/BC250-XeFG/shaders/` holds 33 shaders and 9 tables and markers, all of this project's own origin.
-The tree holds them compiled in `release/profile/` and the HLSL they are compiled from in `src/kernels/`. Each file is
-pinned by SHA-256 in `release/inputs.lock.json` with origin `own`. The builds read `release/profile/` unless
-`XEMFG_PROFILE` names another directory.
+The package's `payload/BC250-XeFG/shaders/` holds 40 shaders and 9 tables and markers, all of this project's own origin.
+The tree holds them compiled in `release/profile/` (33 shaders, the tables and markers) and `release/profile-mfg/` (the
+nine U-Net shaders the multi-frame build ships in a faster form, which replace their `release/profile/` files in its
+profile, and F4Q's seven shaders), and the HLSL they are compiled from in `src/kernels/`. Each file is pinned by SHA-256
+in `release/inputs.lock.json` with origin `own` (`release/profile-mfg/` as the tree group `profile-intel-free-mfg`). The
+builds read `release/profile/` unless `XEMFG_PROFILE` names another directory; `release/profile-mfg/` is always read
+from the tree.
 
 To rebuild every shader and compare the bytes, extract Microsoft's DXC release v1.9.2607 for Linux
 (`linux_dxc_2026_07_29.x86_x64.tar.gz`, SHA-256 `55665c87824051ed4774ff3280a79ccbbb7d39243b9736ca5e98222134112d54`) and
 run:
 
 ```sh
-XEMFG_DXC=/path/to/linux_dxc_2026_07_29.x86_x64 python3 release/build_profile.py check   # "result": "pass", 33 byte-identical
+XEMFG_DXC=/path/to/linux_dxc_2026_07_29.x86_x64 python3 release/build_profile.py check   # "result": "pass", 33 byte-identical, and 16 in variant_profiles
 ```
 
 Another DXC version compiles the same sources to different bytes. `release/profile/ORIGIN.md` describes each shader's
-recipe (`release/profile/origin.json`).
+recipe (`release/profile/origin.json`, and `release/profile-mfg/origin.json` for that folder).
 
 ## CI
 

@@ -5,12 +5,14 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 ## Scope
 
 - One AMD BC-250 ([test system](#test-system)).
+- 1.1.0 had the [checks](#checks-of-110), then one block with three arms (Intel's shaders, 1.0.x, 1.1.0):
+  [2× in SDR and HDR10](#frame-rate-cyberpunk-2077) and [3× and 4× with MFG Unlocker](#3-and-4-with-mfg-unlocker), all
+  with [warm shader caches](#shader-caches).
 - 1.0.0 had the shorter [checks](#checks-of-100), then three same-day blocks: [against 0.9.0 at
-  2×](#100-against-090-at-2-same-day), [against Intel's shaders at 2×](#frame-rate-cyberpunk-2077) in SDR and HDR10, and
-  [at 3× and 4× with MFG Unlocker](#3-and-4-with-mfg-unlocker). The other measurements are at 2× with 0.9.0, the
-  2×-only pre-release. 1.0.0 keeps its pacing layer and 28 shaders for 2× and adds five multi-frame shaders, with a
-  proxy built from the same source with the multi-frame code compiled in.
-- 1.0.1 ships the same proxy, pacing layer, shader profile and OptiScaler as 1.0.0; 1.0.0's measurements apply to it.
+  2×](#100-against-090-at-2-same-day), against Intel's shaders at 2× and at 3× and 4× (now earlier series in those
+  sections). 1.0.1 ships 1.0.0's proxy, pacing layer, shader profile and OptiScaler; "1.0.x" means both.
+- The other measurements are at 2× with 0.9.0, the 2×-only pre-release, whose 2× shaders 1.0.x keeps. They do not
+  include 1.1.0's faster shaders.
 - Most runs are headless; one campaign ran [on a TV with VRR](#on-a-tv-with-vrr). Headless and TV figures are not
   comparable. Some comparisons cross two days, as marked.
 - Each figure is drawn from `docs/data/<figure>/data.json` in the repository (with its `plot.py`), which names its
@@ -25,11 +27,15 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 | --- | --- | --- |
 | `libxess_fg.dll` | 0.9.0 | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
 | `libxess_fg.dll` | 1.0.0 and 1.0.1 | `77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7` |
-| Pacing layer `libxefg_wave.so` | 0.9.0, 1.0.0 and 1.0.1 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
+| `libxess_fg.dll` | 1.1.0 | `830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a` |
+| Shader profile, digest of its files | 1.1.0: 49 files, 130 `waves.txt` entries | `a35efb131305708d4fa7b719bd3d2472952f540a52dc52cf755548710004cdbf` |
+| Pacing layer `libxefg_wave.so` | 0.9.0 to 1.1.0 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
 | `OptiScaler.dll` | 0.9.0 | `244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d` |
-| `OptiScaler.dll` | 1.0.0 and 1.0.1 | `5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6` |
+| `OptiScaler.dll` | 1.0.0 to 1.1.0 | `5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6` |
 | Intel's XeFG runtime, unmodified | 1.3.1.78 | `ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27` |
 | MFG Unlocker `MFGUnlocker.dll`, not shipped | 1.6.0 | `161b9e1245a3736dc462ee83f4ad51e6125d8e7e73ce3eedde89d2eed60c69fa` |
+
+The shader profile's digest is the SHA-256 of its files' sorted `<file name><TAB><SHA-256>` lines, one per line.
 
 ## Test system
 
@@ -39,6 +45,44 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 | Software | CachyOS, kernel `linux-cachyos-bc250` 7.2.8; Mesa 26.2.2 RADV, a BC-250 build with the compute queue enabled; GE-Proton 11-7 through umu-launcher; gamescope 3.16.28; Python 3.14 for the installer |
 | Headless runs | `gamescope --backend headless`, 2560×1440 at a fixed 120 Hz (240 Hz for [3× and 4×](#3-and-4-with-mfg-unlocker)), no VRR |
 | TV runs | LG G5 OLED TV at 2560×1440 and 120 Hz with VRR (range 40–165 Hz), through a DisplayPort-to-HDMI adapter, in Steam Game Mode (gamescope outputs HDR10) |
+
+## Checks of 1.1.0
+
+1.1.0's qualification on the [test system](#test-system), 2026-10-20 to 21.
+
+| Check | Result |
+| --- | --- |
+| Build | Reproducible byte for byte from source on the pinned toolchain, also from the public source export ([BUILDING.md](BUILDING.md)); the 40 shaders rebuild byte for byte with the pinned compiler. |
+| Static check | Passes with no allowance ([NOTICE.md](NOTICE.md#the-shader-profile)). |
+| Installer | Unit tests pass. The installer is 1.0.1's; the package's `settings.ini` gains `F4Q=1`, so Setup keeps a user's `F4Q=0`. |
+| Wine loader check, no GPU | As for 1.0.0, plus ten F4Q cases: on by default, off by the launch option and by `settings.ini`, the launch option over the file, fallback to F(2×2) when a pipeline cannot be created, a network layout F4Q does not know, the diagnostic. |
+| Software rasteriser, no GPU | F4Q's kernels and the F(2×2) kernels gave byte-identical outputs on the test inputs. |
+| Synthetic scenes (SDK), 20 configurations | 2560×1440 SDR and HDR10 with engine and pixel motion vectors and 3840×2160 SDR, four scenes each: 704 of 704 generated images identical to the images Intel's shaders give, with F4Q on and with it off (`F4Q=0` in `settings.ini`). With F4Q on, both its kernels ran; off, neither. |
+| Cyberpunk 2077, F4Q's diagnostic (`BC250_XEFG_F4Q_SHADOW=1`), headless | 7 benchmark runs: 4 at native 2× and 3 at 3× with MFG Unlocker (`XeFGModel=default`), SDR. 96,480 comparisons of the two layers' outputs (14,784 at each of three points at 2×, 17,376 at 3×), none differing, none skipped. |
+| Cyberpunk 2077, frame-rate block, headless | 54 of 54 starts valid; F4Q on in every 1.1.0 run, with both kernels ([below](#frame-rate-cyberpunk-2077)). |
+| Cyberpunk 2077, F4Q's off switch, headless | One benchmark start at native 2× with F4Q at its default and one with `BC250_XEFG_F4Q=0`, which the test harness set in the game's environment (not through a Steam or Heroic launch option). With the variable, the fast log reported F4Q off by it (`F4Q_CONFIG mode=off source=BC250_XEFG_F4Q`) and F4Q created neither of its pipelines; without it, F4Q was on with both. Both runs accelerated, 2.0 frames shown per game frame, no `FAIL` line. |
+
+Not covered: F4Q compared in a game in HDR10, at 4×, in other games, or without the diagnostic (in a game the default
+path was run, not compared); a live install with Setup; a VRR display; MFG Unlocker's own model; games without a
+recipe; gameplay.
+
+## Shader caches
+
+The game's shader caches (Mesa's and vkd3d-proton's) were warm in every frame-rate run of 1.1.0's block: kept from
+earlier runs with 1.0.x and with test builds of 1.1.0, as on a computer that ran 1.0.x in the game and then installed
+1.1.0, from the second start on.
+
+- In this state, 1.1.0's five new `waves.txt` lines for Intel's shaders (four 2× warp shaders and a convolution) take
+  no effect ([why](ARCHITECTURE.md#wave-sizes-bc-250-only)). No run of the block set a wave size for those shaders (0
+  of 54), so no figure here contains a gain from them. The lines for FreeFG's own shaders, F4Q's included, and the
+  lines 1.0.0 already had applied in every run.
+- With empty caches (one benchmark start at native 2×, 2026-10-20), the three of these lines that this route uses
+  applied. That start took 39 s longer than one with warm caches and wrote 18.8 MB of cache. No frame rate is given
+  for this state.
+- Not measured: a computer whose caches held Intel's pipelines from XeSS frame generation without FreeFG (the
+  game's own, or OptiScaler's) before FreeFG was installed. There, 1.0.0's wave sizes for four of Intel's shaders
+  (five at 3× and 4× on OptiScaler's frame generation) are expected to take no effect either, and frame rates may
+  differ from these figures.
 
 ## Checks of 1.0.0
 
@@ -111,8 +155,44 @@ Not covered: HDR10; the OptiFG route; a display; other games.
 
 Setup:
 
-- The Cyberpunk 2077 benchmark, headless, 2560×1440, FSR 4 Performance, on OptiScaler's frame generation (OptiFG) with
-  the game's own frame generation off; 2026-10-20.
+- The Cyberpunk 2077 benchmark, headless, 2560×1440 SDR, FSR 4 Performance, on OptiScaler's frame generation (OptiFG)
+  with the game's own frame generation off, MFG Unlocker v1.6.0 as in [README.md](README.md#3-and-4-with-mfg-unlocker)
+  with `XeFGModel=default`, at 3× or 4×.
+- The block of [Frame rate](#frame-rate-cyberpunk-2077) (2026-10-20 to 21), same three arms. MFG Unlocker alone is the
+  Intel's-shaders arm: 1.1.0's files with `BC250_XEFG_DISABLE=1`, so the proxy only forwards and MFG Unlocker runs with
+  Intel's shaders. The layer also set wave size 32 for five of Intel's shaders there (lines 1.0.0 already had), as in
+  the other arms. Shader caches [warm](#shader-caches).
+- Headless output at 240 Hz, so no arm reached the refresh limit. Pacing layer off (`BC250_XEFG_PACE=0`), as in the
+  [earlier series](#earlier-series-100-both-models). Frames shown per second = frames per present × game FPS (the
+  benchmark's frames over its duration); every run had 3 or 4 frames per present as set.
+- Per frame count, one discarded warm-up per arm, then mirrored runs (`I A C C A I I A C C A I` at 3×, `C A I I A C` at
+  4×; I is MFG Unlocker alone, A 1.0.x, C 1.1.0): 4 runs per arm at 3×, 2 at 4×. All runs valid; no outliers at 3×
+  (with 2 runs, 4× has no outlier rule).
+
+| Frame count | MFG Unlocker alone | FreeFG 1.0.x | FreeFG 1.1.0 | 1.1.0 against MFG Unlocker alone (SE) | 1.1.0 against 1.0.x (SE) |
+| --- | --- | --- | --- | --- | --- |
+| 3× (n = 4), frames shown per second | 93.50 ± 0.11 | 125.31 ± 0.03 | 127.91 ± 0.18 | +36.80% (0.13) | +2.08% (0.07) |
+| 3×, game FPS | 31.17 | 41.77 | 42.64 | | |
+| 4× (n = 2), frames shown per second | 97.65 ± 0.06 | 139.87 ± 0.08 | 143.52 ± 0.08 | +46.98% (0.09) | +2.61% (0.06) |
+| 4×, game FPS | 24.41 | 34.97 | 35.88 | | |
+
+Results:
+
+- 1.1.0 saves 4.32 ms (3×) and 4.36 ms (4×) per generated frame against MFG Unlocker alone, and 0.24 ms against
+  1.0.x at both. Saved per generated frame = (1 / game FPS alone − 1 / game FPS FreeFG) / (frames per present − 1).
+- 1.0.x against MFG Unlocker alone: +34.01% (3×) and +43.23% (4×), as in the earlier series (+34.1%, +43.1%).
+- The 4× figures have 2 runs per arm.
+
+![Cyberpunk 2077 frames shown per second with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance, headless): at 3×, MFG Unlocker alone 93.50 and FreeFG 1.1.0 127.91 (+36.8%); at 4× (2 runs per arm), 97.65 and 143.52 (+47.0%).](../../docs/assets/mfg-3x4x-fps.svg)
+
+Frames shown per second (frames per present × game FPS), as in the 2× figure. Headless at 240 Hz, SDR, pacing off,
+warm shader caches; n = 4 per arm at 3×, n = 2 at 4×.
+
+### Earlier series: 1.0.0, both models
+
+Setup:
+
+- The benchmark and settings above, on 2026-10-20 (morning), in their own blocks.
 - 1.0.0's files as its installer writes them, plus MFG Unlocker v1.6.0 as in
   [README.md](README.md#3-and-4-with-mfg-unlocker), at 3× or 4×, with `XeFGModel=default` and without it (MFG
   Unlocker's own model).
@@ -150,11 +230,6 @@ Results:
 - Every run at a fixed frame count had 3 or 4 frames per present as set, no `FAIL` line and no GPU error in the kernel
   log; the warm-ups were within 0.3% of the measured runs.
 
-![Cyberpunk 2077 frames shown per second with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 93.42 FPS and FreeFG 1.0.0 125.31 FPS (+34.1%); at 4×, 97.75 and 139.92 FPS (+43.1%).](../../docs/assets/mfg-3x4x-fps.svg)
-
-Frames shown per second (frames per present × game FPS), as in the 2× figure. Headless at 240 Hz, SDR, pacing off;
-2 runs per arm at 3×, 1 at 4×.
-
 HDR10, FreeFG with `default`, one run each after a warm-up (MFG Unlocker alone was not run in HDR10, so there is no
 HDR10 gain):
 
@@ -169,16 +244,18 @@ times between 4× and 2×; the proxy followed each change, stayed accelerated an
 
 ### Start-up exits at 3×
 
-In the [checks](#checks-of-100), one of two 3× starts in Echo Point Nova ended during start-up. In this round none of
-18 starts at 3× with `default` ended early: 14 with FreeFG (12 SDR, 8 of them with empty shader caches; 2 HDR10) and
-4 with MFG Unlocker alone. The 8 empty-cache starts were short starts, not benchmark runs: each ran until 3 frames per
-present were seen and 10 s more, half of them under Wine debug tracing. At 95% confidence, the rate per start with
-FreeFG is at most 19.3% in this game. The round's 23 other starts (2× to 4×, both models, Dynamic MFG) also ran to
-the end. Echo Point Nova was not run again; its exit is unexplained.
+In 1.0.0's [checks](#checks-of-100), one of two 3× starts in Echo Point Nova ended during start-up. In the 1.0.0
+series above, none of 18 starts at 3× with `default` ended early: 14 with FreeFG (12 SDR, 8 of them with empty shader
+caches; 2 HDR10) and 4 with MFG Unlocker alone. The 8 empty-cache starts were short starts, not benchmark runs: each ran
+until 3 frames per present were seen and 10 s more, half of them under Wine debug tracing. At 95% confidence, the rate
+per start with FreeFG is at most 19.3% in this game. That series' 23 other starts (2× to 4×, both models, Dynamic
+MFG) also ran to the end. In 1.1.0's block, all 24 starts at 3× and 4× (8 of them with 1.1.0) ran to the end. Echo
+Point Nova was not run again; its exit is unexplained.
 
 Not covered: a VRR display, and the picture at 3× and 4× (MFG Unlocker's authors report misplaced outer frames with
-`default` at 6×); pacing on, beyond one run per arm at 3×; HDR10 with MFG Unlocker alone; other games; a game's own
-XeSS frame generation, where FreeFG accelerates nothing beside MFG Unlocker; gameplay.
+`default` at 6×); pacing on, beyond one run per arm at 3× with 1.0.0; HDR10 with MFG Unlocker alone; 1.1.0 on MFG
+Unlocker's own model and in HDR10 at 3× and 4×; other games; a game's own XeSS frame generation, where FreeFG
+accelerates nothing beside MFG Unlocker; gameplay.
 
 ## Generated images: bit-identical
 
@@ -199,44 +276,65 @@ In the four rows not compared with Intel's shaders, identity with them follows f
 ([ARCHITECTURE.md](ARCHITECTURE.md#exact-arithmetic)) but was not measured. Every run logged the accelerated path (27
 coefficient buffers owned, the Winograd kernels executing), two presents per frame, and no failure.
 
+1.1.0 was compared directly with Intel's shaders' images in 20 configurations, F4Q on and off:
+[checks of 1.1.0](#checks-of-110).
+
 Not covered: real game content; pixel comparisons in games; other resolutions; long sessions.
 
 ## Frame rate: Cyberpunk 2077
 
 Setup:
 
-- Cyberpunk 2077 2.31 (GOG build, started with umu-launcher), built-in benchmark, one pass per run, headless; 2560×1440
-  output, FSR 4 Performance, ray tracing off, the game's native XeSS frame generation at 2×, pacing layer on
-  (`BC250_XEFG_PACE=auto`). FPS is the benchmark's average, which counts generated frames.
-- One block on 2026-10-20 with 1.0.0's files (1.0.1 ships the same). The Intel's-shaders arm is the same files with
-  `BC250_XEFG_DISABLE=1`: the proxy accelerates no context, so Intel's runtime runs its own shaders, with the same
-  OptiScaler, `OptiScaler.ini` and pacing layer. The layer held presents while XeFG generated in both arms.
-- Per condition, one discarded warm-up start per arm, then 4 runs per arm in mirrored order (SDR `P I I P P I I P`,
-  HDR10 `I P P I I P P I`; P is FreeFG, I is Intel's shaders). All 20 starts valid: 2.000 presents per game frame, no
-  `FAIL` line, no GPU error in the kernel log. No outliers. Figures are means ± sample standard deviation.
+- Cyberpunk 2077 2.31 (GOG build, started by the test harness with no save loaded), built-in benchmark, one pass per
+  run, headless; 2560×1440 output at a fixed 120 Hz, FSR 4 Performance, ray tracing off, the game's native XeSS frame
+  generation at 2×, pacing layer on. FPS is the benchmark's average, which counts generated frames: frames shown per
+  second.
+- One block, 2026-10-20 to 21, with three arms: Intel's shaders, FreeFG 1.0.x (1.0.0's files) and FreeFG 1.1.0
+  (its proxy and shader profile, F4Q on by default, no switch set). The test harness placed each arm's files, not
+  Setup. The Intel's-shaders arm is 1.1.0's files with `BC250_XEFG_DISABLE=1`: the proxy accelerates no context, so
+  Intel's runtime runs its own shaders, with the same OptiScaler, `OptiScaler.ini` and pacing layer. The layer also set
+  wave size 32 for four of Intel's shaders there (lines 1.0.0 already had), as in the other arms; XeFG without the
+  layer was not measured. Shader caches [warm](#shader-caches).
+- Per condition, one discarded warm-up start per arm, then 4 runs per arm in mirrored order (SDR `I A C C A I I A C C A
+  I`, HDR10 `C A I I A C C A I I A C`; I is Intel's shaders, A 1.0.x, C 1.1.0). The rules were fixed before the first
+  start. All runs valid: 2.000 presents per game frame, no `FAIL` line, no GPU error in the kernel log. No outliers.
+  Figures are means ± sample standard deviation.
 
-| Condition | Intel's shaders, FPS (n = 4) | FreeFG 1.0.0, FPS (n = 4) | Difference (SE) |
-| --- | --- | --- | --- |
-| SDR | 85.40 ± 0.08 | 103.09 ± 0.13 | +20.72% (0.10) |
-| HDR10 | 84.16 ± 0.07 | 101.28 ± 0.08 | +20.34% (0.07) |
+| Condition | Intel's shaders, FPS (n = 4) | FreeFG 1.0.x, FPS (n = 4) | FreeFG 1.1.0, FPS (n = 4) | 1.1.0 against Intel's shaders (SE) | 1.1.0 against 1.0.x (SE) |
+| --- | --- | --- | --- | --- | --- |
+| SDR | 85.30 ± 0.07 | 102.93 ± 0.05 | 104.34 ± 0.06 | +22.31% (0.06) | +1.37% (0.04) |
+| HDR10 | 83.98 ± 0.22 | 101.24 ± 0.07 | 102.45 ± 0.07 | +22.00% (0.16) | +1.20% (0.05) |
 
 Results:
 
-- FreeFG against Intel's shaders: +20.72% in SDR and +20.34% in HDR10; 9.70 against 11.71 and 9.87 against 11.88 ms
-  per displayed frame.
-- Benchmark minimum FPS: FreeFG 93.6–94.3 (SDR) and 92.4–93.0 (HDR10); Intel's shaders 79.7 and 78.6–78.8.
-- Every FreeFG run took the accelerated path, with no `FAST_SKIP` or `FAST_FALLBACK` line; no run with Intel's
-  shaders replaced a shader.
-- Earlier series, 0.9.0 on two days: 103.28 ± 0.09 FPS in SDR (n = 4) and 101.58 ± 0.15 in HDR10 (n = 2) on 2026-10-16;
-  Intel's shaders, through an internal reference build's loader, 85.31 ± 0.08 in SDR (n = 4) on 2026-10-15. The SDR gain
-  across the two days, +21.1% (bridged by the reference build: 103.05, then 103.03 FPS), agrees with the same-day result
-  within 0.4 points.
+- 1.1.0 against Intel's shaders: +22.31% in SDR and +22.00% in HDR10; 9.58 against 11.72 and 9.76 against 11.91 ms
+  per displayed frame. 1.0.x in the same block: +20.66% and +20.56%.
+- 1.1.0 against 1.0.x: +1.37% (SE 0.04) in SDR and +1.20% (SE 0.05) in HDR10, 0.26 and 0.23 ms less per generated
+  frame. Of 1.1.0's changes, the faster U-Net shaders and F4Q ran; the new wave sizes for five of Intel's shaders did
+  not ([shader caches](#shader-caches)). In an earlier block (2026-10-20, SDR, warm caches), a build with 1.1.0's
+  faster U-Net shaders and no F4Q code was +0.75% (SE 0.14) faster than 1.0.0, and F4Q, in a test build with the same
+  kernels, added +0.50% (SE 0.08).
+- Every FreeFG run took the accelerated path, with no `FAST_SKIP` or `FAST_FALLBACK` line; every 1.1.0 run logged
+  F4Q on (`F4Q_CONFIG mode=on source=default`) with both its kernels and no `F4Q_FALLBACK`. No run with Intel's shaders
+  replaced a shader.
+- Benchmark minimum FPS: 1.1.0 94.5–95.4 (SDR) and 93.1–93.7 (HDR10); 1.0.x 93.3–93.7 and 92.1–92.7; Intel's shaders
+  79.5–79.7 and 78.1–78.6.
+- The layer held presents while XeFG generated in every run; its median release interval was 1000 / FPS in each arm.
+- Earlier series:
+  - 1.0.0, same day (2026-10-20, n = 4 per arm, two arms): Intel's shaders 85.40 ± 0.08 and 84.16 ± 0.07, FreeFG
+    103.09 ± 0.13 and 101.28 ± 0.08 FPS (SDR and HDR10), +20.72% (SE 0.10) and +20.34% (SE 0.07). The 1.0.x and
+    Intel's-shaders arms above are within 0.22% of these.
+  - 0.9.0 on two days: 103.28 ± 0.09 FPS in SDR (n = 4) and 101.58 ± 0.15 in HDR10 (n = 2) on 2026-10-16; Intel's
+    shaders, through an internal reference build's loader, 85.31 ± 0.08 in SDR (n = 4) on 2026-10-15. The SDR gain
+    across the two days, +21.1% (bridged by the reference build: 103.05, then 103.03 FPS), agrees with 1.0.0's
+    same-day result within 0.4 points.
 
-Figure: [README.md](README.md#status).
+Figure: [README.md](README.md).
 
 Not covered: other resolutions and upscaler modes; a real display, VRR and gamescope's real refresh behaviour (the
 headless compositor runs a fixed 120 Hz timer); input latency; frame-time distribution and pacing quality; stock Mesa
-without the compute queue; power and temperature; longer sessions.
+without the compute queue; power and temperature; longer sessions; other shader-cache states
+([shader caches](#shader-caches)).
 
 ## On a TV with VRR
 
@@ -289,6 +387,8 @@ input latency; other displays.
 
 Setup:
 
+- Measured with 0.9.0's shaders, which 1.0.x keeps at 2×; 1.1.0's faster U-Net shaders and F4Q are not in this
+  breakdown.
 - The SDK test program, headless: output 2560×1440, SDR, engine motion vectors, 2×, with a GPU timestamp around every
   dispatch of the frame-generation graph. A stage's time is the sum of its dispatches, without the gaps between them
   (0.25–0.27 ms per frame).
@@ -312,8 +412,9 @@ to FreeFG's by dispatch grid and call count.
 | Motion splat and compose | 0.69 ms | 0.29 ms | Intel's shaders |
 | Sum of dispatches | 9.76 ms | 4.50 ms | 2.93 ms own, 1.57 ms Intel's |
 
-For scale: in the Cyberpunk benchmark, the time per real frame at 2× fell by 4.02 ms (23.42 to 19.40 ms; 85.40 to
-103.09 FPS), a whole game frame with the game's own work and waits, so the two numbers need not match.
+For scale: in the Cyberpunk benchmark, the time per real frame at 2× fell by 4.02 ms with 1.0.0 (23.42 to 19.40 ms;
+85.40 to 103.09 FPS) and by 4.28 ms with 1.1.0 in its own block (23.45 to 19.17 ms; 85.30 to 104.34 FPS), a whole game
+frame with the game's own work and waits, so the numbers need not match.
 
 ![GPU time per generated frame at 2×: 9.76 ms with Intel's shaders, 4.50 ms with FreeFG 0.9.0; in the stages it replaces, 5.12 to 1.93, 1.24 to 0.44 and 1.29 to 0.56 ms.](../../docs/assets/gpu-time-per-generated-frame.svg)
 

@@ -49,7 +49,7 @@ release is taken down.
 
 ### The shader profile
 
-`payload/BC250-XeFG/shaders/` holds 33 shaders, compiled with Microsoft's DirectX Shader Compiler from this project's
+`payload/BC250-XeFG/shaders/` holds 40 shaders, compiled with Microsoft's DirectX Shader Compiler from this project's
 HLSL source, and 9 other files: this project's tables (`waves.txt` and `dispatch-scale.txt` name shaders by hash) and
 switches. The shaders contain no weights and none of Intel's code or constant tables. They read the network's
 coefficients at run time from the buffers Intel's runtime uploads ([ARCHITECTURE.md](ARCHITECTURE.md)).

@@ -1,6 +1,6 @@
 {
  "figure": "cyberpunk-2x-fps",
- "question": "How many frames per second does FreeFG show in Cyberpunk 2077 at 2x, against XeFG with Intel's own shaders?",
+ "question": "How many frames per second does FreeFG 1.1.0 show in Cyberpunk 2077 at 2x, against XeFG with Intel's own shaders (and FreeFG 1.0.x in the same block)?",
  "plot": {
   "title": "Cyberpunk 2077 frame rate at 2×",
   "subtitle": "AMD BC-250  ·  2560×1440  ·  FSR 4 Performance  ·  headless",
@@ -15,7 +15,7 @@
    },
    {
     "id": "freefg_sdr",
-    "label": "FreeFG 1.0.0",
+    "label": "FreeFG 1.1.0",
     "value_from": "headless.freefg_sdr.fps_mean",
     "group": "SDR",
     "role": "freefg"
@@ -29,7 +29,7 @@
    },
    {
     "id": "freefg_hdr10",
-    "label": "FreeFG 1.0.0",
+    "label": "FreeFG 1.1.0",
     "value_from": "headless.freefg_hdr10.fps_mean",
     "group": "HDR10",
     "role": "freefg"
@@ -50,94 +50,161 @@
  },
  "conditions": {
   "gpu": "AMD BC-250, GPU clock limit 1850 MHz",
-  "game": "Cyberpunk 2077 2.31, built-in benchmark, one pass per run",
+  "game": "Cyberpunk 2077 2.31 (GOG files, started by the test harness, no save loaded), built-in benchmark, one pass per run",
   "output": "2560x1440",
   "upscaler": "FSR 4 Performance",
   "frame_generation": "the game's native XeSS frame generation at 2x, pacing layer on (auto)",
   "ray_tracing": "off",
-  "proxy_sha256": "77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7",
+  "caches": "warm: the Mesa and vkd3d-proton shader caches kept from earlier runs of 1.0.x and test builds of 1.1.0, as on a computer that ran 1.0.x in the game and then installed 1.1.0, from the second start on. 1.1.0's five new waves.txt lines for Intel's shaders (four 2x warp shaders, one convolution) took no effect (0 of 54 runs set those wave sizes); every other line applied",
+  "proxy_sha256": "830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a",
   "layer_sha256": "d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271",
-  "freefg": "1.0.0",
-  "profile": "42 files, set sha256 e7f15df0212c0f59eda73044afae593db7e41092e099bfbee6c881f2b2dddd51",
+  "freefg": "1.1.0",
+  "profile": "49 files, set sha256 633ad27b9931bc4c6358c4ec2a63580f3f4e9adc6993f2e1695ac21a06d55f4d",
+  "f4q": "on by default, no switch set: F4Q_CONFIG mode=on source=default in every FreeFG 1.1.0 run",
+  "freefg_1_0": "1.0.0's files (proxy 77f26251, profile 42 files, set sha256 e7f15df0212c0f59eda73044afae593db7e41092e099bfbee6c881f2b2dddd51); 1.0.1 ships the same",
   "optiscaler_sha256": "5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6",
   "optiscaler_ini_sha256": "0fa0dbd60f59f0688ad8eec2f0353f5bc9333ee05d6f406dc06effc0148a218f",
   "intel_runtime_sha256": "ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27",
-  "intel_arm": "the same files with BC250_XEFG_DISABLE=1: the proxy accelerates no context, so Intel's runtime runs its own shaders; same OptiScaler, INI and pacing layer"
+  "intel_arm": "1.1.0's files with BC250_XEFG_DISABLE=1: the proxy accelerates no context, so Intel's runtime runs its own shaders; same OptiScaler, INI and pacing layer, which also set wave size 32 for four of Intel's shaders (lines 1.0.0 already had), as in the other arms"
  },
  "headless": {
   "where": "private headless gamescope, 2560x1440 at a fixed 120 Hz, no display, no VRR",
-  "date": "2026-10-20",
-  "block": "msfig-20261020-104906",
+  "date": "2026-10-20/21",
+  "block": "ms12-20261020-211346",
   "order": [
-   "wu-B",
-   "wu-I",
-   "B",
-   "I",
-   "I",
-   "B",
-   "B",
-   "I",
-   "I",
-   "B",
-   "wu-Ih",
-   "wu-Bh",
-   "Ih",
-   "Bh",
-   "Bh",
-   "Ih",
-   "Ih",
-   "Bh",
-   "Bh",
-   "Ih"
+   "wu-I11",
+   "wu-A10",
+   "wu-C11",
+   "I11",
+   "A10",
+   "C11",
+   "C11",
+   "A10",
+   "I11",
+   "I11",
+   "A10",
+   "C11",
+   "C11",
+   "A10",
+   "I11",
+   "wu-C11h",
+   "wu-A10h",
+   "wu-I11h",
+   "C11h",
+   "A10h",
+   "I11h",
+   "I11h",
+   "A10h",
+   "C11h",
+   "C11h",
+   "A10h",
+   "I11h",
+   "I11h",
+   "A10h",
+   "C11h"
   ],
   "intel_sdr": {
    "n": 4,
-   "fps_mean": 85.4,
-   "fps_sd": 0.08,
-   "game_fps_mean": 42.7,
-   "ms_per_displayed_frame": 11.71,
+   "fps_mean": 85.3,
+   "fps_sd": 0.07,
+   "game_fps_mean": 42.65,
+   "ms_per_displayed_frame": 11.72,
    "runs": [
     {
-     "run": "msfig-1020104906-04-I",
-     "fps": 85.336,
-     "min_fps": 79.74,
-     "seconds": 64.217,
-     "presented_frames": 5480,
-     "game_frames": 2740,
-     "game_fps": 42.668,
+     "run": "ms12-1020211346-04-I11",
+     "fps": 85.254,
+     "min_fps": 79.59,
+     "seconds": 64.232,
+     "presented_frames": 5476,
+     "game_frames": 2738,
+     "game_fps": 42.627,
      "hdr": false,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-05-I",
-     "fps": 85.379,
-     "min_fps": 79.73,
-     "seconds": 64.231,
-     "presented_frames": 5484,
-     "game_frames": 2742,
-     "game_fps": 42.689,
+     "run": "ms12-1020211346-09-I11",
+     "fps": 85.401,
+     "min_fps": 79.5,
+     "seconds": 64.238,
+     "presented_frames": 5486,
+     "game_frames": 2743,
+     "game_fps": 42.701,
      "hdr": false,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-08-I",
-     "fps": 85.353,
-     "min_fps": 79.73,
-     "seconds": 64.228,
-     "presented_frames": 5482,
-     "game_frames": 2741,
-     "game_fps": 42.676,
+     "run": "ms12-1020211346-10-I11",
+     "fps": 85.25,
+     "min_fps": 79.71,
+     "seconds": 64.235,
+     "presented_frames": 5476,
+     "game_frames": 2738,
+     "game_fps": 42.625,
      "hdr": false,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-09-I",
-     "fps": 85.515,
-     "min_fps": 79.66,
-     "seconds": 64.222,
-     "presented_frames": 5492,
-     "game_frames": 2746,
-     "game_fps": 42.758,
+     "run": "ms12-1020211346-15-I11",
+     "fps": 85.307,
+     "min_fps": 79.7,
+     "seconds": 64.215,
+     "presented_frames": 5478,
+     "game_frames": 2739,
+     "game_fps": 42.654,
+     "hdr": false,
+     "game_version": "2.31"
+    }
+   ],
+   "excluded_outliers": []
+  },
+  "freefg_1_0_sdr": {
+   "n": 4,
+   "fps_mean": 102.93,
+   "fps_sd": 0.05,
+   "game_fps_mean": 51.46,
+   "ms_per_displayed_frame": 9.72,
+   "runs": [
+    {
+     "run": "ms12-1020211346-05-A10",
+     "fps": 102.958,
+     "min_fps": 93.61,
+     "seconds": 64.24,
+     "presented_frames": 6614,
+     "game_frames": 3307,
+     "game_fps": 51.479,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ms12-1020211346-08-A10",
+     "fps": 102.959,
+     "min_fps": 93.66,
+     "seconds": 64.239,
+     "presented_frames": 6614,
+     "game_frames": 3307,
+     "game_fps": 51.479,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ms12-1020211346-11-A10",
+     "fps": 102.938,
+     "min_fps": 93.29,
+     "seconds": 64.233,
+     "presented_frames": 6612,
+     "game_frames": 3306,
+     "game_fps": 51.469,
+     "hdr": false,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ms12-1020211346-14-A10",
+     "fps": 102.851,
+     "min_fps": 93.55,
+     "seconds": 64.229,
+     "presented_frames": 6606,
+     "game_frames": 3303,
+     "game_fps": 51.426,
      "hdr": false,
      "game_version": "2.31"
     }
@@ -146,52 +213,52 @@
   },
   "freefg_sdr": {
    "n": 4,
-   "fps_mean": 103.09,
-   "fps_sd": 0.13,
-   "game_fps_mean": 51.54,
-   "ms_per_displayed_frame": 9.7,
+   "fps_mean": 104.34,
+   "fps_sd": 0.06,
+   "game_fps_mean": 52.17,
+   "ms_per_displayed_frame": 9.58,
    "runs": [
     {
-     "run": "msfig-1020104906-03-B",
-     "fps": 102.995,
-     "min_fps": 93.92,
-     "seconds": 64.256,
-     "presented_frames": 6618,
-     "game_frames": 3309,
-     "game_fps": 51.498,
+     "run": "ms12-1020211346-06-C11",
+     "fps": 104.297,
+     "min_fps": 94.5,
+     "seconds": 64.24,
+     "presented_frames": 6700,
+     "game_frames": 3350,
+     "game_fps": 52.148,
      "hdr": false,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-06-B",
-     "fps": 103.078,
-     "min_fps": 94.27,
-     "seconds": 64.223,
-     "presented_frames": 6620,
-     "game_frames": 3310,
-     "game_fps": 51.539,
+     "run": "ms12-1020211346-07-C11",
+     "fps": 104.407,
+     "min_fps": 95.39,
+     "seconds": 64.248,
+     "presented_frames": 6708,
+     "game_frames": 3354,
+     "game_fps": 52.204,
      "hdr": false,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-07-B",
-     "fps": 102.995,
-     "min_fps": 93.61,
-     "seconds": 64.236,
-     "presented_frames": 6616,
-     "game_frames": 3308,
-     "game_fps": 51.498,
+     "run": "ms12-1020211346-12-C11",
+     "fps": 104.275,
+     "min_fps": 94.49,
+     "seconds": 64.234,
+     "presented_frames": 6698,
+     "game_frames": 3349,
+     "game_fps": 52.137,
      "hdr": false,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-10-B",
-     "fps": 103.28,
-     "min_fps": 94.35,
-     "seconds": 64.233,
-     "presented_frames": 6634,
-     "game_frames": 3317,
-     "game_fps": 51.64,
+     "run": "ms12-1020211346-13-C11",
+     "fps": 104.372,
+     "min_fps": 94.62,
+     "seconds": 64.232,
+     "presented_frames": 6704,
+     "game_frames": 3352,
+     "game_fps": 52.186,
      "hdr": false,
      "game_version": "2.31"
     }
@@ -200,52 +267,106 @@
   },
   "intel_hdr10": {
    "n": 4,
-   "fps_mean": 84.16,
-   "fps_sd": 0.07,
-   "game_fps_mean": 42.08,
-   "ms_per_displayed_frame": 11.88,
+   "fps_mean": 83.98,
+   "fps_sd": 0.22,
+   "game_fps_mean": 41.99,
+   "ms_per_displayed_frame": 11.91,
    "runs": [
     {
-     "run": "msfig-1020104906-13-Ih",
-     "fps": 84.24,
-     "min_fps": 78.81,
-     "seconds": 64.221,
-     "presented_frames": 5410,
-     "game_frames": 2705,
-     "game_fps": 42.12,
+     "run": "ms12-1020211346-21-I11h",
+     "fps": 83.987,
+     "min_fps": 78.57,
+     "seconds": 64.2,
+     "presented_frames": 5392,
+     "game_frames": 2696,
+     "game_fps": 41.993,
      "hdr": true,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-16-Ih",
-     "fps": 84.197,
-     "min_fps": 78.63,
-     "seconds": 64.23,
+     "run": "ms12-1020211346-22-I11h",
+     "fps": 84.034,
+     "min_fps": 78.32,
+     "seconds": 64.212,
+     "presented_frames": 5396,
+     "game_frames": 2698,
+     "game_fps": 42.017,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ms12-1020211346-27-I11h",
+     "fps": 84.201,
+     "min_fps": 78.61,
+     "seconds": 64.227,
      "presented_frames": 5408,
      "game_frames": 2704,
-     "game_fps": 42.098,
+     "game_fps": 42.101,
      "hdr": true,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-17-Ih",
-     "fps": 84.092,
-     "min_fps": 78.62,
-     "seconds": 64.216,
-     "presented_frames": 5400,
-     "game_frames": 2700,
-     "game_fps": 42.046,
+     "run": "ms12-1020211346-28-I11h",
+     "fps": 83.68,
+     "min_fps": 78.11,
+     "seconds": 64.221,
+     "presented_frames": 5374,
+     "game_frames": 2687,
+     "game_fps": 41.84,
+     "hdr": true,
+     "game_version": "2.31"
+    }
+   ],
+   "excluded_outliers": []
+  },
+  "freefg_1_0_hdr10": {
+   "n": 4,
+   "fps_mean": 101.24,
+   "fps_sd": 0.07,
+   "game_fps_mean": 50.62,
+   "ms_per_displayed_frame": 9.88,
+   "runs": [
+    {
+     "run": "ms12-1020211346-20-A10h",
+     "fps": 101.206,
+     "min_fps": 92.46,
+     "seconds": 64.206,
+     "presented_frames": 6498,
+     "game_frames": 3249,
+     "game_fps": 50.603,
      "hdr": true,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-20-Ih",
-     "fps": 84.13,
-     "min_fps": 78.83,
-     "seconds": 64.21,
-     "presented_frames": 5402,
-     "game_frames": 2701,
-     "game_fps": 42.065,
+     "run": "ms12-1020211346-23-A10h",
+     "fps": 101.161,
+     "min_fps": 92.13,
+     "seconds": 64.254,
+     "presented_frames": 6500,
+     "game_frames": 3250,
+     "game_fps": 50.58,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ms12-1020211346-26-A10h",
+     "fps": 101.287,
+     "min_fps": 92.73,
+     "seconds": 64.234,
+     "presented_frames": 6506,
+     "game_frames": 3253,
+     "game_fps": 50.643,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ms12-1020211346-29-A10h",
+     "fps": 101.303,
+     "min_fps": 92.57,
+     "seconds": 64.243,
+     "presented_frames": 6508,
+     "game_frames": 3254,
+     "game_fps": 50.651,
      "hdr": true,
      "game_version": "2.31"
     }
@@ -254,52 +375,52 @@
   },
   "freefg_hdr10": {
    "n": 4,
-   "fps_mean": 101.28,
-   "fps_sd": 0.08,
-   "game_fps_mean": 50.64,
-   "ms_per_displayed_frame": 9.87,
+   "fps_mean": 102.45,
+   "fps_sd": 0.07,
+   "game_fps_mean": 51.23,
+   "ms_per_displayed_frame": 9.76,
    "runs": [
     {
-     "run": "msfig-1020104906-14-Bh",
-     "fps": 101.189,
-     "min_fps": 92.37,
-     "seconds": 64.236,
-     "presented_frames": 6500,
-     "game_frames": 3250,
-     "game_fps": 50.594,
-     "hdr": true,
-     "game_version": "2.31"
-    },
-    {
-     "run": "msfig-1020104906-15-Bh",
-     "fps": 101.387,
-     "min_fps": 92.65,
+     "run": "ms12-1020211346-19-C11h",
+     "fps": 102.477,
+     "min_fps": 93.27,
      "seconds": 64.229,
-     "presented_frames": 6512,
-     "game_frames": 3256,
-     "game_fps": 50.693,
+     "presented_frames": 6582,
+     "game_frames": 3291,
+     "game_fps": 51.238,
      "hdr": true,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-18-Bh",
-     "fps": 101.28,
-     "min_fps": 92.99,
-     "seconds": 64.257,
-     "presented_frames": 6508,
-     "game_frames": 3254,
-     "game_fps": 50.64,
+     "run": "ms12-1020211346-24-C11h",
+     "fps": 102.352,
+     "min_fps": 93.11,
+     "seconds": 64.23,
+     "presented_frames": 6574,
+     "game_frames": 3287,
+     "game_fps": 51.176,
      "hdr": true,
      "game_version": "2.31"
     },
     {
-     "run": "msfig-1020104906-19-Bh",
-     "fps": 101.276,
-     "min_fps": 92.42,
-     "seconds": 64.241,
-     "presented_frames": 6506,
-     "game_frames": 3253,
-     "game_fps": 50.638,
+     "run": "ms12-1020211346-25-C11h",
+     "fps": 102.526,
+     "min_fps": 93.67,
+     "seconds": 64.237,
+     "presented_frames": 6586,
+     "game_frames": 3293,
+     "game_fps": 51.263,
+     "hdr": true,
+     "game_version": "2.31"
+    },
+    {
+     "run": "ms12-1020211346-30-C11h",
+     "fps": 102.454,
+     "min_fps": 93.23,
+     "seconds": 64.224,
+     "presented_frames": 6580,
+     "game_frames": 3290,
+     "game_fps": 51.227,
      "hdr": true,
      "game_version": "2.31"
     }
@@ -310,16 +431,294 @@
    "sdr": {
     "from": "intel_sdr",
     "to": "freefg_sdr",
-    "percent": 20.72,
-    "se_percent_points": 0.1
+    "percent": 22.31,
+    "se_percent_points": 0.06
+   },
+   "sdr_vs_1_0": {
+    "from": "freefg_1_0_sdr",
+    "to": "freefg_sdr",
+    "percent": 1.37,
+    "se_percent_points": 0.04
    },
    "hdr10": {
     "from": "intel_hdr10",
     "to": "freefg_hdr10",
-    "percent": 20.34,
-    "se_percent_points": 0.07
+    "percent": 22.0,
+    "se_percent_points": 0.16
    },
-   "method": "percent = (FreeFG mean / Intel mean - 1) x 100 from the per-run FPS; its standard error = ratio x sqrt(sd_F^2 / (n_F mean_F^2) + sd_I^2 / (n_I mean_I^2)) x 100, in percentage points"
+   "hdr10_vs_1_0": {
+    "from": "freefg_1_0_hdr10",
+    "to": "freefg_hdr10",
+    "percent": 1.2,
+    "se_percent_points": 0.05
+   },
+   "method": "percent = (mean of \"to\" / mean of \"from\" - 1) x 100 from the per-run FPS; its standard error = ratio x sqrt(sd_to^2 / (n_to mean_to^2) + sd_from^2 / (n_from mean_from^2)) x 100, in percentage points"
+  }
+ },
+ "earlier_1_0_0": {
+  "note": "History, not plotted: the bars this figure showed for FreeFG 1.0.0, same-day block of 2026-10-20 (FreeFG 1.0.0 and the same files with BC250_XEFG_DISABLE=1), same benchmark and settings.",
+  "conditions": {
+   "proxy_sha256": "77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7",
+   "layer_sha256": "d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271",
+   "profile": "42 files, set sha256 e7f15df0212c0f59eda73044afae593db7e41092e099bfbee6c881f2b2dddd51"
+  },
+  "headless": {
+   "where": "private headless gamescope, 2560x1440 at a fixed 120 Hz, no display, no VRR",
+   "date": "2026-10-20",
+   "block": "msfig-20261020-104906",
+   "order": [
+    "wu-B",
+    "wu-I",
+    "B",
+    "I",
+    "I",
+    "B",
+    "B",
+    "I",
+    "I",
+    "B",
+    "wu-Ih",
+    "wu-Bh",
+    "Ih",
+    "Bh",
+    "Bh",
+    "Ih",
+    "Ih",
+    "Bh",
+    "Bh",
+    "Ih"
+   ],
+   "intel_sdr": {
+    "n": 4,
+    "fps_mean": 85.4,
+    "fps_sd": 0.08,
+    "game_fps_mean": 42.7,
+    "ms_per_displayed_frame": 11.71,
+    "runs": [
+     {
+      "run": "msfig-1020104906-04-I",
+      "fps": 85.336,
+      "min_fps": 79.74,
+      "seconds": 64.217,
+      "presented_frames": 5480,
+      "game_frames": 2740,
+      "game_fps": 42.668,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-05-I",
+      "fps": 85.379,
+      "min_fps": 79.73,
+      "seconds": 64.231,
+      "presented_frames": 5484,
+      "game_frames": 2742,
+      "game_fps": 42.689,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-08-I",
+      "fps": 85.353,
+      "min_fps": 79.73,
+      "seconds": 64.228,
+      "presented_frames": 5482,
+      "game_frames": 2741,
+      "game_fps": 42.676,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-09-I",
+      "fps": 85.515,
+      "min_fps": 79.66,
+      "seconds": 64.222,
+      "presented_frames": 5492,
+      "game_frames": 2746,
+      "game_fps": 42.758,
+      "hdr": false,
+      "game_version": "2.31"
+     }
+    ],
+    "excluded_outliers": []
+   },
+   "freefg_sdr": {
+    "n": 4,
+    "fps_mean": 103.09,
+    "fps_sd": 0.13,
+    "game_fps_mean": 51.54,
+    "ms_per_displayed_frame": 9.7,
+    "runs": [
+     {
+      "run": "msfig-1020104906-03-B",
+      "fps": 102.995,
+      "min_fps": 93.92,
+      "seconds": 64.256,
+      "presented_frames": 6618,
+      "game_frames": 3309,
+      "game_fps": 51.498,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-06-B",
+      "fps": 103.078,
+      "min_fps": 94.27,
+      "seconds": 64.223,
+      "presented_frames": 6620,
+      "game_frames": 3310,
+      "game_fps": 51.539,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-07-B",
+      "fps": 102.995,
+      "min_fps": 93.61,
+      "seconds": 64.236,
+      "presented_frames": 6616,
+      "game_frames": 3308,
+      "game_fps": 51.498,
+      "hdr": false,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-10-B",
+      "fps": 103.28,
+      "min_fps": 94.35,
+      "seconds": 64.233,
+      "presented_frames": 6634,
+      "game_frames": 3317,
+      "game_fps": 51.64,
+      "hdr": false,
+      "game_version": "2.31"
+     }
+    ],
+    "excluded_outliers": []
+   },
+   "intel_hdr10": {
+    "n": 4,
+    "fps_mean": 84.16,
+    "fps_sd": 0.07,
+    "game_fps_mean": 42.08,
+    "ms_per_displayed_frame": 11.88,
+    "runs": [
+     {
+      "run": "msfig-1020104906-13-Ih",
+      "fps": 84.24,
+      "min_fps": 78.81,
+      "seconds": 64.221,
+      "presented_frames": 5410,
+      "game_frames": 2705,
+      "game_fps": 42.12,
+      "hdr": true,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-16-Ih",
+      "fps": 84.197,
+      "min_fps": 78.63,
+      "seconds": 64.23,
+      "presented_frames": 5408,
+      "game_frames": 2704,
+      "game_fps": 42.098,
+      "hdr": true,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-17-Ih",
+      "fps": 84.092,
+      "min_fps": 78.62,
+      "seconds": 64.216,
+      "presented_frames": 5400,
+      "game_frames": 2700,
+      "game_fps": 42.046,
+      "hdr": true,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-20-Ih",
+      "fps": 84.13,
+      "min_fps": 78.83,
+      "seconds": 64.21,
+      "presented_frames": 5402,
+      "game_frames": 2701,
+      "game_fps": 42.065,
+      "hdr": true,
+      "game_version": "2.31"
+     }
+    ],
+    "excluded_outliers": []
+   },
+   "freefg_hdr10": {
+    "n": 4,
+    "fps_mean": 101.28,
+    "fps_sd": 0.08,
+    "game_fps_mean": 50.64,
+    "ms_per_displayed_frame": 9.87,
+    "runs": [
+     {
+      "run": "msfig-1020104906-14-Bh",
+      "fps": 101.189,
+      "min_fps": 92.37,
+      "seconds": 64.236,
+      "presented_frames": 6500,
+      "game_frames": 3250,
+      "game_fps": 50.594,
+      "hdr": true,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-15-Bh",
+      "fps": 101.387,
+      "min_fps": 92.65,
+      "seconds": 64.229,
+      "presented_frames": 6512,
+      "game_frames": 3256,
+      "game_fps": 50.693,
+      "hdr": true,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-18-Bh",
+      "fps": 101.28,
+      "min_fps": 92.99,
+      "seconds": 64.257,
+      "presented_frames": 6508,
+      "game_frames": 3254,
+      "game_fps": 50.64,
+      "hdr": true,
+      "game_version": "2.31"
+     },
+     {
+      "run": "msfig-1020104906-19-Bh",
+      "fps": 101.276,
+      "min_fps": 92.42,
+      "seconds": 64.241,
+      "presented_frames": 6506,
+      "game_frames": 3253,
+      "game_fps": 50.638,
+      "hdr": true,
+      "game_version": "2.31"
+     }
+    ],
+    "excluded_outliers": []
+   },
+   "differences": {
+    "sdr": {
+     "from": "intel_sdr",
+     "to": "freefg_sdr",
+     "percent": 20.72,
+     "se_percent_points": 0.1
+    },
+    "hdr10": {
+     "from": "intel_hdr10",
+     "to": "freefg_hdr10",
+     "percent": 20.34,
+     "se_percent_points": 0.07
+    },
+    "method": "percent = (FreeFG mean / Intel mean - 1) x 100 from the per-run FPS; its standard error = ratio x sqrt(sd_F^2 / (n_F mean_F^2) + sd_I^2 / (n_I mean_I^2)) x 100, in percentage points"
+   }
   }
  },
  "earlier": {
@@ -701,16 +1100,20 @@
   }
  },
  "notes": [
-  "Benchmark FPS counts generated frames; game frames per second = rows of the benchmark's frames.csv divided by its duration.",
-  "Both arms ran on 2026-10-20 in one block, mirrored (SDR: B I I B B I I B, HDR10: I B B I I B B I), each condition after one discarded warm-up start per arm; figures are means ± sample standard deviation of the kept runs.",
-  "The Intel's-shaders arm is FreeFG 1.0.0 itself with its acceleration switched off (BC250_XEFG_DISABLE=1): the same proxy, OptiScaler, INI and pacing layer, which held presents while XeFG generated in every run of both arms.",
-  "Headless and TV figures are not comparable with each other; the TV figures are FreeFG 0.9.0's (1.0.0 equals it at 2x, same-day block of 2026-10-20)."
+  "Benchmark FPS counts generated frames: frames shown per second. Game frames per second = rows of the benchmark's frames.csv divided by its duration.",
+  "Three arms in one block (2026-10-20/21), mirrored (SDR: I A C C A I I A C C A I, HDR10: C A I I A C C A I I A C; I = Intel's shaders, A = FreeFG 1.0.x, C = FreeFG 1.1.0), each condition after one discarded warm-up start per arm; figures are means ± sample standard deviation of the kept runs (no outliers).",
+  "The Intel's-shaders arm is FreeFG 1.1.0's files with BC250_XEFG_DISABLE=1: the same proxy, OptiScaler, INI and pacing layer, which held presents while XeFG generated in every run of every arm.",
+  "Shader caches warm (conditions.caches): no figure here contains a gain from 1.1.0's five new wave lines. Not measured: a computer whose caches held Intel's pipelines from XeSS frame generation before FreeFG was installed.",
+  "F4Q, on by default in 1.1.0, was identical to the F(2x2) kernels in every test, not proven for every input; BC250_XEFG_F4Q=0, or F4Q=0 under [BC250] in the game folder's BC250-XeFG/settings.ini, turns it off.",
+  "The image draws Intel's shaders and FreeFG 1.1.0; FreeFG 1.0.x is in the data and in MEASUREMENTS.md.",
+  "Headless and TV figures are not comparable with each other; the TV figures are FreeFG 0.9.0's."
  ],
  "sources": [
-  "Maintainer evidence, headless Cyberpunk figure block msfig-20261020-104906 (2026-10-20): runs msfig-1020104906-04-I, msfig-1020104906-05-I, msfig-1020104906-08-I, msfig-1020104906-09-I, msfig-1020104906-03-B, msfig-1020104906-06-B, msfig-1020104906-07-B, msfig-1020104906-10-B, msfig-1020104906-13-Ih, msfig-1020104906-16-Ih, msfig-1020104906-17-Ih, msfig-1020104906-20-Ih, msfig-1020104906-14-Bh, msfig-1020104906-15-Bh, msfig-1020104906-18-Bh, msfig-1020104906-19-Bh, each benchmark/summary.json and benchmark/frames.csv",
+  "Maintainer evidence, headless Cyberpunk block ms12-20261020-211346 (2026-10-20/21): runs ms12-1020211346-04-I11, ms12-1020211346-09-I11, ms12-1020211346-10-I11, ms12-1020211346-15-I11, ms12-1020211346-05-A10, ms12-1020211346-08-A10, ms12-1020211346-11-A10, ms12-1020211346-14-A10, ms12-1020211346-06-C11, ms12-1020211346-07-C11, ms12-1020211346-12-C11, ms12-1020211346-13-C11, ms12-1020211346-21-I11h, ms12-1020211346-22-I11h, ms12-1020211346-27-I11h, ms12-1020211346-28-I11h, ms12-1020211346-20-A10h, ms12-1020211346-23-A10h, ms12-1020211346-26-A10h, ms12-1020211346-29-A10h, ms12-1020211346-19-C11h, ms12-1020211346-24-C11h, ms12-1020211346-25-C11h, ms12-1020211346-30-C11h, each benchmark/summary.json and benchmark/frames.csv, and fast.log for F4Q's state",
   "Maintainer evidence, TV pacing campaign of 2026-10-18/19: arm B runs listed in its analysis.json summary (SDR and HDR10, warm-ups and the pilot excluded), same files",
+  "History (key \"earlier_1_0_0\", not plotted): Maintainer evidence, headless Cyberpunk figure block msfig-20261020-104906 (2026-10-20): runs msfig-1020104906-04-I, msfig-1020104906-05-I, msfig-1020104906-08-I, msfig-1020104906-09-I, msfig-1020104906-03-B, msfig-1020104906-06-B, msfig-1020104906-07-B, msfig-1020104906-10-B, msfig-1020104906-13-Ih, msfig-1020104906-16-Ih, msfig-1020104906-17-Ih, msfig-1020104906-20-Ih, msfig-1020104906-14-Bh, msfig-1020104906-15-Bh, msfig-1020104906-18-Bh, msfig-1020104906-19-Bh, same files",
   "History (key \"earlier\", not plotted): Maintainer evidence, headless Cyberpunk ABBA campaign of 2026-10-15 (Intel-free add-on qualification): runs if-c-2x-{3,4,9,10} (Intel's shaders) and if-b-2x-{2,5,8,11} (reference), each benchmark/summary.json and benchmark/frames.csv",
   "History (key \"earlier\", not plotted): Maintainer evidence, headless Cyberpunk ABBA campaign of 2026-10-16 (enabler-free proxy): runs ef-p-2x-{2,3,6,7}, ef-p-2x-hdr-{10,11} (FreeFG) and ef-b-2x-{1,4,5,8} (reference), same files",
-  "Summarised in packaging/public/MEASUREMENTS.md, sections \"Frame rate: Cyberpunk 2077\" and \"On a TV with VRR\""
+  "Summarised in packaging/public/MEASUREMENTS.md, sections \"Frame rate: Cyberpunk 2077\", \"Shader caches\" and \"On a TV with VRR\""
  ]
 }

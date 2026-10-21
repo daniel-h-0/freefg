@@ -1,6 +1,6 @@
 {
  "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build (variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-mfg for tools that pass --variant intel-free-mfg, and that entry changes nothing.",
- "name": "freefg-1.0.1",
+ "name": "freefg-1.1.0",
  "variant": "intel-free-mfg",
  "documents_version": "public",
  "documents_component": "documents",
@@ -133,7 +133,7 @@
    }
   },
   "profile-intel-free-mfg": {
-   "description": "Shader profile cl-wino-q33-intel-free-mfg: the Intel-free profile with the multi-frame kernels (release/intel_free_mfg.json), beside the proxy in BC250-XeFG/shaders",
+   "description": "Shader profile cl-wino-q33-intel-free-mfg: the Intel-free profile with the multi-frame kernels, nine U-Net shaders in their XU-1 form and F4Q's kernels (release/intel_free_mfg.json; release/profile-mfg), beside the proxy in BC250-XeFG/shaders",
    "files": {
     "payload/BC250-XeFG/shaders/08155f47bc92811b.dxil": "build:addon-intel-free-mfg-profile/08155f47bc92811b.dxil",
     "payload/BC250-XeFG/shaders/1a3b0782583fef19.dxil": "build:addon-intel-free-mfg-profile/1a3b0782583fef19.dxil",
@@ -144,11 +144,18 @@
     "payload/BC250-XeFG/shaders/60edebbbd2f9fb69.dxil": "build:addon-intel-free-mfg-profile/60edebbbd2f9fb69.dxil",
     "payload/BC250-XeFG/shaders/9e0080eee00255f2.dxil": "build:addon-intel-free-mfg-profile/9e0080eee00255f2.dxil",
     "payload/BC250-XeFG/shaders/b3941ac8ff95efe7.dxil": "build:addon-intel-free-mfg-profile/b3941ac8ff95efe7.dxil",
+    "payload/BC250-XeFG/shaders/b3941ac8ff95efe7.f4q.dxil": "build:addon-intel-free-mfg-profile/b3941ac8ff95efe7.f4q.dxil",
     "payload/BC250-XeFG/shaders/b3ddf030f661d487.dxil": "build:addon-intel-free-mfg-profile/b3ddf030f661d487.dxil",
     "payload/BC250-XeFG/shaders/dispatch-scale.txt": "build:addon-intel-free-mfg-profile/dispatch-scale.txt",
     "payload/BC250-XeFG/shaders/e83e868f8d5d2c0f.dxil": "build:addon-intel-free-mfg-profile/e83e868f8d5d2c0f.dxil",
     "payload/BC250-XeFG/shaders/f030948d38e74671.dxil": "build:addon-intel-free-mfg-profile/f030948d38e74671.dxil",
+    "payload/BC250-XeFG/shaders/f030948d38e74671.f4q.dxil": "build:addon-intel-free-mfg-profile/f030948d38e74671.f4q.dxil",
     "payload/BC250-XeFG/shaders/f2e2e13fea432d20.dxil": "build:addon-intel-free-mfg-profile/f2e2e13fea432d20.dxil",
+    "payload/BC250-XeFG/shaders/f4q-check-aux.dxil": "build:addon-intel-free-mfg-profile/f4q-check-aux.dxil",
+    "payload/BC250-XeFG/shaders/f4q-check-uav-float.dxil": "build:addon-intel-free-mfg-profile/f4q-check-uav-float.dxil",
+    "payload/BC250-XeFG/shaders/f4q-check-uav-raw.dxil": "build:addon-intel-free-mfg-profile/f4q-check-uav-raw.dxil",
+    "payload/BC250-XeFG/shaders/f4q-check-uav-sint.dxil": "build:addon-intel-free-mfg-profile/f4q-check-uav-sint.dxil",
+    "payload/BC250-XeFG/shaders/f4q-check-uav-uint.dxil": "build:addon-intel-free-mfg-profile/f4q-check-uav-uint.dxil",
     "payload/BC250-XeFG/shaders/graph-finish224-17-n32.dxil": "build:addon-intel-free-mfg-profile/graph-finish224-17-n32.dxil",
     "payload/BC250-XeFG/shaders/graph-finish224-17.dxil": "build:addon-intel-free-mfg-profile/graph-finish224-17.dxil",
     "payload/BC250-XeFG/shaders/graph-finish224-n32.dxil": "build:addon-intel-free-mfg-profile/graph-finish224-n32.dxil",
@@ -280,7 +287,7 @@
  "variants": {
   "intel-free-mfg": {
    "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-mfg builds exactly what release/assemble.py builds.",
-   "name": "freefg-1.0.1",
+   "name": "freefg-1.1.0",
    "package_dir": "package-intel-free-mfg",
    "documents_version": "public",
    "replace": {},

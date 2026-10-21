@@ -30,11 +30,30 @@ RWTexture2DArray<uint4> dst : register(u0);
 #ifndef CLAMP_LO
 #define CLAMP_LO 0
 #endif
+#ifndef XU1
+#define XU1 0 // 1: FP16-pair input transform and wave-uniform epilogue (needs -enable-16bit-types); same results
+#endif
 #define WINO_ZERO (WINO_BASE + 1024 * SLICES)
 #if DECODE_OFFSET
 uint decode_word(uint w) { return (w + 0x80808080u) ^ 0x80808080u; }
 #else
 uint decode_word(uint w) { return w ^ 0x80808080u; }
+#endif
+#if XU1
+// The codes d = decode_word(w) bytes (0..255, signed value d - 128) as FP16 1024 + d, two channels per register:
+// channels (0, 1) for sel 0, (2, 3) for sel 1. The decode's final XOR is folded into the exponent bits: for an
+// unpacked byte b, (b ^ 0x6480) is the FP16 bit pattern of 1024 + (b ^ 0x80); key 0x647f gives 1024 + (255 - d), the
+// complemented code. FP16 holds every integer of magnitude <= 2048 exactly. unpack_u8u16 keeps the four values one
+// vector through dxil-spirv, so the transform becomes packed FP16 arithmetic.
+#if DECODE_OFFSET
+uint decode_raw(uint w) { return w + 0x80808080u; }
+#else
+uint decode_raw(uint w) { return w; }
+#endif
+float16_t2 code_pair(uint raw, uint sel, uint16_t key) {
+    float16_t4 L4 = asfloat16(unpack_u8u16((uint8_t4_packed)raw) ^ key);
+    return sel ? L4.zw : L4.xy;
+}
 #endif
 
 // Row-partial exchange: [row pair][tile][4 pixels x 8 channels of the partner's half] as int4.
@@ -58,6 +77,89 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 g
     //   t_a = L0 - L2,  t_b = s * L1 + L2  (s = +1 / -1)
     // gives Bt rows (0, 1) = (d0 - d2, d1 + d2) or (2, 3) = (d2 - d1, d1 - d3). Exact: small integers.
     int rowoff[3] = { rp ? 2 : 0, rp ? 3 : 1, rp ? 1 : 2 };
+#if XU1
+    // XU1: the same transform values in FP16 pairs, L = 1024 + code (exact), signed values s = code - 128:
+    //   rp 0: L = (d0, 255 - d1, d2):  t_a = L0 - L2 = s0 - s2,  t_b = L2 - L1 = s1 + s2 + 1
+    //   rp 1: L = (d2, d3, d1):        t_a = L0 - L2 = s2 - s1,  t_b = L2 - L1 = s1 - s3
+    // Row 1 of rp 0 is decoded complemented (the decode's XOR key). The +1 of rp 0's t_b cancels in the column
+    // transform except at v[1][1] (+2), which loses it there: v = B^T s B exactly, the release kernel's values.
+    // Every operand and result is an integer of magnitude <= 2048 (|t| <= 255, |v| <= 512), so each FP16 operation
+    // is exact. `precise` keeps the compiler from regrouping sums of two biased values (L + L' is not exact in FP16).
+    uint16_t key1 = rp ? uint16_t(0x6480) : uint16_t(0x647f);
+    float16_t corr = rp ? float16_t(0.0) : float16_t(2.0);
+    int zero = asint(model[WINO_ZERO].x);
+    float m[8][16]; // [local position (row-in-pair * 4 + col)][output channel]
+    [unroll] for (uint p = 0; p < 8; p++) [unroll] for (uint k = 0; k < 16; k++) m[p][k] = 0;
+    [unroll] for (uint q = 0; q < 4; q++) {
+        int xz = x0 + zero * int(q);
+        uint pw[3][4];
+        [unroll] for (uint j = 0; j < 3; j++) [unroll] for (uint i = 0; i < 4; i++)
+            pw[j][i] = decode_raw(src.Load(int4(xz + int(i), y0 + rowoff[j], 0, 0))[q]);
+        float16_t2 vh[2][8]; // [sel][local position]: sel 0 = channels (4q, 4q + 1), sel 1 = (4q + 2, 4q + 3)
+        [unroll] for (uint sel = 0; sel < 2; sel++) {
+            precise float16_t2 t[2][4];
+            precise float16_t2 v[2][4];
+            [unroll] for (uint i = 0; i < 4; i++) {
+                float16_t2 L0 = code_pair(pw[0][i], sel, uint16_t(0x6480)), L1 = code_pair(pw[1][i], sel, key1);
+                float16_t2 L2 = code_pair(pw[2][i], sel, uint16_t(0x6480));
+                t[0][i] = L0 - L2; t[1][i] = L2 - L1;
+            }
+            [unroll] for (uint j = 0; j < 2; j++) {
+                v[j][0] = t[j][0] - t[j][2]; v[j][1] = t[j][1] + t[j][2];
+                v[j][2] = t[j][2] - t[j][1]; v[j][3] = t[j][1] - t[j][3];
+            }
+            v[1][1] -= float16_t2(corr, corr);
+            [unroll] for (uint p = 0; p < 8; p++) vh[sel][p] = v[p >> 2][p & 3];
+        }
+        [unroll] for (uint cc = 0; cc < 4; cc++) {
+            uint c = q * 4 + cc;
+            [unroll] for (uint hh = 0; hh < 2; hh++) {
+                uint base = WINO_BASE + slice * 1024 + (hh * 16 + c) * 32 + rp * 16; // U[slice][half][cin][p][k8], p = 8rp + local
+                [unroll] for (uint p = 0; p < 8; p++) {
+#if WHALF
+                    uint4 wh = asuint(model[WINO16_BASE + (base - WINO_BASE) / 2 + p]); // FP16 pairs, exact (|U| <= 1152)
+                    float4 w0 = float4(f16tof32(wh.x), f16tof32(wh.x >> 16), f16tof32(wh.y), f16tof32(wh.y >> 16));
+                    float4 w1 = float4(f16tof32(wh.z), f16tof32(wh.z >> 16), f16tof32(wh.w), f16tof32(wh.w >> 16));
+#else
+                    float4 w0 = model[base + p * 2], w1 = model[base + p * 2 + 1];
+#endif
+                    float a = float((cc & 1) ? vh[cc >> 1][p].y : vh[cc >> 1][p].x);
+                    m[p][hh * 8 + 0] = mad(a, w0.x, m[p][hh * 8 + 0]); m[p][hh * 8 + 1] = mad(a, w0.y, m[p][hh * 8 + 1]);
+                    m[p][hh * 8 + 2] = mad(a, w0.z, m[p][hh * 8 + 2]); m[p][hh * 8 + 3] = mad(a, w0.w, m[p][hh * 8 + 3]);
+                    m[p][hh * 8 + 4] = mad(a, w1.x, m[p][hh * 8 + 4]); m[p][hh * 8 + 5] = mad(a, w1.y, m[p][hh * 8 + 5]);
+                    m[p][hh * 8 + 6] = mad(a, w1.z, m[p][hh * 8 + 6]); m[p][hh * 8 + 7] = mad(a, w1.w, m[p][hh * 8 + 7]);
+                }
+            }
+        }
+    }
+    // Column inverse per local row; this wave's contribution to the two output rows (wave-uniform branches, no
+    // per-lane selects): rows {0,1}: P(0,c) = Z0 + Z1, P(1,c) = Z1; rows {2,3}: P(0,c) = Z2, P(1,c) = -Z2 - Z3.
+    // Wave rp keeps output-channel half rp and sends the other half's partials to its partner.
+    uint tile = gt.y * GX + gt.x, other = rp ^ 1;
+    int mine[4][8];
+    [branch] if (rp == 0) {
+        int send[4][8];
+        [unroll] for (uint k = 0; k < 16; k++) {
+            int z0a = int(m[0][k]) + int(m[1][k]) + int(m[2][k]), z0b = int(m[1][k]) - int(m[2][k]) - int(m[3][k]);
+            int z1a = int(m[4][k]) + int(m[5][k]) + int(m[6][k]), z1b = int(m[5][k]) - int(m[6][k]) - int(m[7][k]);
+            int P4[4] = { z0a + z1a, z0b + z1b, z1a, z1b };
+            [unroll] for (uint px = 0; px < 4; px++) { if (k < 8) mine[px][k] = P4[px]; else send[px][k - 8] = P4[px]; }
+        }
+        [unroll] for (uint px = 0; px < 4; px++) [unroll] for (uint o = 0; o < 2; o++)
+            part[tile * 8 + px * 2 + o] = int4(send[px][o * 4], send[px][o * 4 + 1], send[px][o * 4 + 2], send[px][o * 4 + 3]);
+    } else {
+        int send[4][8];
+        [unroll] for (uint k = 0; k < 16; k++) {
+            int z0a = int(m[0][k]) + int(m[1][k]) + int(m[2][k]), z0b = int(m[1][k]) - int(m[2][k]) - int(m[3][k]);
+            int z1a = int(m[4][k]) + int(m[5][k]) + int(m[6][k]), z1b = int(m[5][k]) - int(m[6][k]) - int(m[7][k]);
+            int P4[4] = { z0a, z0b, -z0a - z1a, -z0b - z1b };
+            [unroll] for (uint px = 0; px < 4; px++) { if (k < 8) send[px][k] = P4[px]; else mine[px][k - 8] = P4[px]; }
+        }
+        [unroll] for (uint px = 0; px < 4; px++) [unroll] for (uint o = 0; o < 2; o++)
+            part[(GX * GY + tile) * 8 + px * 2 + o] = int4(send[px][o * 4], send[px][o * 4 + 1], send[px][o * 4 + 2], send[px][o * 4 + 3]);
+    }
+    GroupMemoryBarrierWithGroupSync();
+#else
     float sgn = rp ? -1.0 : 1.0, corr = rp ? 0.0 : 512.0;
     int zero = asint(model[WINO_ZERO].x);
     uint patch[3][4];
@@ -121,6 +223,7 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 g
     [unroll] for (uint px = 0; px < 4; px++) [unroll] for (uint o = 0; o < 2; o++)
         part[((rp * GX * GY) + tile) * 8 + px * 2 + o] = int4(send[px][o * 4], send[px][o * 4 + 1], send[px][o * 4 + 2], send[px][o * 4 + 3]);
     GroupMemoryBarrierWithGroupSync();
+#endif
     int yv[4][8];
     [unroll] for (uint px = 0; px < 4; px++) [unroll] for (uint o = 0; o < 2; o++) {
         int4 q = part[((other * GX * GY) + tile) * 8 + px * 2 + o];

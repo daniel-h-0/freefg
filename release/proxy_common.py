@@ -270,6 +270,80 @@ def prepare_intel_free_profile(config, definition, folder):
     return sorted(folder.iterdir())
 
 
+# waves.txt as the shipped pacing layer reads it (src/game/wave_layer.c configuration(), XEFG_WAVE_CONFIG): a line of only
+# blanks is skipped; any other line is 16 lower-case hex digits and wave 32 or 64 with nothing after them; no hash twice;
+# at most 512 lines (choices[512]). One line it cannot read makes the layer drop the WHOLE table (choice_count 0), so
+# every pipeline then keeps the driver's default wave size.
+WAVE_TABLE_LIMIT = 512
+WAVE_LINE = re.compile(r'([0-9a-f]{16})[ \t]+(32|64)[ \t\r]*')
+
+
+def wave_table(text):
+    """{module hash: wave} of a waves.txt text as the pacing layer reads it; ReleaseError where the layer would read no
+    table at all. Slightly stricter than the layer (the wave as written, whitespace between the fields, lines of at
+    most 100 characters), so a table accepted here is read in full."""
+    table = {}
+    for number, line in enumerate(text.split('\n'), 1):
+        if not line.strip(' \t\r'):
+            continue
+        match = WAVE_LINE.fullmatch(line)
+        if match is None or len(line) > 100:
+            raise ReleaseError(f'waves.txt line {number} is not "<16 lower-case hex digits> <32 or 64>": the pacing '
+                               'layer would drop the whole table')
+        if match[1] in table:
+            raise ReleaseError(f'waves.txt line {number} lists {match[1]} again: the pacing layer would drop the whole '
+                               'table')
+        table[match[1]] = int(match[2])
+    if len(table) > WAVE_TABLE_LIMIT:
+        raise ReleaseError(f'waves.txt has {len(table)} entries; the pacing layer reads at most {WAVE_TABLE_LIMIT}')
+    return table
+
+
+def append_waves(path, additions):
+    """Append one "<module> <wave>" line per entry of a variant's "append_waves" ({module: {"wave": 32 or 64, ...}}, in
+    that order) to the profile's waves.txt at path; the file's earlier bytes stay its exact prefix. Refused when the
+    table already lists a module, when the file lacks its final newline, or when the result is not a table the pacing
+    layer reads in full. Returns the resulting table ({module: wave})."""
+    text = path.read_text()
+    table = wave_table(text)
+    lines = []
+    for module, entry in additions.items():
+        if not re.fullmatch(r'[0-9a-f]{16}', module) or entry.get('wave') not in (32, 64):
+            raise ReleaseError(f'append_waves: {module} {entry.get("wave")} is not a module hash with wave 32 or 64')
+        if module in table:
+            raise ReleaseError(f'append_waves: {path.name} lists {module} already (wave {table[module]})')
+        lines.append(f'{module} {entry["wave"]}\n')
+    if lines and not text.endswith('\n'):
+        raise ReleaseError(f'append_waves: {path.name} does not end with a newline')
+    result = wave_table(text + ''.join(lines))
+    if len(result) != len(table) + len(lines):
+        raise ReleaseError(f'append_waves: {len(table)} + {len(lines)} lines gave {len(result)} entries')
+    path.write_text(text + ''.join(lines))
+    return result
+
+
+def replace_wave_module(path, old, new):
+    """Rewrite the one waves.txt line of module old at path to name module new with the same wave size, in place (the
+    table keeps its length and order). Refused when old has no line or several, when new is listed already, or when
+    the result is not a table the pacing layer reads in full. Returns the resulting table ({module: wave})."""
+    text = path.read_text()
+    table = wave_table(text)
+    if old not in table:
+        raise ReleaseError(f'replace: {path.name} has no line for module {old}')
+    if new in table:
+        raise ReleaseError(f'replace: {path.name} lists module {new} already')
+    lines = text.split('\n')
+    hits = [i for i, line in enumerate(lines) if line.split()[:1] == [old]]
+    if len(hits) != 1:
+        raise ReleaseError(f'replace: {len(hits)} {path.name} lines for module {old}')
+    lines[hits[0]] = lines[hits[0]].replace(old, new, 1)
+    result = wave_table('\n'.join(lines))
+    if len(result) != len(table) or result.get(new) != table[old]:
+        raise ReleaseError(f'replace: {path.name} would not keep its {len(table)} entries and the wave size of {old}')
+    path.write_text('\n'.join(lines))
+    return result
+
+
 def check_intel_free_profile(definition, files):
     """The variant profile: no file of a compiled-out feature, the markers of its own features only, own shader models,
     and every dispatch-scale.txt shader paired with its replacement (a scaled dispatch of Intel's original shader would

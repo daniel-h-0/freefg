@@ -2007,12 +2007,14 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
             self.assertIn(kept, defines)
         for dropped in ('XEFG_MFG_XELL_PACE=1', 'XEFG_MFG_NO_ENABLER_UI=1', 'XEFG_MFG_GUARD_FULL=1'):
             self.assertNotIn(dropped, defines)
+        self.assertEqual(defines.count('XEFG_F4Q=1'), 1)  # F4Q: this variant only
         self.assertEqual(definition['addon']['output_dir'], 'addon-intel-free-mfg')
         self.assertEqual(definition['profile']['drop'], {})
         if TWO_DEFINITION.is_file():  # 0.9.0's 2x build: the maintainers' tree only
             _base, two, two_defines = build_proxy.definitions('intel-free-2x')
             self.assertNotIn('XEFG_PROXY_MFG=1', two_defines)
             self.assertNotIn('XEFG_MFG_RESEARCH=1', two_defines)
+            self.assertNotIn('XEFG_F4Q=1', two_defines)
         from config import ReleaseError
         with self.assertRaises(ReleaseError):
             build_proxy.definitions('intel-free-3x')
@@ -2087,8 +2089,12 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         self.assertNotIn('documents_base', package)
         self.assertEqual(package['documents_version'], 'public')
         profile = package['components']['profile-intel-free-mfg']['files']
-        self.assertEqual(len(profile), 42)
+        self.assertEqual(len(profile), 49)
         self.assertEqual(sum(1 for path in profile if '/mfg-finish' in path), 5)
+        self.assertEqual(sorted(path.rsplit('/', 1)[1] for path in profile if '/f4q' in path or '.f4q.' in path),
+                         ['b3941ac8ff95efe7.f4q.dxil', 'f030948d38e74671.f4q.dxil', 'f4q-check-aux.dxil',
+                          'f4q-check-uav-float.dxil', 'f4q-check-uav-raw.dxil', 'f4q-check-uav-sint.dxil',
+                          'f4q-check-uav-uint.dxil'])
         self.assertEqual(package['components']['addon-intel-free-mfg']['files']['payload/libxess_fg.dll'], 'build:addon-intel-free-mfg')
         self.assertEqual(package['manifest']['addon_entry'], 'libxess_fg-proxy')
         self.assertEqual(package['manifest']['max_factor'], 2)  # Setup offers 2x; 3x/4x come from OptiScaler's menu
@@ -2149,6 +2155,191 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         self.assertEqual(found, {'ProductName': 'OptiScaler', 'OriginalFilename': 'OptiScaler.dll'})
         self.assertNotEqual(check_proxy_wine.version_resource('Other product'), data)
 
+
+class WaveTable(unittest.TestCase):
+    """waves.txt as the pacing layer reads it (proxy_common.wave_table: src/game/wave_layer.c drops the whole table on
+    one line it cannot read) and the lines the multi-frame build appends (intel_free_mfg.json append_waves,
+    proxy_common.append_waves). No build."""
+    A, B = '0123456789abcdef', 'fedcba9876543210'
+
+    def test_layer_rules(self):
+        import proxy_common
+        from config import ReleaseError
+        self.assertEqual(proxy_common.wave_table(f'{self.A} 32\n\n  \n{self.B} 64\n'), {self.A: 32, self.B: 64})
+        self.assertEqual(proxy_common.wave_table(f'{self.A}\t32 \r\n'), {self.A: 32})
+        for bad in (f'{self.A} 16\n', f'{self.A.upper()} 32\n', f'{self.A[:15]} 32\n', f'{self.A} 32 x\n',
+                    f'{self.A} 32\n{self.A} 64\n', f'#{self.A} 32\n', f'{self.A}\n'):
+            with self.assertRaises(ReleaseError, msg=bad):
+                proxy_common.wave_table(bad)
+        limit = ''.join(f'{i:016x} 32\n' for i in range(proxy_common.WAVE_TABLE_LIMIT))
+        self.assertEqual(len(proxy_common.wave_table(limit)), proxy_common.WAVE_TABLE_LIMIT)
+        with self.assertRaises(ReleaseError):
+            proxy_common.wave_table(limit + f'{self.B} 32\n')
+
+    def test_append(self):
+        import proxy_common
+        from config import ReleaseError
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'waves.txt'
+            path.write_text(f'{self.A} 64\n')
+            table = proxy_common.append_waves(path, {self.B: dict(wave=32, pipeline='test')})
+            self.assertEqual(path.read_text(), f'{self.A} 64\n{self.B} 32\n')
+            self.assertEqual(table, {self.A: 64, self.B: 32})
+            for additions in ({self.A: dict(wave=32)}, {self.B: dict(wave=48)}, {self.B[:15]: dict(wave=32)},
+                              {self.B.upper(): dict(wave=32)}):
+                path.write_text(f'{self.A} 64\n')
+                with self.assertRaises(ReleaseError, msg=additions):
+                    proxy_common.append_waves(path, additions)
+                self.assertEqual(path.read_text(), f'{self.A} 64\n')  # nothing written on a refusal
+            path.write_text(f'{self.A} 64')
+            with self.assertRaises(ReleaseError):
+                proxy_common.append_waves(path, {self.B: dict(wave=32)})
+
+    @unittest.skipUnless(MFG_DEFINITION.is_file(), 'the multi-frame proxy is not part of this tree')
+    def test_multi_frame_table(self):
+        """The committed profile's waves.txt (123 entries) as the multi-frame build assembles it (build_proxy.py
+        prepare_profile): the replaced own files' lines rewritten in place to their new modules (same wave size, same
+        order, the pinned bytes otherwise), then intel_free_mfg.json's five append_waves lines, then the lines of the
+        files it adds; none of the appended modules one of this profile's own shaders; in the maintainers' tree also
+        the payload waves.txt that publish_local.py pins."""
+        import build_proxy
+        import proxy_common
+        from config import Config, fnv1a64
+        base, definition, _defines = build_proxy.definitions('intel-free-mfg')
+        appended = definition['profile']['append_waves']
+        group, replaced, added = build_proxy.own_files(definition)
+        self.assertEqual(len(appended), 5)
+        self.assertEqual(len(replaced), 9)
+        with tempfile.TemporaryDirectory() as folder:
+            config = Config({'build': folder, 'cache': folder}, offline=True)
+            config.values['work'] = config.values['profile'] = None  # the committed profile (release/profile)
+            files = build_proxy.prepare_profile(config, base, definition, Path(folder) / 'profile')
+            built = (Path(folder) / 'profile' / 'waves.txt').read_text()
+            pinned = (PROFILE / 'waves.txt').read_text()
+            self.assertEqual(len(proxy_common.wave_table(pinned)), 123)
+            table = proxy_common.wave_table(built)
+            self.assertEqual(len(table), 128 + sum(1 for e in added.values() if e.get('wave') is not None))
+            own_dir = RELEASE_DIR / 'profile-mfg'
+            swap = {fnv1a64((PROFILE / name).read_bytes()): fnv1a64((own_dir / name).read_bytes()) for name in replaced}
+            rows = pinned.split('\n')
+            expected = '\n'.join(f'{swap[r.split()[0]]} {r.split()[1]}' if r.split() and r.split()[0] in swap else r
+                                 for r in rows)
+            self.assertTrue(built.startswith(expected))
+            self.assertEqual(sum(1 for a, b in zip(rows[:-1], built.split('\n')) if a != b), 9)
+            self.assertEqual({module: table[module] for module in appended}, dict.fromkeys(appended, 32))
+            own = {fnv1a64(p.read_bytes()) for p in PROFILE.glob('*.dxil')} | set(swap.values())
+            self.assertEqual(len(own), 42)
+            self.assertFalse(own & set(appended))
+            self.assertEqual({p.name for p in files} - {p.name for p in PROFILE.iterdir()}, set(added))
+            if (RELEASE_DIR / 'publish_local.py').is_file():  # maintainers' tree only
+                import publish_local
+                self.assertEqual(hashlib.sha256(built.encode()).hexdigest(),
+                                 publish_local.QUALIFIED_PAYLOAD['payload/BC250-XeFG/shaders/waves.txt'])
+                for p in files:
+                    self.assertEqual(hashlib.sha256(p.read_bytes()).hexdigest(),
+                                     publish_local.QUALIFIED_PAYLOAD[f'payload/BC250-XeFG/shaders/{p.name}'], p.name)
+
+    def test_replace_in_place(self):
+        import proxy_common
+        from config import ReleaseError
+        c = '00000000000000c0'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'waves.txt'
+            path.write_text(f'{self.A} 64\n{self.B} 32\n')
+            table = proxy_common.replace_wave_module(path, self.A, c)
+            self.assertEqual(path.read_text(), f'{c} 64\n{self.B} 32\n')
+            self.assertEqual(table, {c: 64, self.B: 32})
+            for old, new in ((self.A, self.B), (c, self.B), ('1' * 16, '2' * 16), (self.B, self.B.upper())):
+                before = path.read_text()
+                with self.assertRaises(ReleaseError, msg=(old, new)):
+                    proxy_common.replace_wave_module(path, old, new)
+                self.assertEqual(path.read_text(), before)  # nothing written on a refusal
+
+
+class F4QRelease(unittest.TestCase):
+    """F4Q in release form (src/model_f4q.h, src/game/f4q.h; intel_free_mfg.json "added_defines" and profile "add"): on
+    by default with its switch in the package's settings file, release names only, the two F(4x4) kernels at wave 32,
+    the check kernels without a wave line. No build (check_proxy_wine.py runs the code under Wine)."""
+    SOURCES = ('src/model_f4q.h', 'src/game/f4q.h', 'src/kernels/f4q_dec16.hlsl', 'src/kernels/f4q_enc16.hlsl',
+               'src/kernels/f4q_common.hlsli', 'src/kernels/f4q_check.hlsl')
+
+    @unittest.skipUnless(MFG_DEFINITION.is_file(), 'the multi-frame proxy is not part of this tree')
+    def test_switch_and_names(self):
+        settings = (RELEASE_DIR / 'files/BC250-XeFG-settings.ini').read_text()
+        self.assertIn('\nF4Q=1\n', settings)  # carried across reinstalls: install.py keeps the user's value of a key it ships
+        tree = RELEASE_DIR.parent
+        for name in self.SOURCES:
+            text = (tree / name).read_text()
+            for research in ('XEFG_CE_', 'XEFG_CLOSE_ENOUGH', 'close-enough', 'OUTPUT_EQUIVALENCE', 'h16', 'H16', 'r6n'):
+                self.assertNotIn(research, text, f'{name}: {research}')
+        header = (tree / 'src/model_f4q.h').read_text()
+        for switch in ('"BC250_XEFG_F4Q"', '"BC250_XEFG_F4Q_SHADOW"', 'L"F4Q"'):
+            self.assertIn(switch, header)
+
+    @unittest.skipUnless(MFG_DEFINITION.is_file(), 'the multi-frame proxy is not part of this tree')
+    def test_added_files(self):
+        import build_proxy
+        _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
+        _group, _replaced, added = build_proxy.own_files(definition)
+        waves = {name: entry['wave'] for name, entry in added.items()}
+        self.assertEqual(waves, {'b3941ac8ff95efe7.f4q.dxil': 32, 'f030948d38e74671.f4q.dxil': 32,
+                                 'f4q-check-uav-uint.dxil': None, 'f4q-check-uav-float.dxil': None,
+                                 'f4q-check-uav-sint.dxil': None, 'f4q-check-uav-raw.dxil': None, 'f4q-check-aux.dxil': None})
+        origin = json.loads((RELEASE_DIR / 'profile-mfg/origin.json').read_text())['files']
+        self.assertEqual(origin['b3941ac8ff95efe7.f4q.dxil']['build']['defines'], ['TBASE=3025'])
+        self.assertEqual(origin['f030948d38e74671.f4q.dxil']['build']['defines'], ['SLICES=2', 'DECODE_OFFSET=0', 'TBASE=6049'])
+        header = (RELEASE_DIR.parent / 'src/model_f4q.h').read_text()
+        self.assertIn('#define F4Q_TBASE_2304 3025u', header)
+        self.assertIn('#define F4Q_TBASE_4608 6049u', header)
+
+
+class VariantOwnFiles(unittest.TestCase):
+    """The multi-frame build's own profile files (intel_free_mfg.json profile "replace" and "add"; release/profile-mfg;
+    inputs.lock.json tree group): pinned as this project's own, each replacement in place of the release/profile file of
+    its name, the 2x build and the enabler-era Intel-free add-on untouched. No build."""
+
+    @unittest.skipUnless(MFG_DEFINITION.is_file(), 'the multi-frame proxy is not part of this tree')
+    def test_pins(self):
+        import build_proxy
+        from config import load_lock, sha256
+        _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
+        group, replaced, added = build_proxy.own_files(definition)
+        lock = load_lock()
+        tree = lock['tree'][group]
+        folder = RELEASE_DIR.parent / tree['path']
+        origin = json.loads((folder / 'origin.json').read_text())
+        self.assertEqual(set(tree['files']), set(replaced) | set(added))
+        self.assertEqual(set(origin['files']), set(tree['files']))
+        for name, entry in tree['files'].items():
+            self.assertEqual(entry['origin'], 'own', name)
+            self.assertEqual(sha256(folder / name), entry['sha256'], name)
+            self.assertEqual(origin['files'][name]['sha256'], entry['sha256'], name)
+        for name in replaced:
+            self.assertEqual(origin['files'][name]['replaces']['file'], f'release/profile/{name}')
+            self.assertEqual(origin['files'][name]['replaces']['sha256'], sha256(PROFILE / name))
+            self.assertNotEqual(sha256(folder / name), sha256(PROFILE / name))
+        work = lock['work']['profile-cl-wino-q33']['files']
+        self.assertFalse({e['sha256'] for e in tree['files'].values()} & {e['sha256'] for e in work.values()})
+
+    @unittest.skipUnless(TWO_DEFINITION.is_file(), '0.9.0\'s 2x proxy is not part of this tree (public export)')
+    def test_other_builds_have_none(self):
+        import build_proxy
+        _base, two, _defines = build_proxy.definitions('intel-free-2x')
+        self.assertEqual(build_proxy.own_files(two), (None, {}, {}))
+        intel_free = json.loads((RELEASE_DIR / 'intel_free.json').read_text())['profile']
+        self.assertFalse({'replace', 'add', 'own_files'} & set(intel_free))
+
+    def test_check_intel_free_counts_them_as_own(self):
+        import check_intel_free
+        from config import Config
+        config = Config({'build': tempfile.gettempdir()}, offline=True)
+        material = check_intel_free.load_material()
+        _intel, own, _tables = check_intel_free.reference(config, material)
+        for group, spec in config.lock.get('tree', {}).items():
+            if isinstance(spec, dict):
+                for name, entry in spec['files'].items():
+                    if name.endswith('.dxil'):
+                        self.assertIn(entry['sha256'], own, name)
 
 if __name__ == '__main__':
     unittest.main()

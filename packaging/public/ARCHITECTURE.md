@@ -59,7 +59,10 @@ lists. They forward every call to the real objects and show FreeFG the pipelines
 uploads and the dispatches it records; the game keeps its own objects. On the runtime's work:
 
 1. Pipeline substitution: a compute pipeline whose bytecode hash has a shader in the profile is built from that shader,
-   with the runtime's own root signature and pipeline description.
+   with the runtime's own root signature and pipeline description. For two of them, the U-Net decoder `b3941ac8` and
+   encoder `f030948d`, F4Q (on by default) builds the pipeline from a second, faster shader of the profile
+   (`<hash>.f4q.dxil`; [below](#f4q-identical-in-every-test-not-proven)); if that pipeline cannot be created, the
+   regular shader is used for it (`F4Q_FALLBACK` in the fast log).
 2. Kernel substitution: some of the network's convolution dispatches are recorded as FreeFG's kernels at the same
    point in the command list, and the runtime's pipeline and bindings are restored after them. The kernels compute the
    same convolution in the Winograd domain (transform, multiply, inverse transform) or as one fused refinement pass.
@@ -72,7 +75,7 @@ uploads and the dispatches it records; the game keeps its own objects. On the ru
    three parameters unchanged. Pipelines created on it, Intel's included, run with the extension, whose bindings
    Intel's shaders do not declare.
 5. Dispatch sizes: replacement shaders that cover more pixels per thread group get their group counts divided
-   (`dispatch-scale.txt`).
+   (`dispatch-scale.txt`); a dispatch that binds an F4Q pipeline gets that shader's own group counts.
 6. Checks that end the game: the kernels fit the pinned runtime's network sizes and buffer and descriptor layouts (2×
    and multi-frame networks). A mismatch before acceleration starts sends the context to Intel's shaders; anything
    unexpected later (another buffer write, an unknown layout) makes FreeFG log `FAIL` and end the process rather than
@@ -142,21 +145,45 @@ context is destroyed, as earlier recorded work may use them. The other checks of
 
 ## The shader profile
 
-`BC250-XeFG/shaders/` beside the proxy holds 42 files: 13 hash replacements (`<hash>.dxil`, item 1); 20 kernels, 15 for
-the 2× network and 5 for the multi-frame network (item 2); `dispatch-scale.txt`, divisors for 9 shaders (item 5);
-`waves.txt`, wave sizes for 123 shaders ([pacing layer](#the-pacing-layer)); and 7 `*.required` markers that switch on
-parts of the accelerated path.
+`BC250-XeFG/shaders/` beside the proxy holds 49 files: 13 hash replacements (`<hash>.dxil`, item 1) and the F4Q form
+of 2 of them (`<hash>.f4q.dxil`); 20 kernels, 15 for the 2× network and 5 for the multi-frame network (item 2); 5 check
+kernels of F4Q's diagnostic (`f4q-check-*.dxil`, used only with `BC250_XEFG_F4Q_SHADOW=1`); `dispatch-scale.txt`, divisors
+for 9 shaders (item 5); `waves.txt`, wave sizes for 130 shaders ([pacing layer](#the-pacing-layer)); and 7 `*.required`
+markers that switch on parts of the accelerated path.
 
-The 33 shaders are DXIL (31 of shader model 6.6, 2 of 6.9) compiled with Microsoft's DirectX Shader Compiler from this
+The 40 shaders are DXIL (38 of shader model 6.6, 2 of 6.9) compiled with Microsoft's DirectX Shader Compiler from this
 project's HLSL ([BUILDING.md](BUILDING.md)). They hold no weights: they read the network's coefficients at run time from
-the buffers of item 3.
+the buffers of item 3. Nine of the U-Net replacements compute their input transform in FP16 pairs, which represent its
+small integers exactly, so their products and sums are those of the FP32 form.
 
 ### Exact arithmetic
 
-The shaders accumulate int8 inputs and integer coefficients in FP32 so that every partial sum is an integer below 2^24,
-which FP32 represents exactly in any order. Their results therefore equal the runtime's own integer results, and the
-generated images are bit-identical where tested ([MEASUREMENTS.md](MEASUREMENTS.md#generated-images-bit-identical)). On
-the BC-250 (RDNA 1), which lacks the int8 dot-product instructions Intel's shaders use in hardware, this is faster.
+All network shaders except F4Q's two kernels ([below](#f4q-identical-in-every-test-not-proven)) accumulate int8
+inputs and integer coefficients in FP32 so that every partial sum is an integer below 2^24, which FP32 represents
+exactly in any order. Their results therefore equal the runtime's own integer results, and the generated images are
+bit-identical where tested ([MEASUREMENTS.md](MEASUREMENTS.md#generated-images-bit-identical)). On the BC-250 (RDNA 1),
+which lacks the int8 dot-product instructions Intel's shaders use in hardware, this is faster.
+
+### F4Q: identical in every test, not proven
+
+F4Q replaces the Winograd F(2×2) kernels of two U-Net layers (the decoder `b3941ac8`, at both of its sizes, and the
+encoder `f030948d`) by F(4×4) kernels, which need fewer multiplications. Their coefficients (24 G g Gᵀ, at most
+73,728 in size) are exact in FP32, but the F(4×4) transforms and the final scaling round in FP32, so exact results are
+not guaranteed by construction as they are for the other shaders. Their outputs matched the F(2×2) kernels' in every
+test: byte for byte in a software rasteriser on test inputs; in all 20 SDK test rows (SDR and HDR10, engine and pixel
+motion vectors, 1440p and 4K), where the generated images with F4Q on and off were identical to each other and to
+Intel's shaders'; and on the GPU in Cyberpunk 2077 (native 2× and OptiScaler 3×, SDR), where this release's proxy, with
+the diagnostic `BC250_XEFG_F4Q_SHADOW=1`, ran both kernels on the same input and compared 64-bit fingerprints of the two
+layers' outputs 96,480 times, with none differing. The same number of comparisons with a test build of the same
+kernels also found none. HDR10, 4× and other games were not compared in a game, and in a game the comparison ran only
+with the diagnostic on. That is identical in every test, not proven for every input.
+
+F4Q is on by default. To turn it off, set `BC250_XEFG_F4Q=0` in the game's launch options, or `F4Q=0` under `[BC250]` in
+`BC250-XeFG/settings.ini` in the game folder (the launch option wins; Setup keeps both on reinstall); the F(2×2) kernels
+then run, as in 1.0.x. `BC250_XEFG_F4Q_SHADOW=1` is a diagnostic: the F(2×2) kernels keep the output, the F(4×4)
+kernels run beside them, and FreeFG's own GPU passes count equal and differing outputs (`F4Q_COUNT` lines in
+`BC250-XeFG-fast.log`; nothing of the content leaves the GPU). The fast log names F4Q's state at every accelerated
+start (`F4Q_CONFIG`).
 
 ## The pacing layer
 
@@ -184,6 +211,17 @@ answer within 3 seconds, it holds every present. MFG Unlocker, where loaded, als
 
 The layer has the driver compile the compute shaders listed by hash in `waves.txt` (`XEFG_WAVE_CONFIG`), FreeFG's and
 some unchanged ones of the runtime, with a required subgroup size of 32 or 64. The shader code is not changed.
+
+A line takes effect only when the pipeline is compiled with it. On RADV, vkd3d-proton's shader cache stores a
+pipeline's shader as an identifier, not as code; on a later start it recreates the pipeline from that identifier, so
+the layer cannot tell which shader it is. If the driver's cache holds that pipeline compiled without a wave size, the
+driver returns it at its own wave size; otherwise vkd3d-proton passes the code again and the line applies. The lines
+for FreeFG's shaders applied in every run, because those shaders either are new in the release that lists them or
+had their line from the start. A line for one of Intel's shaders applies only where the game has not run that shader
+before without it: 1.1.0's five new lines for Intel's shaders (four 2× warp shaders and a convolution) take no effect
+in a game that ran with 1.0.x, and after the game's own XeSS frame generation the lines 1.0.0 already had are expected
+to take no effect either (not measured). [MEASUREMENTS.md](MEASUREMENTS.md#shader-caches) gives the state of the
+measurements.
 
 ## OptiScaler and the upscaler
 
@@ -247,11 +285,11 @@ position as its licensee: [NOTICE.md](NOTICE.md#intels-terms).
 | --- | --- | --- |
 | DLL file | — | Byte for byte as downloaded; SHA-256 checked at install, size and hash at load |
 | Code in memory | — | No hooks or patches; every call enters through Intel's export table |
-| GPU pipelines | 13 built from FreeFG's shaders | All others, from Intel's bytecode |
+| GPU pipelines | 13 built from FreeFG's shaders (2 of them from their F4Q form while F4Q is on) | All others, from Intel's bytecode |
 | Command lists | Some convolution dispatches done by FreeFG's 20 kernels; group counts of 9 replaced shaders divided | All other dispatches |
 | Coefficient buffers | Own allocations; pre-transformed copies appended | Intel's bytes at Intel's offsets |
 | One root signature | Two buffer bindings appended | The original parameters |
-| Shader compilation (Vulkan, BC-250 only) | Required wave size for 123 compute shaders | The shader code |
+| Shader compilation (Vulkan, BC-250 only) | Required wave size for 130 compute shaders | The shader code |
 | Presentation | Frames held until their turn | Which frames are generated, and their order |
 | Number of generated frames | — | Intel's: one per real frame on GPUs other than Intel's; more only where another tool the user installed lifts that limit |
 | API behaviour towards the game | — | Unchanged |

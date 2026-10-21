@@ -11,6 +11,9 @@ cbuffer Dims : register(b0) { int W; int H; };
 #ifndef WHALF
 #define WHALF 0 // coefficients as FP16 pairs from a segment at WINO16_BASE (float4 index)
 #endif
+#ifndef XU1
+#define XU1 0 // 1: FP16-pair input transform (needs -enable-16bit-types); same results
+#endif
 #ifndef WINO_BASE
 #define WINO_BASE 720
 #endif
@@ -53,6 +56,16 @@ int4 up(int4 a, int4 b, int4 c, int4 d) {
 #endif
 }
 uint fill_word(int4 s, int4 u) { return pack_u8(clamp(s + u, 0, 127)); }
+#if XU1
+// The codes d = (w ^ 0x80808080) bytes (0..255, signed value d - 128) of a tile word w as FP16 1024 + d, two channels
+// per register: channels (0, 1) for sel 0, (2, 3) for sel 1. The XOR is folded into the exponent bits: for an unpacked
+// byte b, (b ^ 0x6480) is the FP16 bit pattern of 1024 + (b ^ 0x80). FP16 holds every integer of magnitude <= 2048
+// exactly. unpack_u8u16 keeps the four values one vector through dxil-spirv (packed FP16 arithmetic).
+float16_t2 code_pair(uint w, uint sel) {
+    float16_t4 L4 = asfloat16(unpack_u8u16((uint8_t4_packed)w) ^ uint16_t(0x6480));
+    return sel ? L4.zw : L4.xy;
+}
+#endif
 
 [numthreads(GX, GY, 2)]
 void CSMain(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID) {
@@ -132,6 +145,57 @@ void CSMain(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID) {
     float m[16][8];
     [unroll] for (uint p = 0; p < 16; p++) [unroll] for (uint k = 0; k < 8; k++) m[p][k] = 0;
 #endif
+#if XU1
+    // XU1: the transform in FP16 pairs, L = 1024 + code (exact), signed values s = code - 128:
+    //   t0 = L0 - L2 = s0 - s2, t1 = (L1 - 2304) + L2 = s1 + s2, t2 = L2 - L1 = s2 - s1, t3 = L1 - L3 = s1 - s3,
+    // then the same column transform: v = B^T s B, the release kernel's values (its +512 offset at v[1][1] is not
+    // there to remove). Every operand and result is an integer of magnitude <= 2048 (|L1 - 2304| <= 1280,
+    // |t| <= 256, |v| <= 512), so each FP16 operation is exact. `precise` keeps the compiler from regrouping sums of
+    // two biased values (L + L' is not exact in FP16).
+    [unroll] for (uint q = 0; q < 4; q++) {
+        uint rz = r0 + uint(zero) * q;
+        [unroll] for (uint j = 0; j < 4; j++) [unroll] for (uint i = 0; i < 4; i++)
+            patch[j][i] = tile[(rz + j) * LW + c0 + i][q];
+        float16_t2 vh[2][16]; // [sel][position]: sel 0 = channels (4q, 4q + 1), sel 1 = (4q + 2, 4q + 3)
+        [unroll] for (uint sel = 0; sel < 2; sel++) {
+            precise float16_t2 t[4][4];
+            precise float16_t2 v[4][4];
+            [unroll] for (uint i = 0; i < 4; i++) {
+                float16_t2 L0 = code_pair(patch[0][i], sel), L1 = code_pair(patch[1][i], sel);
+                float16_t2 L2 = code_pair(patch[2][i], sel), L3 = code_pair(patch[3][i], sel);
+                t[0][i] = L0 - L2; t[1][i] = (L1 + float16_t2(-2304.0, -2304.0)) + L2;
+                t[2][i] = L2 - L1; t[3][i] = L1 - L3;
+            }
+            [unroll] for (uint j = 0; j < 4; j++) {
+                v[j][0] = t[j][0] - t[j][2]; v[j][1] = t[j][1] + t[j][2];
+                v[j][2] = t[j][2] - t[j][1]; v[j][3] = t[j][1] - t[j][3];
+            }
+            [unroll] for (uint p = 0; p < 16; p++) vh[sel][p] = v[p >> 2][p & 3];
+        }
+        [unroll] for (uint cc = 0; cc < 4; cc++) {
+            uint c = q * 4 + cc;
+#if CIN_SLICES > 1
+            uint base = WINO_BASE + ((slice * CIN_SLICES + is) * 2 + h) * 512 + c * 32; // U[raw chunk][half][cin][p][k]
+#else
+            uint base = WINO_BASE + (h * 16 + c) * 32;
+#endif
+            [unroll] for (uint p = 0; p < 16; p++) {
+#if WHALF
+                uint4 wh = asuint(model[WINO16_BASE + (base - WINO_BASE) / 2 + p]); // FP16 pairs, exact (|U| <= 1152)
+                float4 w0 = float4(f16tof32(wh.x), f16tof32(wh.x >> 16), f16tof32(wh.y), f16tof32(wh.y >> 16));
+                float4 w1 = float4(f16tof32(wh.z), f16tof32(wh.z >> 16), f16tof32(wh.w), f16tof32(wh.w >> 16));
+#else
+                float4 w0 = model[base + p * 2], w1 = model[base + p * 2 + 1];
+#endif
+                float a = float((cc & 1) ? vh[cc >> 1][p].y : vh[cc >> 1][p].x);
+                m[p][0] = mad(a, w0.x, m[p][0]); m[p][1] = mad(a, w0.y, m[p][1]);
+                m[p][2] = mad(a, w0.z, m[p][2]); m[p][3] = mad(a, w0.w, m[p][3]);
+                m[p][4] = mad(a, w1.x, m[p][4]); m[p][5] = mad(a, w1.y, m[p][5]);
+                m[p][6] = mad(a, w1.z, m[p][6]); m[p][7] = mad(a, w1.w, m[p][7]);
+            }
+        }
+    }
+#else
     [unroll] for (uint c = 0; c < 16; c++) {
         float d[4][4], t[4][4], v[4][4];
         if ((c & 3) == 0) {
@@ -170,6 +234,7 @@ void CSMain(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID) {
             m[p][6] = mad(a, w1.z, m[p][6]); m[p][7] = mad(a, w1.w, m[p][7]);
         }
     }
+#endif
 #if CIN_SLICES > 1 && FLOAT_ALL
     }
     int acc[4][8];

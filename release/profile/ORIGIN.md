@@ -64,10 +64,10 @@ helper passes the add-on dispatches itself (`graph-*`, `wino-ref64-*`, `mfg-fini
 
 The tables and markers are data and nothing compiles them:
 - `waves.txt`: the wave size to request for each pipeline, by module hash (FNV-1a 64 of its bytes), 123 entries.
-  It is the profile's table as pinned, and the add-on embeds its hash, so it ships unchanged. Besides the 33 shaders
-  here it therefore lists pipelines this directory does not hold: Intel's own pipelines, the Intel-derived
-  replacements of the full profile that the Intel-free builds leave out, and four other own shaders. It holds
-  hashes and wave sizes only;
+  It is the profile's table as pinned. Besides the 33 shaders here it therefore lists pipelines this directory does not
+  hold: Intel's own pipelines, the Intel-derived replacements of the full profile that the Intel-free builds leave out,
+  and four other own shaders. It holds hashes and wave sizes only. The multi-frame build ships it with nine lines
+  rewritten and seven more lines (130 entries; below);
 - `dispatch-scale.txt`: group-count scaling for replacements whose groups cover more output;
 - the `*.required` markers: features the add-on checks for before it uses the profile.
 
@@ -81,6 +81,30 @@ The tables and markers are data and nothing compiles them:
   `release/intel_free.json`'s `keep` list and only then apply the 2x drop.
 - `dispatch-scale.txt` is stored as pinned. The Intel-free builds remove one line from it while they build (the line for
   a replacement that is not part of this profile).
+- `waves.txt` is stored as pinned (123 entries). The multi-frame build (`intel-free-mfg`) changes it while it builds:
+  the lines of the nine shaders it ships in another form name their new modules in place (below), five lines are
+  appended (`release/intel_free_mfg.json` `append_waves`: wave 32 for five of Intel's unchanged pipelines, its 2x warps
+  and one flow-path convolution, that run where the full profile had Intel-derived replacements), then the lines of
+  F4Q's two kernels. Its package ships 130 entries, all of which the pacing layer reads; the add-on embeds that file's
+  size and hash. The 2x build ships the pinned table.
+
+## The multi-frame build's own files (`release/profile-mfg/`)
+
+The multi-frame build (`release/intel_free_mfg.json`, profile `replace` and `add`) ships 16 shaders that no other
+build uses, from `release/profile-mfg/` (recipes in its `origin.json`, pinned in `release/inputs.lock.json` as the tree
+group `profile-intel-free-mfg`; `build_profile.py check` rebuilds them too and reports them under `variant_profiles`):
+
+- in place of nine files of this directory, the same U-Net shaders (`wino_rs16.hlsl`, `wino_enc16.hlsl`,
+  `wino_dec16.hlsl`) compiled with `XU1=1` and `-enable-16bit-types`: the input transform in FP16 pairs, which hold its
+  small integers exactly, so the products and sums are those of the FP32 form (the two `wino_row16.hlsl` shaders keep
+  their recipe here);
+- F4Q's F(4x4) kernels `b3941ac8ff95efe7.f4q.dxil` (`f4q_dec16.hlsl`) and `f030948d38e74671.f4q.dxil`
+  (`f4q_enc16.hlsl`), loaded in place of the F(2x2) shaders of those two hashes while F4Q is on
+  (`packaging/public/ARCHITECTURE.md`, "F4Q");
+- the five check kernels of F4Q's diagnostic (`f4q-check-*.dxil`, `f4q_check.hlsl`).
+
+This directory stays as it is, so the 2x build (0.9.0) and the enabler-era Intel-free add-on still build their
+reference outputs.
 
 The builds read this directory when neither `XEMFG_PROFILE` nor `XEMFG_WORK` is set, as in a checkout of the public
 tree. To use it while a work directory is set, set `XEMFG_PROFILE` to it:

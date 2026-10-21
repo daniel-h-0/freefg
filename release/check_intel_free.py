@@ -13,7 +13,8 @@ A file fails the check when:
                       (release/intel_material.json; where inputs.lock.json pins them, also its profile files of origin
                       "intel-derived" and the XeSSMFG enabler's shader programs and libraries)
   not-own-shader      it is a .dxil file, or any file that is a whole DXIL container, that is not one of the profile
-                      shaders compiled from this project's HLSL (inputs.lock.json origin "own"); or it embeds a DXIL
+                      shaders compiled from this project's HLSL (inputs.lock.json origin "own", in the profile's work
+                      group or a "tree" group such as the multi-frame build's release/profile-mfg); or it embeds a DXIL
                       container that is not one of them, unless the file is a pinned third-party binary (the files of
                       the lock's "optiscaler-fork" group: OptiScaler's own shaders, still subject to every other check)
   shader-model-6.4    it is, or embeds, a DXIL container of shader model 6.4 (the model of every Intel-lineage profile
@@ -286,6 +287,11 @@ def reference(config, material):
     intel = {digest: label for digest, (_category, label) in refused_files(config, material).items()}
     own = {entry['sha256']: name for name, entry in config.lock['work'][PROFILE_GROUP]['files'].items()
            if entry['origin'] == 'own' and name.endswith('.dxil')}
+    # the own shader files a variant ships beside or in place of the profile's (inputs.lock.json "tree" groups)
+    for group, spec in config.lock.get('tree', {}).items():
+        if isinstance(spec, dict) and 'files' in spec:
+            own.update({entry['sha256']: f'{group}/{name}' for name, entry in spec['files'].items()
+                        if entry.get('origin') == 'own' and name.endswith('.dxil')})
     tables = {digest: (entry['window_sum'], entry['window_moment']) for digest, entry in material['warp_tables'].items()}
     return intel, own, tables
 

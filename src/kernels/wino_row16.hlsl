@@ -18,6 +18,19 @@ RWTexture2DArray<uint4> dst : register(u0);
 #ifndef CLAMP_LO
 #define CLAMP_LO -128
 #endif
+#ifndef XU1
+#define XU1 0 // 1: FP16-pair input transform (needs -enable-16bit-types); same results
+#endif
+#if XU1
+// The codes d = (w ^ 0x80808080) bytes (0..255, signed value d - 128) of a source word w as FP16 1024 + d, two
+// channels per register: channels (0, 1) for sel 0, (2, 3) for sel 1. The XOR is folded into the exponent bits: for an
+// unpacked byte b, (b ^ 0x6480) is the FP16 bit pattern of 1024 + (b ^ 0x80). FP16 holds every integer of magnitude
+// <= 2048 exactly. unpack_u8u16 keeps the four values one vector through dxil-spirv (packed FP16 arithmetic).
+float16_t2 code_pair(uint w, uint sel) {
+    float16_t4 L4 = asfloat16(unpack_u8u16((uint8_t4_packed)w) ^ uint16_t(0x6480));
+    return sel ? L4.zw : L4.xy;
+}
+#endif
 
 [numthreads(4, 8, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
@@ -26,6 +39,44 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     [unroll] for (uint j = 0; j < 4; j++) [unroll] for (uint k = 0; k < 16; k++) m[j][k] = 0;
     [unroll] for (uint is = 0; is < CIN_SLICES; is++) {
         [unroll] for (uint q = 0; q < 4; q++) {
+#if XU1
+            // XU1: the row transform in FP16 pairs, L = 1024 + code (exact): v = (L0 - L2, (L1 - 2304) + L2, L2 - L1,
+            // L1 - L3) = (d0 - d2, d1 + d2 - 256, d2 - d1, d1 - d3), the release kernel's values. Every operand and
+            // result is an integer of magnitude <= 2048 (|L1 - 2304| <= 1280, |v| <= 255), so each FP16 operation is
+            // exact; `precise` keeps the compiler from regrouping sums of two biased values.
+            uint wr[3][4];
+            [unroll] for (uint r = 0; r < 3; r++) [unroll] for (uint i = 0; i < 4; i++)
+                wr[r][i] = src.Load(int4(x0 + int(i), y0 + int(r), int(is), 0))[q];
+            [unroll] for (uint r = 0; r < 3; r++) {
+                float16_t2 vh[2][4]; // [sel][j]: sel 0 = channels (4q, 4q + 1), sel 1 = (4q + 2, 4q + 3)
+                [unroll] for (uint sel = 0; sel < 2; sel++) {
+                    float16_t2 L0 = code_pair(wr[r][0], sel), L1 = code_pair(wr[r][1], sel);
+                    float16_t2 L2 = code_pair(wr[r][2], sel), L3 = code_pair(wr[r][3], sel);
+                    precise float16_t2 v0 = L0 - L2;
+                    precise float16_t2 v1 = (L1 + float16_t2(-2304.0, -2304.0)) + L2;
+                    precise float16_t2 v2 = L2 - L1;
+                    precise float16_t2 v3 = L1 - L3;
+                    vh[sel][0] = v0; vh[sel][1] = v1; vh[sel][2] = v2; vh[sel][3] = v3;
+                }
+                [unroll] for (uint b = 0; b < 4; b++) {
+                    uint c = q * 4 + b;
+                    float v[4];
+                    [unroll] for (uint j = 0; j < 4; j++) v[j] = float((b & 1) ? vh[b >> 1][j].y : vh[b >> 1][j].x);
+                    uint base = ROW_BASE + (((is * 16 + c) * 3 + r) * 4) * 4; // U1[chunk][cin][row][j][16 couts]
+                    [unroll] for (uint j = 0; j < 4; j++) [unroll] for (uint kq = 0; kq < 4; kq++) {
+#if WHALF
+                        uint4 wh = asuint(model[ROW16_BASE + (base - ROW_BASE) / 2 + j * 2 + (kq >> 1)]);
+                        uint2 wq = (kq & 1) ? wh.zw : wh.xy;
+                        float4 w = float4(f16tof32(wq.x), f16tof32(wq.x >> 16), f16tof32(wq.y), f16tof32(wq.y >> 16));
+#else
+                        float4 w = model[base + j * 4 + kq];
+#endif
+                        m[j][kq * 4 + 0] = mad(v[j], w.x, m[j][kq * 4 + 0]); m[j][kq * 4 + 1] = mad(v[j], w.y, m[j][kq * 4 + 1]);
+                        m[j][kq * 4 + 2] = mad(v[j], w.z, m[j][kq * 4 + 2]); m[j][kq * 4 + 3] = mad(v[j], w.w, m[j][kq * 4 + 3]);
+                    }
+                }
+            }
+#else
             uint wd[3][4];
             [unroll] for (uint r = 0; r < 3; r++) [unroll] for (uint i = 0; i < 4; i++)
                 wd[r][i] = src.Load(int4(x0 + int(i), y0 + int(r), int(is), 0))[q] ^ 0x80808080u;
@@ -50,6 +101,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
                     }
                 }
             }
+#endif
         }
     }
     uint4 o0, o1;

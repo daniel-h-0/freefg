@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "about": "Every build-time input of the release build that is not tracked in this repository, pinned by sha256. \"fetch\" groups are public files that release/fetch.py downloads at the pinned commit into XEMFG_CACHE; \"work\" groups are private or unpublished inputs read from XEMFG_WORK (or their override variable). Runtime downloads made by the installer on a player's machine are owned by packaging/dependencies.json and are not repeated here.",
+ "about": "Every build-time input of the release build that is not tracked in this repository, pinned by sha256, and (\"tree\") the committed files a build reads as pinned inputs. \"fetch\" groups are public files that release/fetch.py downloads at the pinned commit into XEMFG_CACHE; \"work\" groups are private or unpublished inputs read from XEMFG_WORK (or their override variable); \"tree\" groups are read in place from this repository. Runtime downloads made by the installer on a player's machine are owned by packaging/dependencies.json and are not repeated here.",
  "fetch": {
   "intel-xess": {
    "description": "Intel XeSS SDK public headers (XeFG swap chain API, XeLL) and licence texts. The add-on compiles against the headers; build_addon.py generates its API hook wrappers from the two xess_fg API headers at build time.",
@@ -486,6 +486,95 @@
    }
   }
  },
+ "tree": {
+  "about": "Pinned inputs that are files of this repository, read in place (no work directory, no download): the shader files only the multi-frame build ships (release/profile-mfg, with their HLSL recipes in its origin.json; release/build_profile.py compiles each again and compares). release/check_intel_free.py counts their shaders as this project's own (origin \"own\"), as the own files of the work profile.",
+  "profile-intel-free-mfg": {
+   "path": "release/profile-mfg",
+   "description": "Own shader files of the multi-frame build (release/intel_free_mfg.json profile \"replace\" and \"add\"): the nine U-Net shaders of release/profile compiled with XU1=1 (FP16-pair input transform; the same results), which replace their release/profile files in its profile, and F4Q's F(4x4) kernels for b3941ac8 and f030948d with the five check kernels of its diagnostic.",
+   "files": {
+    "1a3b0782583fef19.dxil": {
+     "sha256": "5102c7c5dc57d822cddc3f92206bc245c4eb62fd14cfa12b2dd8ce002c118eba",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1f27b449fb99a587.dxil": {
+     "sha256": "a35b0ac62084390b8b36b9cd50c13c24385daec85cbbbdd0a02452cefe852d25",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "4bb52a635e6d221a.dxil": {
+     "sha256": "c157909434e3d952ea9e6e13bf6b7741e9393d4d850b65bcbca070b0014923cf",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "5654aa3800432b13.dxil": {
+     "sha256": "dff6d0814f434d16aad7f636253ac7357fbfb08659d9484f4240d06f90c531de",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "9e0080eee00255f2.dxil": {
+     "sha256": "a08122f6bd8d8aa5dc6b0f244e5eece76a3367ba61ac09e0dc6b253544f5887b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3941ac8ff95efe7.dxil": {
+     "sha256": "3ad08005f17ff7dbca440e5dc86f403e2c5f100b48030d51851960aa25d55e44",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3941ac8ff95efe7.f4q.dxil": {
+     "sha256": "e6b90eeddf3799e6f5e337638e30dbbd4fa6a0ce8c17dd7a92b5d00ad86cab82",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "e83e868f8d5d2c0f.dxil": {
+     "sha256": "c536266261752dac662c703f02934aefa30fc3dfb8d3b168c90e4e95ba19db85",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f030948d38e74671.dxil": {
+     "sha256": "e0762790c85a8907084a0553674f4dcfe0e9a9e151910ab2605273a04de9809b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f030948d38e74671.f4q.dxil": {
+     "sha256": "7cc03f61410a41ef1b73564946ec8096bd0643faee26ce443e03c0fab82e9e3e",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f2e2e13fea432d20.dxil": {
+     "sha256": "97ee2d2116a82549e505ebf653a809b0a573548945160b65e7aece766c4cd597",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f4q-check-aux.dxil": {
+     "sha256": "af38a6935978c47c605024086269e049b424f132d05fb8f189b3cf27472a725a",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f4q-check-uav-float.dxil": {
+     "sha256": "7da17197a6361d7d9904c514489b9427c54d9c53724cf8e3ae2843dd7e6c65f8",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f4q-check-uav-raw.dxil": {
+     "sha256": "6b8240a311496b3566f0f2d4beaa78891e0194d81bb894ce3bb7d782b2583f18",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f4q-check-uav-sint.dxil": {
+     "sha256": "f4b761a0756e735204ece5c2205a382020ae2308bec63d39e9a5363da971c215",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f4q-check-uav-uint.dxil": {
+     "sha256": "260000a3bdd2b6b43d54b45cb5e35d1ef3edcc56bea94bb03c2366fe47e461ba",
+     "shader_model": "6.6",
+     "origin": "own"
+    }
+   }
+  }
+ },
  "toolchain": {
   "about": "The environment the reference outputs were built and verified in (2026-10-15, CachyOS). A different compiler, Wine or system headers can change the output bytes; build_addon.py and build_layer.py warn when the digests below differ.",
   "packages": [
@@ -565,6 +654,6 @@
   "libxefg_wave.so": "d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271",
   "BC250-MFG.asi (intel-free)": "28246c08a28876197a85f4888eae43339837b1b2fa22ae344fcfa4db7cfe9b4c",
   "libxess_fg.dll (intel-free-2x)": "3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410",
-  "libxess_fg.dll (intel-free-mfg)": "77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7"
+  "libxess_fg.dll (intel-free-mfg)": "830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a"
  }
 }

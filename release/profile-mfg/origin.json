@@ -1,0 +1,506 @@
+{
+ "schema": 1,
+ "about": "Origin of every file of release/profile-mfg: the shader files of this project's own origin that only the multi-frame build (release/intel_free_mfg.json) ships, in place of a file of release/profile (\"replaces\") or beside them. Each shader is compiled from HLSL under src/kernels/ with the recipe in \"build\"; release/build_profile.py check compiles it again and compares the bytes. None of these files holds model weights: the kernels read the coefficients of the network at run time from the buffers Intel's XeSS Frame Generation runtime creates, re-laid out by the add-on's model owner. The same bytes are the files of inputs.lock.json tree group \"profile-intel-free-mfg\" (origin \"own\").",
+ "profile": "cl-wino-q33-intel-free-mfg (the multi-frame build's own files)",
+ "lock_group": "profile-intel-free-mfg",
+ "toolchain": "inputs.lock.json toolchain \"profile\": Microsoft DirectX Shader Compiler v1.9.2607 for Linux (release asset, sha256 pinned there)",
+ "verified": {
+  "date": "2026-10-20",
+  "result": "16 of 16 shaders rebuilt byte-identical from src/kernels with the pinned DXC"
+ },
+ "files": {
+  "1a3b0782583fef19.dxil": {
+   "sha256": "5102c7c5dc57d822cddc3f92206bc245c4eb62fd14cfa12b2dd8ce002c118eba",
+   "bytes": 89936,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/1a3b0782583fef19.dxil",
+    "sha256": "21f7e5628fc4d1f5a6af5bdffd0c83b62c032c8efa482edb0f15d06576cd118b"
+   },
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 16->16 int8 channels with 2x2 max-pool, offset input decode, transform rows split across two waves; FP16-pair input transform and wave-uniform epilogue (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_rs16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "GX=8",
+     "GY=4",
+     "WHALF=1",
+     "WINO16_BASE=2513",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1f27b449fb99a587.dxil": {
+   "sha256": "a35b0ac62084390b8b36b9cd50c13c24385daec85cbbbdd0a02452cefe852d25",
+   "bytes": 96956,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/1f27b449fb99a587.dxil",
+    "sha256": "61a61c7ce26fc5177e2426916a27b4539d8d34ce221b622c8af83d667ccae1b6"
+   },
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 128->64, no pooling, split over four waves per channel half; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=8",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "NOPOOL=1",
+     "FLOAT_ALL=1",
+     "KSPLIT=4",
+     "WHALF=1",
+     "WINO16_BASE=55809",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "4bb52a635e6d221a.dxil": {
+   "sha256": "c157909434e3d952ea9e6e13bf6b7741e9393d4d850b65bcbca070b0014923cf",
+   "bytes": 100036,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/4bb52a635e6d221a.dxil",
+    "sha256": "415f7780c39e54f16917ef5a994d744a20f4d2e354a7375722f6ad7c65152db7"
+   },
+   "description": "Winograd F(2x2,3x3) decoder 3x3 convolution 64->64 over skip + 2x-upsampled input, 8x16 output tiles, whole-sum FP32; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=8",
+     "TILE_H=16",
+     "SLICES=4",
+     "CIN_SLICES=4",
+     "WINO_BASE=36864",
+     "WINO16_BASE=69634",
+     "FLOAT_ALL=1",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "5654aa3800432b13.dxil": {
+   "sha256": "dff6d0814f434d16aad7f636253ac7357fbfb08659d9484f4240d06f90c531de",
+   "bytes": 100024,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/5654aa3800432b13.dxil",
+    "sha256": "22e59624ace8ec02851733bb46120714aadf38e02bb7ecf29f16b503adc4e60f"
+   },
+   "description": "Winograd F(2x2,3x3) decoder 3x3 convolution 32->32 over skip + 2x-upsampled input, whole-sum FP32; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=16",
+     "TILE_H=8",
+     "SLICES=2",
+     "CIN_SLICES=2",
+     "WINO_BASE=2880",
+     "WINO16_BASE=6977",
+     "FLOAT_ALL=1",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "9e0080eee00255f2.dxil": {
+   "sha256": "a08122f6bd8d8aa5dc6b0f244e5eece76a3367ba61ac09e0dc6b253544f5887b",
+   "bytes": 91048,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/9e0080eee00255f2.dxil",
+    "sha256": "dd0365d3b8e4636246eee7be3341eecaefcaa914b5d307d7dee6c10db4ef5c37"
+   },
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 64->128 with 2x2 max-pool, whole-sum FP32 accumulation; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=8",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "FLOAT_ALL=1",
+     "WHALF=1",
+     "WINO16_BASE=55809",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3941ac8ff95efe7.dxil": {
+   "sha256": "3ad08005f17ff7dbca440e5dc86f403e2c5f100b48030d51851960aa25d55e44",
+   "bytes": 96816,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/b3941ac8ff95efe7.dxil",
+    "sha256": "b8b44cc054c4e5a91fa6221c735db10930de4de71e4b2c9b8fe285c0232f8b0b"
+   },
+   "description": "Winograd F(2x2,3x3) decoder 3x3 convolution 16->16 over skip + 2x-upsampled input, 16x8 output tiles; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TILE_H=8",
+     "WHALF=1",
+     "WINO16_BASE=2513",
+     "UP_SHIFT=1",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3941ac8ff95efe7.f4q.dxil": {
+   "sha256": "e6b90eeddf3799e6f5e337638e30dbbd4fa6a0ce8c17dd7a92b5d00ad86cab82",
+   "bytes": 89000,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q: Winograd F(4x4,3x3) decoder 3x3 convolution 16->16 over skip + 2x-upsampled input, FP32, 32x16 output tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; replaces b3941ac8ff95efe7.dxil while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "TBASE=3025"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "e83e868f8d5d2c0f.dxil": {
+   "sha256": "c536266261752dac662c703f02934aefa30fc3dfb8d3b168c90e4e95ba19db85",
+   "bytes": 91048,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/e83e868f8d5d2c0f.dxil",
+    "sha256": "2dbd5a00d8e735c5a6f08c70c8a400bf208adf2a7547328435d31dcc6f7e1f3d"
+   },
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 32->64 with 2x2 max-pool, whole-sum FP32 accumulation; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=2",
+     "GX=4",
+     "GY=8",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "FLOAT_ALL=1",
+     "WHALF=1",
+     "WINO16_BASE=13953",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f030948d38e74671.dxil": {
+   "sha256": "e0762790c85a8907084a0553674f4dcfe0e9a9e151910ab2605273a04de9809b",
+   "bytes": 89812,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/f030948d38e74671.dxil",
+    "sha256": "1806682df555597220c6bd205ded6050beb8497b22efec4d6449feaa3a15945e"
+   },
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 16->32 with 2x2 max-pool, transform rows split across two waves; FP16-pair input transform and wave-uniform epilogue (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_rs16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "GX=4",
+     "GY=8",
+     "WINO_BASE=1440",
+     "WHALF=1",
+     "WINO16_BASE=5025",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f030948d38e74671.f4q.dxil": {
+   "sha256": "7cc03f61410a41ef1b73564946ec8096bd0643faee26ce443e03c0fab82e9e3e",
+   "bytes": 72484,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q: Winograd F(4x4,3x3) 3x3 convolution 16->32 with 2x2 max-pool, FP32, 32x16 input tiles over six waves (transform rows), coefficient segment at float4 6049 of 4608-byte models; replaces f030948d38e74671.dxil while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=2",
+     "DECODE_OFFSET=0",
+     "TBASE=6049"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f2e2e13fea432d20.dxil": {
+   "sha256": "97ee2d2116a82549e505ebf653a809b0a573548945160b65e7aece766c4cd597",
+   "bytes": 95456,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/f2e2e13fea432d20.dxil",
+    "sha256": "091067d0bc1ebc99f80b01396fc9de8de9e0fa886a4d0a95a23ecd16496a173e"
+   },
+   "description": "Winograd F(2x2,3x3) 3x3 convolution 64->32, no pooling, signed output, split over two waves per channel half; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "NOPOOL=1",
+     "CLAMP_LO=-128",
+     "FLOAT_ALL=1",
+     "KSPLIT=2",
+     "WHALF=1",
+     "WINO16_BASE=13953",
+     "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f4q-check-aux.dxil": {
+   "sha256": "af38a6935978c47c605024086269e049b424f132d05fb8f189b3cf27472a725a",
+   "bytes": 5084,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": null,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q check (diagnostic, BC250_XEFG_F4Q_SHADOW=1): clear, compare and stamp passes of the check (equal / not-equal counters)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_check.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "KIND=4",
+     "SRV=0"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f4q-check-uav-float.dxil": {
+   "sha256": "7da17197a6361d7d9904c514489b9427c54d9c53724cf8e3ae2843dd7e6c65f8",
+   "bytes": 5276,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": null,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q check (diagnostic, BC250_XEFG_F4Q_SHADOW=1): keyed fingerprint of a UNORM/SNORM/FLOAT view into the slot ring",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_check.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "KIND=1",
+     "SRV=0"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f4q-check-uav-raw.dxil": {
+   "sha256": "6b8240a311496b3566f0f2d4beaa78891e0194d81bb894ce3bb7d782b2583f18",
+   "bytes": 4504,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": null,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q check (diagnostic, BC250_XEFG_F4Q_SHADOW=1): keyed fingerprint of a buffer view (raw words) into the slot ring",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_check.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "KIND=3",
+     "SRV=0"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f4q-check-uav-sint.dxil": {
+   "sha256": "f4b761a0756e735204ece5c2205a382020ae2308bec63d39e9a5363da971c215",
+   "bytes": 5248,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": null,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q check (diagnostic, BC250_XEFG_F4Q_SHADOW=1): keyed fingerprint of a SINT view into the slot ring",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_check.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "KIND=2",
+     "SRV=0"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f4q-check-uav-uint.dxil": {
+   "sha256": "260000a3bdd2b6b43d54b45cb5e35d1ef3edcc56bea94bb03c2366fe47e461ba",
+   "bytes": 5284,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": null,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q check (diagnostic, BC250_XEFG_F4Q_SHADOW=1): keyed fingerprint of a UINT view into the slot ring",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_check.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "KIND=0",
+     "SRV=0"
+    ]
+   },
+   "rebuild": "byte-identical"
+  }
+ }
+}

@@ -6,6 +6,7 @@ variable or the matching command-line option (the Wine defaults are the usual di
 
   XEMFG_WORK          --work          work directory holding the inputs that are private or not fetched (shader
                                       profile, XeSSMFG enabler, OptiScaler fork build); see inputs.lock.json "work"
+                                      (its "tree" groups are files of this repository, read in place)
   XEMFG_PROFILE       --profile       overrides XEMFG_WORK/<path> for the shader profile; with neither set, the
                                       profile committed in release/profile/ (the 42 own files the Intel-free builds
                                       read; the default build needs the work directory's full profile)
@@ -114,6 +115,11 @@ def load_lock():
     return json.loads(LOCK_PATH.read_text())
 
 
+def lock_group(lock, group):
+    """A group of the lock's "fetch", "work" or "tree" section, or None."""
+    return lock['fetch'].get(group) or lock['work'].get(group) or lock.get('tree', {}).get(group)
+
+
 def add_arguments(parser):
     """Add one option per setting; each defaults to its environment variable."""
     group = parser.add_argument_group('locations (each option defaults to the environment variable shown)')
@@ -220,7 +226,16 @@ class Config:
         entry = self.lock['fetch'][group]
         return self.cache / f'{group}-{entry["commit"][:12]}'
 
+    def tree_dir(self, group):
+        """Directory of a "tree" input group: committed files of this repository (inputs.lock.json "tree": path)."""
+        folder = REPO / self.lock['tree'][group]['path']
+        if not folder.is_dir():
+            raise ReleaseError(f'Input "{group}" not found: {folder}')
+        return folder
+
     def input_dir(self, group):
+        if group in self.lock.get('tree', {}):
+            return self.tree_dir(group)
         if group in self.lock['fetch']:
             if group not in self.fetched:
                 from fetch import ensure  # local import: fetch imports this module
@@ -232,7 +247,7 @@ class Config:
 
     def input_file(self, group, name):
         """A file of a locked input group, after checking its sha256 against the lock."""
-        entry = self.lock['fetch'].get(group) or self.lock['work'].get(group)
+        entry = lock_group(self.lock, group)
         if entry is None or name not in entry['files']:
             raise ReleaseError(f'{group}/{name} is not in inputs.lock.json')
         path = self.input_dir(group) / name
@@ -245,7 +260,7 @@ class Config:
 
     def check_group(self, group):
         """Check every locked file of a group; returns its directory."""
-        entry = self.lock['fetch'].get(group) or self.lock['work'].get(group)
+        entry = lock_group(self.lock, group)
         for name in entry['files']:
             self.input_file(group, name)
         return self.input_dir(group)

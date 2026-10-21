@@ -17,9 +17,11 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | | `FAST_COEXIST another module hooks Intel's XeFG runtime (…; jumps to MODULE)` | Another module, such as MFG Unlocker, hooks Intel's runtime. FreeFG keeps working beside it and steps aside, rather than ending the game, on work it has not verified. |
 | | `FAST_SKIP … only OptiScaler's own contexts are accelerated` | Another mod, such as MFG Unlocker, is loaded in a game using its own XeSS frame generation; Intel's or that mod's shaders run at every frame count. |
 | | `MFG_FACTOR`, `MFG_STATUS` | The frame count; the frames per present the runtime reports. |
-| `BC250-XeFG-fast.log` | `FAST_OWNER`, `MODEL_SEALED`, `PRIVATE GAME TRIAL scoped prepared-model and Winograd path installed` (fixed text compiled into the DLL) | The accelerated path is active. |
-| | `FAST_FALLBACK …`, `FAST_SKIP …` | Why Intel's shaders are used instead. |
+| | `FAST_OWNER` | FreeFG selected the context it accelerates. |
+| | `FAST_FALLBACK …`, other `FAST_SKIP …` lines | Why Intel's shaders are used instead. |
+| `BC250-XeFG-fast.log` | `MODEL_SEALED`, `PRIVATE GAME TRIAL scoped prepared-model and Winograd path installed` (fixed text compiled into the DLL) | The accelerated path is active. |
 | | `FAST_ASIDE …` | FreeFG stepped aside for the rest of that context, because another mod changed the runtime's work in a way it has not verified. |
+| | `F4Q_CONFIG mode=… source=…` | F4Q's state (`on`, `off`, or `shadow` for the diagnostic) and what set it: `default`, `BC250_XEFG_F4Q`, `settings.ini`, `BC250_XEFG_F4Q_SHADOW`, or `layout` (a network layout F4Q does not know; the F(2×2) kernels run). `F4Q_FALLBACK …`: one pipeline runs its F(2×2) kernel. |
 | | `FAIL` | FreeFG closed the game because the runtime did something it does not recognise. Report it. |
 | The game's standard error (for Steam: launch option `PROTON_LOG=1 %command%`, then `$HOME/steam-<appid>.log`) | `BC250_PACE on …` | Pacing is active. |
 | | `BC250_PACE holding: XeFG generates frames`, `BC250_PACE passing presents through` | The layer holds presents, or passes them through. |
@@ -28,7 +30,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 
 | Problem | What to try |
 | --- | --- |
-| Only real frames are shown; the frame rate does not go up | Turn the game's frame generation on (DLSS FG and FSR FG inputs); make sure the game is not in exclusive fullscreen; check `BC250-XeFG-fast.log`. |
+| Only real frames are shown; the frame rate does not go up | Turn the game's frame generation on (DLSS FG and FSR FG inputs); make sure the game is not in exclusive fullscreen; check `BC250-MFG.log` and `BC250-XeFG-fast.log`. |
 | Uneven pacing or VRR flicker | Give gamescope realtime priority ([Extras](README.md#extras)); rule out Steam's screensaver (below); stay below the refresh rate; check the `BC250_PACE` lines. |
 | Bursts of VRR flicker after some idle minutes, in long cutscenes or with a game left running | Steam's screensaver: in Game Mode it starts behind a running game after the idle timeout (5 minutes by default; controller input resets it) and every 20 seconds cross-fades for 2 seconds, taking GPU time. Set the timeout to **Never**, or install the `steam-screensaver-in-game` extra. |
 | A game installed despite its anti-cheat does not start, or reports tampering | The anti-cheat refuses FreeFG's DLLs: Restore the game. The maintainers cannot help with bans ([COMPATIBILITY.md](COMPATIBILITY.md#anti-cheat)). |
@@ -49,6 +51,8 @@ For troubleshooting, as launch options before `%command%`. Setup keeps them on r
 | `BC250_XEFG_PACE_QUEUE=app` | Present from the game's own queue even when a compute queue exists. |
 | `BC250_XEFG_ANY_GPU=1` | The accelerated path on a GPU other than the BC-250 (untested; [below](#other-gpus)). |
 | `BC250_XEFG_STATUS_POLL=0` | No status read per frame for the pacing signal; only the caller's own status queries count. |
+| `BC250_XEFG_F4Q=0` | F4Q off: the F(2×2) kernels of the two U-Net layers F4Q replaces run, as in 1.0.x ([ARCHITECTURE.md](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)). `F4Q=0` under `[BC250]` in the game folder's `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_F4Q=1` turns it on whatever that file says. |
+| `BC250_XEFG_F4Q_SHADOW=1` | Diagnostic: F4Q's kernels run beside the F(2×2) ones, which keep the output, and `BC250-XeFG-fast.log` gets `F4Q_COUNT` lines with equal and differing outputs. Costs GPU time; for checks and bug reports only. |
 | `BC250_CAPTURE_TAG_FRAMES=1` | For latency measurements: turns on the debug marker that Intel's XeFG API draws on generated frames, so capture tools can tell them apart. Leave unset for play. |
 
 ## Other GPUs
@@ -56,7 +60,7 @@ For troubleshooting, as launch options before `%command%`. Setup keeps them on r
 Everything is built and measured on the BC-250. On another GPU under Proton, Setup installs the same files, and:
 
 - By default, FreeFG passes everything through to Intel's runtime (Intel's shaders, generated frames at output
-  resolution). The pacing layer still holds presents while XeFG generates. `BC250-XeFG-fast.log` says
+  resolution). The pacing layer still holds presents while XeFG generates. `BC250-MFG.log` says
   `FAST_FALLBACK requires BC250 adapter (this one is vvvv:dddd; …)`.
 - `BC250_XEFG_ANY_GPU=1` runs the accelerated path on that GPU. Nobody has tested this. FreeFG checks what Intel's
   runtime hands it and closes the game (a `FAIL` line) rather than show frames it has not verified. RDNA 2 and newer

@@ -3,7 +3,9 @@
 FreeFG makes Intel XeSS Frame Generation (XeFG) faster on the AMD BC-250, in DirectX 12 games under Proton on Linux.
 
 - Intel's runtime, downloaded unmodified, generates the frames. A proxy `libxess_fg.dll` runs part of its GPU work with
-  this project's own shaders, which are faster on the BC-250 and gave the same pixels where compared.
+  this project's own shaders, which are faster on the BC-250 and gave the same pixels where compared. Two of them,
+  F4Q's kernels (on by default), are identical in every test but not proven for every input
+  ([turn F4Q off](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)).
 - A Vulkan layer paces the output for VRR displays. Upscaling runs through OptiScaler, with a BC-250 build of AMD FSR 4
   or with HelixSR.
 - On GPUs other than Intel's, the runtime generates 2× (Intel's documented limit); FreeFG does not raise that limit.
@@ -12,10 +14,11 @@ FreeFG makes Intel XeSS Frame Generation (XeFG) faster on the AMD BC-250, in Dir
 
 How it works: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-![Cyberpunk 2077 frame rate at 2× on an AMD BC-250 (2560×1440, FSR 4 Performance, headless): SDR, XeFG with Intel's shaders 85.40 FPS and FreeFG 1.0.0 103.09 FPS (+20.7%); HDR10, 84.16 and 101.28 FPS (+20.3%).](../../docs/assets/cyberpunk-2x-fps.svg)
+![Cyberpunk 2077 frames shown per second at 2× on an AMD BC-250 (2560×1440, FSR 4 Performance, headless): SDR, XeFG with Intel's shaders 85.30 and FreeFG 1.1.0 104.34 (+22.3%); HDR10, 83.98 and 102.45 (+22.0%).](../../docs/assets/cyberpunk-2x-fps.svg)
 
-Headless, both arms on the same day, 4 runs each in SDR and HDR10. Details and TV figures:
-[MEASUREMENTS.md](MEASUREMENTS.md#frame-rate-cyberpunk-2077).
+Frames shown per second, generated frames included. Headless, all arms in one block, 4 runs per arm in SDR and in
+HDR10, [warm shader caches](MEASUREMENTS.md#shader-caches). FreeFG 1.0.x in the same block: 102.93 and 101.24.
+Details and TV figures: [MEASUREMENTS.md](MEASUREMENTS.md#frame-rate-cyberpunk-2077).
 
 FreeFG is an independent project. It is not affiliated with, endorsed by, sponsored by or supported by Intel, AMD,
 NVIDIA, ASRock, Valve or the OptiScaler project. Intel, XeSS and Xe are trademarks of Intel Corporation. AMD, FidelityFX
@@ -116,16 +119,16 @@ work that is still Intel's, on OptiScaler's frame generation ([how](ARCHITECTURE
 | `default` | Intel's 2× model at every frame count. MFG Unlocker's authors found that it places the outer generated frames at the wrong times at 6×, which smears them; 3× and 4× are unchecked. | the whole network |
 | not set (MFG Unlocker's default) | MFG Unlocker's own model, which replaces five of the network's programs | the rest of the network |
 
-For speed, use `XeFGModel=default` with FreeFG: in Cyberpunk 2077 the game ran 20% (3×) and 25% (4×) faster than
-on MFG Unlocker's own model, because FreeFG's shaders then run the whole network. With `default`, the picture at 3×
-and 4× is unchecked (table above).
+For speed, use `XeFGModel=default` with FreeFG: in Cyberpunk 2077 with 1.0.0 the game ran 20% (3×) and 25% (4×)
+faster than on MFG Unlocker's own model, because FreeFG's shaders then run the whole network. With `default`, the
+picture at 3× and 4× is unchecked (table above).
 
-![Cyberpunk 2077 frames shown per second with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance): at 3×, MFG Unlocker alone 93.42 FPS and FreeFG 1.0.0 125.31 FPS (+34.1%); at 4×, 97.75 and 139.92 FPS (+43.1%).](../../docs/assets/mfg-3x4x-fps.svg)
+![Cyberpunk 2077 frames shown per second with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance, headless): at 3×, MFG Unlocker alone 93.50 and FreeFG 1.1.0 127.91 (+36.8%); at 4× (2 runs per arm), 97.65 and 143.52 (+47.0%).](../../docs/assets/mfg-3x4x-fps.svg)
 
 FreeFG against MFG Unlocker alone, both with `XeFGModel=default`. Frames shown per second, generated frames
-included, as in the 2× figure; the game itself renders 31 and 42 FPS at 3×. Headless at 240 Hz, so nothing was capped;
-a 120 Hz display shows at most 120. Pacing off, 1–2 runs per arm; same files in 1.0.1
-([details](MEASUREMENTS.md#3-and-4-with-mfg-unlocker)).
+included, as in the 2× figure; the game itself renders 31 and 43 FPS at 3×. Headless at 240 Hz, so nothing was capped;
+a 120 Hz display shows at most 120. Pacing off, [warm shader caches](MEASUREMENTS.md#shader-caches); runs per arm:
+n = 4 at 3×, n = 2 at 4× ([details](MEASUREMENTS.md#3-and-4-with-mfg-unlocker)).
 
 - With a game's own XeSS frame generation, FreeFG accelerates nothing while MFG Unlocker is loaded
   ([details](ARCHITECTURE.md#optiscalers-contexts-only)).
@@ -166,7 +169,8 @@ DLSS input without a game copy. Setup waits until the game, and for launcher set
 
 ![Files Setup places in a game folder, coloured by origin (package, pinned download, written by Setup, kept for Restore), and the five launcher variables it adds.](../../docs/assets/setup-file-layout.svg)
 
-Recorded in a live install of 0.9.0 (Echo Point Nova, Steam, OptiFG input, 19 October 2026); 1.0.0 adds five shaders.
+Recorded in a live install of 0.9.0 (Echo Point Nova, Steam, OptiFG input, 19 October 2026); 1.0.0 adds five shaders,
+1.1.0 F4Q's seven.
 
 ## Restore and uninstall
 
@@ -190,15 +194,20 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.0.1, 20 October 2026. Tested only on the AMD BC-250 under Proton in Steam Game Mode. Apart from the installer and the
-documents, its files are 1.0.0's. 1.0.0 had a short qualification, one start per question
-([checks](MEASUREMENTS.md#checks-of-100)), then same-day frame-rate measurements at 2×, 3× and 4× in Cyberpunk 2077
-([MEASUREMENTS.md](MEASUREMENTS.md)). Everything else is untested.
+1.1.0, 21 October 2026. Tested only on the AMD BC-250 under Proton: earlier releases also in Steam Game Mode, 1.1.0
+itself only headless. 1.1.0 changes the proxy and the shader profile; its pacing layer, OptiScaler and installer are
+1.0.1's. It was checked in the SDK test program (generated images identical to Intel's shaders' in 20 configurations,
+F4Q on and off) and in Cyberpunk 2077 benchmarks ([checks](MEASUREMENTS.md#checks-of-110)); earlier releases' checks:
+[MEASUREMENTS.md](MEASUREMENTS.md#checks-of-100). Everything else is untested.
 
 ## Known limitations
 
 - 2× on its own; 3× and 4× only with MFG Unlocker. No generated-frame scaling.
-- This build has run in main menus and benchmarks, not in gameplay. Flatpak Steam and Heroic are not qualified.
+- This build has run in benchmarks, not in gameplay. Flatpak Steam and Heroic are not qualified.
+- F4Q was compared with the F(2×2) kernels in games only in Cyberpunk 2077 (2× and 3×, SDR). `BC250_XEFG_F4Q=0` in
+  the launch options, or `F4Q=0` under `[BC250]` in the game folder's `BC250-XeFG/settings.ini`, turns it off.
+- Wave sizes from `waves.txt` apply only to pipelines the shader caches do not already hold compiled without them
+  ([details](MEASUREMENTS.md#shader-caches)).
 - Frame pacing works only under gamescope.
 - Only a game process's first XeFG context is accelerated.
 - FreeFG closes the game when the runtime does something it does not recognise, for example after an update to

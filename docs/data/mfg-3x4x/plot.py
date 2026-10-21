@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Cyberpunk 2077 game frame rate at 3x and 4x with MFG Unlocker, alone and with FreeFG, as horizontal bars. Reads
-data.json beside it.
+"""Cyberpunk 2077 frames shown per second at 3x and 4x with MFG Unlocker, alone and with FreeFG, as horizontal bars.
+Reads data.json beside it.
 
   python3 docs/data/mfg-3x4x/plot.py      # writes docs/assets/mfg-3x4x-fps.svg and .png
 
@@ -9,10 +9,11 @@ Everything drawn comes from data.json's "plot" entry (the same fields as docs/da
   title, subtitle  one line each
   unit             the axis unit
   bars             in drawing order: id, label, group, role ("intel" or "freefg": the colour) and the value, either
-                   value_from (a dotted path into data.json, such as "default_model.3x.freefg.game_fps_mean") or value
+                   value_from (a dotted path into data.json, such as "default_model.3x.freefg.shown_fps_mean") or value
   differences      {"from": id, "to": id, "digits": 1}: the change from one bar to another, printed beside "to"
 Bars of one group are drawn together under the group's name (here the frame count).
-Caveats (run counts, exclusions, pacing off, the headless refresh) belong in MEASUREMENTS.md, not in the image.
+Caveats (pacing off, the headless refresh, the shader caches) belong in MEASUREMENTS.md, not in the image; a frame
+count measured with fewer runs names its n in its group name.
 """
 import json
 import math

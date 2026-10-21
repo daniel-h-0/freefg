@@ -313,17 +313,24 @@ class Sources:
     def variant_profile_changes(self, record, folder):
         """What changed since a variant add-on build assembled its profile: each file must still be in the build's
         profile directory with the recorded bytes, each one copied from the locked profile must still be locked with
-        those bytes, and each rewritten one must still have the locked base file it was derived from (the rewrite rule
+        those bytes, each of the variant's own files (replaced or added) must still be pinned with those bytes in the
+        lock's tree group, and each rewritten one must still have the locked base file it was derived from (the rewrite rule
         itself is intel_free.json, one of the record's sources)."""
         changes = []
         locked = self.config.lock['work']['profile-cl-wino-q33']['files']
         rewritten = record['profile']['rewritten']
         if not isinstance(rewritten, dict):  # records before the base digests were kept
             return ['profile record format (rewritten base files)']
+        # the variant's own files (build_proxy.py "replace" / "add"), pinned in the lock's tree group
+        own = dict(record['profile'].get('replaced', {}), **record['profile'].get('added', {}))
+        tree = self.config.lock.get('tree', {}).get(record['profile'].get('own_group') or '', {}).get('files', {})
         for name, digest in record['profile']['file_sha256'].items():
             path = folder / record['profile']['directory'] / name
             if not path.is_file() or sha256(path) != digest:
                 changes.append(f'profile file {name} (build directory)')
+            elif name in own:
+                if own[name] != digest or name not in tree or tree[name]['sha256'] != digest:
+                    changes.append(f'own profile file {name} (inputs.lock.json tree)')
             elif name in rewritten:
                 if name not in locked or locked[name]['sha256'] != rewritten[name]:
                     changes.append(f'base of rewritten profile file {name} (inputs.lock.json)')

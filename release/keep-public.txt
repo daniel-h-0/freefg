@@ -100,11 +100,34 @@ release/profile/winograd-adaptive.required
 release/profile/winograd-coarse17.required
 release/profile/winograd-refine-pitch.required
 release/profile/winograd.required
+# The multi-frame build's own shader files (release/profile-mfg/origin.json; inputs.lock.json tree group
+# profile-intel-free-mfg): the nine U-Net shaders in their XU-1 form and F4Q's kernels, rebuilt by the same check.
+release/profile-mfg/1a3b0782583fef19.dxil
+release/profile-mfg/1f27b449fb99a587.dxil
+release/profile-mfg/4bb52a635e6d221a.dxil
+release/profile-mfg/5654aa3800432b13.dxil
+release/profile-mfg/9e0080eee00255f2.dxil
+release/profile-mfg/b3941ac8ff95efe7.dxil
+release/profile-mfg/b3941ac8ff95efe7.f4q.dxil
+release/profile-mfg/e83e868f8d5d2c0f.dxil
+release/profile-mfg/f030948d38e74671.dxil
+release/profile-mfg/f030948d38e74671.f4q.dxil
+release/profile-mfg/f2e2e13fea432d20.dxil
+release/profile-mfg/f4q-check-aux.dxil
+release/profile-mfg/f4q-check-uav-float.dxil
+release/profile-mfg/f4q-check-uav-raw.dxil
+release/profile-mfg/f4q-check-uav-sint.dxil
+release/profile-mfg/f4q-check-uav-uint.dxil
+release/profile-mfg/origin.json
 src/kernels/conv_64.hlsl
 src/kernels/conv_wino4_common.hlsli
 src/kernels/conv_wino4_finish.hlsl
 src/kernels/conv_wino4_matmul.hlsl
 src/kernels/conv_wino4_prepare.hlsl
+src/kernels/f4q_check.hlsl
+src/kernels/f4q_common.hlsli
+src/kernels/f4q_dec16.hlsl
+src/kernels/f4q_enc16.hlsl
 src/kernels/wino_dec16.hlsl
 src/kernels/wino_enc16.hlsl
 src/kernels/wino_ref64.hlsl
@@ -121,6 +144,7 @@ src/capture_off.h
 src/model_bindings.h
 src/model_owner.h
 src/model_wino_enc16.h
+src/model_f4q.h
 src/model_winograd.h
 src/mfg_settings_contract.h
 src/warp_split.h
@@ -138,6 +162,7 @@ src/mfg_model_alias.h
 src/mfg_model_pool.h
 src/mfg_root_cache.h
 src/game/fast_trial.h
+src/game/f4q.h
 src/game/mfg_pace_signal.h
 src/game/mfg_settings.h
 src/game/mfg_pipeline_cache.h
@@ -148,6 +173,7 @@ src/game/timing.h
 src/game/test_proxy_load.c
 src/game/test_proxy_caller.c
 src/game/test_proxy_coexist.c
+src/game/test_f4q.c
 
 # libxefg_wave.so present-pacing layer and its unit tests
 src/game/wave_layer.c

@@ -66,6 +66,8 @@ static void fast_ready(xefg_swapchain_handle_t handle){if(fast_scope&&fast_conte
 static void fast_report(xefg_swapchain_handle_t handle){(void)handle;}
 static void proxy_owner_released(void);
 static void fast_finish(xefg_swapchain_handle_t handle){if(fast_scope&&fast_context_scope(handle)==fast_scope){fast_scope=0;finishes++;proxy_owner_released();}}
+/* f4q.h */
+static void fq_frame_tick(void){}
 #include "mfg_proxy_coexist.h"
 
 /* --------------------------------------------------------------------------------------------- fake COM objects */

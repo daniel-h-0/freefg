@@ -524,5 +524,6 @@ static void proxy_status_poll(xefg_swapchain_handle_t handle){
 /* xefgSwapChainTagFrameConstants, before the call (it then tail-calls): the handle's deferred initialisation work, and
  * the status read. */
 static void proxy_frame_tick(xefg_swapchain_handle_t handle){
+ fq_frame_tick();  /* F4Q's check: real frames for its status interval */
  proxy_ready_first(handle);proxy_status_poll(handle);
 }

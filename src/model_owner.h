@@ -131,7 +131,8 @@ static void model_dispatch_check(ID3D12GraphicsCommandList*l,uint64_t shader){UI
   model_fail("uninitialized model");}}
  UINT expected=model_mfg_reader(shader)?model_expected_count(bytes):model_native_count(bytes);if(!expected)expected=model_expected_count(bytes);
  if(matching<expected){if(proxy_census_soft("a model reader met an incomplete model set")){ReleaseSRWLockExclusive(&model_lock);return;}model_fail("incomplete MFG model set");}
- model_binding_check(l,bytes);ReleaseSRWLockExclusive(&model_lock);}
+ model_binding_check(l,bytes);
+ ReleaseSRWLockExclusive(&model_lock);}
 static void model_seal_allocations(void){
  if(!model_owner_enabled)return;
  AcquireSRWLockExclusive(&model_lock);model_allocations_open=0;

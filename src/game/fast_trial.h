@@ -13,6 +13,7 @@ static int profile_lists_replacement(uint64_t shader){
  return 0;
 }
 #include "timing.h"
+#include "f4q.h"
 #include "mfg_pipeline_cache.h"
 static void proxy_pair_note(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,ID3D12PipelineState*);static void proxy_owner_released(void);
 static UINT fast_scope;
@@ -54,7 +55,11 @@ static void STDMETHODCALLTYPE fast_set(ID3D12GraphicsCommandList*l,ID3D12Pipelin
 }
 static void STDMETHODCALLTYPE fast_dispatch(ID3D12GraphicsCommandList*l,UINT x,UINT y,UINT z){
  AcquireSRWLockExclusive(&fast_record_lock);
+ /* F4Q's check (diagnostic, f4q.h): the F(4x4) kernel and its fingerprint before the runtime's dispatch, the F(2x2)
+  * kernel's fingerprint and the comparison after it */
+ uint64_t fq_shader=0;if(fq.on&&!fq.stopped){for(UINT b=0;b<nbinding;b++)if(bindings[b].l==l)for(LONG s=0;s<npsos;s++)if(psos[s].p==bindings[b].p)fq_shader=psos[s].hash;fq_before(l,fq_shader,x,y,z);}
  dispatch_hook(l,x,y,z);
+ if(fq_shader)fq_after(l,fq_shader);
  tracing=0;ReleaseSRWLockExclusive(&fast_record_lock);
 }
 static int fast_profile_file(const char*path,UINT64 bytes,uint64_t expected){
@@ -128,9 +133,11 @@ static __attribute__((noinline)) int fast_prepare(ID3D12Device*d){
  compute_original=d->lpVtbl->CreateComputePipelineState;
  replace((void*)&d->lpVtbl->CreateComputePipelineState,fast_compute);
  install_model_owner(d,l);
+ f4q_configure();  /* F4Q's switch and layout check, before the runtime creates a model or pipeline (src/model_f4q.h) */
  set_original=l->lpVtbl->SetPipelineState;dispatch_original=l->lpVtbl->Dispatch;
  replace((void*)&l->lpVtbl->SetPipelineState,fast_set);replace((void*)&l->lpVtbl->Dispatch,fast_dispatch);
  install_graph(d,q);
+ fq_install(d,l);  /* F4Q's check only: root, descriptor and heap tracking for its own compare passes */
  install_flow_cap(l,0,0);
  ID3D12CommandQueue_Release(q);ID3D12GraphicsCommandList_Release(l);ID3D12CommandAllocator_Release(a);
  fast_scope=((struct scoped_com*)d)->scope;
@@ -189,7 +196,7 @@ static void fast_finish(xefg_swapchain_handle_t handle){
  /* Restore this context's private forwarding before allowing a fresh owner. */
  AcquireSRWLockExclusive(&scoped_lock);
  for(UINT i=0;i<16;i++)if(scoped_contexts[i].handle==handle){struct scoped_tables*t=scoped_contexts[i].device->tables;memcpy(t->device,scoped_device_vtable,sizeof(t->device));memcpy(t->list,scoped_list_vtable,sizeof(t->list));memcpy(t->queue,scoped_queue_vtable,sizeof(t->queue));break;}
- ReleaseSRWLockExclusive(&scoped_lock);fast_scope=0;CloseHandle(output);output=INVALID_HANDLE_VALUE;
+ ReleaseSRWLockExclusive(&scoped_lock);fast_scope=0;fq_finish();CloseHandle(output);output=INVALID_HANDLE_VALUE;  /* F4Q: its last lines before the log closes */
  proxy_log("FAST_RELEASED GPU completion verified; private resources released\n");
  fast_reset_tracking();
  proxy_owner_released();

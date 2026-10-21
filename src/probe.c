@@ -86,13 +86,14 @@ static int flow_dispatch_pso(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT)
 static void frame_capture_pso(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,uint64_t,ID3D12PipelineState*);
 static int frame_dispatch_pso(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT);
 static void frame_finish_dispatch(ID3D12GraphicsCommandList*,uint64_t);
+/* F4Q (src/game/f4q.h): the replacement of a profile shader (the F(4x4) file first for b3941ac8 and f030948d) and the
+ * geometry of the F(4x4) pipelines */
+static HRESULT f4q_compute(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,uint64_t,REFIID,void**);
+static void f4q_geometry(ID3D12GraphicsCommandList*,uint64_t,int*,int*,UINT*);
 static HRESULT STDMETHODCALLTYPE compute_hook(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,REFIID iid,void**out){
  uint64_t h=hash(desc->CS.pShaderBytecode,desc->CS.BytecodeLength);D3D12_COMPUTE_PIPELINE_STATE_DESC copy=*desc;void*replacement=NULL;char path[1200],line[256];
  if(model_shader_bytes(h))model_root_check(desc->pRootSignature);
- if(*patchdir
-    &&profile_lists_replacement(h)
-    ){snprintf(path,sizeof(path),"%s\\%016llx.dxil",patchdir,(unsigned long long)h);HANDLE f=CreateFileA(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);if(f!=INVALID_HANDLE_VALUE){DWORD size=GetFileSize(f,NULL),n;replacement=malloc(size);if(!ReadFile(f,replacement,size,&n,NULL)||n!=size)ExitProcess(12);CloseHandle(f);copy.CS.pShaderBytecode=replacement;copy.CS.BytecodeLength=size;copy.CachedPSO=(D3D12_CACHED_PIPELINE_STATE){0};snprintf(line,sizeof(line),"REPLACE %016llx %lu\n",(unsigned long long)h,size);logline(line);}}
- HRESULT hr=compute_original(d,&copy,iid,out);free(replacement);
+ HRESULT hr=f4q_compute(d,desc,h,iid,out);(void)copy;(void)replacement;(void)path;
  if(SUCCEEDED(hr))flow_capture_pso(d,desc,h,*out);
  if(SUCCEEDED(hr))frame_capture_pso(d,desc,h,*out);
  if(SUCCEEDED(hr)){LONG i=InterlockedIncrement(&npsos)-1;if(i>=XEFG_PROBE_PSOS){PROBE_TABLE_FULL("pipeline table full");}psos[i].p=*out;psos[i].hash=h;warp_split_capture(d,desc,h,*out);snprintf(line,sizeof(line),"PSO %p %016llx\n",*out,(unsigned long long)h);logline(line);}return hr;
@@ -149,12 +150,13 @@ static void STDMETHODCALLTYPE dispatch_hook(ID3D12GraphicsCommandList*l,UINT x,U
  if(proxy_aside_active()){proxy_aside_dispatch(l,x,y,z);return;}
  for(UINT s=0;s<split_count;s++)if(split_z[s].shader==shader){
   int sx=split_z[s].x,sy=split_z[s].y;
+  UINT sz=split_z[s].factor;f4q_geometry(l,shader,&sx,&sy,&sz);  /* a F(4x4) pipeline's own groups (src/game/f4q.h) */
   // Negative X/Y factors mean ceiling division for larger shader workgroups.
   // Bounds precede arithmetic; positive factors preserve the earlier format.
   if(z!=1||x>65535||y>65535||(sx>0&&x>65535/(UINT)sx)||(sy>0&&y>65535/(UINT)sy))ExitProcess(40);
   UINT ox=x,oy=y;
   x=sx>0?x*(UINT)sx:(x+(UINT)(-sx)-1)/(UINT)(-sx);
-  y=sy>0?y*(UINT)sy:(y+(UINT)(-sy)-1)/(UINT)(-sy);z=split_z[s].factor;
+  y=sy>0?y*(UINT)sy:(y+(UINT)(-sy)-1)/(UINT)(-sy);z=sz;
   if(scale_log){char line[160];snprintf(line,sizeof(line),"SCALE_DISPATCH %016llx %u %u 1 -> %u %u %u\n",(unsigned long long)shader,ox,oy,x,y,z);logline(line);}
  }
  if(tracing==2){

@@ -2,7 +2,7 @@
  "figure": "setup-file-layout",
  "question": "What does Setup put into a game folder and its launcher entry, and what does Restore take back?",
  "example": {
-  "game": "Echo Point Nova (Steam), frame-generation input OptiFG chosen by its recipe, 2026-10-19 (live install of 0.9.0; 1.0.0 places the same files plus five shaders)",
+  "game": "Echo Point Nova (Steam), frame-generation input OptiFG chosen by its recipe, 2026-10-19 (live install of 0.9.0; 1.0.0 places the same files plus five shaders, 1.1.0 seven more)",
   "executable_folder": "the folder of the game's rendering .exe"
  },
  "entries": [
@@ -57,7 +57,7 @@
   {
    "path": "BC250-XeFG/shaders/",
    "kind": "package",
-   "what": "33 own shaders and 9 small control files"
+   "what": "40 own shaders and 9 small control files (1.1.0)"
   },
   {
    "path": "BC250-XeFG/settings.ini",

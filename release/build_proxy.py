@@ -15,7 +15,11 @@ Steps:
      same commit (intel-xess-runtime; never shipped) and the locked shader profile. The runtime must also be the file
      packaging/dependencies.json makes installations download as bc250_xefg_original.dll.
   2. Assemble the profile into <build>/<output_dir>/profile: the Intel-free profile of release/intel_free.json
-     (prepared and checked by release/proxy_common.py) without the files the variant drops (2x: the multi-frame kernels).
+     (prepared and checked by release/proxy_common.py) without the files the variant drops (2x: the multi-frame kernels),
+     with the variant's own files (mfg: "replace", nine U-Net shaders in their XU-1 form from the lock's tree group
+     profile-intel-free-mfg = release/profile-mfg, each waves.txt line rewritten in place to the new module) and with
+     the waves.txt lines it appends (mfg: "append_waves", wave 32 for five of Intel's pipelines; 128 entries).
+     waves.txt must be a table the pacing layer reads in full (proxy_common.wave_table).
   3. Generate into <build>/<output_dir>/generated:
        probe_core.h          src/probe.c up to its scene_motion.h include, fixed modes patched in (proxy_common.py)
        profile_manifest.h    size and FNV-1a hash of every profile file
@@ -279,7 +283,8 @@ def definition_path(variant=DEFAULT_VARIANT):
 
 def definitions(variant=DEFAULT_VARIANT):
     """(intel_free.json, the variant's definition, the proxy's preprocessor definitions): the Intel-free add-on's
-    definitions without the ones the variant drops, plus the variant's own "define" if it has one."""
+    definitions without the ones the variant drops, plus the variant's own "define" if it has one and its
+    "added_defines" (mfg: XEFG_F4Q=1)."""
     path = definition_path(variant)
     base, definition = common.intel_free_definition(), json.loads(path.read_text())
     if definition['variant'] != variant:
@@ -290,16 +295,55 @@ def definitions(variant=DEFAULT_VARIANT):
     if unknown:
         raise ReleaseError(f'{path.name} drops definitions the Intel-free build does not have: ' + ', '.join(unknown))
     added = [definition['addon']['define']] if definition['addon'].get('define') else []
+    added += [d for d in definition['addon'].get('added_defines', {}) if d not in added]  # features of this variant only
     return base, definition, [d for d in inherited if d not in dropped] + added
 
 
+def own_files(definition):
+    """(lock tree group, {name: description} replaced, {name: entry} added) of a variant's own profile files (mfg:
+    "replace" and "add", from the inputs.lock.json tree group "own_files")."""
+    spec = definition['profile']
+    replaced, added = spec.get('replace', {}), spec.get('add', {})
+    if (replaced or added) and not spec.get('own_files'):
+        raise ReleaseError(f'{definition["variant"]} replaces or adds profile files without naming their lock group (own_files)')
+    overlap = sorted(set(replaced) & set(added))
+    if overlap:
+        raise ReleaseError(f'{definition["variant"]} both replaces and adds {overlap}')
+    return spec.get('own_files'), replaced, added
+
+
 def prepare_profile(config, base, definition, folder):
-    """The Intel-free profile without the files intel_free_2x.json drops; returns its files."""
+    """The Intel-free profile without the files the variant drops (2x: the multi-frame kernels), with the variant's own
+    files (mfg: "replace": another form of a profile file, its waves.txt line naming the new module in place; "add": a
+    file beside them, with its waves.txt line when it has a wave size) and the waves.txt lines it appends (mfg:
+    "append_waves", then the added files' lines); returns its files. waves.txt must stay a table the pacing layer reads
+    in full."""
     common.prepare_intel_free_profile(config, base, folder)
     for name in definition['profile']['drop']:
         if not (folder / name).is_file():
             raise ReleaseError(f'{definition["variant"]} drops {name}, which the Intel-free profile does not have')
         (folder / name).unlink()
+    group, replaced, added = own_files(definition)
+    for name in replaced:
+        if not (folder / name).is_file():
+            raise ReleaseError(f'{definition["variant"]} replaces {name}, which the Intel-free profile does not have')
+        data = config.input_file(group, name).read_bytes()
+        common.replace_wave_module(folder / 'waves.txt', fnv1a64((folder / name).read_bytes()), fnv1a64(data))
+        (folder / name).write_bytes(data)
+    appended = definition['profile'].get('append_waves', {})
+    if appended:
+        common.append_waves(folder / 'waves.txt', appended)
+    lines = {}
+    for name, entry in added.items():
+        if (folder / name).exists():
+            raise ReleaseError(f'{definition["variant"]} adds {name}, which the Intel-free profile already has')
+        data = config.input_file(group, name).read_bytes()
+        (folder / name).write_bytes(data)
+        if entry.get('wave') is not None:
+            lines[fnv1a64(data)] = dict(wave=entry['wave'])
+    if lines:
+        common.append_waves(folder / 'waves.txt', lines)
+    common.wave_table((folder / 'waves.txt').read_text())
     files = sorted(folder.iterdir())
     multi_frame = 'XEFG_MFG_RESEARCH=1' not in definition['addon']['dropped_defines']
     kernels = sorted(p.name for p in files if p.name.startswith('mfg-finish'))
@@ -396,6 +440,11 @@ def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
     digest = sha256(output)
     reference = config.lock.get('outputs', {}).get(f'{spec["output"]} ({definition["variant"]})')
     locked_profile = config.lock['work'][base['profile']['base']]['files']
+    appended = definition['profile'].get('append_waves', {})
+    group, replaced, added = own_files(definition)
+    tree = config.lock.get('tree', {}).get(group, {}).get('files', {}) if group else {}
+    # each rewritten file with the locked sha256 of the base file it was derived from (assemble.py checks that base)
+    rewritten = sorted(set(base['profile']['rewrite']) | ({'waves.txt'} if appended or replaced or added else set()))
     record = dict(
         output=spec['output'], sha256=digest, reference_sha256=reference,
         matches_reference=digest == reference if reference else None, variant=definition['variant'],
@@ -411,8 +460,14 @@ def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
         profile=dict(name=definition['profile']['name'], files=len(profile_files), directory='profile',
                      sha256=hashlib.sha256(''.join(f'{p.name}\t{sha256(p)}\n' for p in profile_files).encode()).hexdigest(),
                      file_sha256={p.name: sha256(p) for p in profile_files},
-                     rewritten={name: locked_profile[name]['sha256'] for name in sorted(base['profile']['rewrite'])},
-                     dropped=sorted(definition['profile']['drop']), **profile_check),
+                     rewritten={name: locked_profile[name]['sha256'] for name in rewritten},
+                     dropped=sorted(definition['profile']['drop']),
+                     own_group=group,
+                     # each of the variant's own files with its locked sha256 (assemble.py checks that pin)
+                     replaced={name: tree[name]['sha256'] for name in sorted(replaced)},
+                     added={name: tree[name]['sha256'] for name in sorted(added)},
+                     appended_waves={module: entry['wave'] for module, entry in appended.items()},
+                     wave_choices=len(common.wave_table((out / 'profile' / 'waves.txt').read_text())), **profile_check),
         com_thunks=com_status,
         system_headers=common.system_digest(system, config),
         import_libraries={name: sha256(config.wine_lib / name) for name in ('libkernel32.a', 'libucrtbase.a')},
