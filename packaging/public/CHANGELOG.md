@@ -2,6 +2,89 @@
 
 Changes in each release of FreeFG. The private test builds made before 0.9.0 are not covered.
 
+## 1.1.1 – 2026-10-21
+
+Wave sizes now apply on every start, and Setup sets `XeFGModel=default` for MFG Unlocker. Only the installer
+and the documents change; the proxy, pacing layer, shader profile and OptiScaler are 1.1.0's.
+
+In Cyberpunk 2077 (headless, one block), 1.1.0's files with 1.1.1's launch settings show 0.36% more frames per second
+than with 1.1.0's at 2× in SDR, 0.64% in HDR10 and 0.58% at 3× with MFG Unlocker and `XeFGModel=default`. Shader
+caches: Mesa's warm from 1.0.x, the new vkd3d-proton cache filled by 1 to 9 earlier starts on the same route
+([MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)).
+
+### Changed
+
+- Setup adds two launch settings for vkd3d-proton:
+  - `VK_EXT_shader_module_identifier` is added to `VKD3D_DISABLE_EXTENSIONS`, after any entries already there.
+  - `VKD3D_SHADER_CACHE_PATH` names a new folder, `vkd3d-cache`, in the game's backup folder `.bc250-xefg-experimental`.
+    A cache path you set yourself is kept, including `0` (no cache).
+  - Effect: vkd3d-proton keeps each pipeline's shader code in its cache, so the pacing layer sets the wave size of every
+    shader in `waves.txt` on every start.
+  - Before: vkd3d-proton cached only an identifier, and a pipeline compiled before its line existed came back without
+    it. That left 1.1.0's five new lines for Intel's shaders inert for players who had run 1.0.x.
+- The first start after an installation takes longer: vkd3d-proton translates every pipeline's shader into its new
+  cache once. In these runs it took 2–4 s longer in Cyberpunk 2077; the first start on a computer that ran 1.0.x was
+  not timed. The cache holds 35–37 MB in Cyberpunk 2077. Later starts were within 1 s of 1.1.0's.
+- Restore puts both launch settings back as they were and deletes the `vkd3d-cache` folder. A new installation starts
+  a new one.
+- A game folder whose path is longer than 178 characters minus the length of the `.exe` name (161 for
+  `Cyberpunk2077.exe`) gets neither setting, as in 1.1.0, and Setup says so: vkd3d-proton cuts longer cache file names
+  short.
+- `install.py status` names the cache folder and its size.
+- Setup writes `[XeFG] XeFGModel=default` to `OptiScaler.ini` where it is unset, on both routes, and keeps a value you
+  set, also across Restore and a new installation. Only MFG Unlocker reads the key; with `default`, FreeFG's shaders
+  run the whole network beside it, at every frame count ([README](README.md#3-and-4-with-mfg-unlocker)).
+- Status and Check name a partial acceleration (MFG Unlocker's own model), a skipped one (the game's own XeSS frame
+  generation beside MFG Unlocker) or a context that stepped aside, and how to fix it. Status says when
+  `BC250-XeFG-fast.log` is from an earlier session. Status and Check read only the logs beside the `.exe` written since
+  the installation: in the live install, before the first start, Status had reported a log a private test build from
+  before 0.9.0 left under `OptiScaler/` as the last run (fixed after it; checked in the installer tests).
+
+### Documents
+
+- MEASUREMENTS' [Shader caches](MEASUREMENTS.md#shader-caches) adds 1.1.1's checks and block. The figures stay on
+  1.1.0's block, with 1.1.0's launch settings.
+- MEASUREMENTS adds [4K](MEASUREMENTS.md#4k): Cyberpunk 2077 at 3840×2160 with 1.1.0's files. FreeFG saves 9.0 ms per
+  generated frame against Intel's shaders (4.3 ms at 1440p) and equals v30, a private test build, at full output size
+  and 2×.
+- README's [MFG Unlocker section](README.md#3-and-4-with-mfg-unlocker) starts with its two conditions (OptiScaler's
+  frame generation, `XeFGModel=default`); README notes that on OptiScaler's frame generation the game's FPS counter
+  counts only rendered frames.
+- TROUBLESHOOTING adds [Frame generation adds little](TROUBLESHOOTING.md#frame-generation-adds-little): the log lines of
+  each case, what to do, and why earlier test builds' 1080p limit is faster at 4K.
+
+### Checked
+
+- Without a GPU: the installer tests (385 tests, 23 new: the launch settings in Steam, Heroic and Lutris, Restore
+  byte for byte, reinstall, a cache path you set, a game folder path too long for vkd3d-proton's file names;
+  `XeFGModel` and the new Status and Check lines), the release-tool tests and the public-tree export. The new Status
+  and Check lines also classified the logs of the 35 Cyberpunk 2077 runs of [4K](MEASUREMENTS.md#4k) as measured.
+- Cyberpunk 2077, headless, untimed (3 starts at native 2× and 3 at 3×, Mesa's cache warm from 1.0.x): with 1.1.1's
+  launch settings, every start applied 1.1.0's new lines for the Intel shaders its route uses, including each route's
+  first start, which compiled the pipelines not yet compiled with their lines (three at 2×, two at 3×). With 1.1.0's
+  settings, none applied.
+- Cyberpunk 2077, headless, timed: one block of 28 starts, 1.1.1's launch settings against 1.1.0's, on the same
+  files ([MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)). One discarded 3× warm-up start with 1.1.0's settings
+  closed during start-up; every measured start ran the benchmark.
+- Live install, once on each route, with the installer's command line and the Automatic input
+  ([MEASUREMENTS.md](MEASUREMENTS.md#live-install-and-restore)): Echo Point Nova from Steam to the main menu (OptiFG;
+  2×, 3× with MFG Unlocker and `XeFGModel=default`, 3× with MFG Unlocker's own model) and Cyberpunk 2077's benchmark
+  (native XeSS FG, headless, with the settings Setup wrote for Heroic). Setup wrote both launch settings and
+  `XeFGModel=default`; the wave lines applied in every start whose shaders use them; Status and Check named full
+  acceleration (13 of 13 programs) with `default` and partial (7 of 13) with the fix on MFG Unlocker's own model;
+  Restore left both game folders and launcher entries as before.
+
+### Known limitations
+
+- In the live install, Cyberpunk 2077's benchmark on the empty cache folder had 28 frames over 40 ms, the longest
+  304 ms, while an unrelated memory-heavy program ran on the test computer; the timed block's first start on an empty
+  folder had none over 40 ms. The cause is not established (n = 1, [MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)).
+- In the live install, one of three 3× starts in Echo Point Nova (MFG Unlocker's own model) ended during start-up; its
+  repeat ran ([MEASUREMENTS.md](MEASUREMENTS.md#start-up-exits-at-3)).
+- Not checked: the Setup window, a game started from Heroic itself, gameplay, a VRR display, other games, and caches
+  filled by the game's own XeSS frame generation before any FreeFG install. In that last state the effect is expected
+  to be the same, because the cache folder is new, but it was not measured.
+
 ## 1.1.0 – 2026-10-21
 
 Faster generated frames. The proxy and the shader profile change; the pacing layer, OptiScaler, Intel's runtime pin

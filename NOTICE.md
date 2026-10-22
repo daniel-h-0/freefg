@@ -190,6 +190,9 @@ README links to it for 3× and 4× ([3× and 4× with MFG Unlocker](README.md#3-
   hooks Intel's runtime by comparing the runtime's entry points in memory with Intel's file on disk. It then runs its
   own shaders only where the runtime still runs Intel's
   ([ARCHITECTURE.md](packaging/public/ARCHITECTURE.md#another-mod-on-intels-runtime)).
+- Setup writes `XeFGModel=default` under `[XeFG]` in `OptiScaler.ini` where it is unset. Only MFG Unlocker reads that
+  key; with it, FreeFG's shaders run the whole network beside MFG Unlocker. Status and Check look for its plugin file
+  by name and read FreeFG's own logs.
 
 ## Build inputs (not shipped)
 

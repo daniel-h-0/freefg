@@ -109,6 +109,84 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(native['XEFG_WAVE_CONFIG'], str(self.game/'BC250-XeFG/shaders/waves.txt'))
         self.assertNotIn('BC250_XEFG_OWNER_MODULE', native)
 
+    def test_vkd3d_cache_settings_merge_with_the_users(self):
+        # 1.1.1 (W32-2): given the installation's cache folder, vkd3d-proton caches SPIR-V there (shader module
+        # identifiers off), so the layer names every pipeline; the user's own list entries and cache path stay.
+        cache = self.game/'.bc250-xefg-experimental/vkd3d-cache'
+        ident = l.IDENTIFIER_EXTENSION
+        self.assertEqual(ident, 'VK_EXT_shader_module_identifier')
+        plain = l.environment(self.game, 'dxgi.dll', {})  # other callers (no folder): neither variable
+        self.assertNotIn('VKD3D_DISABLE_EXTENSIONS', plain);self.assertNotIn('VKD3D_SHADER_CACHE_PATH', plain)
+        nvx = 'VK_NVX_binary_import,VK_NVX_image_view_handle'
+        values = l.environment(self.game, 'dxgi.dll', dict(VKD3D_DISABLE_EXTENSIONS=nvx), vkd3d_cache=cache)
+        self.assertEqual(values['VKD3D_DISABLE_EXTENSIONS'], nvx+','+ident)
+        self.assertEqual(values['VKD3D_SHADER_CACHE_PATH'], str(cache))
+        self.assertEqual(values['VKD3D_CONFIG'], 'no_staggered_submit')
+        self.assertEqual(values, l.environment(self.game, 'dxgi.dll', values, vkd3d_cache=cache))  # applied twice: unchanged
+        # vkd3d-proton's list members are separated by ',' or ';' (vkd3d_debug_list_has_member).
+        for before, after in (('', ident), ('A;', 'A;'+ident), (ident+';B', ident+';B'), ('A,'+ident, 'A,'+ident),
+                              (ident+'_X', ident+'_X,'+ident)):
+            with self.subTest(before=before):
+                self.assertEqual(l.environment(self.game, 'dxgi.dll', dict(VKD3D_DISABLE_EXTENSIONS=before),
+                                               vkd3d_cache=cache)['VKD3D_DISABLE_EXTENSIONS'], after)
+        # A cache path the user set is kept (0 = no disk cache); an empty one is vkd3d-proton's default and is replaced.
+        for own, kept in (('0', '0'), ('/my/cache', '/my/cache'), ('', str(cache))):
+            with self.subTest(own=own):
+                self.assertEqual(l.environment(self.game, 'dxgi.dll', dict(VKD3D_SHADER_CACHE_PATH=own),
+                                               vkd3d_cache=cache)['VKD3D_SHADER_CACHE_PATH'], kept)
+
+    def test_vkd3d_cache_file_names_must_fit_vkd3d_protons_buffers(self):
+        # Z:\<folder>\vkd3d-proton.<program>.cache.write within 259 characters, 16 to spare.
+        folder = '/g/' + 'x' * 100
+        name = 'Z:\\g\\' + 'x' * 100 + '\\vkd3d-proton.Game.exe.cache.write'
+        self.assertTrue(l.vkd3d_cache_fits(folder, 'Game.exe'))
+        spare = l.VKD3D_PATH_LIMIT - 16 - len(name)
+        self.assertTrue(l.vkd3d_cache_fits(folder + 'y' * spare, 'Game.exe'))
+        self.assertFalse(l.vkd3d_cache_fits(folder + 'y' * (spare + 1), 'Game.exe'))
+        self.assertTrue(l.vkd3d_cache_fits(folder + 'y' * (spare + 1), 'Game.exe', margin=0))
+
+    def test_vkd3d_cache_settings_execute_and_restore_in_each_launcher(self):
+        cache = self.game/'.bc250-xefg-experimental/vkd3d-cache'  # the fixture's folder name has a space and a quote
+        original = 'VKD3D_DISABLE_EXTENSIONS=VK_NVX_binary_import %command% -skip'
+        result = l.steam_options(original, self.game, 'dxgi.dll', vkd3d_cache=cache)
+        code = 'import os,json;print(json.dumps(dict(os.environ)))'
+        env = json.loads(subprocess.check_output(['/bin/sh', '-c', result.replace('%command%', shlex.join([sys.executable, '-c', code]))],
+                                                 text=True))
+        self.assertEqual(env['VKD3D_SHADER_CACHE_PATH'], str(cache))
+        self.assertEqual(env['VKD3D_DISABLE_EXTENSIONS'], 'VK_NVX_binary_import,'+l.IDENTIFIER_EXTENSION)
+        # Restore after a later change by the user: the installation's values go, the user's entry and change stay.
+        row = dict(launcher='steam', before={'LaunchOptions': original}, after={'LaunchOptions': result})
+        later = l.reverse(row, {'LaunchOptions': 'USER=1 '+result})['LaunchOptions']
+        self.assertEqual(l.split_steam(later)[0], dict(USER='1', VKD3D_DISABLE_EXTENSIONS='VK_NVX_binary_import'))
+        # Each launcher's file: installed with both variables, restored byte for byte.
+        exe, steam = self.steam_library('"UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" { "100" { "LaunchOptions" '
+                                        '"VKD3D_DISABLE_EXTENSIONS=A %command%" } } } } } }\n')
+        heroic = self.heroic_js({'enviromentOptions': [{'key': 'VKD3D_SHADER_CACHE_PATH', 'value': '/my/cache'}], 'wrapperOptions': []})
+        for exe, config in ((exe, steam), (self.exe, heroic)):
+            with self.subTest(config=config.name):
+                original = config.read_bytes()
+                operations = l.plan(exe, 'dxgi.dll', self.home, vkd3d_cache=cache)
+                l.apply(operations, self.write)
+                env = l.planned_environment(operations[0])
+                self.assertEqual(env, l.entry_environment(operations[0], config.read_bytes()))
+                self.assertEqual(env['VKD3D_DISABLE_EXTENSIONS'], ('A,' if config == steam else '')+l.IDENTIFIER_EXTENSION)
+                self.assertEqual(env['VKD3D_SHADER_CACHE_PATH'], str(cache) if config == steam else '/my/cache')
+                l.apply(operations, self.write, restore=True)
+                self.assertEqual(config.read_bytes(), original)
+        # Lutris (YAML, rewritten whole; the installer writes its copy as found back when the settings are the same).
+        from vendor import yaml
+        heroic.unlink()
+        lutris = self.home/'.config/lutris/games/test.yml'
+        doc = dict(game={'exe': str(self.exe)}, system={'env': {'VKD3D_DISABLE_EXTENSIONS': 'A;B'}})
+        self.write(lutris, yaml.safe_dump(doc).encode())
+        operations = l.plan(self.exe, 'dxgi.dll', self.home, vkd3d_cache=cache)
+        l.apply(operations, self.write)
+        env = yaml.safe_load(lutris.read_text())['system']['env']
+        self.assertEqual((env['VKD3D_DISABLE_EXTENSIONS'], env['VKD3D_SHADER_CACHE_PATH']), ('A;B,'+l.IDENTIFIER_EXTENSION, str(cache)))
+        self.assertEqual(env, l.planned_environment(operations[0]))
+        l.apply(operations, self.write, restore=True)
+        self.assertEqual(yaml.safe_load(lutris.read_text()), doc)
+
     def test_complex_shell_rejected_without_execution(self):
         for text in ('$(touch bad) %command%', 'echo hi; %command%', '%command% | cat',
                      '%command% %command%', 'ABC=1 ABC=2 %command%',

@@ -79,7 +79,8 @@ Files HelixSR keeps:
 The installer writes only:
 
 - the game folder you select: it saves the files it will replace in a backup folder there (`.bc250-xefg-experimental`),
-  places its files, and on Restore puts the originals back;
+  places its files, makes a folder in the backup folder for the game's vkd3d-proton shader cache (`vkd3d-cache`, which
+  the game fills), and on Restore puts the originals back and deletes that cache;
 - launcher configuration: only the selected game's entries, and only after the launcher has been closed;
 - the game's own settings file in its Proton prefix, where a recipe turns the game's frame generation on. Restore
   reverts those keys;

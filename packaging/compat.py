@@ -28,7 +28,7 @@ from pathlib import Path
 INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4ForceModel', 'FSR.Fsr4EnableWatermark',
                   'FrameGen.Enabled', 'fakenvapi.UseFakenvapi', 'FrameGen.FGInput', 'FrameGen.FGOutput',
                   'Libraries.XeFGPath', 'Libraries.XeLLPath', 'XeFG.ForceBorderless', 'Plugins.LoadAsiPlugins',
-                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex'}
+                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel'}
 # What the wiki drafts record beside a condition: explanations, never limits on where an item applies.
 NOTE_KEYS = {'reason', 'purpose', 'note', 'autoapplied_since', 'value', 'feature'}
 INPUT_NAMES = {'upscaler': 'OptiFG', 'dlssg': 'DLSS FG', 'fsrfg': 'FSR 3.1 FG', 'fsrfg30': 'FSR 3.0 FG',
@@ -68,6 +68,8 @@ def key_rule(key, value):
         return ('redundant', 'the installer writes FGOutput=xefg') if v == 'xefg' else ('blocked', 'F0: XeFG is always the generator')
     if k == 'xefg.forceborderless' and v == 'true':
         return 'redundant', 'the installer writes ForceBorderless=true'
+    if k == 'xefg.xefgmodel' and v == 'default':
+        return 'redundant', 'the installer writes XeFGModel=default'
     if k in {x.lower() for x in INSTALLER_KEYS}:
         return 'installer', 'the installer and verified recipes choose this key'
     if k.startswith('optifg.hudfix') or k == 'optifg.hudlimit':
@@ -650,26 +652,98 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
 
 
 # ------------------------------------------------------------------------------------------------- after a run
-def last_run(root):
-    """What the logs in the game folder say about the last session: dict(found, optiscaler, xefg, fg_input, upscaler,
-    proxy, accelerated, problems, cause). Reads only; nothing is sent anywhere."""
-    root = Path(root)
+# Programs this build replaces in a fully accelerated session: BC250-XeFG-fast.log has one "REPLACE <hash> <bytes>" line
+# per program, 13 in every full session measured (2x/3x/4x, SDR and HDR10, native and OptiScaler routes; Cyberpunk 2077,
+# 2026-10-21). With MFG Unlocker's own model (OptiScaler.ini [XeFG] XeFGModel not default) 7 of them ran.
+# BC250-MFG.log is written afresh at every start; BC250-XeFG-fast.log only in a session with FAST_OWNER, so without that
+# line the fast log is an earlier session's.
+FULL_PROGRAMS = 13
+MFG_UNLOCKER_PROGRAMS = 7
+MFG_UNLOCKER_CHECKED = 'v1.6.0'
+XEFG_MODEL_FIX = 'set XeFGModel=default under [XeFG] in OptiScaler.ini (a new Install writes it where it is unset)'
+# The game folder's logs are read up to this size (a long session's log is larger; its beginning names the case).
+LOG_LIMIT = 8 << 20
 
-    def read(*names):
-        for name in names:
-            p = root / name
-            try:
-                if p.is_file() and not p.is_symlink():
-                    with open(p, 'rb') as f:
-                        return f.read(8 << 20).decode('utf-8', 'replace')
-            except OSError:
-                continue
+
+def _read(root, *names, since=None):
+    """The first of names in root that is a regular file (not a symlink), decoded leniently; None when there is none.
+    since: a POSIX time; a file last written before it is treated as absent."""
+    for name in names:
+        p = Path(root) / name
+        try:
+            if p.is_file() and not p.is_symlink() and (since is None or p.stat().st_mtime >= since):
+                with open(p, 'rb') as f:
+                    return f.read(LOG_LIMIT).decode('utf-8-sig', 'replace')  # a BOM, as install.read_ini accepts
+        except OSError:
+            continue
+    return None
+
+
+def xefg_model(root):
+    """OptiScaler.ini [XeFG] XeFGModel in the game folder, stripped ('' when the line is empty), or None when the file or
+    the key is missing. Read line by line like OptiScaler (sections and keys in any case), so an INI configparser
+    refuses still answers; the last value wins."""
+    text = _read(root, 'OptiScaler.ini')
+    if text is None:
         return None
-    opti = read('OptiScaler.log', 'OptiScaler/OptiScaler.log')
-    proxy = read('BC250-MFG.log', 'OptiScaler/plugins/BC250-MFG.log')
-    fast = read('BC250-XeFG-fast.log', 'OptiScaler/BC250-XeFG-fast.log', 'OptiScaler/plugins/BC250-XeFG-fast.log')
+    section, value = '', None
+    for line in text.splitlines():
+        header = re.match(r'\s*\[([^]]+)\]\s*$', line)
+        if header:
+            section = header[1].strip().lower()
+            continue
+        key, eq, rest = line.partition('=')
+        if eq and section == 'xefg' and key.strip().lower() == 'xefgmodel':
+            value = rest.strip()
+    return value
+
+
+def mfg_unlocker_file(root):
+    """MFG Unlocker's plugin in the game folder (OptiScaler/plugins/ or plugins/: an .asi whose name contains 'mfg',
+    other than this build's BC250-MFG.asi), as a relative path, or None."""
+    for folder in ('OptiScaler/plugins', 'plugins'):
+        try:
+            names = sorted(p.name for p in (Path(root) / folder).iterdir())
+        except OSError:
+            continue
+        for name in names:
+            low = name.lower()
+            if low.endswith('.asi') and 'mfg' in low and low != 'bc250-mfg.asi':
+                return f'{folder}/{name}'
+    return None
+
+
+def _mfg_unlocker_files(root):
+    """The RTXMFG-* files MFG Unlocker writes beside the executable (its status and log), or []."""
+    try:
+        return sorted(p.name for p in Path(root).iterdir() if p.name.startswith('RTXMFG-'))
+    except OSError:
+        return []
+
+
+def last_run(root, route=None, beside_exe=False, since=None):
+    """What the logs in the game folder say about the last session: dict(found, optiscaler, xefg, fg_input, upscaler,
+    proxy, accelerated, problems, cause, own_programs, f4q, owner, coexist_accelerated, skipped_game_context,
+    context_caller, other_module, aside, mfg_unlocker, mfg_unlocker_files, xefg_model, route, fast_stale, acceleration,
+    acceleration_reason). route: the installation's route ('native' or 'opti', None when unknown); the logs alone tell
+    the game's own XeSS FG beside MFG Unlocker (FAST_SKIP, no CONTEXT_CALLER) from OptiScaler's FG with
+    BC250_XEFG_DISABLE (FAST_SKIP and a CONTEXT_CALLER line), the route breaks a tie. fast_stale: BC250-XeFG-fast.log is
+    from an earlier session (BC250-MFG.log, written at every start, has no FAST_OWNER) and is not counted.
+    acceleration: 'full', 'partial', 'not-running', 'idle' (no frame-generation context) or None (the logs do not say).
+    beside_exe: read only the logs beside the executable, where this build writes them (an installation of this build;
+    logs under OptiScaler/ come from private test builds before 0.9.0). since: the installation's time; logs last
+    written before it are from before the installation and are not read.
+    Reads only; nothing is sent anywhere."""
+    root = Path(root)
+    opti = _read(root, 'OptiScaler.log', *(() if beside_exe else ('OptiScaler/OptiScaler.log',)), since=since)
+    proxy = _read(root, 'BC250-MFG.log', *(() if beside_exe else ('OptiScaler/plugins/BC250-MFG.log',)), since=since)
+    fast = _read(root, 'BC250-XeFG-fast.log', *(() if beside_exe else ('OptiScaler/BC250-XeFG-fast.log',
+                                                                     'OptiScaler/plugins/BC250-XeFG-fast.log')), since=since)
     out = dict(found=bool(opti or proxy or fast), optiscaler=opti is not None, xefg=False, fg_input=None, upscaler=None,
-               proxy=None, accelerated=0, problems=[], cause=None)
+               proxy=None, accelerated=0, problems=[], cause=None, own_programs=0, f4q=0, owner=False, coexist_accelerated=False,
+               skipped_game_context=False, context_caller=False, other_module=False, aside=None, mfg_unlocker=None,
+               mfg_unlocker_files=_mfg_unlocker_files(root), xefg_model=xefg_model(root), route=route, fast_stale=False,
+               acceleration=None, acceleration_reason=None)
     if opti:
         out['xefg'] = 'XeFG swapchain created' in opti or 'XeFG context created' in opti
         m = re.findall(r'FrameGen\.FGInput:\s*(\S+)', opti)
@@ -681,10 +755,29 @@ def last_run(root):
         out['proxy'] = 'ready' if 'MFG proxy ready' in proxy else 'failed' if 'MFG proxy:' in proxy else 'loaded'
         out['xefg'] = out['xefg'] or 'MFG proxy ready' in proxy or 'MFG addon ready' in proxy
         out['problems'] += [line[:160] for line in proxy.splitlines() if line.startswith('MFG proxy:')][:3]
+        out['owner'] = bool(re.search(r'^FAST_OWNER ', proxy, re.M))
+        out['coexist_accelerated'] = bool(re.search(r'^FAST_COEXIST this context is accelerated', proxy, re.M))
+        out['skipped_game_context'] = bool(re.search(r'^FAST_SKIP beside another module', proxy, re.M))
+        out['context_caller'] = bool(re.search(r'^CONTEXT_CALLER ', proxy, re.M))
+        out['other_module'] = bool(re.search(r'^FAST_COEXIST another module hooks', proxy, re.M))
+        module = re.search(r'^FAST_COEXIST .*?jumps to ([^)\r\n]+)\)', proxy, re.M)
+        if module:
+            out['mfg_unlocker'] = re.split(r'[\\/]', module[1].strip())[-1] or None
+    # BC250-MFG.log is new at every start (also when a session ends before its first line); the fast log only in a
+    # session that selected a context, so without FAST_OWNER here it is an earlier session's.
+    if proxy is not None and fast is not None and not out['owner'] and not out['coexist_accelerated']:
+        out['fast_stale'], fast = True, None
+    aside = re.search(r'^FAST_ASIDE (.+?)(?:, with another module|$)', proxy or fast or '', re.M)
+    if aside:
+        out['aside'] = aside[1].strip()[:120]
     if fast:
         out['accelerated'] = len(set(re.findall(r'WINOGRAD_EXECUTE shader=([0-9a-f]+)', fast)))
+        out['own_programs'] = len(set(re.findall(r'^REPLACE ([0-9A-Fa-f]+)\b', fast, re.M)))
+        out['f4q'] = len(re.findall(r'^F4Q_REPLACE ', fast, re.M))
         if 'FAIL' in fast:
             out['problems'].append('a FAIL marker in BC250-XeFG-fast.log')
+    if out['mfg_unlocker'] is None:
+        out['mfg_unlocker'] = mfg_unlocker_file(root) or next(iter(out['mfg_unlocker_files']), None)
     if out['found'] and not out['xefg']:
         if not opti:
             out['cause'] = 'OptiScaler did not log anything: it may not have loaded (check the launch options and that the game started from its launcher).'
@@ -692,16 +785,112 @@ def last_run(root):
             out['cause'] = 'The game never created an upscaler: choose DLSS, FSR or XeSS in its graphics settings, then play past the menus.'
         else:
             out['cause'] = 'The upscaler ran but XeFG never started: check FG Input / XeFG Output in OptiScaler\'s menu (Insert), or reinstall with another input.'
+    out['acceleration'], out['acceleration_reason'] = _acceleration(out, proxy, fast)
     return out
+
+
+def _is_mfg_unlocker(summary):
+    """MFG Unlocker by its plugin's or the hooking module's name, or by the RTXMFG-* files it writes."""
+    return 'mfg' in (summary.get('mfg_unlocker') or '').lower() or bool(summary.get('mfg_unlocker_files'))
+
+
+def _acceleration(out, proxy, fast):
+    """(acceleration, reason) for last_run; reason: 'aside' (not running: a FAST_ASIDE line, this build stepped aside
+    beside another module), 'mfg-unlocker-model' (partial beside MFG Unlocker or another module hooking Intel's runtime,
+    XeFGModel not default) or 'native-beside-mfg-unlocker' (not running: the game's own XeSS FG context, skipped beside
+    another module hooking Intel's runtime, on either route), else None."""
+    if out['aside']:
+        return 'not-running', 'aside'
+    n = out['own_programs']
+    if n:
+        if n >= FULL_PROGRAMS:
+            return 'full', None
+        model = (out['xefg_model'] or '').strip().lower()
+        beside = out['other_module'] or _is_mfg_unlocker(out)
+        return 'partial', ('mfg-unlocker-model' if beside and model != 'default' else None)
+    if fast is not None or out['owner'] or out['coexist_accelerated'] or proxy is None or not re.search(r'^(MFG|FAST_)', proxy, re.M):
+        return None, None  # a log of another format, or a context selected that replaced nothing: the logs do not say
+    # The game's own context skipped and none of OptiScaler's reached the choice (no CONTEXT_CALLER line; with
+    # BC250_XEFG_DISABLE an OptiScaler context logs one). On the native route there is no OptiScaler context at all.
+    if out['skipped_game_context'] and (not out['context_caller'] or out['route'] == 'native'):
+        return 'not-running', 'native-beside-mfg-unlocker'
+    generated = re.search(r'^MFG_FACTOR |^MFG_STATUS XeFG generates|^MFG_PRESENT enabled=1', proxy, re.M)
+    if not generated and re.search(r'^MFG_(SETTINGS|PRESENT) ', proxy, re.M):
+        return 'idle', None
+    return 'not-running', None
+
+
+def acceleration_lines(summary):
+    """The lines that name the last session's acceleration (last_run's acceleration), [] when the logs do not say."""
+    kind, why = summary.get('acceleration'), summary.get('acceleration_reason')
+    n = summary.get('own_programs') or 0
+    name = summary.get('mfg_unlocker')
+    unlocker = _is_mfg_unlocker(summary)
+    if kind == 'full':
+        return [f'Acceleration: full (this build\'s shaders ran on {n} of {FULL_PROGRAMS} programs).' if n == FULL_PROGRAMS
+                else f'Acceleration: full (this build\'s shaders ran on {n} programs).']
+    if kind == 'partial' and why == 'mfg-unlocker-model':
+        model = 'MFG Unlocker\'s own model' if unlocker else f'the own model of the module hooking Intel\'s runtime ({name or "unnamed"})'
+        return [f'Acceleration: partial (this build\'s shaders ran on {n} of {FULL_PROGRAMS} programs): {model} '
+                'replaced the rest.', 'Fix: ' + XEFG_MODEL_FIX + '.']
+    if kind == 'partial':
+        return [f'Acceleration: partial (this build\'s shaders ran on {n} of {FULL_PROGRAMS} programs).']
+    if kind == 'not-running' and why == 'aside':
+        return [f'Acceleration: stepped aside during the session ({summary.get("aside")}): Intel\'s or the other module\'s shaders '
+                'ran from then on.',
+                f'Fix: use MFG Unlocker {MFG_UNLOCKER_CHECKED} (the version this build was checked with) with XeFGModel=default, '
+                'or remove the other module.']
+    if kind == 'not-running' and why == 'native-beside-mfg-unlocker':
+        opti = summary.get('route') == 'opti'
+        if not name or unlocker:
+            return ['Acceleration: none. MFG Unlocker is loaded and the game\'s own XeSS frame generation was used: this build '
+                    'accelerates only OptiScaler\'s frame generation beside MFG Unlocker.',
+                    'Fix: in the game, use the frame generation of the installation\'s OptiScaler input instead of XeSS frame '
+                    'generation, or remove MFG Unlocker for 2×.' if opti else
+                    'Fix: remove MFG Unlocker for 2×, or install on the OptiScaler route for 3×/4×.']
+        return [f'Acceleration: none. Another module ({name}) hooks Intel\'s XeFG runtime and the game\'s own XeSS frame generation '
+                'was used: this build accelerates only OptiScaler\'s frame generation beside it.',
+                'Fix: remove that module, or use OptiScaler\'s frame generation.' if opti else
+                'Fix: remove that module, or install on the OptiScaler route.']
+    if kind == 'not-running' and not summary.get('cause') and summary.get('proxy') != 'failed':
+        return ['Acceleration: none (no acceleration log' + (' from this session' if summary.get('fast_stale') else '') + ').',
+                'Check: the launch options for BC250_XEFG_DISABLE, and BC250-MFG.log for FAST_FALLBACK, FAST_SKIP or FAST_ASIDE lines.']
+    if kind == 'idle':
+        return ['Acceleration: not used (no XeFG frame-generation context in the last session).']
+    return []
+
+
+def setup_notes(root, route=None, installed=True, run=None):
+    """Lines about MFG Unlocker from the game folder's files alone (no logs): on the native route this build does not
+    accelerate the game's own context beside it; on the OptiScaler route of an installation (installed) it needs XeFGModel=default. A line that the last
+    run's acceleration lines (run: last_run) already give is left out."""
+    found = mfg_unlocker_file(root)
+    if not found:
+        return []
+    run = run or {}
+    if route == 'native':
+        if run.get('acceleration_reason') == 'native-beside-mfg-unlocker':
+            return []
+        return [f'MFG Unlocker ({found}) is in this game folder: on the native route this build does not accelerate the '
+                'game\'s own XeSS frame generation beside it, which then runs without this build\'s shaders. Remove it for 2×, '
+                'or install on the OptiScaler route for 3×/4×.']
+    model = xefg_model(root)
+    if installed and (model or '').lower() != 'default' and run.get('acceleration_reason') != 'mfg-unlocker-model':
+        state = 'not set' if not model else model
+        return [f'MFG Unlocker ({found}) is in this game folder and XeFGModel is {state}: on MFG Unlocker\'s own model this '
+                f'build\'s shaders run on {MFG_UNLOCKER_PROGRAMS} of their {FULL_PROGRAMS} programs. Fix: {XEFG_MODEL_FIX}.']
+    return []
 
 
 def last_run_lines(summary):
     if not summary['found']:
         return ['No logs yet: start the game once with frame generation on.']
+    acceleration = acceleration_lines(summary)
     lines = ['XeFG ' + ('started (swap chain created)' if summary['xefg'] else 'did not start') +
              (f'; FG input {summary["fg_input"]}' if summary['fg_input'] else '') +
              (f'; upscaler input {summary["upscaler"]}' if summary['upscaler'] else '' if summary['xefg'] else '; no upscaler input seen') +
-             (f'; accelerated stages {summary["accelerated"]}/4' if summary['accelerated'] else '')]
+             (f'; accelerated stages {summary["accelerated"]}/4' if summary['accelerated'] and not acceleration else '')]
+    lines += acceleration
     lines += ['Log: ' + p for p in summary['problems']]
     if summary['cause']:
         lines.append('Likely cause: ' + summary['cause'])

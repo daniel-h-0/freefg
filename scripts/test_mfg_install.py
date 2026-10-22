@@ -105,6 +105,12 @@ class MfgTests(GameFixture):
         ini.write_bytes(m.patch_ini(original,{('XeFG','ForceBorderless'):'false'}))
         m.install(self.package,self.exe,route='opti',fg_input='upscaler');self.assertEqual(read(),'false');m.restore(self.exe)
         ini.write_bytes(original)
+    def test_xefg_model_default_on_both_routes(self):
+        # The add-on packages write XeFGModel=default like the proxy packages (MFG Unlocker's model; inert without it).
+        read=lambda:m.read_ini((self.game/'OptiScaler.ini').read_bytes()).get(('xefg','xefgmodel'))
+        for route in ['opti','native']:
+            m.install(self.package,self.exe,route=route);self.assertEqual(read(),'default',route)
+            m.restore(self.exe);self.assertOriginal()
     def test_route_switch_does_not_carry_opti_multiplier(self):
         # OptiScaler route installs keep XeSSMFG's own multiplier at 0 ("follow the game"); a later native install must
         # start from the package default instead of inheriting it.

@@ -245,6 +245,34 @@ class VerdictInstallTests(CompatFixture):
         m.restore(self.exe)
         self.assertOriginal()
 
+    def test_check_names_mfg_unlocker_cases(self):
+        # MFG Unlocker's plugin in the game folder: Check names what it means for this installation (XeFGModel on the
+        # OptiScaler route; stepping aside on the native route) and, after a partial run, says the fix once.
+        m.install(self.package, self.exe, route='opti', fg_input='upscaler')
+        ini = self.game/'OptiScaler.ini'
+        installed = ini.read_bytes()
+        m.write(self.game/'OptiScaler/plugins/MFGUnlocker.asi', b'placeholder')
+
+        def check():
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                m.check(self.package, self.exe)
+            return out.getvalue()
+        self.assertNotIn('XeFGModel is', check())  # Install wrote default
+        ini.write_bytes(m.patch_ini(installed, {('XeFG', 'XeFGModel'): 'auto'}))
+        self.assertIn('MFG Unlocker (OptiScaler/plugins/MFGUnlocker.asi) is in this game folder and XeFGModel is auto', check())
+        (self.game/'BC250-MFG.log').write_text("MFG proxy ready\nFAST_COEXIST another module hooks Intel's XeFG runtime (x: y; jumps to "
+                                               'MFGUnlocker.asi): z\nFAST_OWNER first initialized context selected\n')
+        (self.game/'BC250-XeFG-fast.log').write_text(''.join(f'REPLACE {i:016x} 56888\n' for i in range(7)))
+        text = check()
+        self.assertIn("Acceleration: partial (this build's shaders ran on 7 of 13 programs): MFG Unlocker's own model replaced the rest.", text)
+        self.assertEqual(text.count('set XeFGModel=default'), 1)
+        for name in ('BC250-MFG.log', 'BC250-XeFG-fast.log', 'OptiScaler/plugins/MFGUnlocker.asi'):
+            (self.game/name).unlink()
+        ini.write_bytes(installed)
+        m.restore(self.exe)
+        self.assertOriginal()
+
     def test_an_accept_naming_a_game_applies_to_that_game_only(self):
         other = self.root/'Other/Other.exe'
         m.write(other, self.exe.read_bytes())

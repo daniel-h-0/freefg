@@ -15,7 +15,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | `BC250-MFG.log` | `MFG proxy ready` | Intel's runtime was found and verified. |
 | | `bc250_xefg_original.dll is missing or is not the pinned Intel XeFG runtime` | XeFG is unavailable in this game; run Install again. |
 | | `FAST_COEXIST another module hooks Intel's XeFG runtime (…; jumps to MODULE)` | Another module, such as MFG Unlocker, hooks Intel's runtime. FreeFG keeps working beside it and steps aside, rather than ending the game, on work it has not verified. |
-| | `FAST_SKIP … only OptiScaler's own contexts are accelerated` | Another mod, such as MFG Unlocker, is loaded in a game using its own XeSS frame generation; Intel's or that mod's shaders run at every frame count. |
+| | `FAST_SKIP … only OptiScaler's own contexts are accelerated` | Another mod, such as MFG Unlocker, is loaded, and the game created its own XeFG context (its own XeSS frame generation): that context runs Intel's or that mod's shaders at every frame count. On an OptiScaler input, OptiScaler's context can still be accelerated (`FAST_OWNER`). |
 | | `MFG_FACTOR`, `MFG_STATUS` | The frame count; the frames per present the runtime reports. |
 | | `FAST_OWNER` | FreeFG selected the context it accelerates. |
 | | `FAST_FALLBACK …`, other `FAST_SKIP …` lines | Why Intel's shaders are used instead. |
@@ -30,14 +30,40 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 
 | Problem | What to try |
 | --- | --- |
+| Frame generation adds fewer frames than expected | See [below](#frame-generation-adds-little). |
 | Only real frames are shown; the frame rate does not go up | Turn the game's frame generation on (DLSS FG and FSR FG inputs); make sure the game is not in exclusive fullscreen; check `BC250-MFG.log` and `BC250-XeFG-fast.log`. |
 | Uneven pacing or VRR flicker | Give gamescope realtime priority ([Extras](README.md#extras)); rule out Steam's screensaver (below); stay below the refresh rate; check the `BC250_PACE` lines. |
 | Bursts of VRR flicker after some idle minutes, in long cutscenes or with a game left running | Steam's screensaver: in Game Mode it starts behind a running game after the idle timeout (5 minutes by default; controller input resets it) and every 20 seconds cross-fades for 2 seconds, taking GPU time. Set the timeout to **Never**, or install the `steam-screensaver-in-game` extra. |
+| The first start after installing (or reinstalling) loads for longer | Expected once: vkd3d-proton fills the game's new shader cache in `.bc250-xefg-experimental/vkd3d-cache` ([MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)). `install.py status` shows its size; Restore deletes it. |
 | A game installed despite its anti-cheat does not start, or reports tampering | The anti-cheat refuses FreeFG's DLLs: Restore the game. The maintainers cannot help with bans ([COMPATIBILITY.md](COMPATIBILITY.md#anti-cheat)). |
 | `Existing OptiScaler must be the 10.0.0-pre1 nightly …` | Restore or update the game's OptiScaler first. |
 | `Cannot download …` | The first installation needs internet access, or the file already in `~/.cache/bc250-xefg-testers`. |
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |
 | Setup does not find HelixSR | Setup looks for an unpacked folder named `HelixSR…` in your home folder and its `Downloads` and `Applications` folders. Elsewhere, name it once with `--helixsr /path/to/HelixSR-2.0.0` (with `install.py helixsr`, `install` or `configure`); the folder is remembered. `install.py helixsr` says what is missing. FreeFG uses only official releases it knows (2.0.0): with another version present it offers to download 2.0.0, and a newer version needs an updated FreeFG. |
+
+## Frame generation adds little
+
+Setup's **Status** reads the last session's logs and says whether FreeFG ran the whole network, only part of it
+(MFG Unlocker's own model) or nothing beside MFG Unlocker, and what to change. From the game folder's files, **Status**
+and **Check** also name MFG Unlocker beside the native route, or with `XeFGModel` other than `default`. By hand, read
+the logs beside the `.exe`:
+
+| Installation's input | `BC250-MFG.log` | `BC250-XeFG-fast.log` | Meaning | What to do |
+| --- | --- | --- | --- | --- |
+| any | `FAST_OWNER` | 13 lines that start with `REPLACE` | Full acceleration. | Nothing ([gains measured at 4K](MEASUREMENTS.md#4k)). |
+| OptiScaler | `FAST_OWNER` | 7 lines that start with `REPLACE` | MFG Unlocker's own model: FreeFG's shaders run on part of the network, at every frame count. | Set `XeFGModel=default` under `[XeFG]` in `OptiScaler.ini` ([README](README.md#3-and-4-with-mfg-unlocker)). |
+| native XeSS FG (or the game's XeSS FG chosen in the game) | `FAST_SKIP beside another module …`, no `FAST_OWNER` or `CONTEXT_CALLER` | none or earlier | The game's own XeSS frame generation beside MFG Unlocker: FreeFG does not accelerate it. | Use OptiScaler's frame generation (install with an OptiScaler input), or remove MFG Unlocker for 2×. |
+| any | `FAST_ASIDE …` | any | FreeFG stepped aside during the session ([Logs](#logs)). | Use MFG Unlocker 1.6.0 with `XeFGModel=default`, or remove the other mod. |
+| any other case | no `FAST_OWNER` | none or earlier | `BC250_XEFG_DISABLE=1`, or the reason in a `FAST_FALLBACK` or `FAST_SKIP` line ([Logs](#logs)). | Remove `BC250_XEFG_DISABLE` from the launch options, or act on that line. |
+
+`BC250-XeFG-fast.log` is written only in a session with `FAST_OWNER`; "earlier" is a log left by an earlier session,
+which **Status** names as such; **Status** reads only the logs beside the `.exe` written since the installation.
+`F4Q_REPLACE` lines are not counted. Beside MFG Unlocker, `BC250-MFG.log` also
+has `FAST_COEXIST` lines, and on an OptiScaler input a `FAST_SKIP` line for the game's own context, whatever the model.
+**Status** shows the installation's input.
+
+FreeFG generates frames at the full output size (no generated-frame scaling), so at 4K the 1080p generated-frame
+limit of earlier private test builds is faster ([MEASUREMENTS.md](MEASUREMENTS.md#4k)).
 
 ## Environment variables
 

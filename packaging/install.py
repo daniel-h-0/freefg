@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """Local, reversible installation of the experimental BC250 game add-on."""
-import argparse,collections,configparser,contextlib,fcntl,functools,hashlib,json,os,re,shutil,stat,struct,subprocess,sys,tempfile,uuid
+import argparse,collections,configparser,contextlib,fcntl,functools,hashlib,json,os,re,shutil,stat,struct,subprocess,sys,tempfile,time,uuid
 from pathlib import Path
 
 # This file imports its sibling modules by name (doctor, launcher_config, which imports steam_config and vendor). An
@@ -16,6 +16,10 @@ DLL='amd_fidelityfx_upscaler_dx12.dll'
 # and the proxy writes its logs beside it, in the game folder.
 PROXY_ENTRY='libxess_fg-proxy'
 PROXY_LOGS=['BC250-MFG.log','BC250-XeFG-fast.log']
+# vkd3d-proton's shader cache for the installed game, a folder in the installation's state folder: new with each
+# installation, named in the launch environment with vkd3d-proton's shader module identifiers off, so the layer sees every
+# pipeline's shader on every start (launcher_config.IDENTIFIER_EXTENSION), and deleted by Restore.
+VKD3D_CACHE='vkd3d-cache'
 # NVIDIA's DLSS helper (DLSS Super Resolution, dependencies.json 'dlss'): placed beside the game executable only in a fresh
 # OptiScaler setup on a DLSS input, and only when OptiScaler's own search finds no copy of the game's (dlss_helper_plan).
 DLSS_HELPER='nvngx_dlss.dll'
@@ -830,9 +834,9 @@ def override_anticheat(package,exe,route,fg_input,accept,verdict=None,sentence=N
     confirm_anticheat_risk(exe,names,sentence)
     return ['anticheat']
 
-# OptiScaler.ini keys a user sets for themselves (the MFG multiplier from OptiScaler's menu, the Reflex override), kept
-# across Restore and Install of a fresh OptiScaler setup: (section, key, description).
-CARRIED_INI=[('XeFG','InterpolationCount','multiplier'),('fakenvapi','ForceReflex','Reflex override')]
+# OptiScaler.ini keys a user sets for themselves (the MFG multiplier from OptiScaler's menu, the Reflex override, MFG
+# Unlocker's model), kept across Restore and Install of a fresh OptiScaler setup: (section, key, description).
+CARRIED_INI=[('XeFG','InterpolationCount','multiplier'),('fakenvapi','ForceReflex','Reflex override'),('XeFG','XeFGModel','MFG Unlocker model')]
 
 @locked
 def install(package,exe,preview=False,route="native",fg_input="upscaler",dependency_dir=None,launcher_home=None,extra_args=(),dlss_helper='auto',
@@ -968,6 +972,12 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         # Measured 2026-09-28 in Echo Point Nova: 1.0 presents per game frame at 2x without it, 2.0 with it. A value the
         # user wrote is kept.
         if parsed.get(('xefg','forceborderless'),'auto').strip().lower() in ['','auto']:changes[('XeFG','ForceBorderless')]='true'
+    # MFG Unlocker (a separate tool for 3x/4x, placed by the user) reads [XeFG] XeFGModel from OptiScaler.ini; no
+    # OptiScaler build reads the key, so it changes nothing without MFG Unlocker. Unset, on MFG Unlocker's own model this build's
+    # shaders run on 7 of their 13 programs (Cyberpunk 2077 at 3840x2160, measured 2026-10-21: 42.6 instead of 53.2
+    # frames shown per second at 2x, 50.7 instead of 63.7 at 3x); 'default' keeps Intel's model, which this build
+    # accelerates. Both routes, so a later switch or MFG Unlocker added later finds it. A value the user wrote is kept.
+    if parsed.get(('xefg','xefgmodel'),'auto').strip().lower() in ['','auto']:changes[('XeFG','XeFGModel')]='default'
     if not proxy:changes[('Plugins','LoadAsiPlugins')]='true'  # the add-on is OptiScaler's BC250-MFG.asi plugin
     # A fresh setup places OptiPatcher (OptiScaler/plugins/OptiPatcher.asi, dependencies.json 'payload'), which unlocks
     # the DLSS/XeSS inputs of about 200 games on GPUs other than NVIDIA's; OptiScaler loads ASI plugins only with
@@ -1042,12 +1052,19 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if not fresh:carried_ini={}  # an existing OptiScaler INI stays as the user left it anyway
     for (section,key),value in carried_ini.items():
         if (section,key)==('XeFG','InterpolationCount') and (route!='opti' or proxy):continue
+        if changes.get((section,key))==value:continue  # the installer writes this value anyway: nothing of the user's to keep
         changes[(section,key)]=value;kept.append('OptiScaler.ini '+section+'.'+key+'='+value)
     ini_after=patch_ini(original_ini,changes)
     # The launcher's own fields carry the loader overrides and the Vulkan layer: no wrapper script.
     import launcher_config
+    # vkd3d-proton's own cache folder, unless the game folder's path is too long for its cache file names: then neither
+    # vkd3d-proton setting is written (1.1.0's behaviour; identifiers off with the game's old cache would translate its
+    # entries again on every start).
+    vkd3d_cache=state/VKD3D_CACHE if launcher_config.vkd3d_cache_fits(state/VKD3D_CACHE,exe.name) else None
+    if vkd3d_cache is None:notes.append('Game folder path too long for vkd3d-proton’s cache file names: its shader cache stays the game’s own, and '
+                                        'wave sizes apply only to pipelines Mesa’s cache does not already hold.')
     launchers=launcher_config.plan(exe,owner_module,home=launcher_home,runtime='xemfg-proxy' if proxy else 'xemfg',route=route,args=launch_args,
-                                   extra_env=(verdict or {}).get('extra_env'))
+                                   extra_env=(verdict or {}).get('extra_env'),vkd3d_cache=vkd3d_cache)
     # The runtime: the package's own copies when it carries them all (checked above), otherwise the pinned downloads,
     # fetched below once every check has passed.
     packaged_runtime={source:files[name] for name,source in layout.items() if name in files}
@@ -1118,6 +1135,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         print('\n'.join(item['path'] for item in plan))
         for name in displaced:print('Set aside until Restore: '+name+' (an earlier log by the same name)')
         for target in launchers:print('Configure '+target['launcher']+': '+target['path'])
+        if vkd3d_cache is not None:print('vkd3d-proton shader cache: '+str(vkd3d_cache))
         for item in settings_plan:print(('Game setting: ' if item['after'] is not None else 'Game setting (pending): ')+item['file'])
         if helper:print(helper_line(helper))
         print(upscaler_line(upscaler_record))
@@ -1130,9 +1148,11 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
                 ini_changes=[dict(section=s,key=k,value=v) for (s,k),v in changes.items()],launchers=launchers,launch_args=launch_args,
                 launch_args_added=launcher_config.added_args(launchers))
     record['created_dirs']=created_dirs
+    if vkd3d_cache is not None:record['vkd3d_cache']=VKD3D_CACHE
     record['upscaler']=upscaler_record
     # displaced_logs (also when empty) tells Restore that every proxy log in the game folder is this installation's.
-    if proxy:record.update(addon_entry=PROXY_ENTRY,max_factor=package_record.get('max_factor',2),displaced_logs=displaced)
+    # installed_at: Status and Check read only logs written after it (a log left from before the installation is not this build's).
+    if proxy:record.update(addon_entry=PROXY_ENTRY,max_factor=package_record.get('max_factor',2),displaced_logs=displaced,installed_at=time.time())
     if helper:record['dlss_helper']=helper
     if verdict:record['compat']=dict(tier=verdict['tier'],line=verdict['line'],choice=verdict['choice'],launch_source=verdict['launch_source'],
                                      ini_sources=verdict['ini_sources'],accepted=verdict['accepted'],extra_env=verdict['extra_env'])
@@ -1146,6 +1166,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     staging=Path(tempfile.mkdtemp(prefix=STATE+'-preparing-',dir=root))
     try:
         (staging/'backups').mkdir()
+        if vkd3d_cache is not None:(staging/VKD3D_CACHE).mkdir()  # vkd3d-proton does not create its cache folder
         for i,item in enumerate(plan):
             if item['before'] is not None:write(staging/'backups'/str(i),(root/item['path']).read_bytes(),item['mode'])
         for i,item in enumerate(settings_plan):
@@ -1191,6 +1212,8 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if skipped and launchers:print('Launch option not added: '+' '.join(skipped)+' (the launch options already choose a graphics API, or the launcher’s arguments are not managed)')
     if helper and (helper['placed'] or helper['game_copy'] or helper.get('dxgi_spoofing') or dlss_helper!='auto'):print(helper_line(helper))
     print(upscaler_line(upscaler_record))
+    if vkd3d_cache is not None and any(launcher_config.planned_environment(row).get('VKD3D_SHADER_CACHE_PATH')==str(vkd3d_cache) for row in launchers):
+        print('vkd3d-proton keeps this game’s shader cache in '+str(vkd3d_cache)+': the first start fills it and takes longer.')
     for line in notes:print(line)
     print('In game: '+('select native XeSS Frame Generation.' if route=='native' else 'open OptiScaler with Insert; confirm FG Input / XeFG Output and Active. Save Settings and restart after changing the input.'))
     if proxy:print('This build generates 2× (one generated frame per real frame).')
@@ -1297,6 +1320,12 @@ def restore(exe):
         os.replace(held/name,root/name)
     if displaced is not None and held.is_dir():
         with contextlib.suppress(OSError):held.rmdir()
+    # vkd3d-proton's shader cache of this installation (records of earlier builds have none): the restored launch options
+    # no longer name it, and the next installation starts a new one.
+    cache=state/VKD3D_CACHE
+    if record.get('vkd3d_cache')==VKD3D_CACHE and cache.is_dir() and not cache.is_symlink():
+        try:shutil.rmtree(cache)
+        except OSError as error:notes.append('Could not delete vkd3d-proton’s shader cache '+str(cache)+' ('+str(error)+'); it is not used any more.')
     # Folders the installation created, deepest first, once nothing else is in them.
     left_dirs=[]
     for relative in record.get('created_dirs') or []:
@@ -1474,6 +1503,12 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     print('Settings saved. Launch the game to apply them.')
     if record['route']=='opti':print('In game: Insert → Frame Generation → MFG also changes the multiplier. Save Settings to retain it.')
 
+def run_scope(record):
+    """compat.last_run's scope for an installation of this build: only the logs beside the executable, written since it
+    was installed. Records of other entries (add-on builds) and records from before installed_at keep the full search."""
+    if record.get('addon_entry')!=PROXY_ENTRY:return {}
+    return dict(beside_exe=True,since=record.get('installed_at'))
+
 def status(exe):
     root=exe.parent.resolve();record=json.loads(safe(root,STATE+'/state.json').read_text())
     print(record['status']+' — '+record.get('route','native'))
@@ -1508,23 +1543,36 @@ def status(exe):
         for target in record['launchers']:
             current=launcher_config.fields(target,Path(target['path']).read_bytes())
             print(target['launcher']+' launch settings: '+('installed' if current==target['after'] else 'changed since installation'))
+    if record.get('vkd3d_cache')==VKD3D_CACHE:
+        cache=root/STATE/VKD3D_CACHE
+        size=sum(p.stat().st_size for p in cache.rglob('*') if p.is_file() and not p.is_symlink()) if cache.is_dir() else 0
+        print('vkd3d-proton shader cache: '+str(cache)+(' ('+format(size/1e6,'.1f')+' MB)' if size else ' (empty)'))
+    route=record.get('route','native')
+    try:
+        import compat
+        run=compat.last_run(root,route,**run_scope(record))
+    except ImportError:compat=run=None
     prefix='' if record.get('addon_entry')==PROXY_ENTRY else 'OptiScaler/plugins/' if record.get('runtime')=='xemfg' else 'OptiScaler/' if record.get('route')=='opti' else ''
     log=safe(root,prefix+'BC250-XeFG-fast.log')
-    if log.exists():
+    # A fast log last written before this installation (installed_at) is not this build's: as if there were none.
+    before=record.get('installed_at') and log.exists() and log.stat().st_mtime<record['installed_at']
+    # BC250-XeFG-fast.log is written only in a session that accelerated; BC250-MFG.log (new at every start) says so.
+    if before:pass
+    elif log.exists() and run and run.get('fast_stale'):
+        print('Last log: '+str(log)+' (from an earlier session: the last session accelerated nothing)')
+    elif log.exists():
         text=log.read_text(errors='replace')
-        stages=set(re.findall(r'WINOGRAD_EXECUTE shader=([0-9a-f]+)',text))
-        print('Last log: '+str(log))
-        print('Accelerated graph stages observed: '+str(len(stages))+'/4; '+('FAIL marker present' if 'FAIL' in text else 'no FAIL marker'))
+        # How much of the session ran on this build's shaders is the Last run's Acceleration line (compat.last_run).
+        print('Last log: '+str(log)+' ('+('FAIL marker present' if 'FAIL' in text else 'no FAIL marker')+')')
         decision=next((line for line in reversed(text.splitlines()) if line.startswith(('FRAME_CAP qualified','FRAME_CAP fallback:'))),None)
         if decision and decision.startswith('FRAME_CAP qualified'):print('Last scaling decision: '+decision)
         elif decision:print('Last scaling decision: '+decision.removeprefix('FRAME_CAP fallback: '))
         else:print('No generated-frame scaling recorded in this log.')
         print('Logs describe the last recorded session; they do not prove current frame generation or visual correctness.')
     else:print('No acceleration log yet. Launch normally with FG active.' if record.get('launchers') else 'No acceleration log yet. Launch through the installed wrapper with FG active.')
-    try:
-        import compat
-        for line in compat.last_run_lines(compat.last_run(root)):print('Last run: '+line)
-    except ImportError:pass
+    if compat:
+        for line in compat.setup_notes(root,route,True,run):print(line)
+        for line in compat.last_run_lines(run):print('Last run: '+line)
 
 def check(package,exe,accept=(),report=False):
     """install.py check: the compatibility verdict of one game, what the OptiScaler wiki says about it with every
@@ -1540,9 +1588,11 @@ def check(package,exe,accept=(),report=False):
     except (OSError,ValueError,KeyError):record=None
     # The logs describe this installer's last run only where it installed (a record, restored or not); an OptiScaler log
     # without one comes from another setup (an earlier OptiScaler, Luma, another tool) and says nothing about this one.
-    if record:run=compat.last_run(root)
+    if record:run=compat.last_run(root,record.get('route','native'),**run_scope(record))
     # An installation made despite anti-cheat says so; the verdict stays what a new Install would meet (refused).
     notes=risk_lines(record)
+    # MFG Unlocker in the game folder: the installation's route, or the route a new Install would take.
+    notes+=compat.setup_notes(root,record.get('route','native') if record else verdict['route'],bool(record) and record.get('status')=='installed',run)
     lines=compat.check_lines(verdict,scan,compat.wiki_advice(data,ids,verdict),run,installed,notes)
     if not record and any((root/n).is_file() for n in ['OptiScaler.log',*PROXY_LOGS]):lines+=['','Logs from another setup are in the game folder (not read: no installation of this build is recorded here).']
     print('\n'.join(lines))

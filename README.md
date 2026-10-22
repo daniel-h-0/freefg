@@ -18,7 +18,8 @@ How it works: [ARCHITECTURE.md](packaging/public/ARCHITECTURE.md).
 ![Cyberpunk 2077 frames shown per second at 2× on an AMD BC-250 (2560×1440, FSR 4 Performance, headless): SDR, XeFG with Intel's shaders 85.30 and FreeFG 1.1.0 104.34 (+22.3%); HDR10, 83.98 and 102.45 (+22.0%).](docs/assets/cyberpunk-2x-fps.svg)
 
 Frames shown per second, generated frames included. Headless, all arms in one block, 4 runs per arm in SDR and in
-HDR10, [warm shader caches](packaging/public/MEASUREMENTS.md#shader-caches). FreeFG 1.0.x in the same block: 102.93 and 101.24.
+HDR10, [warm shader caches](packaging/public/MEASUREMENTS.md#shader-caches), 1.1.0's launch settings. FreeFG 1.0.x in the same
+block: 102.93 and 101.24.
 Details and TV figures: [MEASUREMENTS.md](packaging/public/MEASUREMENTS.md#frame-rate-cyberpunk-2077).
 
 FreeFG is an independent project. It is not affiliated with, endorsed by, sponsored by or supported by Intel, AMD,
@@ -101,15 +102,25 @@ For games FreeFG installed, use Restore, not HelixSR's uninstaller.
 [MFG Unlocker](https://github.com/dashdogy/MFG-Unlocker) by dashdogy is a separate OptiScaler plugin that lifts Intel's
 limit on GPUs other than Intel's, up to 6×. FreeFG does not ship it, link it into its own code or change it; support
 for it comes from its authors ([NOTICE.md](NOTICE.md#mfg-unlocker-not-shipped)). With it, FreeFG's shaders run on the
-work that is still Intel's, on OptiScaler's frame generation ([how](packaging/public/ARCHITECTURE.md#another-mod-on-intels-runtime),
-[checks](packaging/public/MEASUREMENTS.md#checks-of-100)).
+work that is still Intel's ([how](packaging/public/ARCHITECTURE.md#another-mod-on-intels-runtime),
+[checks](packaging/public/MEASUREMENTS.md#checks-of-100)), under two conditions:
 
-1. Install FreeFG for the game, check 2×, and close the game.
+- **OptiScaler's frame generation**: an OptiScaler input (OptiFG, DLSS FG, FSR 3.1 FG or FSR 3.0 FG), not native XeSS
+  FG. Beside MFG Unlocker, FreeFG does not accelerate a game's own XeSS frame generation, which then runs Intel's or
+  MFG Unlocker's shaders at every frame count ([details](packaging/public/ARCHITECTURE.md#optiscalers-contexts-only)).
+- **`XeFGModel=default`** under `[XeFG]` in `OptiScaler.ini`: then FreeFG's shaders run the whole network. Without
+  it, MFG Unlocker runs its own model at every frame count, 2× included (table below). Setup writes `default` where the
+  INI has no value and keeps a value you set, also across Restore and a new Install. Only MFG Unlocker reads the key;
+  without it the key does nothing.
+
+1. Install FreeFG for the game with an OptiScaler input (in Setup, choose it instead of **Automatic per game** where
+   that picks native XeSS FG; on the command line, `--fg-input upscaler` or another input), check 2×, and close the
+   game.
 2. Download `MFGUnlocker-v1.6.0.zip` from its Releases page and check it against its `SHA256SUMS.txt`.
 3. Rename `MFGUnlocker.dll` to `MFGUnlocker.asi` and put it in the `OptiScaler/plugins/` folder beside the `.exe`. Do
    not give it a DLL name such as `dxgi.dll`; those are OptiScaler's.
-4. In `OptiScaler.ini`, set `LoadAsiPlugins=true` under `[Plugins]` (Setup sets it only in setups it creates),
-   `FGOutput=xefg` under `[FrameGen]` and `XeFGModel=default` under `[XeFG]` (below).
+4. In `OptiScaler.ini`, check `XeFGModel` (above) and `LoadAsiPlugins=true` under `[Plugins]`. Setup sets
+   `LoadAsiPlugins` only in OptiScaler setups it creates; in a game's existing setup, set it yourself.
 5. In the game, set the frame count in OptiScaler's menu (**Insert**, **Frame Generation**), which saves it. OptiScaler's
    frame limit counts output frames: at 4×, 117 FPS is about 29 real frames per second.
 6. To return to 2×, remove `MFGUnlocker.asi` and set 2×. Leave `LoadAsiPlugins` on: it also loads OptiPatcher, which
@@ -118,24 +129,26 @@ work that is still Intel's, on OptiScaler's frame generation ([how](packaging/pu
 | `[XeFG] XeFGModel` | Network | FreeFG's shaders run on |
 | --- | --- | --- |
 | `default` | Intel's 2× model at every frame count. MFG Unlocker's authors found that it places the outer generated frames at the wrong times at 6×, which smears them; 3× and 4× are unchecked. | the whole network |
-| not set (MFG Unlocker's default) | MFG Unlocker's own model, which replaces five of the network's programs | the rest of the network |
+| not set (MFG Unlocker's default) | MFG Unlocker's own model, whose programs replace some of Intel's | 7 of their 13 programs (Cyberpunk 2077) |
 
-For speed, use `XeFGModel=default` with FreeFG: in Cyberpunk 2077 with 1.0.0 the game ran 20% (3×) and 25% (4×)
-faster than on MFG Unlocker's own model, because FreeFG's shaders then run the whole network. With `default`, the
-picture at 3× and 4× is unchecked (table above).
+In Cyberpunk 2077 with 1.0.0 at 1440p, the game ran 20% (3×) and 25% (4×) faster with `default` than on MFG
+Unlocker's own model. At 4K with 1.1.0, OptiScaler's frame generation at 2× showed 53.25 frames per second without MFG
+Unlocker and 42.61 with it on its own model ([4K](packaging/public/MEASUREMENTS.md#4k)). With `default`, the picture at 3× and 4× is
+unchecked (table above).
 
 ![Cyberpunk 2077 frames shown per second with MFG Unlocker and XeFGModel=default on an AMD BC-250 (2560×1440 SDR, FSR 4 Performance, headless): at 3×, MFG Unlocker alone 93.50 and FreeFG 1.1.0 127.91 (+36.8%); at 4× (2 runs per arm), 97.65 and 143.52 (+47.0%).](docs/assets/mfg-3x4x-fps.svg)
 
 FreeFG against MFG Unlocker alone, both with `XeFGModel=default`. Frames shown per second, generated frames
 included, as in the 2× figure; the game itself renders 31 and 43 FPS at 3×. Headless at 240 Hz, so nothing was capped;
-a 120 Hz display shows at most 120. Pacing off, [warm shader caches](packaging/public/MEASUREMENTS.md#shader-caches); runs per arm:
-n = 4 at 3×, n = 2 at 4× ([details](packaging/public/MEASUREMENTS.md#3-and-4-with-mfg-unlocker)).
+a 120 Hz display shows at most 120. Pacing off, [warm shader caches](packaging/public/MEASUREMENTS.md#shader-caches), 1.1.0's launch
+settings; runs per arm: n = 4 at 3×, n = 2 at 4× ([details](packaging/public/MEASUREMENTS.md#3-and-4-with-mfg-unlocker)).
 
-- With a game's own XeSS frame generation, FreeFG accelerates nothing while MFG Unlocker is loaded
-  ([details](packaging/public/ARCHITECTURE.md#optiscalers-contexts-only)).
 - Before Restore, delete `OptiScaler/plugins/MFGUnlocker.asi` and the `RTXMFG-*` files beside the `.exe` (keep a copy of
   `RTXMFG-Universal.json` for its settings). Otherwise Restore leaves them and their folder, and says so.
-- A new Install sets 2×; add MFG Unlocker and `XeFGModel` again afterwards.
+- Install sets 2× each time. After a reinstall, put `MFGUnlocker.asi` back if you removed it and set the frame count
+  again; Setup writes `XeFGModel` as above.
+- To check that FreeFG runs beside MFG Unlocker, use Setup's **Status**
+  ([frame generation adds little](packaging/public/TROUBLESHOOTING.md#frame-generation-adds-little)).
 
 ## Game compatibility
 
@@ -150,6 +163,8 @@ Before it writes anything, Setup gives every game a verdict, with the way forwar
 ## In the game
 
 - Frame generation on or off: the game's settings, or OptiScaler's menu (**Insert**, **Frame Generation**, **Active**).
+- On OptiScaler's frame generation, the game's own FPS counter counts only the frames the game renders; an overlay such
+  as MangoHud or Steam's performance overlay shows frames shown.
 - XeFG does not interpolate in exclusive fullscreen. The installer keeps OptiScaler inputs borderless; with native XeSS
   FG, choose borderless or windowed.
 - If the real frame rate times the frame count exceeds the refresh rate, the game's frame rate drops to match, adding
@@ -171,7 +186,8 @@ DLSS input without a game copy. Setup waits until the game, and for launcher set
 ![Files Setup places in a game folder, coloured by origin (package, pinned download, written by Setup, kept for Restore), and the five launcher variables it adds.](docs/assets/setup-file-layout.svg)
 
 Recorded in a live install of 0.9.0 (Echo Point Nova, Steam, OptiFG input, 19 October 2026); 1.0.0 adds five shaders
-and 1.1.0 seven.
+and 1.1.0 seven. 1.1.1 adds two launcher variables, `VKD3D_DISABLE_EXTENSIONS` and `VKD3D_SHADER_CACHE_PATH`, and a
+folder `vkd3d-cache` for the game's vkd3d-proton shader cache in the backup folder.
 
 ## Restore and uninstall
 
@@ -195,20 +211,31 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.1.0, 21 October 2026. Tested only on the AMD BC-250 under Proton: earlier releases also in Steam Game Mode, 1.1.0
-itself only headless. 1.1.0 changes the proxy and the shader profile; its pacing layer, OptiScaler and installer are
-1.0.1's. It was checked in the SDK test program (generated images identical to Intel's shaders' in 20 configurations,
-F4Q on and off) and in Cyberpunk 2077 benchmarks ([checks](packaging/public/MEASUREMENTS.md#checks-of-110)); earlier releases' checks:
+1.1.1, 21 October 2026. Tested only on the AMD BC-250 under Proton: 1.1.0 only headless, the other releases also in
+Steam Game Mode. 1.1.1 changes only the installer: wave sizes apply on every start, Setup writes `XeFGModel=default`,
+and Status and Check name a partial or skipped acceleration beside MFG Unlocker. Its proxy, pacing layer, shader profile
+and OptiScaler are 1.1.0's. Its installer ran live once on each route, in Echo Point Nova (Steam, to the main menu at 2×
+and 3×) and Cyberpunk 2077 (benchmark, headless): it wrote its settings, the wave sizes applied, Status named each
+start's acceleration, and Restore left both games and launchers as before
+([live install](packaging/public/MEASUREMENTS.md#live-install-and-restore)). Its launch settings' frame rate was measured headless with
+1.1.0's files ([shader caches](packaging/public/MEASUREMENTS.md#shader-caches)). 1.1.0 changed the proxy and the shader profile and was
+checked in the SDK test program (generated images identical to Intel's shaders' in 20 configurations, F4Q on and off) and in
+Cyberpunk 2077 benchmarks ([checks](packaging/public/MEASUREMENTS.md#checks-of-110)); earlier releases' checks:
 [MEASUREMENTS.md](packaging/public/MEASUREMENTS.md#checks-of-100). Everything else is untested.
 
 ## Known limitations
 
-- 2× on its own; 3× and 4× only with MFG Unlocker. No generated-frame scaling.
+- 2× on its own; 3× and 4× only with MFG Unlocker. No generated-frame scaling
+  ([at 4K](packaging/public/TROUBLESHOOTING.md#frame-generation-adds-little)).
 - This build has run in benchmarks, not in gameplay. Flatpak Steam and Heroic are not qualified.
 - F4Q was compared with the F(2×2) kernels in games only in Cyberpunk 2077 (2× and 3×, SDR). `BC250_XEFG_F4Q=0` in
   the launch options, or `F4Q=0` under `[BC250]` in the game folder's `BC250-XeFG/settings.ini`, turns it off.
-- Wave sizes from `waves.txt` apply only to pipelines the shader caches do not already hold compiled without them
-  ([details](packaging/public/MEASUREMENTS.md#shader-caches)).
+- The first start after an installation takes longer, while vkd3d-proton fills the installation's new shader cache. One
+  benchmark's first session on the empty cache stuttered, beside an unrelated memory-heavy program, and another's did
+  not ([shader caches](packaging/public/MEASUREMENTS.md#shader-caches)). In a game folder whose
+  path is too long for vkd3d-proton's cache file names, Setup leaves that cache as it was, and wave sizes from
+  `waves.txt` apply only to pipelines the shader caches do not already hold compiled without them, as in 1.1.0
+  ([details](packaging/public/ARCHITECTURE.md#wave-sizes-bc-250-only)).
 - Frame pacing works only under gamescope.
 - Only a game process's first XeFG context is accelerated.
 - FreeFG closes the game when the runtime does something it does not recognise, for example after an update to

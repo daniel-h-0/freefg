@@ -71,14 +71,43 @@ def shortcut(data, appid):
     return matches[0]
 
 
-def environment(root, owner, current, runtime='xemfg', route='opti', extra=None):
+# vkd3d-proton's disk cache, on a driver that offers shader module identifiers (RADV does), keeps an identifier for each
+# pipeline's shaders instead of their SPIR-V and recreates a cached pipeline from it with no shader module. The layer
+# then cannot name the shader, and the driver hands back the pipeline it compiled before that shader's waves.txt line
+# existed (vkd3d-proton cache.c, state.c; Mesa vk_pipeline.c, radv_pipeline_compute.c). Measured 2026-10-20 in Cyberpunk
+# 2077 at native 2x: the three of 1.1.0's new lines that route uses applied with empty caches, none with warm ones. With
+# the extension disabled vkd3d-proton caches SPIR-V, so the layer names every pipeline on every start; a cache folder of
+# the installation's own holds no identifier-only entries from earlier starts, which would be translated on every one.
+IDENTIFIER_EXTENSION = 'VK_EXT_shader_module_identifier'
+# vkd3d-proton (a Windows DLL under Proton) builds its cache file names in MAX_PATH (260) buffers: Z:\<folder with
+# backslashes>\vkd3d-proton.<program>.cache plus .write or .merge, cut short when longer (cache.c, vkd3d_platform.h).
+VKD3D_PATH_LIMIT = 259
+
+
+def vkd3d_cache_fits(folder, program, margin=16):
+    """Whether vkd3d-proton's longest cache file name in folder, for the game's program (its .exe name), fits its
+    buffers with margin characters to spare (a game that runs under another program name)."""
+    longest = 'Z:' + str(folder).replace('/', '\\') + '\\vkd3d-proton.' + program + '.cache.write'
+    return len(longest) + margin <= VKD3D_PATH_LIMIT
+
+
+def _with_member(value, member):
+    """A vkd3d-proton list value (members separated by ',' or ';') with member at its end, unless it has it already."""
+    if member in re.split(r'[,;]', value):
+        return value
+    return value + (',' if value and value[-1] not in ',;' else '') + member
+
+
+def environment(root, owner, current, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
     """Retain the wrapper's fast path using ordinary launcher environment fields.
 
     runtime 'xemfg' loads the multi-frame loader (version.dll) and its addon; runtime 'xemfg-proxy' is the add-on as a
     libxess_fg.dll proxy (no loader, 2x), with its shader profile beside it in BC250-XeFG/; runtime 'xefg' is Intel's
     own 2x frame generation with the BC250 proxy, whose files sit under OptiScaler/ on the OptiScaler route. extra: further
     variables the installation sets (PROTONFIXES_DISABLE=1 after an accepted protonfix-api refusal); Restore takes them
-    out like the others."""
+    out like the others. vkd3d_cache: the installation's vkd3d-proton cache folder; given, vkd3d-proton gets it as its
+    cache path (unless the user set one: kept, as is VKD3D_SHADER_CACHE_PATH=0) and does not use shader module
+    identifiers (IDENTIFIER_EXTENSION, added to the user's VKD3D_DISABLE_EXTENSIONS)."""
     if not isinstance(current, dict) or any(not isinstance(key, str) or not KEY.fullmatch(key)
            or not isinstance(value, str) or '\0' in value for key, value in current.items()):
         raise ValueError('Launcher environment keys and values must be strings with valid names')
@@ -108,6 +137,10 @@ def environment(root, owner, current, runtime='xemfg', route='opti', extra=None)
     if current.get('BC250_XEFG_NO_STAGGERED_SUBMIT') != '0':
         result['VKD3D_CONFIG'] = ','.join(dict.fromkeys([
             *filter(None, current.get('VKD3D_CONFIG', '').split(',')), 'no_staggered_submit']))
+    if vkd3d_cache is not None:
+        result['VKD3D_DISABLE_EXTENSIONS'] = _with_member(current.get('VKD3D_DISABLE_EXTENSIONS', ''), IDENTIFIER_EXTENSION)
+        if not current.get('VKD3D_SHADER_CACHE_PATH'):
+            result['VKD3D_SHADER_CACHE_PATH'] = str(vkd3d_cache)
     for key, value in (extra or {}).items():
         if not KEY.fullmatch(key) or not isinstance(value, str) or '\0' in value:
             raise ValueError('Invalid launcher environment setting: '+str(key))
@@ -192,7 +225,7 @@ def _join_steam(env, rest, written=None):
     return ' '.join([*(key+'='+spelled(key, val) for key, val in env.items()), *([rest] if rest else [])])
 
 
-def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), extra_env=None):
+def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
     """Transform ordinary launch options; never execute shell text while editing."""
     current, rest, written = split_steam(value)
     # Wrappers of earlier wrapper-based installs (either layout; the lib2x/XeFG route's lives under OptiScaler/).
@@ -210,7 +243,7 @@ def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), ex
         raise ValueError('Nested environment assignments need explicit reconciliation')
     if any(';' in token for token in tokens):
         raise ValueError('Shell commands in Steam launch options need explicit reconciliation')
-    env = environment(root, owner, current, runtime, route, extra_env)
+    env = environment(root, owner, current, runtime, route, extra_env, vkd3d_cache)
     added = with_args(tokens, args)[len(tokens):]
     return _join_steam(env, ' '.join([rest, *map(shlex.quote, added)]), written)
 
@@ -459,6 +492,16 @@ def entry_environment(target, data):
     return {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {}
 
 
+def planned_environment(row):
+    """The environment variables a planned or recorded launcher operation sets (its 'after' fields)."""
+    after = row['after']
+    if row['launcher'] == 'steam':
+        return split_steam(after['LaunchOptions'] or '')[0]
+    if row['launcher'] == 'heroic':
+        return {e['key']: e['value'] for e in after['enviromentOptions']}
+    return {str(k): str(v) for k, v in (after.get('env') or {}).items()}
+
+
 def layer_roots(env):
     """Game folders whose installation this environment loads the layer from (VK_LAYER_PATH entries ending in the
     layer folder; the lib2x OptiScaler-route layout keeps it under OptiScaler/)."""
@@ -511,7 +554,7 @@ def conflicts(exe, targets, environ=None):
     return list(unique.values())
 
 
-def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None):
+def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
     targets = discover(exe, home)
     if not targets:
         raise ValueError('No launcher entry found for this executable. Add the game to Steam, Heroic or Lutris first.')
@@ -534,13 +577,15 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
         if target['launcher'] == 'steam' and target.get('format') != 'shortcuts':
             target = dict(target, created_app=not Document(data).has_object(APP+[target['id']]))
         if target['launcher'] == 'steam':
-            after = {'LaunchOptions': steam_options(before['LaunchOptions'] or '', root, owner, runtime, route, args, extra_env)}
+            after = {'LaunchOptions': steam_options(before['LaunchOptions'] or '', root, owner, runtime, route, args, extra_env,
+                                                    vkd3d_cache)}
         elif target['launcher'] == 'heroic':
             entries = before['enviromentOptions'] or []
             current = {e['key']: e['value'] for e in entries}
             if len(current) != len(entries):
                 raise ValueError('Duplicate Heroic environment variables')
-            after = dict(enviromentOptions=[dict(key=k, value=v) for k, v in environment(root, owner, current, runtime, route, extra_env).items()],
+            after = dict(enviromentOptions=[dict(key=k, value=v) for k, v in
+                                            environment(root, owner, current, runtime, route, extra_env, vkd3d_cache).items()],
                          wrapperOptions=[r for r in (before['wrapperOptions'] or []) if r.get('exe') not in wrappers])
             if 'launcherArgs' in before:
                 tokens = with_args(shlex.split(before['launcherArgs'] or ''), args)
@@ -549,7 +594,7 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
             prefix = before['prefix_command'] or ''
             # Remove only this installation's old wrapper, preserving other tools.
             tokens = shlex.split(prefix)
-            after = dict(env=environment(root, owner, before['env'] or {}, runtime, route, extra_env),
+            after = dict(env=environment(root, owner, before['env'] or {}, runtime, route, extra_env, vkd3d_cache),
                          prefix_command=shlex.join(t for t in tokens if t not in wrappers))
         operations.append(dict({k: v for k, v in target.items() if k != 'args'}, before=before, after=after))
     return operations

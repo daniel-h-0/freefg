@@ -3,6 +3,7 @@
 the add-on is payload/libxess_fg.dll, Intel's runtime comes from the pinned downloads as bc250_xefg_original.dll
 (dependencies.json runtime.ProxyPackage), there is no XeSSMFG enabler or version.dll, and the package is 2x only."""
 import contextlib,io,json,os,unittest
+from unittest.mock import patch
 from test_game_install import GameFixture,DEPENDENCIES,set_package_file,pins_for,m
 
 PROXY_PACKAGE={'fsr4/'+m.DLL:'fsr4/'+m.DLL,'payload/bc250_xefg_original.dll':'OptiScaler/libxess_fg.dll','payload/libxell.dll':'OptiScaler/libxell.dll'}
@@ -159,11 +160,160 @@ class ProxyInstallTests(ProxyFixture):
         self.assertFalse((self.game/m.STATE).exists())
     def test_status_reads_the_game_folder_log(self):
         m.install(self.package,self.exe,route='opti')
-        (self.game/'BC250-XeFG-fast.log').write_text('INTEL_FREE own shaders only\nWINOGRAD_EXECUTE shader=fec421a3b6a0632b channels=224 clamp=16\n')
+        (self.game/'BC250-MFG.log').write_text("MFG proxy ready: Intel's XeFG runtime unmodified beside it\nFAST_OWNER first initialized context selected\n")
+        (self.game/'BC250-XeFG-fast.log').write_text('INTEL_FREE own shaders only\nWINOGRAD_EXECUTE shader=fec421a3b6a0632b channels=224 clamp=16\n'
+                                                     +''.join(f'REPLACE {i:016x} 56888\n' for i in range(13)))
         out=io.StringIO()
         with contextlib.redirect_stdout(out):m.status(self.exe)
-        self.assertIn('Accelerated graph stages observed: 1/4',out.getvalue());self.assertIn(str(self.game.resolve()/'BC250-XeFG-fast.log'),out.getvalue())
+        text=out.getvalue()
+        self.assertIn('Last log: '+str(self.game.resolve()/'BC250-XeFG-fast.log')+' (no FAIL marker)',text)
+        # One statement of how much was accelerated (the stage count of earlier builds is not repeated beside it).
+        self.assertIn("Last run: Acceleration: full (this build's shaders ran on 13 of 13 programs).",text)
+        self.assertNotIn('stages',text)
+        # The next session accelerated nothing (BC250-MFG.log is new, without FAST_OWNER; the fast log is the earlier one).
+        (self.game/'BC250-MFG.log').write_text("MFG proxy ready: Intel's XeFG runtime unmodified beside it\nMFG_FACTOR context initialised for up to 2x\n")
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.status(self.exe)
+        text=out.getvalue()
+        self.assertIn('Last log: '+str(self.game.resolve()/'BC250-XeFG-fast.log')+' (from an earlier session: the last session accelerated nothing)',text)
+        self.assertIn('Last run: Acceleration: none (no acceleration log from this session).',text)
+        self.assertNotIn('full',text)
         m.restore(self.exe)
+    def test_status_ignores_logs_from_before_the_installation(self):
+        # Live check of 2026-10-21: before the first start, Status reported an older private test build's logs under
+        # OptiScaler/ (16 and 19 programs) as the last run. This build's logs are beside the .exe and newer than the install.
+        old_fast=''.join(f'REPLACE {i:016x} 56888\n' for i in range(16))
+        m.write(self.game/'OptiScaler/plugins/BC250-MFG.log',b'MFG addon ready\nFAST_OWNER first initialized context selected\n')
+        m.write(self.game/'OptiScaler/plugins/BC250-XeFG-fast.log',old_fast.encode())
+        m.write(self.game/'OptiScaler/BC250-XeFG-fast.log',old_fast.encode())
+        m.install(self.package,self.exe,route='opti')
+        record=json.loads((self.game/m.STATE/'state.json').read_text())
+        self.assertIsInstance(record.get('installed_at'),float)
+        # An OptiScaler.log beside the .exe from a session before the installation (Restore of an earlier build leaves it).
+        (self.game/'OptiScaler.log').write_text('[I] XeFG swapchain created\n')
+        past=record['installed_at']-60
+        for name in ('OptiScaler.log','OptiScaler/plugins/BC250-MFG.log','OptiScaler/plugins/BC250-XeFG-fast.log','OptiScaler/BC250-XeFG-fast.log'):
+            os.utime(self.game/name,(past,past))
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.status(self.exe)
+        text=out.getvalue()
+        self.assertIn('No acceleration log yet.',text)
+        self.assertNotIn('Acceleration:',text)
+        self.assertNotIn('16 programs',text)
+        self.assertNotIn('swap chain created',text)
+        # The first session of this build: its logs beside the .exe are read.
+        (self.game/'BC250-MFG.log').write_text("MFG proxy ready: Intel's XeFG runtime unmodified beside it\nFAST_OWNER first initialized context selected\n")
+        (self.game/'BC250-XeFG-fast.log').write_text(''.join(f'REPLACE {i:016x} 56888\n' for i in range(13)))
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.status(self.exe)
+        self.assertIn("Last run: Acceleration: full (this build's shaders ran on 13 of 13 programs).",out.getvalue())
+        m.restore(self.exe)
+    def test_status_names_mfg_unlocker_cases(self):
+        # MFG Unlocker's plugin with XeFGModel unset: Status says so before any run; after a partial run it says it once.
+        m.install(self.package,self.exe,route='opti')
+        ini=self.game/'OptiScaler.ini';ini.write_bytes(m.patch_ini(ini.read_bytes(),{('XeFG','XeFGModel'):None}))
+        m.write(self.game/'OptiScaler/plugins/MFGUnlocker.asi',b'placeholder')
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.status(self.exe)
+        self.assertIn('MFG Unlocker (OptiScaler/plugins/MFGUnlocker.asi) is in this game folder and XeFGModel is not set',out.getvalue())
+        (self.game/'BC250-MFG.log').write_text("MFG proxy ready\nFAST_COEXIST another module hooks Intel's XeFG runtime (x: y; jumps to MFGUnlocker.asi): z\n"
+                                               'FAST_OWNER first initialized context selected\n')
+        (self.game/'BC250-XeFG-fast.log').write_text(''.join(f'REPLACE {i:016x} 56888\n' for i in range(7)))
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.status(self.exe)
+        text=out.getvalue()
+        self.assertIn("Last run: Acceleration: partial (this build's shaders ran on 7 of 13 programs): MFG Unlocker's own model replaced the rest.",text)
+        self.assertEqual(text.count('set XeFGModel=default'),1)
+        (self.game/'OptiScaler/plugins/MFGUnlocker.asi').unlink()
+        m.restore(self.exe)
+    def test_xefg_model_written_kept_and_restored(self):
+        # MFG Unlocker reads [XeFG] XeFGModel (no OptiScaler build does); unset, on its own model this build's shaders
+        # run on 7 of their 13 programs. Every route writes default where the INI has no value (absent, empty, auto);
+        # a value the user wrote stays; Restore gives back the INI byte for byte, and keeps edits made since.
+        ini=self.game/'OptiScaler.ini'
+        model=lambda:self.opti_ini().get(('xefg','xefgmodel'))
+        for route in ['opti','native']:
+            for start in [None,'','auto','Auto']:
+                with self.subTest(route=route,start=start):
+                    original=self.ini if start is None else m.patch_ini(self.ini,{('XeFG','XeFGModel'):start})
+                    ini.write_bytes(original)
+                    m.install(self.package,self.exe,route=route);self.assertEqual(model(),'default')
+                    self.assertIn(dict(section='XeFG',key='XeFGModel',value='default'),self.record()['ini_changes'])
+                    m.restore(self.exe);self.assertEqual(ini.read_bytes(),original)
+            with self.subTest(route=route,start='xess'):
+                original=m.patch_ini(self.ini,{('XeFG','XeFGModel'):'xess'});ini.write_bytes(original)
+                m.install(self.package,self.exe,route=route);self.assertEqual(model(),'xess')
+                self.assertNotIn('XeFGModel',[c['key'] for c in self.record()['ini_changes']])
+                m.restore(self.exe);self.assertEqual(ini.read_bytes(),original)
+            with self.subTest(route=route,start='edited later'):
+                ini.write_bytes(self.ini);m.install(self.package,self.exe,route=route)
+                ini.write_bytes(m.patch_ini(ini.read_bytes(),{('Unrelated','Value'):'edited'}))
+                m.restore(self.exe);values=self.opti_ini()
+                self.assertNotIn(('xefg','xefgmodel'),values);self.assertEqual(values[('unrelated','value')],'edited')
+        ini.write_bytes(self.ini)
+    def test_fresh_reinstall_carries_a_users_xefg_model(self):
+        # A fresh OptiScaler setup's INI goes with Restore (saved as preserved_ini): the next Install writes default again
+        # without calling it the user's, and keeps a model the user chose, once.
+        deps=self.fresh();ini=self.game/'OptiScaler.ini'
+        m.install(self.package,self.exe,route='opti',dependency_dir=deps);self.assertEqual(self.opti_ini()[('xefg','xefgmodel')],'default')
+        m.restore(self.exe);self.assertFalse(ini.exists())
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        self.assertEqual(self.opti_ini()[('xefg','xefgmodel')],'default');self.assertNotIn('XeFGModel',out.getvalue())
+        ini.write_bytes(m.patch_ini(ini.read_bytes(),{('XeFG','XeFGModel'):'xess'}))
+        m.restore(self.exe);out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        self.assertEqual(self.opti_ini()[('xefg','xefgmodel')],'xess');self.assertEqual(ini.read_bytes().lower().count(b'xefgmodel'),1)
+        self.assertIn('OptiScaler.ini XeFG.XeFGModel=xess',out.getvalue())
+        m.restore(self.exe);self.assertFalse(ini.exists())
+    def user_env(self,values):
+        """The fixture's Heroic entry with the user's own variables added before installation."""
+        doc=json.loads(self.config.read_text());doc['123']['enviromentOptions']+=[dict(key=k,value=v) for k,v in values.items()]
+        m.write(self.config,json.dumps(doc).encode())
+        self.original_config=json.loads(self.config.read_text());self.original_config_bytes=self.config.read_bytes()
+    def test_vkd3d_cache_is_the_installations_own_and_restore_removes_it(self):
+        # 1.1.1 (W32-2): vkd3d-proton caches SPIR-V (shader module identifiers off) in a new folder in the state folder,
+        # so the layer names every pipeline on every start; Restore puts the user's variables back and deletes the cache.
+        nvx='VK_NVX_binary_import,VK_NVX_image_view_handle';self.user_env(dict(VKD3D_DISABLE_EXTENSIONS=nvx))
+        cache=self.game.resolve()/m.STATE/m.VKD3D_CACHE
+        for attempt in (1,2):  # install, Restore, install again: the same variables, a new empty folder
+            with self.subTest(attempt=attempt):
+                out=io.StringIO()
+                with contextlib.redirect_stdout(out):m.install(self.package,self.exe,route='opti')
+                self.assertIn('shader cache in '+str(cache)+': the first start fills it',out.getvalue())
+                self.assertTrue(cache.is_dir());self.assertEqual(list(cache.iterdir()),[])
+                env=self.env();self.assertEqual(self.record()['vkd3d_cache'],m.VKD3D_CACHE)
+                self.assertEqual((env['VKD3D_SHADER_CACHE_PATH'],env['VKD3D_DISABLE_EXTENSIONS']),(str(cache),nvx+',VK_EXT_shader_module_identifier'))
+                self.assertEqual(env['VKD3D_CONFIG'],'dxr,no_staggered_submit')
+                # What vkd3d-proton writes there (cache.c: vkd3d-proton.<program>.cache, .write, .merge).
+                for name in ['vkd3d-proton.Game.exe.cache','vkd3d-proton.Game.exe.cache.write']:(cache/name).write_bytes(b'\0'*1500000)
+                out=io.StringIO()
+                with contextlib.redirect_stdout(out):m.status(self.exe)
+                self.assertIn('vkd3d-proton shader cache: '+str(cache)+' (3.0 MB)',out.getvalue())
+                m.restore(self.exe);self.assertOriginal();self.assertFalse(cache.exists())
+                self.assertFalse((self.game/'BC250-XeFG').exists())
+    def test_vkd3d_cache_path_set_by_the_user_is_kept(self):
+        self.user_env(dict(VKD3D_SHADER_CACHE_PATH='0'))
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.install(self.package,self.exe,route='opti')
+        self.assertNotIn('the first start fills it',out.getvalue())
+        env=self.env();self.assertEqual((env['VKD3D_SHADER_CACHE_PATH'],env['VKD3D_DISABLE_EXTENSIONS']),('0','VK_EXT_shader_module_identifier'))
+        m.restore(self.exe);self.assertOriginal();self.assertFalse((self.game/m.STATE/m.VKD3D_CACHE).exists())
+    def test_restore_of_an_earlier_record_leaves_a_folder_of_that_name(self):
+        # Records of 1.1.0 and earlier have no vkd3d_cache: their Restore deletes nothing it did not create.
+        m.install(self.package,self.exe,route='opti');record=self.record();record.pop('vkd3d_cache')
+        (self.game/m.STATE/'state.json').write_text(json.dumps(record));(self.game/m.STATE/m.VKD3D_CACHE/'other').write_text('kept')
+        m.restore(self.exe);self.assertEqual((self.game/m.STATE/m.VKD3D_CACHE/'other').read_text(),'kept')
+    def test_game_path_too_long_for_vkd3d_protons_cache_names(self):
+        # Neither setting (1.1.0's environment), no folder, a note; Restore as always.
+        import launcher_config
+        out=io.StringIO()
+        with patch.object(launcher_config,'vkd3d_cache_fits',return_value=False),contextlib.redirect_stdout(out):
+            m.install(self.package,self.exe,route='opti')
+        self.assertIn('Game folder path too long for vkd3d-proton',out.getvalue());self.assertNotIn('the first start fills it',out.getvalue())
+        env=self.env();self.assertNotIn('VKD3D_SHADER_CACHE_PATH',env);self.assertNotIn('VKD3D_DISABLE_EXTENSIONS',env)
+        self.assertNotIn('vkd3d_cache',self.record());self.assertFalse((self.game/m.STATE/m.VKD3D_CACHE).exists())
+        m.restore(self.exe);self.assertOriginal()
     def test_pins_without_the_proxy_layout_are_refused(self):
         set_package_file(self.package,'dependencies.json',json.dumps(pins_for(DEPENDENCIES)).encode())
         with self.assertRaisesRegex(ValueError,'no proxy runtime layout'):m.install(self.package,self.exe,route='opti')

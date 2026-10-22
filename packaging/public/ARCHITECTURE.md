@@ -188,7 +188,8 @@ start (`F4Q_CONFIG`).
 ## The pacing layer
 
 `libxefg_wave.so`, a Linux Vulkan layer in the game's process below vkd3d-proton, is enabled by the launch environment
-(`VK_LAYER_PATH`, `VK_INSTANCE_LAYERS`), which also sets vkd3d-proton's `no_staggered_submit` option (`VKD3D_CONFIG`).
+(`VK_LAYER_PATH`, `VK_INSTANCE_LAYERS`), which also sets vkd3d-proton's `no_staggered_submit` option (`VKD3D_CONFIG`)
+and its cache settings ([wave sizes](#wave-sizes-bc-250-only)).
 
 ### Present pacing (gamescope only)
 
@@ -212,23 +213,28 @@ answer within 3 seconds, it holds every present. MFG Unlocker, where loaded, als
 The layer has the driver compile the compute shaders listed by hash in `waves.txt` (`XEFG_WAVE_CONFIG`), FreeFG's and
 some unchanged ones of the runtime, with a required subgroup size of 32 or 64. The shader code is not changed.
 
-A line takes effect only when the pipeline is compiled with it. On RADV, vkd3d-proton's shader cache stores a
+A line takes effect only when the pipeline is compiled with it. On RADV, vkd3d-proton's cache normally stores a
 pipeline's shader as an identifier, not as code; on a later start it recreates the pipeline from that identifier, so
-the layer cannot tell which shader it is. If the driver's cache holds that pipeline compiled without a wave size, the
-driver returns it at its own wave size; otherwise vkd3d-proton passes the code again and the line applies. The lines
-for FreeFG's shaders applied in every run, because those shaders either are new in the release that lists them or
-had their line from the start. A line for one of Intel's shaders applies only where the game has not run that shader
-before without it: 1.1.0's five new lines for Intel's shaders (four 2× warp shaders and a convolution) take no effect
-in a game that ran with 1.0.x, and after the game's own XeSS frame generation the lines 1.0.0 already had are expected
-to take no effect either (not measured). [MEASUREMENTS.md](MEASUREMENTS.md#shader-caches) gives the state of the
-measurements.
+the layer cannot tell which shader it is, and the driver returns the pipeline it compiled before (at its own wave size)
+when its cache holds one. In 1.1.0, its five new lines for Intel's shaders (four 2× warp shaders and a convolution)
+therefore took no effect in a game that ran with 1.0.x.
+
+Since 1.1.1, Setup turns vkd3d-proton's use of identifiers off (`VK_EXT_shader_module_identifier` in
+`VKD3D_DISABLE_EXTENSIONS`) and gives it a cache folder of the installation's own (`VKD3D_SHADER_CACHE_PATH`, in the
+backup folder). vkd3d-proton then caches the shader code, the layer names every pipeline on every start, and the driver
+compiles a listed shader with its wave size once. The new folder matters too: identifier entries already in the game's
+old cache would otherwise be translated again on every start. A cache path you set yourself is kept. Where the game
+folder's path is too long for vkd3d-proton's cache file names (over 178 characters minus the length of the `.exe`
+name), Setup sets neither, and the lines behave as in 1.1.0. [MEASUREMENTS.md](MEASUREMENTS.md#shader-caches) gives
+the measurements.
 
 ## OptiScaler and the upscaler
 
 OptiScaler connects a game's upscaler and frame-generation inputs (DLSS, FSR, XeSS, or its own OptiFG) to an upscaler
 and to XeFG. The installer sets the DirectX 12 upscaler (FSR 4 or HelixSR), XeFG output, Intel's XeLL for latency,
 borderless window mode (XeFG does not interpolate in exclusive fullscreen) and `InterpolationCount=1` (2×) on every
-Install. The OptiScaler and FSR 4 builds: [NOTICE.md](NOTICE.md).
+Install, and `XeFGModel=default`, which only MFG Unlocker reads, where it is unset
+([README.md](README.md#3-and-4-with-mfg-unlocker)). The OptiScaler and FSR 4 builds: [NOTICE.md](NOTICE.md).
 
 ### HelixSR
 
@@ -243,8 +249,9 @@ that frame generation needs.
 ## The installer
 
 `install.py`, with the Zenity front end `setup.py`, writes the launch environment into the game's Steam, Heroic or
-Lutris entry: `WINEDLLOVERRIDES` for OptiScaler's DLL, the layer variables, the wave table and the vkd3d option ([what
-else it changes](README.md#what-setup-changes)).
+Lutris entry: `WINEDLLOVERRIDES` for OptiScaler's DLL, the layer variables, the wave table and three vkd3d-proton
+settings: `no_staggered_submit` in `VKD3D_CONFIG`, `VKD3D_DISABLE_EXTENSIONS` and `VKD3D_SHADER_CACHE_PATH`
+([why](#wave-sizes-bc-250-only)). [What else it changes](README.md#what-setup-changes).
 
 - `configure --upscaler` swaps the upscaler DLL as a pending update, which Restore can finish or undo if interrupted.
   Restore, or a switch to FSR 4, keeps an edited `helixsr.ini` in the backup folder; the next HelixSR installation

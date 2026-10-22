@@ -487,20 +487,257 @@ class RunAndReportTests(unittest.TestCase):
         self.assertFalse(c.last_run(self.root)['found'])
         (self.root/'OptiScaler.log').write_text('[I] FrameGen.FGInput: upscaler\n[I] TryCreateOptiFeature Creating FSR 3.X upscaler feature\n'
                                                 '[I] FFXFeatureDx12 ffx loaded\n[I] CreateSwapchain XeFG swapchain created\n')
-        (self.root/'BC250-MFG.log').write_text("MFG proxy ready: Intel's XeFG runtime unmodified beside it\n")
-        (self.root/'BC250-XeFG-fast.log').write_text('WINOGRAD_EXECUTE shader=aa\nWINOGRAD_EXECUTE shader=bb\n')
+        (self.root/'BC250-MFG.log').write_text("MFG proxy ready: Intel's XeFG runtime unmodified beside it\n" + self.OWNER)
+        (self.root/'BC250-XeFG-fast.log').write_text('WINOGRAD_EXECUTE shader=aa\nWINOGRAD_EXECUTE shader=bb\nFAIL stage 2\n')
         run = c.last_run(self.root)
         self.assertEqual((run['xefg'], run['fg_input'], run['upscaler'], run['proxy'], run['accelerated'], run['cause']),
                          (True, 'upscaler', 'FSR', 'ready', 2, None))
+        self.assertIn('a FAIL marker in BC250-XeFG-fast.log', run['problems'])
         (self.root/'OptiScaler.log').write_text('[I] FrameGen.FGInput: upscaler\n')
         (self.root/'BC250-MFG.log').write_text('MFG proxy: Intel XeFG runtime did not load (error 126)\n')
-        (self.root/'BC250-XeFG-fast.log').write_text('FAIL stage 2\n')
         run = c.last_run(self.root)
         self.assertFalse(run['xefg'])
         self.assertIn('never created an upscaler', run['cause'])
-        self.assertIn('a FAIL marker in BC250-XeFG-fast.log', run['problems'])
+        # The fast log is the earlier session's (this one has no FAST_OWNER): its FAIL marker is not this session's.
+        self.assertTrue(run['fast_stale'])
+        self.assertNotIn('a FAIL marker in BC250-XeFG-fast.log', run['problems'])
         self.assertTrue(any('did not load' in p for p in run['problems']))
         self.assertIn('Likely cause:', '\n'.join(c.last_run_lines(run)))
+
+    # Logs of the proxy's 1.1 builds (made-up hashes; the line texts are the proxy's own).
+    READY = 'MFG_SETTINGS mode=0 percent=75 limit=1080 down=0 up=0 override=0\nMFG proxy ready: Intel\'s XeFG runtime unmodified beside it\n'
+    GENERATES = 'MFG_FACTOR context initialised for up to 2x\nMFG_STATUS XeFG generates: 2 frames per present (SDK status)\nMFG_PRESENT enabled=1 status=0 presents=2\n'
+    OWNER = 'FAST_OWNER first initialized context selected\n'
+    COEXIST = ('FAST_COEXIST another module hooks Intel\'s XeFG runtime (xefgSwapChainD3D12CreateContext: its code was changed; jumps to '
+               '{module}): lifecycle calls keep their caller, unrecognised work steps aside instead of ending the game\n')
+    SKIP = ('FAST_SKIP beside another module hooking Intel\'s XeFG runtime only OptiScaler\'s own contexts are accelerated; this one '
+            '(created from Game.exe) keeps the caller\'s device and runs Intel\'s or that module\'s shaders\n')
+    BESIDE = 'FAST_COEXIST this context is accelerated beside the other module; replaced pipelines keep Intel\'s originals beside them\n'
+
+    def logs(self, proxy, programs=None, f4q=0, model=None, unlocker=False):
+        """The game folder after a session: BC250-MFG.log, a fast log with programs REPLACE lines (None: no fast log),
+        OptiScaler.ini with XeFGModel (None: no key) and MFG Unlocker's plugin."""
+        for name in ('BC250-MFG.log', 'BC250-XeFG-fast.log', 'OptiScaler.ini', 'OptiScaler/plugins/MFGUnlocker.asi'):
+            (self.root/name).unlink(missing_ok=True)
+        (self.root/'BC250-MFG.log').write_text(proxy)
+        if programs is not None:
+            lines = ['FAST_CONTEXT_BEGIN', 'INTEL_FREE own shaders only']
+            for i in range(programs):
+                lines += [f'REPLACE {i:016x} 56888', f'PSO 00000001058455C0 {i:016x}']
+            lines += [f'F4Q_REPLACE {i:016x} {i:016x}.f4q.dxil 72484' for i in range(f4q)]
+            (self.root/'BC250-XeFG-fast.log').write_text('\n'.join(lines) + '\n')
+        (self.root/'OptiScaler.ini').write_text('[XeFG]\nForceBorderless=true\n' + (f'XeFGModel = {model}\n' if model is not None else ''))
+        if unlocker:
+            (self.root/'OptiScaler/plugins').mkdir(parents=True, exist_ok=True)
+            (self.root/'OptiScaler/plugins/MFGUnlocker.asi').write_bytes(b'placeholder')
+
+    def case(self, route=None):
+        run = c.last_run(self.root, route)
+        return run['acceleration'], run['acceleration_reason'], run['own_programs'], c.acceleration_lines(run)
+
+    def test_acceleration_full(self):
+        # 13 programs on this build's shaders: 2x native, and 3x/4x through MFG Unlocker with XeFGModel=default.
+        self.logs(self.READY + self.OWNER + self.GENERATES, 13, 2)
+        kind, why, n, lines = self.case('native')
+        self.assertEqual((kind, why, n), ('full', None, 13))
+        self.assertEqual(lines, ["Acceleration: full (this build's shaders ran on 13 of 13 programs)."])
+        self.assertEqual(c.last_run(self.root)['f4q'], 2)
+        self.logs(self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + self.SKIP + self.OWNER + self.BESIDE + self.GENERATES,
+                  13, 2, model='default', unlocker=True)
+        run = c.last_run(self.root, 'opti')
+        self.assertEqual((run['acceleration'], run['owner'], run['coexist_accelerated'], run['skipped_game_context'], run['mfg_unlocker'],
+                          run['xefg_model']), ('full', True, True, True, 'MFGUnlocker.asi', 'default'))
+        # An earlier build replaced more programs: full all the same.
+        self.logs(self.READY + self.OWNER, 19)
+        self.assertEqual(self.case('native')[3], ["Acceleration: full (this build's shaders ran on 19 programs)."])
+        # The last run line no longer repeats the stage count beside it.
+        self.assertNotIn('accelerated stages', '\n'.join(c.last_run_lines(c.last_run(self.root))))
+
+    def test_acceleration_partial_with_mfg_unlocker_model(self):
+        # OptiScaler's FG with MFG Unlocker, XeFGModel unset, empty or auto: 7 of 13 programs (4K report, 2026-10-21).
+        proxy = self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + self.SKIP + self.OWNER + self.BESIDE + self.GENERATES
+        for model in (None, '', 'auto'):
+            with self.subTest(model=model):
+                self.logs(proxy, 7, 1, model=model, unlocker=True)
+                kind, why, n, lines = self.case('opti')
+                self.assertEqual((kind, why, n), ('partial', 'mfg-unlocker-model', 7))
+                self.assertEqual(lines, ["Acceleration: partial (this build's shaders ran on 7 of 13 programs): MFG Unlocker's own model "
+                                         'replaced the rest.',
+                                         'Fix: set XeFGModel=default under [XeFG] in OptiScaler.ini (a new Install writes it where it is unset).'])
+        # The module is named in the log alone (no plugin file found): the same answer.
+        self.logs(proxy, 7, 1)
+        self.assertEqual(self.case()[:2], ('partial', 'mfg-unlocker-model'))
+        # XeFGModel=default since that session, or no MFG Unlocker at all: the count, stated neutrally.
+        self.logs(proxy, 7, 1, model='default', unlocker=True)
+        self.assertEqual(self.case('opti')[1:], (None, 7, ["Acceleration: partial (this build's shaders ran on 7 of 13 programs)."]))
+        self.logs(self.READY + self.OWNER, 5)
+        self.assertEqual(self.case('native')[:3], ('partial', None, 5))
+
+    def test_acceleration_not_running(self):
+        native = ['Acceleration: none. MFG Unlocker is loaded and the game\'s own XeSS frame generation was used: this build accelerates '
+                  'only OptiScaler\'s frame generation beside MFG Unlocker.',
+                  'Fix: remove MFG Unlocker for 2×, or install on the OptiScaler route for 3×/4×.']
+        generic = ['Acceleration: none (no acceleration log).',
+                   'Check: the launch options for BC250_XEFG_DISABLE, and BC250-MFG.log for FAST_FALLBACK, FAST_SKIP or FAST_ASIDE lines.']
+        # The game's own XeSS FG with MFG Unlocker loaded: FAST_SKIP beside another module, no FAST_OWNER and no
+        # CONTEXT_CALLER (no OptiScaler context reached the choice). Named on any route, also with the route unknown.
+        skipped = self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + self.SKIP + self.GENERATES
+        self.logs(skipped, unlocker=True)
+        self.assertEqual(self.case('native'), ('not-running', 'native-beside-mfg-unlocker', 0, native))
+        self.assertEqual(self.case(None), ('not-running', 'native-beside-mfg-unlocker', 0, native))
+        opti = self.case('opti')
+        self.assertEqual(opti[:2], ('not-running', 'native-beside-mfg-unlocker'))
+        self.assertTrue(opti[3][1].startswith('Fix: in the game, use the frame generation of the installation\'s OptiScaler input'))
+        # BC250_XEFG_DISABLE=1 on the OptiScaler route beside MFG Unlocker: OptiScaler's context logs CONTEXT_CALLER first.
+        disabled = self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + 'CONTEXT_CALLER Z:\\Game\\dxgi.dll\n' + self.SKIP + self.GENERATES
+        self.logs(disabled, unlocker=True)
+        for route in ('opti', None):
+            self.assertEqual(self.case(route), ('not-running', None, 0, generic), route)
+        # Another module than MFG Unlocker.
+        self.logs(self.READY + self.COEXIST.format(module='Z:\\mods\\Other.asi') + self.SKIP + self.GENERATES)
+        self.assertTrue(self.case('native')[3][0].startswith('Acceleration: none. Another module (Other.asi) hooks Intel'))
+        # BC250_XEFG_DISABLE=1 on the native route: frames generated, nothing accelerated, no line explains it.
+        self.logs(self.READY + self.GENERATES)
+        self.assertEqual(self.case('native'), ('not-running', None, 0, generic))
+        # XeFG never made a context (frame generation off): not used, nothing to fix.
+        self.logs(self.READY)
+        self.assertEqual(self.case('native')[0::3], ('idle', ['Acceleration: not used (no XeFG frame-generation context in the last session).']))
+        # A proxy that failed already says why (its own Log: line): no second explanation.
+        self.logs("MFG proxy: Intel XeFG runtime did not load (error 126)\n")
+        self.assertEqual(self.case('native')[3], [])
+
+    def test_acceleration_from_unusual_logs(self):
+        # No logs, garbled logs, a symlinked log or INI, logs of another format: no crash, and no claim the logs do not make.
+        self.assertIsNone(c.last_run(self.root, 'native')['acceleration'])
+        (self.root/'BC250-MFG.log').write_bytes(b'\xff\xfe\x00FAST_OWNER\x00 garbage \xc3\x28\n' * 50)
+        (self.root/'BC250-XeFG-fast.log').write_bytes(b'\x00\xffREPLACE 0123 7\n\x89PNG REPLACE nothing\n')
+        (self.root/'OptiScaler.ini').write_bytes(b'\xff[XeFG\nXeFGModel\n=\n[[[')
+        run = c.last_run(self.root, 'native')
+        self.assertEqual((run['acceleration'], run['own_programs'], run['owner'], run['xefg_model']), (None, 0, False, None))
+        self.assertEqual(c.acceleration_lines(run), [])
+        # A symlinked fast log or INI is not read.
+        for name in ('BC250-MFG.log', 'BC250-XeFG-fast.log', 'OptiScaler.ini'):
+            (self.root/name).unlink()
+        elsewhere = self.root/'elsewhere'
+        elsewhere.mkdir()
+        (elsewhere/'fast.log').write_text(''.join(f'REPLACE {i:016x} 1\n' for i in range(13)))
+        (elsewhere/'OptiScaler.ini').write_text('[XeFG]\nXeFGModel=default\n')
+        (self.root/'BC250-XeFG-fast.log').symlink_to(elsewhere/'fast.log')
+        (self.root/'OptiScaler.ini').symlink_to(elsewhere/'OptiScaler.ini')
+        (self.root/'BC250-MFG.log').write_text(self.READY + self.OWNER)
+        run = c.last_run(self.root, 'native')
+        self.assertEqual((run['own_programs'], run['xefg_model'], run['acceleration']), (0, None, None))
+        # An earlier build's fast log (stage lines, no REPLACE): the logs do not say how much ran.
+        (self.root/'BC250-XeFG-fast.log').unlink()
+        (self.root/'BC250-XeFG-fast.log').write_text('WINOGRAD_EXECUTE shader=aa\n')
+        self.assertIsNone(c.last_run(self.root, 'native')['acceleration'])
+        # MFG Unlocker known only from the files it writes beside the executable.
+        (self.root/'BC250-XeFG-fast.log').unlink()
+        (self.root/'RTXMFG-Universal.status.json').write_text('{}')
+        self.assertEqual(c.last_run(self.root)['mfg_unlocker'], 'RTXMFG-Universal.status.json')
+
+    def test_stale_fast_log_is_not_this_session(self):
+        # BC250-MFG.log is new at every start; the fast log only in a session with FAST_OWNER. A full fast log left by
+        # an earlier session must not make a session that accelerated nothing look full.
+        full_fast = ''.join(f'REPLACE {i:016x} 56888\n' for i in range(13))
+        skipped = self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + self.SKIP + self.GENERATES
+        for proxy, route, expected in ((skipped, 'native', ('not-running', 'native-beside-mfg-unlocker')),
+                                       (self.READY + self.GENERATES, 'native', ('not-running', None)),  # BC250_XEFG_DISABLE
+                                       (self.READY, 'native', ('idle', None))):                          # FG off
+            with self.subTest(expected=expected):
+                self.logs(proxy, unlocker=proxy is skipped)
+                (self.root/'BC250-XeFG-fast.log').write_text(full_fast)
+                run = c.last_run(self.root, route)
+                self.assertEqual((run['acceleration'], run['acceleration_reason'], run['own_programs'], run['fast_stale']),
+                                 expected + (0, True))
+                self.assertNotIn('full', '\n'.join(c.acceleration_lines(run)))
+        # The tester's sequence: native 2x worked, then MFG Unlocker added. Status gives one consistent answer.
+        self.logs(skipped, unlocker=True)
+        (self.root/'BC250-XeFG-fast.log').write_text(full_fast)
+        run = c.last_run(self.root, 'native')
+        self.assertEqual(c.setup_notes(self.root, 'native', run=run), [])
+        self.assertTrue(c.acceleration_lines(run)[0].startswith('Acceleration: none. MFG Unlocker is loaded'))
+        # An empty BC250-MFG.log (a session that ended before its first line) is still this session's: the fast log is not.
+        (self.root/'BC250-MFG.log').write_bytes(b'')
+        run = c.last_run(self.root, 'native')
+        self.assertEqual((run['fast_stale'], run['own_programs'], run['acceleration']), (True, 0, None))
+        # With no BC250-MFG.log at all (another format), the fast log is still read.
+        (self.root/'BC250-MFG.log').unlink()
+        self.assertEqual(c.last_run(self.root, 'native')['own_programs'], 13)
+
+    def test_acceleration_stepped_aside(self):
+        # FAST_ASIDE (an unverified census or work order beside another module): the REPLACE lines were written before,
+        # but this build's shaders are off for the rest of the session.
+        aside = ("FAST_ASIDE model census not verified, with another module hooking Intel's XeFG runtime: this context now runs "
+                 "Intel's (or that module's) shaders; FreeFG's are off until it is destroyed\n")
+        self.logs(self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + 'CONTEXT_CALLER Z:\\Game\\dxgi.dll\n' + self.OWNER
+                  + self.BESIDE + self.GENERATES + aside, 13, 2, model='default', unlocker=True)
+        with open(self.root/'BC250-XeFG-fast.log', 'a') as f:
+            f.write(aside)
+        kind, why, n, lines = self.case('opti')
+        self.assertEqual((kind, why, n), ('not-running', 'aside', 13))
+        self.assertEqual(lines, ["Acceleration: stepped aside during the session (model census not verified): Intel's or the other "
+                                 "module's shaders ran from then on.",
+                                 'Fix: use MFG Unlocker v1.6.0 (the version this build was checked with) with XeFGModel=default, or '
+                                 'remove the other module.'])
+
+    def test_partial_beside_renamed_mfg_unlocker(self):
+        # MFG Unlocker under another name: the RTXMFG-* files or the FAST_COEXIST line still give the XeFGModel fix.
+        proxy = self.READY + self.COEXIST.format(module='RTXUnlocker.asi') + self.SKIP + self.OWNER + self.BESIDE + self.GENERATES
+        self.logs(proxy, 7, 1)
+        (self.root/'RTXMFG-Universal.status.json').write_text('{}')
+        kind, why, n, lines = self.case('opti')
+        self.assertEqual((kind, why), ('partial', 'mfg-unlocker-model'))
+        self.assertIn("MFG Unlocker's own model", lines[0])
+        self.assertTrue(lines[1].startswith('Fix: set XeFGModel=default'))
+        (self.root/'RTXMFG-Universal.status.json').unlink()
+        kind, why, n, lines = self.case('opti')
+        self.assertEqual((kind, why), ('partial', 'mfg-unlocker-model'))
+        self.assertIn('(RTXUnlocker.asi)', lines[0])
+
+    def test_xefg_model_reader(self):
+        self.assertIsNone(c.xefg_model(self.root))
+        # A BOM before a first [XeFG] section (install.read_ini accepts and keeps one).
+        (self.root/'OptiScaler.ini').write_bytes(b'\xef\xbb\xbf[XeFG]\r\nXeFGModel = default\r\n')
+        self.assertEqual(c.xefg_model(self.root), 'default')
+        (self.root/'OptiScaler.ini').write_text('[xefg]\r\n  xefgmodel =  Default  \r\n[Other]\r\nXeFGModel=xess\r\n')
+        self.assertEqual(c.xefg_model(self.root), 'Default')
+        (self.root/'OptiScaler.ini').write_text('[XeFG]\nForceBorderless=true\n[XeFG]\nXeFGModel=\n')  # configparser refuses this
+        self.assertEqual(c.xefg_model(self.root), '')
+
+    def test_setup_notes(self):
+        unset = ('MFG Unlocker (OptiScaler/plugins/MFGUnlocker.asi) is in this game folder and XeFGModel is not set: on MFG Unlocker\'s '
+                 'own model this build\'s shaders run on 7 of their 13 programs. Fix: set XeFGModel=default under [XeFG] in '
+                 'OptiScaler.ini (a new Install writes it where it is unset).')
+        native = ('MFG Unlocker (OptiScaler/plugins/MFGUnlocker.asi) is in this game folder: on the native route this build does not '
+                  'accelerate the game\'s own XeSS frame generation beside it, which then runs without this build\'s shaders. Remove it '
+                  'for 2×, or install on the OptiScaler route for 3×/4×.')
+        self.assertEqual(c.setup_notes(self.root, 'opti'), [])
+        self.logs(self.READY, unlocker=True)
+        self.assertEqual(c.setup_notes(self.root, 'opti'), [unset])
+        self.assertEqual(c.setup_notes(self.root, None), [unset])
+        self.assertEqual(c.setup_notes(self.root, 'opti', installed=False), [])  # a new Install writes it
+        self.assertEqual(c.setup_notes(self.root, 'native'), [native])
+        self.assertEqual(c.setup_notes(self.root, 'native', installed=False), [native])
+        self.logs(self.READY, model='auto', unlocker=True)
+        self.assertIn('XeFGModel is auto', c.setup_notes(self.root, 'opti')[0])
+        self.logs(self.READY, model='default', unlocker=True)
+        self.assertEqual(c.setup_notes(self.root, 'opti'), [])
+        # This build's own plugin is not MFG Unlocker; leftover RTXMFG files alone do not warn.
+        self.logs(self.READY)
+        (self.root/'OptiScaler/plugins/BC250-MFG.asi').write_bytes(b'addon')
+        (self.root/'RTXMFG-Universal.status.json').write_text('{}')
+        self.assertEqual(c.setup_notes(self.root, 'native'), [])
+        # The last run already gives the advice: said once.
+        self.logs(self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + self.OWNER, 7, 1, unlocker=True)
+        run = c.last_run(self.root, 'opti')
+        self.assertEqual(c.setup_notes(self.root, 'opti', run=run), [])
+        self.logs(self.READY + self.COEXIST.format(module='MFGUnlocker.asi') + self.SKIP + self.GENERATES, unlocker=True)
+        self.assertEqual(c.setup_notes(self.root, 'native', run=c.last_run(self.root, 'native')), [])
+
+    def test_key_rule_xefg_model(self):
+        self.assertEqual(c.key_rule('XeFG.XeFGModel', 'default')[0], 'redundant')
+        self.assertEqual(c.key_rule('XeFG.XeFGModel', 'xess')[0], 'installer')
 
     def test_report_has_no_home_path_or_user_name(self):
         home = Path('/srv/users/somebody')

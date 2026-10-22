@@ -219,7 +219,7 @@
     "release/assemble.py (package_naming: bc250-fsr4-xemfg-private-test-NN[-variant], or public_template)",
     "scripts/test_game_install.py (fixture name)"
    ],
-   "public_template": "{slug}-1.1.0",
+   "public_template": "{slug}-1.1.1",
    "public_receipt_template": "{slug}-{version}-package.json",
    "patterns": [
     "(?:bc250-fsr4-xemfg-)?private-test-(?:\\d+|NN|\\(\\\\d\\+\\))(?:-[a-z0-9]+)*"
@@ -227,7 +227,7 @@
    "replacements": [
     {
      "pattern": "(\"name\": \")bc250-fsr4-xemfg-private-test-(\\d+)-intel-free-mfg(\")",
-     "template": "\\1{slug}-1.1.0\\3",
+     "template": "\\1{slug}-1.1.1\\3",
      "files": [
       "release/package.json"
      ]
