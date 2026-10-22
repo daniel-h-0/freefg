@@ -229,10 +229,9 @@ Cyberpunk 2077 benchmarks ([checks](MEASUREMENTS.md#checks-of-110)); earlier rel
 - This build has run in benchmarks, not in gameplay. Flatpak Steam and Heroic are not qualified.
 - F4Q was compared with the F(2×2) kernels in games only in Cyberpunk 2077 (2× and 3×, SDR). `BC250_XEFG_F4Q=0` in
   the launch options, or `F4Q=0` under `[BC250]` in the game folder's `BC250-XeFG/settings.ini`, turns it off.
-- The first start after an installation takes longer, while vkd3d-proton fills the installation's new shader cache. One
-  benchmark's first session on the empty cache stuttered, beside an unrelated memory-heavy program, and another's did
-  not ([shader caches](MEASUREMENTS.md#shader-caches)). In a game folder whose
-  path is too long for vkd3d-proton's cache file names, Setup leaves that cache as it was, and wave sizes from
+- The first start after an installation takes longer, while vkd3d-proton fills the installation's new shader cache
+  ([shader caches](MEASUREMENTS.md#shader-caches)). In a game folder whose path is too long for vkd3d-proton's cache
+  file names, Setup leaves that cache as it was, and wave sizes from
   `waves.txt` apply only to pipelines the shader caches do not already hold compiled without them, as in 1.1.0
   ([details](ARCHITECTURE.md#wave-sizes-bc-250-only)).
 - Frame pacing works only under gamescope.

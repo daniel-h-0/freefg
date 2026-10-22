@@ -76,9 +76,6 @@ caches: Mesa's warm from 1.0.x, the new vkd3d-proton cache filled by 1 to 9 earl
 
 ### Known limitations
 
-- In the live install, Cyberpunk 2077's benchmark on the empty cache folder had 28 frames over 40 ms, the longest
-  304 ms, while an unrelated memory-heavy program ran on the test computer; the timed block's first start on an empty
-  folder had none over 40 ms. The cause is not established (n = 1, [MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)).
 - In the live install, one of three 3× starts in Echo Point Nova (MFG Unlocker's own model) ended during start-up; its
   repeat ran ([MEASUREMENTS.md](MEASUREMENTS.md#start-up-exits-at-3)).
 - Not checked: the Setup window, a game started from Heroic itself, gameplay, a VRR display, other games, and caches

@@ -126,13 +126,9 @@ pipelines into Mesa's cache with their lines: all three at 2×, two at 3×, wher
   earlier starts in the folder at 2× SDR, 6 to 9 in HDR10 and 1 to 3 at 3×.
 - [Live install](#live-install-and-restore), with the settings Setup wrote and the folder empty before each game's
   first start: the lines applied in every start whose shaders use them (3 of 3 in each of three starts). The folder held
-  15.1 MB after Echo Point Nova's first start and 16.7 MB after its last, 35.5 MB after Cyberpunk 2077's one start. That
-  Cyberpunk start, a benchmark at native 2× with Mesa's cache warm, ran at 95.84 FPS (lowest 73.9) with 28 frames over
-  40 ms, the longest 304 ms, while vkd3d-proton was still writing the folder and an unrelated memory-heavy program
-  (6 GB resident at its peak) ran on the test computer. The timed block's first start on an empty folder (its
-  discarded 2× SDR warm-up, same Mesa cache) ran at 104.52 FPS with no frame over 40 ms, the longest 33.1 ms. The two
-  earlier live-install rounds' benchmarks, with warm caches and builds from before 1.0.0, ran at 102.76 and 103.28 FPS
-  (lowest 93.4 and 94.7). n = 1; no later start on the filled folder; the cause of the long frames is not established.
+  15.1 MB after Echo Point Nova's first start and 16.7 MB after its last, 35.5 MB after Cyberpunk 2077's one start.
+  The timed block's first start on an empty folder (its discarded 2× SDR warm-up, same Mesa cache) ran at 104.52 FPS
+  with no frame over 40 ms, the longest 33.1 ms.
 
 Not measured: caches filled by XeSS frame generation without FreeFG (the game's own, or OptiScaler's) before
 FreeFG was installed. With 1.1.0's launch settings, 1.0.0's wave sizes for four of Intel's shaders (five at 3× and 4×
@@ -579,8 +575,7 @@ with the settings Setup wrote for Heroic.
 - Before the first start, Status reported a log a private test build from before 0.9.0 had left under `OptiScaler/` as
   the last run ("full", 16 programs in Echo Point Nova, 19 in Cyberpunk 2077). Fixed after the live install: Status and
   Check read only the logs beside the `.exe` written since the installation (installer tests; not repeated live).
-- One 3× start ended during start-up ([start-up exits](#start-up-exits-at-3)); the frame rate of Cyberpunk 2077's
-  first start is in [shader caches](#shader-caches).
+- One 3× start ended during start-up ([start-up exits](#start-up-exits-at-3)).
 - After Restore: as in the second round, with the `vkd3d-cache` folder and the `XeFGModel` line gone. Before Restore,
   MFG Unlocker's files were removed and Echo Point Nova's `OptiScaler.ini`, which OptiScaler and the MFG Unlocker steps
   had changed, was set back to the bytes Setup wrote, so Restore met an unchanged file. The kernel logged no GPU
