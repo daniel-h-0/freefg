@@ -105,10 +105,10 @@
    }
   },
   "fsr4-notices": {
-   "description": "Notices of the FSR4 RC11 DLL (the installer downloads the DLL from the public release; the same six files are in its zip under notices/). Shipped under licenses/fsr4/.",
+   "description": "Notices of the FSR4 RC12 DLL (the installer downloads the DLL from the public release; the same six files are in its zip under notices/). Shipped under licenses/fsr4/.",
    "repository": "https://github.com/daniel-h-0/bc250-fsr4-fork",
-   "commit": "f37421e7befb11a3a50f6f385332a8d1e02e7190",
-   "tag": "v4.0.0-rc11",
+   "commit": "b2ab949477b4d2745babae146393db5537d87fcb",
+   "tag": "v4.0.0-rc12",
    "url": "https://raw.githubusercontent.com/daniel-h-0/bc250-fsr4-fork/{commit}/{path}",
    "files": {
     "AMD-SDK-LICENSE.md": {
@@ -128,7 +128,7 @@
      "source": "dll/notices/LICENSE.new-code"
     },
     "PROVENANCE.md": {
-     "sha256": "1d9cddf9d57a3e84b21c624bf66841469f1aae411031cc9b4af6d547df18aa45",
+     "sha256": "99080aa86e424e19621477fb9321048afadaf725bf7ef5fae5f03f0b1b5638e8",
      "source": "dll/notices/PROVENANCE.md"
     },
     "V4-THIRD-PARTY.md": {
@@ -490,10 +490,20 @@
   "about": "Pinned inputs that are files of this repository, read in place (no work directory, no download): the shader files only the multi-frame build ships (release/profile-mfg, with their HLSL recipes in its origin.json; release/build_profile.py compiles each again and compares). release/check_intel_free.py counts their shaders as this project's own (origin \"own\"), as the own files of the work profile.",
   "profile-intel-free-mfg": {
    "path": "release/profile-mfg",
-   "description": "Own shader files of the multi-frame build (release/intel_free_mfg.json profile \"replace\" and \"add\"): the nine U-Net shaders of release/profile compiled with XU1=1 (FP16-pair input transform; the same results), which replace their release/profile files in its profile, and F4Q's F(4x4) kernels for b3941ac8 and f030948d with the five check kernels of its diagnostic.",
+   "description": "Own shader files of the multi-frame build (release/intel_free_mfg.json profile \"replace\" and \"add\"): the nine U-Net shaders of release/profile compiled with XU1=1 (FP16-pair input transform; the same results) and the three fused refinement shaders compiled with GX=16 and ACC_SHR=1 (the same results), which replace their release/profile files in its profile; F4Q's F(4x4) kernels for b3941ac8 and f030948d with the five check kernels of its diagnostic; F4Q2's F(4x4) kernels for 1a3b0782, e83e868f and 9e0080ee; F4Q3's for 60edebbb and b3ddf030; and the seven FP16 forms (<hash>.fp16.dxil) of the F4Q2 encoders and four F(2x2) layers.",
    "files": {
     "1a3b0782583fef19.dxil": {
      "sha256": "5102c7c5dc57d822cddc3f92206bc245c4eb62fd14cfa12b2dd8ce002c118eba",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1a3b0782583fef19.f4q.dxil": {
+     "sha256": "50bf28dfc2a000c32a4fa41e39609f20f7681aeac5a983d86c8e627688a3f808",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1a3b0782583fef19.fp16.dxil": {
+     "sha256": "2de43b95fe7a17e64dbc190d4dde0d3287178de2cf046c59c57dae05c9b461f6",
      "shader_model": "6.6",
      "origin": "own"
     },
@@ -502,8 +512,18 @@
      "shader_model": "6.6",
      "origin": "own"
     },
+    "1f27b449fb99a587.fp16.dxil": {
+     "sha256": "c91dd2aedc47edacc37cb91d3d47c6ce3a23ea602627b8812a2fb693b6e7642c",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
     "4bb52a635e6d221a.dxil": {
      "sha256": "c157909434e3d952ea9e6e13bf6b7741e9393d4d850b65bcbca070b0014923cf",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "4bb52a635e6d221a.fp16.dxil": {
+     "sha256": "b612da7889c2bfea72a0162acc818cbe6b1937d75d545f54cefe31cee313bb46",
      "shader_model": "6.6",
      "origin": "own"
     },
@@ -512,8 +532,28 @@
      "shader_model": "6.6",
      "origin": "own"
     },
+    "5654aa3800432b13.fp16.dxil": {
+     "sha256": "4ffe27941c7b3c7103d82985d00bb3d12775bfd0f2550efe4a31169604fb0251",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "60edebbbd2f9fb69.f4q.dxil": {
+     "sha256": "de9707aad5e1e25aa67873b72aca4fc4cc38d477666c72c8c1cacae68ca7c5e7",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
     "9e0080eee00255f2.dxil": {
      "sha256": "a08122f6bd8d8aa5dc6b0f244e5eece76a3367ba61ac09e0dc6b253544f5887b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "9e0080eee00255f2.f4q.dxil": {
+     "sha256": "47241a08151a74804826c2d423db94c5f38a741e45a9977cdee5cc99587b5f53",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "9e0080eee00255f2.fp16.dxil": {
+     "sha256": "7c846d7f501c3341def86bccecf67a968810954af9ff8584ae92853fd6fcf4aa",
      "shader_model": "6.6",
      "origin": "own"
     },
@@ -523,12 +563,27 @@
      "origin": "own"
     },
     "b3941ac8ff95efe7.f4q.dxil": {
-     "sha256": "e6b90eeddf3799e6f5e337638e30dbbd4fa6a0ce8c17dd7a92b5d00ad86cab82",
+     "sha256": "92c4634c2124b37522206c2fefa29d52828b90a2aab488f49536819284d1451a",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3ddf030f661d487.f4q.dxil": {
+     "sha256": "44dd92b3ef0515de9c254b75ba5d4a8a994bcb046a88adceff96e56ac5d004f0",
      "shader_model": "6.6",
      "origin": "own"
     },
     "e83e868f8d5d2c0f.dxil": {
      "sha256": "c536266261752dac662c703f02934aefa30fc3dfb8d3b168c90e4e95ba19db85",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "e83e868f8d5d2c0f.f4q.dxil": {
+     "sha256": "82e265e634740a50bd5ee1a753aad9d6d4572d20eec9dd8ec28d7e3ed04db6f2",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "e83e868f8d5d2c0f.fp16.dxil": {
+     "sha256": "b0f845b60c0848258a6c7c4e19f1ef820aa69ec16c16d14cf4c530606589e547",
      "shader_model": "6.6",
      "origin": "own"
     },
@@ -538,12 +593,17 @@
      "origin": "own"
     },
     "f030948d38e74671.f4q.dxil": {
-     "sha256": "7cc03f61410a41ef1b73564946ec8096bd0643faee26ce443e03c0fab82e9e3e",
+     "sha256": "5bdbbe64d37b03610a67e8200e4bcb6037d0cc28f01c74cc65c5829ef301eb4c",
      "shader_model": "6.6",
      "origin": "own"
     },
     "f2e2e13fea432d20.dxil": {
      "sha256": "97ee2d2116a82549e505ebf653a809b0a573548945160b65e7aece766c4cd597",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f2e2e13fea432d20.fp16.dxil": {
+     "sha256": "839b6bae6618808e8b85188f1c9b7e2fae74a793a6849440a91ff3599e53ed44",
      "shader_model": "6.6",
      "origin": "own"
     },
@@ -569,6 +629,21 @@
     },
     "f4q-check-uav-uint.dxil": {
      "sha256": "260000a3bdd2b6b43d54b45cb5e35d1ef3edcc56bea94bb03c2366fe47e461ba",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "wino-ref64-16.dxil": {
+     "sha256": "b14d487029f2d84f114ba525b046085b0491ef2d4075ba4f248e14120643bae5",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "wino-ref64-17.dxil": {
+     "sha256": "65db21974c9a898cf023b00546abd78ceeffd31357391551ced96d5e38a10426",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "wino-ref64-18.dxil": {
+     "sha256": "b804f8f2aee6395a372a32445d9d21c81cfafb09fb4e82ec42fbf638b06f3efe",
      "shader_model": "6.6",
      "origin": "own"
     }
@@ -654,6 +729,6 @@
   "libxefg_wave.so": "d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271",
   "BC250-MFG.asi (intel-free)": "28246c08a28876197a85f4888eae43339837b1b2fa22ae344fcfa4db7cfe9b4c",
   "libxess_fg.dll (intel-free-2x)": "3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410",
-  "libxess_fg.dll (intel-free-mfg)": "830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a"
+  "libxess_fg.dll (intel-free-mfg)": "b0b71d6575ad8c27072741545459364a880ccb6f0f369a23de58558f02505ec3"
  }
 }

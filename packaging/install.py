@@ -27,7 +27,11 @@ DLSS_HELPER='nvngx_dlss.dll'
 # (OptiScaler/amd_fidelityfx_upscaler_dx12.dll in a fresh setup): the BC-250 build of FSR 4 (default) or HelixSR, a separate
 # project by lonewolf0622 that the user's own HelixSR setup built on this computer (helixsr.py). Frame generation is XeFG
 # either way.
-UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC11)','helixsr':helixsr.LABEL}
+UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC12)','helixsr':helixsr.LABEL}
+# BC-250 builds of the FSR 4 DLL by SHA-256: the one dependencies.json pins (RC12, since 1.1.2) and the one earlier builds
+# installed (RC11), so Status names the build a game has and records of earlier builds stay readable.
+FSR4_BUILDS={'4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79':'RC12',
+             '8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175':'RC11'}
 CHANGES={('Upscalers','Dx12Upscaler'):'ffx',('FSR','UpscalerIndex'):'0',
          ('FSR','Fsr4ForceModel'):'2',('FSR','Fsr4EnableWatermark'):'auto',
          ('FrameGen','Enabled'):'false',('fakenvapi','UseFakenvapi'):'false'}
@@ -422,9 +426,10 @@ def helper_line(helper):
                'an NVIDIA one (OptiScaler’s own default in a game without DLSS); --dlss-helper yes places the helper and keeps '
                'NVIDIA spoofing on.')
     return line
-def upscaler_line(upscaler):
-    """One line naming a game's upscaler (records of earlier builds have none: FSR 4)."""
-    if (upscaler or {}).get('name')!='helixsr':return 'Upscaler: FSR 4 (BC-250 build RC11).'
+def upscaler_line(upscaler,dll=None):
+    """One line naming a game's upscaler (records of earlier builds have none: FSR 4); dll, the SHA-256 of the FSR 4 DLL
+    placed, names its build."""
+    if (upscaler or {}).get('name')!='helixsr':return 'Upscaler: FSR 4 (BC-250 build'+(' '+FSR4_BUILDS[dll] if dll in FSR4_BUILDS else '')+').'
     return ('Upscaler: HelixSR '+str(upscaler.get('version'))+', a separate project by '+helixsr.AUTHOR+' ('+helixsr.PROJECT+') under its '
             'own licence, running NVIDIA’s DLSS network; built on this computer by HelixSR’s own setup. In the game, choose the '
             'upscaler as for FSR 4. Frame generation stays XeFG (HelixSR’s own frame generation is off in '+upscaler['ini']+').')
@@ -1138,7 +1143,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         if vkd3d_cache is not None:print('vkd3d-proton shader cache: '+str(vkd3d_cache))
         for item in settings_plan:print(('Game setting: ' if item['after'] is not None else 'Game setting (pending): ')+item['file'])
         if helper:print(helper_line(helper))
-        print(upscaler_line(upscaler_record))
+        print(upscaler_line(upscaler_record,runtime['Files'].get('fsr4/'+DLL)))
         for line in notes:print(line)
         return
     print('Installing '+('HelixSR' if helix else 'FSR 4')+', frame generation and launcher settings; saving original files.')
@@ -1211,7 +1216,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     skipped=[a for a in launch_args if a not in added]
     if skipped and launchers:print('Launch option not added: '+' '.join(skipped)+' (the launch options already choose a graphics API, or the launcher’s arguments are not managed)')
     if helper and (helper['placed'] or helper['game_copy'] or helper.get('dxgi_spoofing') or dlss_helper!='auto'):print(helper_line(helper))
-    print(upscaler_line(upscaler_record))
+    print(upscaler_line(upscaler_record,runtime['Files'].get('fsr4/'+DLL)))
     if vkd3d_cache is not None and any(launcher_config.planned_environment(row).get('VKD3D_SHADER_CACHE_PATH')==str(vkd3d_cache) for row in launchers):
         print('vkd3d-proton keeps this game’s shader cache in '+str(vkd3d_cache)+': the first start fills it and takes longer.')
     for line in notes:print(line)
@@ -1350,11 +1355,12 @@ def restore(exe):
 
 def upscaler_target(record,pins):
     """(installation's upscaler record, the managed file that holds the upscaler DLL). Records of earlier builds have no
-    upscaler record: their FSR 4 DLL is the managed file installed with the pinned FSR 4 bytes."""
+    upscaler record: their FSR 4 DLL is the managed file installed with the pinned FSR 4 bytes or an earlier pin's
+    (FSR4_BUILDS)."""
     upscaler=dict(record.get('upscaler') or {})
     if not upscaler:
-        fsr4=pins['runtime']['Files'].get('fsr4/'+DLL)
-        found=[item['path'] for item in record['files'] if item['after']==fsr4 and Path(item['path']).name.lower()==DLL]
+        fsr4={pins['runtime']['Files'].get('fsr4/'+DLL),*FSR4_BUILDS}
+        found=[item['path'] for item in record['files'] if item['after'] in fsr4 and Path(item['path']).name.lower()==DLL]
         if len(found)!=1:raise ValueError('This installation’s upscaler DLL cannot be identified; Restore, then Install with --upscaler')
         upscaler=dict(name='fsr4',target=found[0])
     if upscaler['target'] not in {item['path'] for item in record['files']}:raise ValueError('This installation does not manage the upscaler DLL; Restore, then Install with --upscaler')
@@ -1435,7 +1441,7 @@ def switch_upscaler(package,root,record,upscaler,helixsr_dir=None,dependency_dir
         notes=put_back_helixsr_log(root,state,dict(current,log=log_rel),[]) if current['name']=='helixsr' else []
         new_record=dict(name='fsr4',target=target,displaced_log=False);messages+=notes
     record['upscaler']=new_record;write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
-    messages.append('Upscaler switched. '+upscaler_line(new_record))
+    messages.append('Upscaler switched. '+upscaler_line(new_record,digest(new)))
     return messages
 
 @locked
@@ -1532,7 +1538,9 @@ def status(exe):
     for item in record.get('game_settings',[]):print('Game setting '+item['status']+': '+item['file']+(' ('+item['reason']+')' if item.get('reason') else ''))
     if record.get('dlss_helper'):print(helper_line(record['dlss_helper']))
     upscaler=record.get('upscaler') or {}
-    print(upscaler_line(upscaler))
+    placed=[item['after'] for item in record['files'] if item['path']==upscaler['target']] if upscaler.get('target') else \
+        [item['after'] for item in record['files'] if Path(item['path']).name.lower()==DLL and item['after'] in FSR4_BUILDS]
+    print(upscaler_line(upscaler,placed[0] if len(placed)==1 else None))
     if upscaler.get('name')=='helixsr':
         log=log_path(root,upscaler['log'])
         print('HelixSR log: '+(str(log) if log is not None and log.is_file() else

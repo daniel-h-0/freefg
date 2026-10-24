@@ -405,7 +405,7 @@ class InstallationTests(GameFixture):
         # Offline, a GitHub error or a changed release asset: the preview refuses, so the owner's check refuses the move.
         def offline(package,groups):
             self.prepared.append(list(groups))
-            if 'runtime' in groups:raise ValueError('Cannot download bc250-fsr4-dll-4.0.0-rc11.zip')
+            if 'runtime' in groups:raise ValueError('Cannot download bc250-fsr4-dll-4.0.0-rc12.zip')
             return self.deps
         with patch.object(m,'prepare_dependencies',side_effect=offline):
             with self.assertRaisesRegex(ValueError,'Cannot download'):m.install(self.package,self.exe,preview=True)

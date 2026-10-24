@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Exact Winograd F(2x2,3x3) int8 3x3 convolution of 16-channel texture slices, with optional 2x2 max-pool, per-channel scale/bias, clamp and pack.
 Texture2DArray<uint4> src : register(t0);
+#ifndef PK16
+#define PK16 0 // 1: packed-FP16 MACs (pk16.hlsli); the outputs can differ from the exact form's
+#endif
+#if PK16
+// PK16 (pk16.hlsli): the same buffer read as FP16 quads (byte offset 16 F = quads 2 F, 2 F + 1), so each coefficient pair
+// is one 16-bit vector load and the MACs vectorize to v_pk_fma_f16 (vkd3d-proton binds SRVs as SSBOs: the view is a byte
+// range, the element type is the shader's).
+StructuredBuffer<float16_t4> model : register(t1);
+#define MODEL_ZERO_INT int(uint(asuint16(model[2 * (WINO_ZERO)].x)))
+#else
 StructuredBuffer<float4> model : register(t1);
+#define MODEL_ZERO_INT asint(model[WINO_ZERO].x)
+#endif
 StructuredBuffer<float4> scale : register(t2);
 StructuredBuffer<float4> bias : register(t3);
 RWTexture2DArray<uint4> dst : register(u0);
@@ -68,6 +80,9 @@ uint4 load_patch(int x, int y) { uint4 w = src.Load(int4(x, y, 0, 0)); return ui
 #ifndef FLOAT_ALL
 #define FLOAT_ALL 0
 #endif
+#if PK16
+#include "pk16.hlsli"
+#endif
 #ifndef KSPLIT
 #define KSPLIT 1 // split-K (NOPOOL multi-slice): waves per channel half, each summing CIN_SLICES / KSPLIT input slices
 #endif
@@ -112,7 +127,7 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
 #if PHASED
     // Per-word phases: only one 32-bit word per texel is live. An opaque zero from the
     // model segment keeps the four phases' loads distinct (no CSE back into uint4 loads).
-    int zero = asint(model[WINO_ZERO].x);
+    int zero = MODEL_ZERO_INT;
     uint patch[4][4];
 #else
     uint4 patch[4][4];
@@ -143,6 +158,10 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
 #if !(CIN_SLICES > 1 && FLOAT_ALL)
     float m[16][8];
     [unroll] for (uint p = 0; p < 16; p++) [unroll] for (uint k = 0; k < 8; k++) m[p][k] = 0;
+#endif
+#if PK16
+    float16_t2 pk[16][4]; // [position][output-channel pair (2j, 2j + 1)]: this input slice's FP16 chains, units of 2^-8
+    [unroll] for (uint p = 0; p < 16; p++) [unroll] for (uint j = 0; j < 4; j++) pk[p][j] = float16_t2(0.0, 0.0);
 #endif
 #if XU1
     // XU1: the transform in FP16 pairs, L = 1024 + code (exact), signed values s = code - 128:
@@ -183,6 +202,13 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
             uint base = WINO_BASE + slice * 1024 + (h * 16 + c) * 32;
 #endif
             [unroll] for (uint p = 0; p < 16; p++) {
+#if PK16
+                float16_t4 whl = model[2 * (WINO16_BASE + (base - WINO_BASE) / 2 + p)], whu = model[2 * (WINO16_BASE + (base - WINO_BASE) / 2 + p) + 1]; // FP16 pairs U' * 2^-8
+                float16_t a16 = (cc & 1) ? vh[cc >> 1][p].y : vh[cc >> 1][p].x;
+                float16_t2 a2 = float16_t2(a16, a16);
+                pk[p][0] = mad(a2, whl.xy, pk[p][0]); pk[p][1] = mad(a2, whl.zw, pk[p][1]);
+                pk[p][2] = mad(a2, whu.xy, pk[p][2]); pk[p][3] = mad(a2, whu.zw, pk[p][3]);
+#else
 #if WHALF
                 uint4 wh = asuint(model[WINO16_BASE + (base - WINO_BASE) / 2 + p]); // FP16 pairs, exact (|U| <= 1152)
                 float4 w0 = float4(f16tof32(wh.x), f16tof32(wh.x >> 16), f16tof32(wh.y), f16tof32(wh.y >> 16));
@@ -195,9 +221,17 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
                 m[p][2] = mad(a, w0.z, m[p][2]); m[p][3] = mad(a, w0.w, m[p][3]);
                 m[p][4] = mad(a, w1.x, m[p][4]); m[p][5] = mad(a, w1.y, m[p][5]);
                 m[p][6] = mad(a, w1.z, m[p][6]); m[p][7] = mad(a, w1.w, m[p][7]);
+#endif
             }
         }
     }
+#if PK16
+    // Flush this slice's chains: value * 2^8 (an integer), added in FP32 (exact: every partial sum of the
+    // slice results is an integer below 2^24, the bound the FLOAT_ALL kernels' owner proves with a margin).
+    [unroll] for (uint p = 0; p < 16; p++) [unroll] for (uint j = 0; j < 4; j++) {
+        m[p][2 * j] = mad(float(pk[p][j].x), 256.0, m[p][2 * j]); m[p][2 * j + 1] = mad(float(pk[p][j].y), 256.0, m[p][2 * j + 1]);
+    }
+#endif
 #else
     [unroll] for (uint c = 0; c < 16; c++) {
 #if FP16T
@@ -304,10 +338,18 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
 #if CIN_SLICES > 1
 #if NOPOOL
     int y[4][8]; // acc order is pixel (0,0) (1,0) (0,1) (1,1)
+#if PK16
+    [unroll] for (uint px = 0; px < 4; px++) [unroll] for (uint k = 0; k < 8; k++) y[px][k] = pk16_shr(acc[px][k], 2);
+#else
     [unroll] for (uint px = 0; px < 4; px++) [unroll] for (uint k = 0; k < 8; k++) y[px][k] = acc[px][k] >> 2;
+#endif
 #else
     int q[8];
+#if PK16
+    [unroll] for (uint k = 0; k < 8; k++) q[k] = pk16_shr(max(max(acc[0][k], acc[1][k]), max(acc[2][k], acc[3][k])), 2);
+#else
     [unroll] for (uint k = 0; k < 8; k++) q[k] = max(max(acc[0][k], acc[1][k]), max(acc[2][k], acc[3][k])) >> 2;
+#endif
 #endif
 #elif NOPOOL
     // Plain conv: the 2x2 tile's four pixels are all outputs.
@@ -320,8 +362,13 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
             r[0][i] = mi[i] + mi[4 + i] + mi[8 + i];
             r[1][i] = mi[4 + i] - mi[8 + i] - mi[12 + i];
         }
+#if PK16
+        y[0][k] = pk16_shr(r[0][0] + r[0][1] + r[0][2], 2); y[1][k] = pk16_shr(r[0][1] - r[0][2] - r[0][3], 2);
+        y[2][k] = pk16_shr(r[1][0] + r[1][1] + r[1][2], 2); y[3][k] = pk16_shr(r[1][1] - r[1][2] - r[1][3], 2);
+#else
         y[0][k] = (r[0][0] + r[0][1] + r[0][2]) >> 2; y[1][k] = (r[0][1] - r[0][2] - r[0][3]) >> 2;
         y[2][k] = (r[1][0] + r[1][1] + r[1][2]) >> 2; y[3][k] = (r[1][1] - r[1][2] - r[1][3]) >> 2;
+#endif
     }
 #else
     int q[8];
@@ -335,7 +382,11 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
         }
         int y00 = r[0][0] + r[0][1] + r[0][2], y01 = r[0][1] - r[0][2] - r[0][3];
         int y10 = r[1][0] + r[1][1] + r[1][2], y11 = r[1][1] - r[1][2] - r[1][3];
+#if PK16
+        q[k] = pk16_shr(max(max(y00, y01), max(y10, y11)), 2);
+#else
         q[k] = max(max(y00, y01), max(y10, y11)) >> 2;
+#endif
     }
 #endif
 #if NOPOOL

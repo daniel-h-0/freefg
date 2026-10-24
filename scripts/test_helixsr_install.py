@@ -259,6 +259,32 @@ class Install(HelixFixture):
         self.assertIn('separate project by lonewolf0622', text)
 
 
+class FSR4Builds(HelixFixture):
+    """Status names the FSR 4 build a game has by its DLL's SHA-256: the one the package pins (RC12) or the one earlier
+    builds placed (RC11). Records of builds without an upscaler record that placed RC11 stay identifiable."""
+    RC12 = '4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79'
+    RC11 = '8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175'
+
+    def test_line_names_the_build(self):
+        pins = json.loads((Path(m.__file__).parent / 'dependencies.json').read_text())
+        self.assertEqual(m.FSR4_BUILDS[pins['runtime']['Files']['fsr4/' + m.DLL]], 'RC12')
+        self.assertEqual(m.upscaler_line(dict(name='fsr4'), self.RC12), 'Upscaler: FSR 4 (BC-250 build RC12).')
+        self.assertEqual(m.upscaler_line({}, self.RC11), 'Upscaler: FSR 4 (BC-250 build RC11).')
+        self.assertEqual(m.upscaler_line({}, m.digest(b'FSR')), 'Upscaler: FSR 4 (BC-250 build).')
+
+    def test_status_names_rc11_of_an_earlier_installation(self):
+        m.install(self.package, self.exe, route='opti')
+        state = self.game / m.STATE / 'state.json'; record = self.record()
+        for item in record['files']:
+            if item['path'] == 'OptiScaler/' + m.DLL:item['after'] = self.RC11
+        state.write_text(json.dumps(record))
+        self.assertIn('Upscaler: FSR 4 (BC-250 build RC11).', self.out(m.status, self.exe))
+        record.pop('upscaler'); state.write_text(json.dumps(record))  # a build from before HelixSR: no upscaler record
+        self.assertIn('Upscaler: FSR 4 (BC-250 build RC11).', self.out(m.status, self.exe))
+        self.assertEqual(m.upscaler_target(record, dict(runtime=dict(Files={'fsr4/' + m.DLL: self.RC12}))),
+                         dict(name='fsr4', target='OptiScaler/' + m.DLL))
+
+
 class Switching(HelixFixture):
     def test_fsr4_to_helixsr_and_back(self):
         m.install(self.package, self.exe, route='opti')

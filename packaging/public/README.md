@@ -3,9 +3,11 @@
 FreeFG makes Intel XeSS Frame Generation (XeFG) faster on the AMD BC-250, in DirectX 12 games under Proton on Linux.
 
 - Intel's runtime, downloaded unmodified, generates the frames. A proxy `libxess_fg.dll` runs part of its GPU work with
-  this project's own shaders, which are faster on the BC-250 and gave the same pixels where compared. Two of them,
-  F4Q's kernels (on by default), are identical in every test but not proven for every input
-  ([turn F4Q off](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)).
+  this project's own shaders, which are faster on the BC-250. **By default the generated frames differ slightly from
+  Intel's**: seven U-Net shaders run FP16 forms ([what changes](ARCHITECTURE.md#fp16-forms-the-default-slightly-different)).
+  With `BC250_XEFG_EXACT=1` (or `Exact=1` in `BC250-XeFG/settings.ini`) every shader runs its exact form, and the
+  pixels were identical to Intel's where compared. Seven of those, the F4Q kernels, are identical in every test but not
+  proven for every input ([turn them off](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)).
 - A Vulkan layer paces the output for VRR displays. Upscaling runs through OptiScaler, with a BC-250 build of AMD FSR 4
   or with HelixSR.
 - On GPUs other than Intel's, the runtime generates 2× (Intel's documented limit); FreeFG does not raise that limit.
@@ -82,7 +84,7 @@ path in `OptiScaler.ini`, symlinked game files or another proxy DLL need manual 
 
 ## Upscaler: FSR 4 or HelixSR
 
-FSR 4 (the BC-250 build, RC11) is the default. [HelixSR](https://github.com/lonewolf0622/HelixSR) by lonewolf0622
+FSR 4 (the BC-250 build, RC12) is the default. [HelixSR](https://github.com/lonewolf0622/HelixSR) by lonewolf0622
 runs NVIDIA's DLSS upscaling network without an NVIDIA GPU; FreeFG ships none of it
 ([NOTICE.md](NOTICE.md#helixsr)). Frame generation stays XeFG. To use it:
 
@@ -186,7 +188,8 @@ DLSS input without a game copy. Setup waits until the game, and for launcher set
 
 Recorded in a live install of 0.9.0 (Echo Point Nova, Steam, OptiFG input, 19 October 2026); 1.0.0 adds five shaders
 and 1.1.0 seven. 1.1.1 adds two launcher variables, `VKD3D_DISABLE_EXTENSIONS` and `VKD3D_SHADER_CACHE_PATH`, and a
-folder `vkd3d-cache` for the game's vkd3d-proton shader cache in the backup folder.
+folder `vkd3d-cache` for the game's vkd3d-proton shader cache in the backup folder. 1.1.2 adds twelve shaders (the
+shader profile holds 61 files; 1.1.1: 49) and the keys `F4Q2` and `Exact` in `BC250-XeFG/settings.ini`.
 
 ## Restore and uninstall
 
@@ -210,25 +213,39 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.1.1, 21 October 2026. Tested only on the AMD BC-250 under Proton: 1.1.0 only headless, the other releases also in
-Steam Game Mode. 1.1.1 changes only the installer: wave sizes apply on every start, Setup writes `XeFGModel=default`,
-and Status and Check name a partial or skipped acceleration beside MFG Unlocker. Its proxy, pacing layer, shader profile
-and OptiScaler are 1.1.0's. Its installer ran live once on each route, in Echo Point Nova (Steam, to the main menu at 2×
-and 3×) and Cyberpunk 2077 (benchmark, headless): it wrote its settings, the wave sizes applied, Status named each
-start's acceleration, and Restore left both games and launchers as before
-([live install](MEASUREMENTS.md#live-install-and-restore)). Its launch settings' frame rate was measured headless with
-1.1.0's files ([shader caches](MEASUREMENTS.md#shader-caches)). 1.1.0 changed the proxy and the shader profile and was
-checked in the SDK test program (generated images identical to Intel's shaders' in 20 configurations, F4Q on and off) and in
-Cyberpunk 2077 benchmarks ([checks](MEASUREMENTS.md#checks-of-110)); earlier releases' checks:
-[MEASUREMENTS.md](MEASUREMENTS.md#checks-of-100). Everything else is untested.
+1.1.2, 24 October 2026. Tested only on the AMD BC-250 under Proton: 1.1.0 and 1.1.2 only headless, the other releases
+also in Steam Game Mode. 1.1.2 changes the proxy and the shader profile: the FP16 forms of seven U-Net shaders (on by
+default; the output differs slightly from Intel's), F4Q2, F4Q3 and three exact kernel changes; the installer adds the
+`Exact` key and an `Output:` line to Status and Check, and installs FSR 4 RC12 instead of RC11. It was checked in the SDK
+test program and in Cyberpunk 2077 benchmarks, headless, on GE-Proton 11-11 with RC12: by default its generated images
+equal its test build's in 19 configurations, with the exact switch Intel's shaders' in 20; in the game the default shows
+1.64% more frames per second than 1.1.1 at 2× in SDR and 1.50% in HDR10 ([checks](MEASUREMENTS.md#checks-of-112)).
+Its installer ran live once, in Cyberpunk 2077 (Heroic route, benchmark, headless): Setup placed FSR 4 RC12, Status named
+full acceleration and the FP16 forms, and Restore left the game and Heroic as before
+([live install](MEASUREMENTS.md#live-install-and-restore)); an earlier 1.1.2 candidate's installer also ran in Echo Point
+Nova (Steam). 1.1.1 changed only the installer:
+wave sizes apply on every start, Setup writes `XeFGModel=default`, and Status and Check name a partial or skipped
+acceleration beside MFG Unlocker. Its proxy, pacing layer, shader profile and OptiScaler are 1.1.0's. Its installer ran
+live once on each route, in Echo Point Nova (Steam, to the main menu at 2× and 3×) and Cyberpunk 2077 (benchmark,
+headless): it wrote its settings, the wave sizes applied, Status named each start's acceleration, and Restore left both
+games and launchers as before ([live install](MEASUREMENTS.md#live-install-and-restore)). Its launch settings' frame
+rate was measured headless with 1.1.0's files ([shader caches](MEASUREMENTS.md#shader-caches)). 1.1.0 changed the proxy
+and the shader profile and was checked in the SDK test program (generated images identical to Intel's shaders' in 20
+configurations, F4Q on and off) and in Cyberpunk 2077 benchmarks ([checks](MEASUREMENTS.md#checks-of-110)); earlier
+releases' checks: [MEASUREMENTS.md](MEASUREMENTS.md#checks-of-100). Everything else is untested.
 
 ## Known limitations
 
 - 2× on its own; 3× and 4× only with MFG Unlocker. No generated-frame scaling
   ([at 4K](TROUBLESHOOTING.md#frame-generation-adds-little)).
 - This build has run in benchmarks, not in gameplay. Flatpak Steam and Heroic are not qualified.
-- F4Q was compared with the F(2×2) kernels in games only in Cyberpunk 2077 (2× and 3×, SDR). `BC250_XEFG_F4Q=0` in
-  the launch options, or `F4Q=0` under `[BC250]` in the game folder's `BC250-XeFG/settings.ini`, turns it off.
+- By default the generated frames differ slightly from Intel's (the FP16 forms; compared on synthetic SDK scenes and by
+  eye, not in games). `BC250_XEFG_EXACT=1` in the launch options, or `Exact=1` under `[BC250]` in the game folder's
+  `BC250-XeFG/settings.ini`, gives output identical to Intel's in every test; its frame rate in a game was not
+  measured.
+- F4Q, F4Q2 and F4Q3 were compared with the kernels they replace in games only in Cyberpunk 2077 (2× and 3×, SDR).
+  `BC250_XEFG_F4Q=0` or `F4Q=0` turns all of them off (and the FP16 forms); `BC250_XEFG_F4Q2=0` or `F4Q2=0` turns off
+  F4Q2 (its three layers then run their F(2×2) kernels, without their FP16 form).
 - The first start after an installation takes longer, while vkd3d-proton fills the installation's new shader cache
   ([shader caches](MEASUREMENTS.md#shader-caches)). In a game folder whose path is too long for vkd3d-proton's cache
   file names, Setup leaves that cache as it was, and wave sizes from

@@ -725,7 +725,10 @@ def last_run(root, route=None, beside_exe=False, since=None):
     """What the logs in the game folder say about the last session: dict(found, optiscaler, xefg, fg_input, upscaler,
     proxy, accelerated, problems, cause, own_programs, f4q, owner, coexist_accelerated, skipped_game_context,
     context_caller, other_module, aside, mfg_unlocker, mfg_unlocker_files, xefg_model, route, fast_stale, acceleration,
-    acceleration_reason). route: the installation's route ('native' or 'opti', None when unknown); the logs alone tell
+    acceleration_reason, output, output_fallbacks). output: the FP16 forms' state of the last session (dict(mode, source,
+    forms) from its FP16_CONFIG line; None when the log has none: builds before 1.1.2). output_fallbacks: the shaders of its
+    F4Q_FALLBACK and FP16_FALLBACK lines (pipelines that ran an exact form instead; an FP16 pipeline that could not be
+    created logs FP16_REPLACE first, then F4Q_FALLBACK). route: the installation's route ('native' or 'opti', None when unknown); the logs alone tell
     the game's own XeSS FG beside MFG Unlocker (FAST_SKIP, no CONTEXT_CALLER) from OptiScaler's FG with
     BC250_XEFG_DISABLE (FAST_SKIP and a CONTEXT_CALLER line), the route breaks a tie. fast_stale: BC250-XeFG-fast.log is
     from an earlier session (BC250-MFG.log, written at every start, has no FAST_OWNER) and is not counted.
@@ -743,7 +746,7 @@ def last_run(root, route=None, beside_exe=False, since=None):
                proxy=None, accelerated=0, problems=[], cause=None, own_programs=0, f4q=0, owner=False, coexist_accelerated=False,
                skipped_game_context=False, context_caller=False, other_module=False, aside=None, mfg_unlocker=None,
                mfg_unlocker_files=_mfg_unlocker_files(root), xefg_model=xefg_model(root), route=route, fast_stale=False,
-               acceleration=None, acceleration_reason=None)
+               acceleration=None, acceleration_reason=None, output=None, output_fallbacks=[])
     if opti:
         out['xefg'] = 'XeFG swapchain created' in opti or 'XeFG context created' in opti
         m = re.findall(r'FrameGen\.FGInput:\s*(\S+)', opti)
@@ -774,6 +777,10 @@ def last_run(root, route=None, beside_exe=False, since=None):
         out['accelerated'] = len(set(re.findall(r'WINOGRAD_EXECUTE shader=([0-9a-f]+)', fast)))
         out['own_programs'] = len(set(re.findall(r'^REPLACE ([0-9A-Fa-f]+)\b', fast, re.M)))
         out['f4q'] = len(re.findall(r'^F4Q_REPLACE ', fast, re.M))
+        forms = re.findall(r'^FP16_CONFIG mode=(on|off) source=(\S+) forms=(\d+)', fast, re.M)
+        if forms:
+            out['output'] = dict(mode=forms[-1][0], source=forms[-1][1], forms=int(forms[-1][2]))
+        out['output_fallbacks'] = sorted(set(re.findall(r'^(?:F4Q|FP16)_FALLBACK ([0-9a-f]{16})\b', fast, re.M)))
         if 'FAIL' in fast:
             out['problems'].append('a FAIL marker in BC250-XeFG-fast.log')
     if out['mfg_unlocker'] is None:
@@ -882,6 +889,30 @@ def setup_notes(root, route=None, installed=True, run=None):
     return []
 
 
+EXACT_HOW = 'BC250_XEFG_EXACT=1 in the launch options or Exact=1 in BC250-XeFG/settings.ini'
+
+
+def output_lines(summary):
+    """The line that names the last session's output form (last_run's output, 1.1.2 and later), [] when the log does not
+    say."""
+    form = summary.get('output')
+    if not form:
+        return []
+    if form['mode'] == 'on':
+        fallbacks = summary.get('output_fallbacks') or []
+        if fallbacks:
+            return [f'Output: the FP16 forms ran (the default), but {len(fallbacks)} shader(s) ran an exact form instead (fallback '
+                    'lines in BC250-XeFG-fast.log): generated frames differ slightly from Intel\'s. For output identical to '
+                    f'Intel\'s in every test: {EXACT_HOW}.']
+        return ['Output: the FP16 forms ran (the default): generated frames differ slightly from Intel\'s. For output '
+                f'identical to Intel\'s in every test: {EXACT_HOW}.']
+    if form['source'] in ('BC250_XEFG_EXACT', 'settings.ini'):
+        return [f'Output: exact (set by {form["source"]}): identical to Intel\'s in every test.']
+    if form['source'] == 'F4Q':
+        return ['Output: exact (F4Q was off or in its diagnostic, so the FP16 forms were off).']
+    return ['Output: exact (the model layout did not fit the FP16 forms).']
+
+
 def last_run_lines(summary):
     if not summary['found']:
         return ['No logs yet: start the game once with frame generation on.']
@@ -891,6 +922,7 @@ def last_run_lines(summary):
              (f'; upscaler input {summary["upscaler"]}' if summary['upscaler'] else '' if summary['xefg'] else '; no upscaler input seen') +
              (f'; accelerated stages {summary["accelerated"]}/4' if summary['accelerated'] and not acceleration else '')]
     lines += acceleration
+    lines += output_lines(summary)
     lines += ['Log: ' + p for p in summary['problems']]
     if summary['cause']:
         lines.append('Likely cause: ' + summary['cause'])

@@ -316,8 +316,8 @@ def prepare_profile(config, base, definition, folder):
     """The Intel-free profile without the files the variant drops (2x: the multi-frame kernels), with the variant's own
     files (mfg: "replace": another form of a profile file, its waves.txt line naming the new module in place; "add": a
     file beside them, with its waves.txt line when it has a wave size) and the waves.txt lines it appends (mfg:
-    "append_waves", then the added files' lines); returns its files. waves.txt must stay a table the pacing layer reads
-    in full."""
+    "append_waves", then the added files' lines) and the dispatch-scale.txt rows it appends (mfg: "append_dispatch_scale");
+    returns its files. waves.txt must stay a table the pacing layer reads in full."""
     common.prepare_intel_free_profile(config, base, folder)
     for name in definition['profile']['drop']:
         if not (folder / name).is_file():
@@ -343,6 +343,9 @@ def prepare_profile(config, base, definition, folder):
             lines[fnv1a64(data)] = dict(wave=entry['wave'])
     if lines:
         common.append_waves(folder / 'waves.txt', lines)
+    rows = definition['profile'].get('append_dispatch_scale', {})
+    if rows:
+        common.append_dispatch_scale(folder / 'dispatch-scale.txt', rows)
     common.wave_table((folder / 'waves.txt').read_text())
     files = sorted(folder.iterdir())
     multi_frame = 'XEFG_MFG_RESEARCH=1' not in definition['addon']['dropped_defines']
@@ -429,10 +432,10 @@ def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
                       spec['allowed_imports'])
 
     depends = common.dependencies([a for a in command if not a.endswith('.def')])
-    system = [p for p in depends
-              if not (p.is_relative_to(REPO) or p.is_relative_to(config.build) or p.is_relative_to(config.cache))]
-    tracked = {p for p in depends
-               if p.is_relative_to(REPO) and not (p.is_relative_to(config.build) or p.is_relative_to(config.cache))}
+    system = [p for p in depends if config.in_toolchain(p)
+              or not (p.is_relative_to(REPO) or p.is_relative_to(config.build) or p.is_relative_to(config.cache))]
+    tracked = {p for p in depends if p.is_relative_to(REPO) and not config.in_toolchain(p)
+               and not (p.is_relative_to(config.build) or p.is_relative_to(config.cache))}
     tracked |= {REPO / 'src/probe.c', common.COM_THUNKS / 'com_thunks.S', common.INTEL_FREE, definition_path(variant), DEPENDENCIES,
                 Path(__file__).resolve(), Path(common.__file__).resolve(), RELEASE / 'config.py',
                 RELEASE / 'check_intel_free.py'}
@@ -471,10 +474,11 @@ def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
         com_thunks=com_status,
         system_headers=common.system_digest(system, config),
         import_libraries={name: sha256(config.wine_lib / name) for name in ('libkernel32.a', 'libucrtbase.a')},
-        toolchain=dict(clang=tool_version([config.clang, '--version']), lld=tool_version(['ld.lld', '--version'])),
+        toolchain=common.toolchain_record(config),
         api_hooks=sorted(wrapped),
     )
     (out / 'build.json').write_text(json.dumps(record, indent=2) + '\n')
+    common.require_pinned_toolchain(config, record, f'addon ({definition["variant"]})')
     return output, record
 
 

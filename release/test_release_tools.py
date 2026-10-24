@@ -11,6 +11,7 @@ lock's fork group. No build, no network. They pass in this tree and in a tree ex
 """
 import copy
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -2089,12 +2090,14 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         self.assertNotIn('documents_base', package)
         self.assertEqual(package['documents_version'], 'public')
         profile = package['components']['profile-intel-free-mfg']['files']
-        self.assertEqual(len(profile), 49)
+        self.assertEqual(len(profile), 61)
         self.assertEqual(sum(1 for path in profile if '/mfg-finish' in path), 5)
         self.assertEqual(sorted(path.rsplit('/', 1)[1] for path in profile if '/f4q' in path or '.f4q.' in path),
-                         ['b3941ac8ff95efe7.f4q.dxil', 'f030948d38e74671.f4q.dxil', 'f4q-check-aux.dxil',
-                          'f4q-check-uav-float.dxil', 'f4q-check-uav-raw.dxil', 'f4q-check-uav-sint.dxil',
-                          'f4q-check-uav-uint.dxil'])
+                         ['1a3b0782583fef19.f4q.dxil', '60edebbbd2f9fb69.f4q.dxil', '9e0080eee00255f2.f4q.dxil',
+                          'b3941ac8ff95efe7.f4q.dxil', 'b3ddf030f661d487.f4q.dxil', 'e83e868f8d5d2c0f.f4q.dxil',
+                          'f030948d38e74671.f4q.dxil', 'f4q-check-aux.dxil', 'f4q-check-uav-float.dxil',
+                          'f4q-check-uav-raw.dxil', 'f4q-check-uav-sint.dxil', 'f4q-check-uav-uint.dxil'])
+        self.assertEqual(sum(1 for path in profile if path.endswith('.fp16.dxil')), 7)   # the FP16 forms (1.1.2)
         self.assertEqual(package['components']['addon-intel-free-mfg']['files']['payload/libxess_fg.dll'], 'build:addon-intel-free-mfg')
         self.assertEqual(package['manifest']['addon_entry'], 'libxess_fg-proxy')
         self.assertEqual(package['manifest']['max_factor'], 2)  # Setup offers 2x; 3x/4x come from OptiScaler's menu
@@ -2209,7 +2212,7 @@ class WaveTable(unittest.TestCase):
         appended = definition['profile']['append_waves']
         group, replaced, added = build_proxy.own_files(definition)
         self.assertEqual(len(appended), 5)
-        self.assertEqual(len(replaced), 9)
+        self.assertEqual(len(replaced), 12)   # nine XU-1 forms, three wino-ref64 forms (1.1.2)
         with tempfile.TemporaryDirectory() as folder:
             config = Config({'build': folder, 'cache': folder}, offline=True)
             config.values['work'] = config.values['profile'] = None  # the committed profile (release/profile)
@@ -2225,10 +2228,10 @@ class WaveTable(unittest.TestCase):
             expected = '\n'.join(f'{swap[r.split()[0]]} {r.split()[1]}' if r.split() and r.split()[0] in swap else r
                                  for r in rows)
             self.assertTrue(built.startswith(expected))
-            self.assertEqual(sum(1 for a, b in zip(rows[:-1], built.split('\n')) if a != b), 9)
+            self.assertEqual(sum(1 for a, b in zip(rows[:-1], built.split('\n')) if a != b), 12)
             self.assertEqual({module: table[module] for module in appended}, dict.fromkeys(appended, 32))
             own = {fnv1a64(p.read_bytes()) for p in PROFILE.glob('*.dxil')} | set(swap.values())
-            self.assertEqual(len(own), 42)
+            self.assertEqual(len(own), 45)
             self.assertFalse(own & set(appended))
             self.assertEqual({p.name for p in files} - {p.name for p in PROFILE.iterdir()}, set(added))
             if (RELEASE_DIR / 'publish_local.py').is_file():  # maintainers' tree only
@@ -2259,21 +2262,62 @@ class WaveTable(unittest.TestCase):
 class F4QRelease(unittest.TestCase):
     """F4Q in release form (src/model_f4q.h, src/game/f4q.h; intel_free_mfg.json "added_defines" and profile "add"): on
     by default with its switch in the package's settings file, release names only, the two F(4x4) kernels at wave 32,
-    the check kernels without a wave line. No build (check_proxy_wine.py runs the code under Wine)."""
+    the check kernels without a wave line; F4Q2 (1.1.2) the same for its three encoder kernels, with its own switch; F4Q3
+    (1.1.2) for the two row layers, with their identity dispatch-scale rows; the FP16 forms (1.1.2) as seven
+    <hash>.fp16.dxil files at the owner's segment bases (bits 1 and 2), on by default, with the exact switch in the
+    settings file; the
+    fused refinement's GX=16 ACC_SHR=1 forms in place of the release/profile files (XEFG_REF64_GX16). No build
+    (check_proxy_wine.py runs the code under Wine)."""
+
+    def test_append_dispatch_scale(self):
+        import proxy_common
+        from config import ReleaseError
+        a, b = '60edebbbd2f9fb69', 'b3ddf030f661d487'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'dispatch-scale.txt'
+            path.write_text(f'{a} 2 4 1\n')
+            with self.assertRaises(ReleaseError):   # a row for that shader already
+                proxy_common.append_dispatch_scale(path, {a: dict(scale=[1, 1, 1])})
+            for bad in ([1, 1], [0, 1, 1], [1, 1, 0], [1, 1, -1], [17, 1, 1], ['1', 1, 1]):
+                with self.assertRaises(ReleaseError, msg=bad):
+                    proxy_common.append_dispatch_scale(path, {b: dict(scale=bad)})
+            self.assertEqual(path.read_text(), f'{a} 2 4 1\n')   # nothing written on a refusal
+            self.assertEqual(proxy_common.append_dispatch_scale(path, {b: dict(scale=[1, 1, 1])}), [b])
+            self.assertEqual(path.read_text(), f'{a} 2 4 1\n{b} 1 1 1\n')
+            path.write_text(f'{a} 2 4 1')
+            with self.assertRaises(ReleaseError):   # no final newline
+                proxy_common.append_dispatch_scale(path, {b: dict(scale=[1, 1, 1])})
     SOURCES = ('src/model_f4q.h', 'src/game/f4q.h', 'src/kernels/f4q_dec16.hlsl', 'src/kernels/f4q_enc16.hlsl',
-               'src/kernels/f4q_common.hlsli', 'src/kernels/f4q_check.hlsl')
+               'src/kernels/f4q_common.hlsli', 'src/kernels/f4q_check.hlsl', 'src/kernels/pk16.hlsli', 'src/kernels/wino_ref64.hlsl',
+               'src/kernels/wino_enc16.hlsl', 'src/kernels/wino_dec16.hlsl', 'src/kernels/wino_row16.hlsl', 'src/winograd_graph.h',
+               'src/model_wino_enc16.h', 'src/game/test_f4q.c')
 
     @unittest.skipUnless(MFG_DEFINITION.is_file(), 'the multi-frame proxy is not part of this tree')
     def test_switch_and_names(self):
         settings = (RELEASE_DIR / 'files/BC250-XeFG-settings.ini').read_text()
         self.assertIn('\nF4Q=1\n', settings)  # carried across reinstalls: install.py keeps the user's value of a key it ships
+        self.assertIn('\nF4Q2=1\n', settings)
+        self.assertIn('\nExact=0\n', settings)   # the FP16 forms on by default; carried across reinstalls like F4Q
         tree = RELEASE_DIR.parent
         for name in self.SOURCES:
             text = (tree / name).read_text()
-            for research in ('XEFG_CE_', 'XEFG_CLOSE_ENOUGH', 'close-enough', 'OUTPUT_EQUIVALENCE', 'h16', 'H16', 'r6n'):
+            for research in ('XEFG_CE_', 'XEFG_CE1', 'XEFG_CE2', 'XEFG_CLOSE_ENOUGH', 'close-enough', 'OUTPUT_EQUIVALENCE', 'h16',
+                             'H16', 'r6n', 'ce10', 'ce1', 'ce20', 'F4Q-2', 'F4Q-3', 'XU-2d', 'TRIM-1a', 'QE-1', 'QE1', 'PK-1',
+                             'gx16a', 'pk16i', 'fuzz', 'research build', 'never shipped', 'mask 15', 'arm A', 's7u'):
                 self.assertNotIn(research, text, f'{name}: {research}')
+        # Kept as release define names (decided for 1.1.2, as XU1 since 1.1.0): XU2D (the decoder's packed 16-bit fill),
+        # TRIM (groups whose outputs all lie below the image skipped) and PK16 (packed-FP16 MACs). They are plain names of
+        # what the code does; the research labels (XU-2d, TRIM-1a, PK-1, pk16i) stay out (above). QE1 and H16 were
+        # renamed to ACC_SHR and HALF_TABLE. Each is off unless a profile recipe sets it.
+        for define, homes in (('XU1', ('wino_enc16.hlsl', 'wino_rs16.hlsl', 'wino_row16.hlsl', 'wino_dec16.hlsl')),
+                              ('XU2D', ('f4q_dec16.hlsl',)), ('TRIM', ('f4q_dec16.hlsl', 'f4q_enc16.hlsl')),
+                              ('PK16', ('wino_enc16.hlsl', 'wino_row16.hlsl', 'wino_dec16.hlsl')),
+                              ('ACC_SHR', ('wino_ref64.hlsl',)), ('HALF_TABLE', ('f4q_dec16.hlsl', 'f4q_enc16.hlsl'))):
+            for home in homes:
+                self.assertIn(f'#define {define} 0', (tree / 'src/kernels' / home).read_text(), f'{home}: {define}')
         header = (tree / 'src/model_f4q.h').read_text()
-        for switch in ('"BC250_XEFG_F4Q"', '"BC250_XEFG_F4Q_SHADOW"', 'L"F4Q"'):
+        for switch in ('"BC250_XEFG_F4Q"', '"BC250_XEFG_F4Q_SHADOW"', 'L"F4Q"', '"BC250_XEFG_F4Q2"', 'L"F4Q2"',
+                       '"BC250_XEFG_EXACT"', 'L"Exact"'):
             self.assertIn(switch, header)
 
     @unittest.skipUnless(MFG_DEFINITION.is_file(), 'the multi-frame proxy is not part of this tree')
@@ -2282,15 +2326,54 @@ class F4QRelease(unittest.TestCase):
         _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
         _group, _replaced, added = build_proxy.own_files(definition)
         waves = {name: entry['wave'] for name, entry in added.items()}
+        fp16 = [f'{h}.fp16.dxil' for h in ('1a3b0782583fef19', 'e83e868f8d5d2c0f', '9e0080eee00255f2', '1f27b449fb99a587',
+                                           'f2e2e13fea432d20', '5654aa3800432b13', '4bb52a635e6d221a')]
         self.assertEqual(waves, {'b3941ac8ff95efe7.f4q.dxil': 32, 'f030948d38e74671.f4q.dxil': 32,
                                  'f4q-check-uav-uint.dxil': None, 'f4q-check-uav-float.dxil': None,
-                                 'f4q-check-uav-sint.dxil': None, 'f4q-check-uav-raw.dxil': None, 'f4q-check-aux.dxil': None})
+                                 'f4q-check-uav-sint.dxil': None, 'f4q-check-uav-raw.dxil': None, 'f4q-check-aux.dxil': None,
+                                 '1a3b0782583fef19.f4q.dxil': 32, 'e83e868f8d5d2c0f.f4q.dxil': 32,
+                                 '9e0080eee00255f2.f4q.dxil': 32, '60edebbbd2f9fb69.f4q.dxil': 32,
+                                 'b3ddf030f661d487.f4q.dxil': 32, **dict.fromkeys(fp16, 32)})
+        self.assertEqual(list(waves)[7:12], ['1a3b0782583fef19.f4q.dxil', 'e83e868f8d5d2c0f.f4q.dxil',
+                                             '9e0080eee00255f2.f4q.dxil', '60edebbbd2f9fb69.f4q.dxil',
+                                             'b3ddf030f661d487.f4q.dxil'])   # waves.txt: F4Q2's and F4Q3's lines after F4Q's
+        self.assertEqual(list(waves)[12:], fp16)   # then the FP16 forms'
+        self.assertEqual(definition['profile']['append_dispatch_scale'],
+                         {'60edebbbd2f9fb69': {'scale': [1, 1, 1], 'pipeline': 'U-Net row layer 16->16 (F4Q3)'},
+                          'b3ddf030f661d487': {'scale': [1, 1, 1], 'pipeline': 'U-Net row layer 32->16 (F4Q3)'}})
+        self.assertIn('XEFG_REF64_GX16=1', definition['addon']['added_defines'])
         origin = json.loads((RELEASE_DIR / 'profile-mfg/origin.json').read_text())['files']
-        self.assertEqual(origin['b3941ac8ff95efe7.f4q.dxil']['build']['defines'], ['TBASE=3025'])
-        self.assertEqual(origin['f030948d38e74671.f4q.dxil']['build']['defines'], ['SLICES=2', 'DECODE_OFFSET=0', 'TBASE=6049'])
+        self.assertEqual(origin['b3941ac8ff95efe7.f4q.dxil']['build']['defines'], ['TBASE=3025', 'XU2D=1', 'TRIM=1'])
+        self.assertEqual(origin['f030948d38e74671.f4q.dxil']['build']['defines'],
+                         ['SLICES=2', 'DECODE_OFFSET=0', 'TBASE=6049', 'TRIM=1'])
+        for name in fp16:   # every FP16 form at the base its owner segment gives (src/model_f4q.h)
+            defines = origin[name]['build']['defines']
+            self.assertTrue('HALF_TABLE=1' in defines or 'PK16=1' in defines, name)
+        for c in (16, 17, 18):
+            self.assertEqual(origin[f'wino-ref64-{c}.dxil']['build']['defines'][-3:], [f'CLAMP_BITS={c}', 'GX=16', 'ACC_SHR=1'])
         header = (RELEASE_DIR.parent / 'src/model_f4q.h').read_text()
         self.assertIn('#define F4Q_TBASE_2304 3025u', header)
         self.assertIn('#define F4Q_TBASE_4608 6049u', header)
+        for name, base in (('1a3b0782583fef19.fp16.dxil', 'TBASE=5713'), ('1f27b449fb99a587.fp16.dxil', 'WINO16_BASE=145921'),
+                           ('f2e2e13fea432d20.fp16.dxil', 'WINO16_BASE=36481'), ('5654aa3800432b13.fp16.dxil', 'WINO16_BASE=9025'),
+                           ('4bb52a635e6d221a.fp16.dxil', 'WINO16_BASE=86018')):
+            self.assertIn(base, origin[name]['build']['defines'], name)
+        self.assertIn('return bytes==2304?5329u:bytes==4608?10657u:bytes==9216?9025u:bytes==18432?36481u:bytes==36864?86018u:'
+                      'bytes==73728?145921u:0u;', header)
+        self.assertIn('static UINT fp16_half_base(UINT bytes){return bytes==2304?5713u:bytes==4608?11425u:0u;}', header)
+        # 1.1.2's default: bits 1 and 2 (the F4Q2 encoders and four F(2x2) layers); no files for bits 4 and 8 in the package
+        self.assertIn('#define FP16_DEFAULT (FP16_F4Q2|FP16_XU1)', header)
+        self.assertIn('UINT mask=exact||f4q_mode!=F4Q_ON?0u:FP16_DEFAULT,dropped=0;', header)
+        for h in ('b3941ac8ff95efe7', 'f030948d38e74671', '60edebbbd2f9fb69', 'b3ddf030f661d487'):
+            self.assertNotIn(f'{h}.fp16.dxil', origin)
+        for name, defines in (('1a3b0782583fef19.f4q.dxil', ['DECODE_OFFSET=1', 'TBASE=3025']),
+                              ('e83e868f8d5d2c0f.f4q.dxil', ['SLICES=4', 'CIN_SLICES=2', 'LOOPCIN=1', 'DECODE_OFFSET=0',
+                                                             'TBASE=18049']),
+                              ('9e0080eee00255f2.f4q.dxil', ['SLICES=8', 'CIN_SLICES=4', 'LOOPCIN=1', 'DECODE_OFFSET=0',
+                                                             'TBASE=72193'])):
+            self.assertEqual(origin[name]['build']['defines'], defines, name)
+        self.assertIn('#define F4Q2_TBASE_18432 18049u', header)
+        self.assertIn('#define F4Q2_TBASE_73728 72193u', header)
 
 
 class VariantOwnFiles(unittest.TestCase):
@@ -2340,6 +2423,139 @@ class VariantOwnFiles(unittest.TestCase):
                 for name, entry in spec['files'].items():
                     if name.endswith('.dxil'):
                         self.assertIn(entry['sha256'], own, name)
+
+class PinnedToolchain(unittest.TestCase):
+    """release/toolchain.py: the pins of release/ci/ci.lock.json, the unpacking filter, preparing and re-checking a
+    folder from synthetic package files (no network, nothing installed), and release/config.py with XEMFG_TOOLCHAIN."""
+
+    @staticmethod
+    def package(path, members):
+        """A .pkg.tar.zst with pacman's metadata file and the given members: name -> bytes, or ('link', target)."""
+        import io
+        import tarfile
+        with tarfile.open(path, 'w:zst') as archive:
+            for name, data in {'.PKGINFO': b'pkgname = test\n', **members}.items():
+                info = tarfile.TarInfo(name)
+                if isinstance(data, tuple):
+                    info.type, info.linkname = tarfile.SYMTYPE, data[1]
+                    archive.addfile(info)
+                else:
+                    info.size = len(data)
+                    archive.addfile(info, io.BytesIO(data))
+
+    def test_every_pinned_package_has_a_role(self):
+        import toolchain
+        ci = toolchain.load_ci_lock()
+        rows = toolchain.pins(ci)
+        listed = set(ci['packages']) | set(ci['archived'])
+        self.assertEqual({r['name'] for r in rows}, {n for n in listed if toolchain.ROLES[n]})
+        self.assertNotIn('python', {r['name'] for r in rows})
+        for row in rows:
+            self.assertTrue(row['url'].endswith('/' + row['file']), row)
+            self.assertRegex(row['sha256'], r'^[0-9a-f]{64}$')
+        self.assertEqual(len(toolchain.pins_id(ci)), 12)
+        changed = copy.deepcopy(ci)
+        changed['packages']['gcc']['sha256'] = '0' * 64
+        self.assertNotEqual(toolchain.pins_id(changed), toolchain.pins_id(ci))
+        unknown = copy.deepcopy(ci)
+        unknown['packages']['zlib'] = dict(version='1', repo='core', file='zlib-1-x86_64.pkg.tar.zst', sha256='0' * 64)
+        with self.assertRaises(toolchain.ReleaseError):
+            toolchain.pins(unknown)
+
+    def test_filter(self):
+        import toolchain
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            self.package(tmp / 'w.pkg.tar.zst', {'usr/include/wine/windows/a.h': b'a', 'usr/bin/wine': b'x',
+                                                 'usr/lib/wine/x86_64-windows/libk.a': b'k',
+                                                 'usr/lib/wine/x86_64-windows/k.dll': b'd'})
+            toolchain.unpack(tmp / 'w.pkg.tar.zst', tmp / 'w', 'wine')
+            found = sorted(str(p.relative_to(tmp / 'w')) for p in (tmp / 'w').rglob('*') if p.is_file())
+            self.assertEqual(found, ['usr/include/wine/windows/a.h', 'usr/lib/wine/x86_64-windows/libk.a'])
+            self.package(tmp / 'g.pkg.tar.zst', {'usr/lib/libx.so.1': b'x', 'usr/lib/libx.so': ('link', '/usr/lib/libx.so.1'),
+                                                 'usr/bin/cc': ('link', 'gcc')})
+            toolchain.unpack(tmp / 'g.pkg.tar.zst', tmp / 'g', 'gcc')
+            self.assertFalse((tmp / 'g/.PKGINFO').exists())
+            self.assertEqual(Path((tmp / 'g/usr/lib/libx.so').readlink()), Path('libx.so.1'))  # never the host's /usr
+            self.assertEqual((tmp / 'g/usr/lib/libx.so').read_bytes(), b'x')
+            self.assertEqual(str((tmp / 'g/usr/bin/cc').readlink()), 'gcc')
+
+    def test_prepare_and_check(self):
+        import toolchain
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / 'pkgs').mkdir()
+            files = {'gcc': {'usr/bin/gcc': b'#!/bin/sh\n'}, 'glibc': {'usr/include/stdio.h': b'int x;\n'}}
+            packages = {}
+            for name, members in files.items():
+                path = tmp / 'pkgs' / f'{name}-1-1-x86_64.pkg.tar.zst'
+                self.package(path, members)
+                packages[name] = dict(version='1-1', repo='core', file=path.name, sha256=toolchain.sha256(path),
+                                      bytes=path.stat().st_size)
+            ci = dict(snapshot=dict(date='2026/09/03', server='https://example.invalid/{date}/$repo/os/$arch'),
+                      packages=packages, archived={})
+            roles = dict(gcc='tools', glibc='sysroot')
+            lock = dict(toolchain=dict(addon=dict(clang='c'), layer=dict(gcc='g')))
+            config = mock.Mock(cache=tmp / 'cache', offline=True, lock=lock, values=dict(packages=str(tmp / 'pkgs')))
+            with mock.patch.object(toolchain, 'load_ci_lock', return_value=ci), \
+                    mock.patch.object(toolchain, 'ROLES', roles), \
+                    mock.patch.object(toolchain, 'default_package_dirs', return_value=[]), \
+                    mock.patch.object(toolchain, 'versions', return_value=dict(clang='c', lld=None, gcc='g')):
+                record = toolchain.prepare(config, tmp / 'tc', offline=True)
+                self.assertEqual(record['id'], toolchain.pins_id())
+                self.assertEqual({n: p['source'] for n, p in record['packages'].items()}, dict(gcc='local', glibc='local'))
+                self.assertEqual((tmp / 'tc/sysroot/usr/include/stdio.h').read_bytes(), b'int x;\n')
+                self.assertTrue(os.access(tmp / 'tc/bin/gcc', os.X_OK))
+                self.assertEqual(toolchain.check(config, tmp / 'tc')['result'], 'pass')
+                self.assertEqual(toolchain.prepare(config, tmp / 'tc', offline=True), record)  # reused as it is
+                (tmp / 'tc/sysroot/usr/include/stdio.h').write_bytes(b'int y;\n')
+                with self.assertRaisesRegex(toolchain.ReleaseError, 'unpacked files changed'):
+                    toolchain.check(config, tmp / 'tc')
+                # a file whose bytes differ from the pin is passed over; offline, nothing else is tried
+                (tmp / 'pkgs' / packages['gcc']['file']).write_bytes(b'other')
+                with self.assertRaisesRegex(toolchain.ReleaseError, 'passed over'):
+                    toolchain.prepare(config, tmp / 'tc2', offline=True)
+                self.assertFalse((tmp / 'tc2').exists())
+            # other pins: the folder is refused, never reused
+            with mock.patch.object(toolchain, 'load_ci_lock', return_value=dict(ci, packages={**packages, 'gcc': dict(
+                    packages['gcc'], sha256='1' * 64)})), mock.patch.object(toolchain, 'ROLES', roles):
+                with self.assertRaisesRegex(toolchain.ReleaseError, 'other pins'):
+                    toolchain.ensure(config, tmp / 'tc')
+
+    def test_versions_against_the_lock(self):
+        import toolchain
+        lock = dict(toolchain=dict(addon=dict(clang='clang version 22.1.8', lld='LLD 22.1.8'), layer=dict(gcc='gcc 16')))
+        self.assertEqual(toolchain.version_problems(dict(clang='clang version 22.1.8', lld='LLD 22.1.8', gcc='gcc 16'),
+                                                    lock), [])
+        self.assertEqual(len(toolchain.version_problems(dict(clang='clang version 23.1.3', lld='LLD 22.1.8',
+                                                             gcc='gcc 16'), lock)), 1)
+
+    def test_config(self):
+        import config
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {}, clear=False):
+            for variable in [v for v in os.environ if v.startswith('XEMFG_')]:   # mock.patch.dict restores them
+                os.environ.pop(variable, None)
+            root = Path(tmp) / 'tc'
+            with self.assertRaisesRegex(config.ReleaseError, 'XEMFG_CLANG'):
+                config.Config(dict(toolchain=str(root), clang='/usr/bin/clang'))
+            host = config.Config(dict(build=tmp))
+            self.assertFalse(host.pinned_toolchain)
+            self.assertIsNone(host.toolchain())
+            self.assertEqual((host.clang, host.lld), ('clang', 'ld.lld'))
+            pinned = config.Config(dict(toolchain=str(root), build=tmp))
+            self.assertTrue(pinned.in_toolchain(root / 'tools/usr/lib/clang/22/include/stdarg.h'))
+            self.assertFalse(host.in_toolchain(root / 'x'))
+            relative = config.relative
+            self.assertEqual(relative(root / 'tools/usr/include/wine/msvcrt/stdio.h', pinned), '$WINE_INCLUDE/msvcrt/stdio.h')
+            self.assertEqual(relative(root / 'tools/usr/lib/wine/x86_64-windows/libkernel32.a', pinned),
+                             '$WINE_LIB/libkernel32.a')
+            self.assertEqual(relative(root / 'tools/usr/lib/clang/22/include/stdarg.h', pinned), '$SYSTEM/stdarg.h')
+            by_name = config.Config(dict(toolchain='pinned', build=tmp))
+            import toolchain
+            self.assertEqual(by_name.toolchain_root(), Path(tmp).resolve() / 'cache' / f'toolchain-{toolchain.pins_id()}')
+
 
 if __name__ == '__main__':
     unittest.main()

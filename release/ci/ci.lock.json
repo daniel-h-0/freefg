@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "about": "Pins of the CI toolchain (.github/workflows/ci.yml, read by release/ci/toolchain.py; the scheduled .github/workflows/pins.yml checks that every URL here still serves its bytes). The build inputs themselves stay pinned in release/inputs.lock.json; this file pins the environment the CI job builds them in, so that the job reproduces the reference outputs of inputs.lock.json byte for byte. Every package below is at the version of inputs.lock.json toolchain.packages, which the job checks after installing.",
+  "about": "Pins of the CI toolchain (.github/workflows/ci.yml, read by release/ci/toolchain.py; the scheduled .github/workflows/pins.yml checks that every URL here still serves its bytes). The build inputs themselves stay pinned in release/inputs.lock.json; this file pins the environment the CI job builds them in, so that the job reproduces the reference outputs of inputs.lock.json byte for byte. Every package below is at the version of inputs.lock.json toolchain.packages, which the job checks after installing (gcc's runtime libraries libgcc, libstdc++, libasan, libtsan and libubsan at gcc's version: the layer and its sanitizer unit tests link them). release/toolchain.py unpacks these same files into a folder of its own, so that a release build outside CI uses them too, without installing anything.",
   "image": {
     "name": "archlinux:base-20260830.0.582275",
     "digest": "sha256:82b1b08faae9d61e3e7e13d562f4d09114d939105b0d59ff34140f3bd418593a",
@@ -18,6 +18,11 @@
     "gcc": {"version": "16.2.1+r23+gd564253eb6c8-1", "repo": "core", "file": "gcc-16.2.1+r23+gd564253eb6c8-1-x86_64.pkg.tar.zst", "sha256": "1d79371ccf3138e3c172dd83b51560687b65ab824c1ad7e9cb41b7857ed9c55f", "bytes": 60743018},
     "glibc": {"version": "2.44+r24+g16be1518495f-1", "repo": "core", "file": "glibc-2.44+r24+g16be1518495f-1-x86_64.pkg.tar.zst", "sha256": "5db2283f5b46b6114d06b4bc71fcf8ede5f1a04fcccb4d307048fcdc4e501d93", "bytes": 10881502},
     "binutils": {"version": "2.47-4", "repo": "core", "file": "binutils-2.47-4-x86_64.pkg.tar.zst", "sha256": "d9508ad848fd6c31473ac0925cf8c3ec0d2a71bbbb5c7e39274186338a285660", "bytes": 8594742},
+    "libgcc": {"version": "16.2.1+r23+gd564253eb6c8-1", "repo": "core", "file": "libgcc-16.2.1+r23+gd564253eb6c8-1-x86_64.pkg.tar.zst", "sha256": "7367dad49fc3229bde804816d412ab77306d433b1f92e4126b8b3ba3502c67d6", "bytes": 81949},
+    "libstdc++": {"version": "16.2.1+r23+gd564253eb6c8-1", "repo": "core", "file": "libstdc++-16.2.1+r23+gd564253eb6c8-1-x86_64.pkg.tar.zst", "sha256": "15dc6bd2f3a2ee17fcd79a14325e9e0037722a592b2bdc55e1665d92112eaa51", "bytes": 883125},
+    "libasan": {"version": "16.2.1+r23+gd564253eb6c8-1", "repo": "core", "file": "libasan-16.2.1+r23+gd564253eb6c8-1-x86_64.pkg.tar.zst", "sha256": "7f6c602ea97c01b67cf8261b87afa1a47c1eb383ded769aaef71475e781defdc", "bytes": 533471},
+    "libtsan": {"version": "16.2.1+r23+gd564253eb6c8-1", "repo": "core", "file": "libtsan-16.2.1+r23+gd564253eb6c8-1-x86_64.pkg.tar.zst", "sha256": "8dd48336bb11dd0d15b9f5d0560166838802b21e3d279db25d6da96df19e0437", "bytes": 472183},
+    "libubsan": {"version": "16.2.1+r23+gd564253eb6c8-1", "repo": "core", "file": "libubsan-16.2.1+r23+gd564253eb6c8-1-x86_64.pkg.tar.zst", "sha256": "eba85316fdf63265285624baa22724fbb93e15901696f99d2c2cbde2162ad71d", "bytes": 211475},
     "wine": {"version": "11.16-2", "repo": "extra", "file": "wine-11.16-2-x86_64.pkg.tar.zst", "sha256": "618f8cbf1bef1f7747097db10cffa085729dcb8f367051beb4bf2b23863ff4cc", "bytes": 81878891},
     "vulkan-headers": {"version": "1:1.4.357.0-1", "repo": "extra", "file": "vulkan-headers-1:1.4.357.0-1-any.pkg.tar.zst", "sha256": "2f6c34cc829c4b63c0cf08cf147841c8ded023b746324540fb02322d9c415c07", "bytes": 1872272},
     "python": {"version": "3.14.7-1", "repo": "core", "file": "python-3.14.7-1-x86_64.pkg.tar.zst", "sha256": "8a350ce53aae01ae687f043b301931e411bf06333ba480b42b3b5432a0e6c79b", "bytes": 14184166}

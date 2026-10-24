@@ -411,9 +411,10 @@ class ShippedPinsTests(unittest.TestCase):
                 self.assertIn(source, self.pins['runtime']['Files'], name)
 
     def test_runtime_is_the_qualified_bytes(self):
-        # The bytes tester v30 carried in the package (its manifest and qualification receipt).
+        # Intel's runtime: the bytes tester v30 carried in the package (its manifest and qualification receipt). FSR 4:
+        # the BC-250 build RC12 since 1.1.2 (RC11, 8192ea97, before).
         files = self.pins['runtime']['Files']
-        self.assertEqual(files['fsr4/amd_fidelityfx_upscaler_dx12.dll'], '8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175')
+        self.assertEqual(files['fsr4/amd_fidelityfx_upscaler_dx12.dll'], '4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79')
         self.assertEqual(files['OptiScaler/libxess_fg.dll'], 'ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27')
         self.assertEqual(files['OptiScaler/libxell.dll'], 'd2030dcd694fda8f2ec7e044b13e6db8f0b56d4ba9113a5efad334e3f3ded8c7')
         self.assertEqual(self.pins['runtime']['Package'], {
@@ -423,7 +424,7 @@ class ShippedPinsTests(unittest.TestCase):
         self.assertEqual(self.pins['runtime']['ProxyPackage'], {
             'fsr4/amd_fidelityfx_upscaler_dx12.dll': 'fsr4/amd_fidelityfx_upscaler_dx12.dll',
             'payload/bc250_xefg_original.dll': 'OptiScaler/libxess_fg.dll', 'payload/libxell.dll': 'OptiScaler/libxell.dll'})
-        self.assertTrue(self.pins['inputs']['fsr4']['url'].startswith('https://github.com/daniel-h-0/bc250-fsr4-fork/releases/download/v4.0.0-rc11/'))
+        self.assertTrue(self.pins['inputs']['fsr4']['url'].startswith('https://github.com/daniel-h-0/bc250-fsr4-fork/releases/download/v4.0.0-rc12/'))
 
     def test_intel_runtime_comes_from_intels_repository_with_the_nightly_as_mirror(self):
         # Durable pin: Intel's repository at the commit whose headers the build uses (downloaded and hashed 2026-10-18).

@@ -1,29 +1,46 @@
 /* SPDX-License-Identifier: MIT
  * F4Q (XEFG_F4Q, the multi-frame proxy since FreeFG 1.1): which pipelines run this project's F(4x4) kernels for the
- * U-Net decoder b3941ac8 and encoder f030948d, their dispatch geometry, and the in-game check (switch, model segment
- * and the tier: src/model_f4q.h).
+ * U-Net decoder b3941ac8 and encoder f030948d, since 1.1.2 (F4Q2) for the encoders 1a3b0782, e83e868f and 9e0080ee and
+ * (F4Q3) for the row layers 60edebbb and b3ddf030, which pipelines run the FP16 forms (1.1.2), their dispatch geometry,
+ * and the in-game check (switches, model segments and the tier: src/model_f4q.h).
  *
- *   F4Q on (default)       compute_hook creates b3941ac8 and f030948d from <hash>.f4q.dxil instead of the F(2x2)
- *                          <hash>.dxil (F4Q_REPLACE lines); dispatches bound to such a pipeline take the F(4x4) groups:
- *                          b3941ac8 32 x 16 px per group (x / 2, y x 2 of Intel's dispatch), f030948d 16 x 8 pooled px
- *                          (x / 4, y x 2, two output slices in z). When a F(4x4) pipeline cannot be created, that
- *                          pipeline is created from the F(2x2) file instead and keeps the F(2x2) geometry (one
- *                          F4Q_FALLBACK line): the geometry follows the pipeline a dispatch binds.
+ *   F4Q on (default)       compute_hook creates b3941ac8 and f030948d (with F4Q2 on, its default, also 1a3b0782,
+ *                          e83e868f and 9e0080ee; with F4Q3, also 60edebbb and b3ddf030) from <hash>.f4q.dxil instead of
+ *                          the F(2x2) <hash>.dxil (F4Q_REPLACE lines); dispatches bound to such a pipeline take the F(4x4)
+ *                          groups: b3941ac8 32 x 16 px per group (x / 2, y x 2 of Intel's dispatch), f030948d 16 x 8 pooled
+ *                          px (x / 4, y x 2, two output slices in z); the F4Q2 layers 16 x 8 pooled px of one output slice
+ *                          per group: 1a3b0782 x 1, y x 2, one slice; e83e868f x / 4, y x 1, four slices; 9e0080ee x / 2,
+ *                          y / 2, eight slices; the F4Q3 row layers 32 x 16 px of their one output slice: x / 4, y / 2 (the
+ *                          dispatch-scale.txt rows of the F(2x2) and 1D kernels describe Intel's dispatch; the row layers'
+ *                          rows are identities). When a F(4x4) pipeline cannot be created, that pipeline is created from
+ *                          the F(2x2) file instead and keeps the F(2x2) geometry (one F4Q_FALLBACK line): the geometry
+ *                          follows the pipeline a dispatch binds.
+ *   FP16 forms (default)   while their bits are on (src/model_f4q.h fp16_mask; this build turns on bits 1 and 2), a
+ *                          target's F(4x4) pipeline is created from <hash>.fp16.dxil (bit 1: the F4Q2 layers that are on;
+ *                          bit 4: b3941ac8, f030948d; same geometry), and 1f27b449, f2e2e13f, 5654aa38, 4bb52a63 (bit 2) and
+ *                          60edebbb, b3ddf030 (bit 8, F4Q3 then off) are created from <hash>.fp16.dxil instead of their
+ *                          F(2x2) / 1D <hash>.dxil (same geometry): FP16_REPLACE lines. A missing FP16 file (FP16_FALLBACK)
+ *                          of e83e868f or 9e0080ee, whose FP32 table the owner wrote as FP16 in place, makes that pipeline
+ *                          F(2x2) (F4Q_FALLBACK too); of 1a3b0782, b3941ac8 or f030948d (FP16 copies) the F(4x4) file
+ *                          runs; of a bit 2 or 8 layer, its F(2x2) / 1D file. A failed creation: FP16_REPLACE, then
+ *                          F4Q_FALLBACK (target) or FP16_FALLBACK (bit 2 or 8).
  *   BC250_XEFG_F4Q_SHADOW=1 (diagnostic, off by default; logs nothing unless set)
  *                          the F(2x2) kernels keep the output; at each of their dispatches the F(4x4) kernel runs first,
  *                          into the same output view, which is fingerprinted, then the runtime's dispatch runs the F(2x2)
  *                          kernel, its output is fingerprinted, and an own GPU pass compares the two fingerprints and
  *                          adds to equal / differ counters. The CPU reads only the counters (F4Q_COUNT lines, every 100
  *                          real frames and at release). Both kernels and the check passes are this project's own code
- *                          (src/kernels/f4q_check.hlsl); nothing of the content leaves the GPU.
- * Points of the check: 0 = b3941ac8 at full size (output width >= 1024), 1 = b3941ac8 at half size, 2 = f030948d.
+ *                          (src/kernels/f4q_check.hlsl); nothing of the content leaves the GPU. The FP16 forms are off.
+ * Points of the check: 0 = b3941ac8 at full size (output width >= 1024), 1 = b3941ac8 at half size, 2 = f030948d; with F4Q2
+ * on, 3 = 1a3b0782, 4 = e83e868f, 5 = 9e0080ee; with F4Q3, 6 = 60edebbb, 7 = b3ddf030.
  *
  * Check mechanics: root signature layouts, UAV provenance through Create/Copy calls, shader-visible heaps and every
  * compute root argument per command list are tracked (only while the check runs); an own pass binds its own heap and
  * root signature, dispatches, and restores the runtime's heaps, root signature, every root argument and pipeline. Views
  * are cached with a reference on the resource (released at context release).
- * Fast-log lines: F4Q_CONFIG and F4Q_SEGMENT (src/model_f4q.h), F4Q_REPLACE, F4Q_FALLBACK; with the check only:
- * F4Q_SHADOW_PSO, F4Q_INSTALLED, F4Q_STATUS + F4Q_COUNT, F4Q_SUMMARY, F4Q_SKIP, F4Q_STOP.
+ * Fast-log lines: F4Q_CONFIG, F4Q2_CONFIG, FP16_CONFIG, F4Q3_CONFIG, F4Q_SEGMENT and FP16_SEGMENT (src/model_f4q.h),
+ * F4Q_REPLACE, F4Q_FALLBACK, FP16_REPLACE, FP16_FALLBACK; with the check only: F4Q_SHADOW_PSO, F4Q_INSTALLED (and
+ * F4Q2_INSTALLED, F4Q3_INSTALLED), F4Q_STATUS (and F4Q2_STATUS, F4Q3_STATUS) + F4Q_COUNT, F4Q_SUMMARY, F4Q_SKIP, F4Q_STOP.
  */
 #ifndef FQ_MODEL_COUNT
 #define FQ_MODEL_COUNT() (model_count)
@@ -46,13 +63,14 @@
 #define FQ_RB 4
 #define FQ_PSOS 5
 #define FQ_PAIRS 32
-#define FQ_POINTS 3
+#define FQ_POINTS 8        /* 0..2 F4Q, 3..5 the F4Q2 encoders, 6..7 the F4Q3 row layers */
 #define FQ_LOG_EVERY 100   /* real frames between F4Q_STATUS lines of the check */
 #define F4Q_PIPELINES 64
 enum { FQV_NONE = 0, FQV_SRV = 1, FQV_UAV = 2 };
 enum { FQK_OBJECTS, FQK_LIST, FQK_ROOT, FQK_PSO, FQK_PAIR, FQK_DESC_FULL, FQK_TARGETS, FQK_GEOMETRY, FQK_UNSUPPORTED, FQK_COUNT };
 static const char*const fq_skip_names[FQK_COUNT]={"objects","list","root","pso","pair","desc_full","targets","geometry","unsupported"};
-static const char*const fq_point_names[FQ_POINTS]={"b3941ac8-full","b3941ac8-half","f030948d"};
+static const char*const fq_point_names[FQ_POINTS]={"b3941ac8-full","b3941ac8-half","f030948d","1a3b0782","e83e868f","9e0080ee",
+                                                   "60edebbb","b3ddf030"};
 /* the check's fingerprint and compare kernels (src/kernels/f4q_check.hlsl, KIND 0..3 on a UAV view, KIND 4 = aux) */
 static const char*const fq_pso_names[FQ_PSOS]={"f4q-check-uav-uint.dxil","f4q-check-uav-float.dxil","f4q-check-uav-sint.dxil","f4q-check-uav-raw.dxil","f4q-check-aux.dxil"};
 
@@ -101,7 +119,20 @@ static __typeof__(((ID3D12GraphicsCommandListVtbl*)0)->Reset) fq_next_reset;
 #define FQ_INNER(model, next) ((model) ? (model) : (next))
 static uint64_t fq_fnv(uint64_t h, const void *p, size_t n){const unsigned char*b=p;for(size_t i=0;i<n;i++)h=(h^b[i])*0x100000001b3ULL;return h;}
 #define FQ_FNV0 0xcbf29ce484222325ULL
-static int fq_target_shader(uint64_t s){return s==FQ_DEC||s==FQ_ENC;}
+/* F4Q's two pipelines, and F4Q2's and F4Q3's layers while they are on (f4q2_bit, f4q3_bit: 0 for every shader while off) */
+static int fq_target_shader(uint64_t s){return s==FQ_DEC||s==FQ_ENC||f4q2_bit(s)||f4q3_bit(s);}
+/* the F(4x4) groups of an F4Q2 layer from Intel's dispatch of it (Intel's group covers 16 x 16 pooled px of 1a3b0782,
+ * 4 x 8 of e83e868f, 8 x 4 of 9e0080ee: release/profile/dispatch-scale.txt with the F(2x2) group sizes); the F(4x4)
+ * group covers 16 x 8 pooled px of one 16-channel output slice (z); a negative factor divides, rounding up */
+static int f4q2_geometry(uint64_t s,int*sx,int*sy,UINT*sz){
+ if(s==F4Q2_1A3B){*sx=1;*sy=2;*sz=1;return 1;}
+ if(s==F4Q2_E83E){*sx=-4;*sy=1;*sz=4;return 1;}
+ if(s==F4Q2_9E00){*sx=-2;*sy=-2;*sz=8;return 1;}
+ /* F4Q3: Intel's group covers 8 x 8 output px of a row layer (the 1D kernel's 4 x 8 threads, two px each, at its identity
+  * dispatch-scale row); the unpooled F(4x4) group covers 32 x 16 px of the one 16-channel output slice */
+ if(s==F4Q3_60ED||s==F4Q3_B3DD){*sx=-4;*sy=-2;*sz=1;return 1;}
+ return 0;
+}
 static void fq_skip(UINT why,uint64_t shader){
  fq.skips[why]++;
  if(fq.skips[why]<=4){char line[200];snprintf(line,sizeof(line),"F4Q_SKIP %s shader=%016llx count=%llu\n",fq_skip_names[why],(unsigned long long)shader,(unsigned long long)fq.skips[why]);logline(line);}
@@ -111,26 +142,55 @@ static void fq_skip(UINT why,uint64_t shader){
 static struct { ID3D12PipelineState *p; uint64_t hash; } f4q_pipelines[F4Q_PIPELINES]; static UINT f4q_pipeline_count;
 /* compute_hook: create this target from its F(4x4) file (F4Q on, room in the table to follow its geometry) */
 static int f4q_replaces(uint64_t h){return f4q_mode==F4Q_ON&&fq_target_shader(h)&&f4q_pipeline_count<F4Q_PIPELINES;}
-/* <hash>.dxil, or <hash>.f4q.dxil when f4q: its bytes (the caller frees them) and size, or NULL when it cannot be opened */
-static void*f4q_read(uint64_t h,int f4q,DWORD*size){
- char path[1200];snprintf(path,sizeof(path),"%s\\%016llx%s.dxil",patchdir,(unsigned long long)h,f4q?".f4q":"");
+/* <hash><suffix>.dxil: its bytes (the caller frees them) and size, or NULL when it cannot be opened */
+static void*f4q_file(uint64_t h,const char*suffix,DWORD*size){
+ char path[1200];snprintf(path,sizeof(path),"%s\\%016llx%s.dxil",patchdir,(unsigned long long)h,suffix);
  HANDLE f=CreateFileA(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);if(f==INVALID_HANDLE_VALUE)return NULL;
  DWORD n;*size=GetFileSize(f,NULL);void*bytes=malloc(*size);if(!bytes||!ReadFile(f,bytes,*size,&n,NULL)||n!=*size)ExitProcess(12);
  CloseHandle(f);return bytes;
+}
+/* FP16 forms: the F(4x4) targets that read an FP16 table (bit 1: F4Q2's layers that are on; bit 4: b3941ac8, f030948d) */
+static int fp16_f4q_target(uint64_t h){return ((fp16_mask&FP16_F4Q2)&&f4q2_bit(h))||((fp16_mask&FP16_F4Q)&&(h==FQ_DEC||h==FQ_ENC));}
+/* and the F(2x2) / 1D layers that run packed-FP16 MACs (bit 2: four XU-1 layers; bit 8: the row layers) */
+static int fp16_pk_layer(uint64_t h){
+ if(fp16_mask&FP16_XU1)if(h==0x1f27b449fb99a587ULL||h==0xf2e2e13fea432d20ULL||h==0x5654aa3800432b13ULL||h==0x4bb52a635e6d221aULL)return 1;
+ return (fp16_mask&FP16_ROW)&&(h==F4Q3_60ED||h==F4Q3_B3DD);
+}
+static LONG fp16_lines;
+static void fp16_line(const char*what,uint64_t h,DWORD size,const char*tail){
+ if(InterlockedIncrement(&fp16_lines)>64)return;
+ char line[300],bytes[24]="";if(size)snprintf(bytes,sizeof(bytes)," %lu",(unsigned long)size);
+ snprintf(line,sizeof(line),"%s %016llx %016llx.fp16.dxil%s%s\n",what,(unsigned long long)h,(unsigned long long)h,bytes,tail);
+ logline(line);
+}
+/* <hash>.dxil, or a target's F(4x4) file when f4q: <hash>.fp16.dxil while its FP16 form is on, else <hash>.f4q.dxil.
+ * *form names the file read (".f4q" or ".fp16"). A missing FP16 file of e83e868f / 9e0080ee (their table is FP16 in
+ * place) gives NULL, so the F(2x2) kernel runs; of another target, its .f4q.dxil. */
+static void*f4q_read(uint64_t h,int f4q,DWORD*size,const char**form){
+ *form=f4q?".f4q":"";
+ if(f4q&&fp16_f4q_target(h)){
+  void*bytes=f4q_file(h,".fp16",size);
+  if(bytes){*form=".fp16";fp16_line("FP16_REPLACE",h,*size,"");return bytes;}
+  int inplace=h==F4Q2_E83E||h==F4Q2_9E00;
+  fp16_line("FP16_FALLBACK",h,0,inplace?" cannot be read: the F(2x2) kernel runs (its table is FP16 in place)":" cannot be read: the F(4x4) file runs");
+  if(inplace)return NULL;
+ }
+ return f4q_file(h,f4q?".f4q":"",size);
 }
 static void f4q_fallback(uint64_t h,const char*why,HRESULT hr){
  char line[240];snprintf(line,sizeof(line),"F4Q_FALLBACK %016llx %s (hr=0x%08lx): the F(2x2) kernel runs for this pipeline\n",
                          (unsigned long long)h,why,(unsigned long)hr);logline(line);
 }
-static void f4q_note_pipeline(ID3D12PipelineState*p,uint64_t h,DWORD size){
+static void f4q_note_pipeline(ID3D12PipelineState*p,uint64_t h,DWORD size,const char*form){
  f4q_pipelines[f4q_pipeline_count].p=p;f4q_pipelines[f4q_pipeline_count++].hash=h;
- char line[200];snprintf(line,sizeof(line),"F4Q_REPLACE %016llx %016llx.f4q.dxil %lu\n",(unsigned long long)h,(unsigned long long)h,(unsigned long)size);logline(line);
+ char line[200];snprintf(line,sizeof(line),"F4Q_REPLACE %016llx %016llx%s.dxil %lu\n",(unsigned long long)h,(unsigned long long)h,form,(unsigned long)size);logline(line);
 }
 /* dispatch_hook, for a shader with a dispatch-scale.txt row: the F(4x4) groups when the list binds a F(4x4) pipeline */
 static void f4q_geometry(ID3D12GraphicsCommandList*l,uint64_t shader,int*sx,int*sy,UINT*sz){
  if(!f4q_pipeline_count||!fq_target_shader(shader))return;
  ID3D12PipelineState*bound=NULL;for(UINT b=0;b<nbinding;b++)if(bindings[b].l==l)bound=bindings[b].p;
  for(UINT i=0;i<f4q_pipeline_count;i++)if(f4q_pipelines[i].p==(void*)bound&&f4q_pipelines[i].hash==shader){
+  if(f4q2_geometry(shader,sx,sy,sz))return;
   if(shader==FQ_DEC){*sx=-2;*sy=2;*sz=1;}else{*sx=-4;*sy=2;*sz=2;}
   return;
  }
@@ -140,12 +200,16 @@ static int fq_groups(uint64_t shader,UINT x,UINT y,UINT z,UINT*gx,UINT*gy,UINT*g
  if(z!=1||!x||!y||y>32767)return 0;
  if(shader==FQ_DEC){*gx=(x+1)/2;*gy=y*2;*gz=1;return 1;}
  if(shader==FQ_ENC){*gx=(x+3)/4;*gy=y*2;*gz=2;return 1;}
+ int sx,sy;UINT sz;
+ if(f4q2_geometry(shader,&sx,&sy,&sz)){
+  *gx=sx>0?x*(UINT)sx:(x+(UINT)(-sx)-1)/(UINT)(-sx);*gy=sy>0?y*(UINT)sy:(y+(UINT)(-sy)-1)/(UINT)(-sy);*gz=sz;return 1;
+ }
  return 0;
 }
 /* compute_hook (check only): beside the F(2x2) pipeline of a target, its F(4x4) pipeline from the same description */
 static void fq_capture(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,uint64_t h,ID3D12PipelineState*exact){
  if(f4q_mode!=F4Q_SHADOW||!fq_target_shader(h))return;
- DWORD length=0;void*bytes=f4q_read(h,1,&length);if(!bytes){fq_skip(FQK_PSO,h);return;}
+ DWORD length=0;const char*form;void*bytes=f4q_read(h,1,&length,&form);if(!bytes){fq_skip(FQK_PSO,h);return;}
  D3D12_COMPUTE_PIPELINE_STATE_DESC copy=*desc;copy.CS.pShaderBytecode=bytes;copy.CS.BytecodeLength=(SIZE_T)length;copy.CachedPSO=(D3D12_CACHED_PIPELINE_STATE){0};
  ID3D12PipelineState*p=NULL;HRESULT hr=compute_original(d,&copy,&IID_ID3D12PipelineState,(void**)&p);free(bytes);
  if(FAILED(hr)||!p){fq_skip(FQK_PSO,h);return;}
@@ -156,28 +220,37 @@ static void fq_capture(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*de
  char line[200];snprintf(line,sizeof(line),"F4Q_SHADOW_PSO %016llx bytes=%lu %s\n",(unsigned long long)h,(unsigned long)length,p?"ok":"table full");logline(line);
 }
 /* compute_hook (src/probe.c) in this build: a shader the profile manifest lists is created from its replacement file
- * (REPLACE line); a F4Q target from <hash>.f4q.dxil while F4Q is on, and from the F(2x2) <hash>.dxil when that file
- * cannot be read or its pipeline cannot be created (F4Q_FALLBACK); other shaders as Intel built them. With the check
- * on, a target's F(4x4) pipeline is created beside its F(2x2) one (fq_capture). */
+ * (REPLACE line); a F4Q target from its F(4x4) file while F4Q is on (f4q_read: <hash>.fp16.dxil or <hash>.f4q.dxil), and
+ * from the F(2x2) <hash>.dxil when that file cannot be read or its pipeline cannot be created (F4Q_FALLBACK); a layer of
+ * FP16 bit 2 or 8 from <hash>.fp16.dxil, its F(2x2) / 1D <hash>.dxil when that cannot be read or fails (FP16_FALLBACK);
+ * other shaders as Intel built them. With the check on, a target's F(4x4) pipeline is created beside its F(2x2) one
+ * (fq_capture). */
 static HRESULT f4q_compute(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,uint64_t h,REFIID iid,void**out){
- D3D12_COMPUTE_PIPELINE_STATE_DESC copy=*desc;void*replacement=NULL;DWORD loaded=0;int f4q=0;char line[160];
+ D3D12_COMPUTE_PIPELINE_STATE_DESC copy=*desc;void*replacement=NULL;DWORD loaded=0;int f4q=0,pk=0;char line[160];const char*form="";
  if(*patchdir&&profile_lists_replacement(h)){
   f4q=f4q_replaces(h);
-  if(f4q&&!(replacement=f4q_read(h,1,&loaded))){f4q_fallback(h,"its F4Q file cannot be read",S_OK);f4q=0;}
-  if(!replacement)replacement=f4q_read(h,0,&loaded);
+  if(f4q&&!(replacement=f4q_read(h,1,&loaded,&form))){f4q_fallback(h,"its F4Q file cannot be read",S_OK);f4q=0;}
+  if(!replacement&&fp16_pk_layer(h)){
+   if((replacement=f4q_file(h,".fp16",&loaded)))pk=1;
+   else fp16_line("FP16_FALLBACK",h,0," cannot be read: the F(2x2) / 1D kernel runs");
+  }
+  if(!replacement)replacement=f4q_file(h,"",&loaded);
   if(replacement){
    copy.CS.pShaderBytecode=replacement;copy.CS.BytecodeLength=loaded;copy.CachedPSO=(D3D12_CACHED_PIPELINE_STATE){0};
    snprintf(line,sizeof(line),"REPLACE %016llx %lu\n",(unsigned long long)h,(unsigned long)loaded);logline(line);
   }
  }
  HRESULT hr=compute_original(d,&copy,iid,out);
- if(f4q&&FAILED(hr)){
-  f4q_fallback(h,"pipeline creation failed",hr);f4q=0;free(replacement);
-  if((replacement=f4q_read(h,0,&loaded))){copy.CS.pShaderBytecode=replacement;copy.CS.BytecodeLength=loaded;}else copy.CS=desc->CS;
+ if((f4q||pk)&&FAILED(hr)){
+  if(f4q)f4q_fallback(h,"pipeline creation failed",hr);
+  else{snprintf(line,sizeof(line)," pipeline creation failed (hr=0x%08lx): the F(2x2) / 1D kernel runs",(unsigned long)hr);fp16_line("FP16_FALLBACK",h,loaded,line);}
+  f4q=pk=0;free(replacement);
+  if((replacement=f4q_file(h,"",&loaded))){copy.CS.pShaderBytecode=replacement;copy.CS.BytecodeLength=loaded;}else copy.CS=desc->CS;
   hr=compute_original(d,&copy,iid,out);
  }
  free(replacement);
- if(SUCCEEDED(hr)&&f4q)f4q_note_pipeline(*out,h,loaded);
+ if(SUCCEEDED(hr)&&f4q)f4q_note_pipeline(*out,h,loaded,form);
+ if(SUCCEEDED(hr)&&pk)fp16_line("FP16_REPLACE",h,loaded,"");
  if(SUCCEEDED(hr))fq_capture(d,desc,h,*out);
  return hr;
 }
@@ -535,6 +608,11 @@ static void fq_status(const char*why){
           (unsigned long long)fq.skips[3],(unsigned long long)fq.skips[4],(unsigned long long)fq.skips[5],(unsigned long long)fq.skips[6],(unsigned long long)fq.skips[7],
           (unsigned long long)fq.skips[8]);
  logline(line);
+ if(f4q2_mask){snprintf(line,sizeof(line),"F4Q2_STATUS dispatches=%llu/%llu/%llu (1a3b0782/e83e868f/9e0080ee)\n",
+                        (unsigned long long)fq.dispatches[3],(unsigned long long)fq.dispatches[4],(unsigned long long)fq.dispatches[5]);
+               logline(line);}
+ if(f4q3_mask){snprintf(line,sizeof(line),"F4Q3_STATUS dispatches=%llu/%llu (60edebbb/b3ddf030)\n",(unsigned long long)fq.dispatches[6],
+                        (unsigned long long)fq.dispatches[7]);logline(line);}
  /* class 4 = forced "no inputs", same tick 0: counters[PTBASE + (point * 8 + 4) * 2 + {0 equal, 1 differ}] (batches) */
  if(c)for(UINT p=0;p<FQ_POINTS;p++){UINT eq=c[FQ_PTBASE+(p*8+4)*2],ne=c[FQ_PTBASE+(p*8+4)*2+1];
   if(eq||ne){snprintf(line,sizeof(line),"F4Q_COUNT stamp=%u point=%s equal=%u differ=%u\n",stamp,fq_point_names[p],eq,ne);logline(line);}}
@@ -560,7 +638,8 @@ static void fq_before(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UINT y,
  if(!layout){fq_skip(FQK_ROOT,shader);return;}
  if(n!=1){fq_skip(FQK_TARGETS,shader);return;}
  UINT gx,gy,gz;if(!fq_groups(shader,x,y,z,&gx,&gy,&gz)){fq_skip(FQK_GEOMETRY,shader);return;}
- UINT point=shader==FQ_ENC?2:t[0].w>=1024?0:1;
+ UINT point=shader==F4Q3_60ED?6:shader==F4Q3_B3DD?7:shader==F4Q2_1A3B?3:shader==F4Q2_E83E?4:shader==F4Q2_9E00?5:
+            shader==FQ_ENC?2:t[0].w>=1024?0:1;
  /* 1. the F(4x4) kernel into the output view, with the runtime's root arguments (same root signature) */
  set_original(l,f4q);dispatch_original(l,gx,gy,gz);
  /* 2. its fingerprint; fq_end restores the runtime's state and the bound (exact) pipeline */
@@ -604,6 +683,8 @@ static void fq_install(ID3D12Device*d,ID3D12GraphicsCommandList*l){
  fq_next_heaps=l->lpVtbl->SetDescriptorHeaps;replace((void*)&l->lpVtbl->SetDescriptorHeaps,fq_heaps_hook);
  fq_next_reset=l->lpVtbl->Reset;replace((void*)&l->lpVtbl->Reset,fq_reset_hook);
  logline("F4Q_INSTALLED root, descriptor and heap tracking; shadow compares at b3941ac8 and f030948d\n");
+ if(f4q2_mask){char line[160];snprintf(line,sizeof(line),"F4Q2_INSTALLED shadow compares also at the F4Q2 layers %u (points 3..5)\n",f4q2_mask);logline(line);}
+ if(f4q3_mask){char line[160];snprintf(line,sizeof(line),"F4Q3_INSTALLED shadow compares also at the F4Q3 row layers %u (points 6..7)\n",f4q3_mask);logline(line);}
 }
 /* After GPU completion is confirmed (fast_finish), before the fast log closes: the check's last counters, then release of
  * every own object and reference, and this context's F(4x4) pipeline table (fast_finish releases the pipelines). */

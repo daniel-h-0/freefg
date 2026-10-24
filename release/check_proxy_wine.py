@@ -30,27 +30,49 @@ src/game/test_proxy_load.c is compiled to a console program and run under `wine`
              objects, no runtime): which contexts are scoped, claims by output pointer or device, releases, capacity,
              the deferred initialisation work, frame counts, references all released at the end
              expected: exit 0 and COEXIST_UNIT failures=0
-  f4q-*      (variants built with XEFG_F4Q) src/game/test_f4q.c: F4Q's switch, model segment, pipelines and geometry,
-             fallback and diagnostic check (src/model_f4q.h, src/game/f4q.h and the real settings reader, with mock
-             D3D12 objects), one folder per case with its own BC250-XeFG/settings.ini:
-               default     the package's settings.ini (F4Q=1): on; b3941ac8 and f030948d created from <hash>.f4q.dxil
-                           (F4Q_REPLACE), another shader from its <hash>.dxil; F(4x4) geometry only for a dispatch that
-                           binds a F(4x4) pipeline, none left after the context's release; segment sizes 36,864 /
-                           73,728 bytes; no hook installed and no line of the check
-               no-ini      no settings file: on
-               ini-off     settings.ini F4Q=0: off (F(2x2) files and geometry, no segment, no F4Q_REPLACE)
-               env-off     BC250_XEFG_F4Q=0 over settings.ini F4Q=1: off
-               env-on      BC250_XEFG_F4Q=on over settings.ini F4Q=0: on
+  f4q-*      (variants built with XEFG_F4Q) src/game/test_f4q.c: the switches of F4Q and F4Q2, model segments, pipelines
+             and geometry, fallback and diagnostic check (src/model_f4q.h, src/game/f4q.h and the real settings reader,
+             with mock D3D12 objects), one folder per case with its own BC250-XeFG/settings.ini:
+               default     the package's settings.ini (F4Q=1, F4Q2=1): both on; b3941ac8 and f030948d and F4Q2's
+                           1a3b0782, e83e868f and 9e0080ee created from <hash>.f4q.dxil (F4Q_REPLACE), f2e2e13f from
+                           its <hash>.dxil; F(4x4) geometry only for a dispatch that binds a F(4x4) pipeline, none left
+                           after the context's release; segment sizes 36,864 / 73,728 bytes and, for F4Q2, 294,912 /
+                           1,179,648 bytes; no hook installed and no line of the check
+               no-ini      no settings file: both on
+               ini-off     settings.ini F4Q=0: both off (F(2x2) files and geometry, no segment, no F4Q_REPLACE)
+               env-off     BC250_XEFG_F4Q=0 over settings.ini F4Q=1: both off
+               env-on      BC250_XEFG_F4Q=on over settings.ini F4Q=0: both on
                shadow-off  BC250_XEFG_F4Q=0 with BC250_XEFG_F4Q_SHADOW=1: off, no line of the check
+               f4q2-*      F4Q on and F4Q2 off by settings.ini F4Q2=0 or BC250_XEFG_F4Q2=0; BC250_XEFG_F4Q2=yes over
+                           F4Q2=0: on; an unreadable value: the file decides; BC250_XEFG_F4Q2=1 with F4Q off: off
                fallback    on, b3941ac8's F(4x4) pipeline cannot be created and f030948d's F(4x4) file is missing:
-                           both F4Q_FALLBACK, F(2x2) pipelines and geometry
-               layout      on, but a model layout without the row16 segment: off (the kernels' offsets do not hold)
+                           both F4Q_FALLBACK, F(2x2) pipelines and geometry; F4Q2's three layers F(4x4)
+               layout      on, but a model layout without the row16 segment: off (the kernels' offsets do not hold),
+                           F4Q2 with it
+               f4q2-layout a model layout without the 18432- and 73728-byte forms: F4Q on, F4Q2 on 1a3b0782 only
                shadow      BC250_XEFG_F4Q_SHADOW=1: F(2x2) output and geometry; at each target dispatch the F(4x4)
                            dispatch with the runtime's state and groups, its fingerprint, the runtime's own dispatch with
-                           its state, the F(2x2) fingerprint and the compare with the right point and tags; nothing at
-                           another shader; a z != 1 dispatch skipped; the stamped readback logged as F4Q_COUNT, then the
-                           release-time status and summary; every reference released at release
-               pack        the model owner's segment of a 2304- and a 4608-byte model equal to an independent product
+                           its state, the F(2x2) fingerprint and the compare with the right point and tags, at F4Q's
+                           points 0..2 and F4Q2's 3..5; nothing at another shader; a z != 1 dispatch skipped; the stamped
+                           readback logged as F4Q_COUNT, then the release-time status and summary; every reference
+                           released at release
+               shadow-f4q2-off  the same with BC250_XEFG_F4Q2=false: F4Q's points 0..2 and F4Q3's 6..7, no F4Q2 line
+               pack        (BC250_XEFG_EXACT=1) the model owner's segment of a 2304-, 4608-, 18432- and 73728-byte model
+                           equal to an independent product
+             1.1.2 (F4Q3 and the FP16 forms): every switch case also checks FP16_CONFIG and F4Q3_CONFIG, the pipeline
+             and geometry of all eleven U-Net shaders and a shader no form replaces, the FP16 copies' sizes of every
+             model size (SEGMENT3) and the FP16_REPLACE lines; by default (the FP16 forms' bits 1 and 2) seven are
+             created from <hash>.fp16.dxil (same geometry: the three F4Q2 encoders and four F(2x2) layers) and the other
+             four F4Q targets from <hash>.f4q.dxil (the row layers by F4Q3, with the F(4x4) groups x / 4, y / 2); with the
+             exact switch the seven F4Q targets from <hash>.f4q.dxil and the other four from <hash>.dxil:
+               exact-ini, exact-env, exact-env-over-ini, exact-env-bad, exact-f4q2-off
+                           Exact=1 in settings.ini; BC250_XEFG_EXACT=1; BC250_XEFG_EXACT=no over Exact=1 (on); an
+                           unreadable value (the file decides); the exact switch with F4Q2 off
+               fallback    runs with BC250_XEFG_EXACT=1 (F4Q's own fallbacks)
+               fp16-fallback  the FP16 forms' fallbacks: a missing FP16 file of e83e868f (its table is FP16 in place: F(2x2)),
+                           of 1a3b0782 (an FP16 copy: its F(4x4) file) and of 1f27b449 (F(2x2)); a failed FP16 pipeline of
+                           f2e2e13f (its F(2x2) kernel)
+               f4q2-layout also drops the FP16 forms' bit 2 (no 18432- / 73728-byte copies): forms 1
              expected: each case exits 0 with DONE and the lines above
 
   python3 release/check_proxy_wine.py [--variant intel-free-mfg]
@@ -119,6 +141,11 @@ def compile_caller(config, xess, product, folder, output):
 
 CALLERS = {'stand_in_optiscaler.dll': 'OptiScaler', 'stand_in_other.dll': 'Other product'}
 F4Q_DEC, F4Q_ENC, F4Q_OTHER = 'b3941ac8ff95efe7', 'f030948d38e74671', '1a3b0782583fef19'
+# F4Q2's layers (F4Q_OTHER is the first: its F(2x2) file is named exact-other) and a shader no form replaces
+F4Q2_E83E, F4Q2_9E00, F4Q_NEVER = 'e83e868f8d5d2c0f', '9e0080eee00255f2', '0123456789abcdef'
+# F4Q3's row layers and the F(2x2) layers of the FP16 forms' bit 2 (with their dispatch-scale rows)
+F4Q3_60ED, F4Q3_B3DD = '60edebbbd2f9fb69', 'b3ddf030f661d487'
+FP16_XU1 = {'1f27b449fb99a587': '1 2 4', 'f2e2e13fea432d20': '1 1 2', '5654aa3800432b13': '2 1 2', '4bb52a635e6d221a': '1 1 4'}
 # case: (test mode, environment, settings.ini text, 'package' for the package's file, or None for no file)
 F4Q_CASES = {
     'default': ('switch', {}, 'package'),
@@ -127,10 +154,23 @@ F4Q_CASES = {
     'env-off': ('switch', {'BC250_XEFG_F4Q': '0'}, 'package'),
     'env-on': ('switch', {'BC250_XEFG_F4Q': 'on'}, '[BC250]\nF4Q=0\n'),
     'shadow-off': ('switch', {'BC250_XEFG_F4Q': '0', 'BC250_XEFG_F4Q_SHADOW': '1'}, 'package'),
-    'fallback': ('fallback', {}, 'package'),
+    'f4q2-ini-off': ('switch', {}, '[BC250]\nResolutionMode=0\nF4Q=1\nF4Q2=0\n'),
+    'f4q2-env-off': ('switch', {'BC250_XEFG_F4Q2': '0'}, 'package'),
+    'f4q2-env-on': ('switch', {'BC250_XEFG_F4Q2': 'yes'}, '[BC250]\nF4Q2=0\n'),
+    'f4q2-env-bad': ('switch', {'BC250_XEFG_F4Q2': '7'}, '[BC250]\nF4Q2=0\n'),
+    'f4q2-on-f4q-off': ('switch', {'BC250_XEFG_F4Q': 'off', 'BC250_XEFG_F4Q2': '1'}, 'package'),
+    'exact-ini': ('switch', {}, '[BC250]\nResolutionMode=0\nF4Q=1\nF4Q2=1\nExact=1\n'),
+    'exact-env': ('switch', {'BC250_XEFG_EXACT': '1'}, 'package'),
+    'exact-env-over-ini': ('switch', {'BC250_XEFG_EXACT': 'no'}, '[BC250]\nExact=1\n'),
+    'exact-env-bad': ('switch', {'BC250_XEFG_EXACT': '2'}, '[BC250]\nExact=1\n'),
+    'exact-f4q2-off': ('switch', {'BC250_XEFG_EXACT': 'true', 'BC250_XEFG_F4Q2': '0'}, 'package'),
+    'fallback': ('fallback', {'BC250_XEFG_EXACT': '1'}, 'package'),
+    'fp16-fallback': ('fp16fallback', {}, 'package'),
     'layout': ('layout', {}, 'package'),
+    'f4q2-layout': ('layout2', {}, 'package'),
     'shadow': ('shadow', {'BC250_XEFG_F4Q_SHADOW': '1'}, 'package'),
-    'pack': ('pack', {}, 'package'),
+    'shadow-f4q2-off': ('shadow', {'BC250_XEFG_F4Q_SHADOW': '1', 'BC250_XEFG_F4Q2': 'false'}, 'package'),
+    'pack': ('pack', {'BC250_XEFG_EXACT': '1'}, 'package'),
 }
 
 
@@ -168,6 +208,75 @@ def f4q_consts(line):
     return [int(x) for x in re.search(r' c=([0-9,]+)', line).group(1).split(',')]
 
 
+def fp16_sizes(f4q, f4q2, fp16):
+    """model_fp16_size of the six model sizes (src/model_f4q.h): the rest of the F4Q room, the PK copy, the half copy."""
+    if not fp16:
+        return dict.fromkeys((2304, 4608, 9216, 18432, 36864, 73728), 0)
+    room = {2304: 36864, 4608: 73728, 18432: 294912, 73728: 1179648}
+    f4q_seg = {2304: 36864 if f4q else 0, 4608: 73728 if f4q else 0, 18432: 294912 if f4q2 & 2 else 0,
+               73728: 1179648 if f4q2 & 4 else 0}
+    pk = {2304: 6144, 4608: 12288, 9216: 32768, 18432: 65536, 36864: 131072, 73728: 262144}
+    out = {}
+    for size in (2304, 4608, 9216, 18432, 36864, 73728):
+        pk_on = bool(fp16 & (8 if size in (2304, 4608) else 2))
+        h_on = (size == 2304 and ((fp16 & 1 and f4q2 & 1) or fp16 & 4)) or (size == 4608 and fp16 & 4)
+        h = {2304: 18432, 4608: 36864}.get(size, 0) if h_on else 0
+        out[size] = room.get(size, 0) - f4q_seg.get(size, 0) + pk[size] + h if pk_on or h_on else 0
+    return out
+
+
+def f4q_pso(f4q, f4q2, fp16):
+    """{shader: (pipeline name, geometry)} that switch mode prints for F4Q on/off, F4Q2's layers (bits 1 = 1a3b0782,
+    2 = e83e868f, 4 = 9e0080ee) and the FP16 forms' bits (1 F4Q2 encoders, 2 XU-1 layers, 4 F4Q, 8 row layers)."""
+    D, E, A, EE, X = F4Q_DEC, F4Q_ENC, F4Q_OTHER, F4Q2_E83E, F4Q2_9E00
+    f4q3 = f4q and not fp16 & 8
+    out = {D: ('fp16-dec' if fp16 & 4 else 'f4q-dec', '-2 2 1') if f4q else ('exact-dec', '1 4 1'),
+           E: ('fp16-enc' if fp16 & 4 else 'f4q-enc', '-4 2 2') if f4q else ('exact-enc', '1 2 2'),
+           A: ('fp16-1a3b' if fp16 & 1 else 'f4q-1a3b', '1 2 1') if f4q2 & 1 else ('exact-other', '2 4 1'),
+           EE: ('fp16-e83e' if fp16 & 1 else 'f4q-e83e', '-4 1 4') if f4q2 & 2 else ('exact-e83e', '1 1 4'),
+           X: ('fp16-9e00' if fp16 & 1 else 'f4q-9e00', '-2 -2 8') if f4q2 & 4 else ('exact-9e00', '1 1 8')}
+    for h in (F4Q3_60ED, F4Q3_B3DD):
+        out[h] = (f'fp16-{h[:4]}', '1 1 1') if fp16 & 8 else (f'f4q-{h[:4]}', '-4 -2 1') if f4q3 else (f'exact-{h[:4]}', '1 1 1')
+    for h, row in FP16_XU1.items():
+        out[h] = (f'fp16-{h[:4]}' if fp16 & 2 else f'exact-{h[:4]}', row)
+    out[F4Q_NEVER] = ('exact-0123', '1 1 2')
+    return out
+
+
+def f4q_switch_lines(f4q, f4q2, fp16=0):
+    """The lines switch mode prints for F4Q on/off, F4Q2's layers and the FP16 forms (f4q_pso)."""
+    D = F4Q_DEC
+    rows = ['SEGMENT 2304=36864 4608=73728 9216=0', 'CONFIG mode=1'] if f4q else ['SEGMENT 2304=0 4608=0 9216=0', 'CONFIG mode=0']
+    for h, (name, geom) in f4q_pso(f4q, f4q2, fp16).items():
+        rows += [f'PSO {h} hr=0x00000000 name={name}', f'GEOM {h} pso={name} {geom}']
+    s = fp16_sizes(f4q, f4q2, fp16)
+    f4q3 = 3 if f4q and not fp16 & 8 else 0
+    rows += [f'GEOM {D} pso=stranger 1 4 1',
+             f'SEGMENT2 18432={294912 if f4q2 & 2 else 0} 73728={1179648 if f4q2 & 4 else 0} 36864=0 mask={f4q2}',
+             f'SEGMENT3 2304={s[2304]} 4608={s[4608]} 9216={s[9216]} 18432={s[18432]} 36864={s[36864]} 73728={s[73728]} '
+             f'fp16={fp16} f4q3={f4q3}', 'VTABLE unchanged=1', 'TICKS 0 OWN 0']
+    return rows
+
+
+def f4q_replaced(f4q, f4q2, fp16=0):
+    """Sorted (shader, file, file size) of the F4Q_REPLACE lines switch mode prints (b3941ac8 has two pipelines)."""
+    rows = []
+    for h, (name, geom) in f4q_pso(f4q, f4q2, fp16).items():
+        if name.startswith(('f4q-', 'fp16-')) and not (name.startswith('fp16-') and h in FP16_XU1 | {F4Q3_60ED: 1, F4Q3_B3DD: 1}):
+            row = (h, f'{h}.{name.split("-")[0]}.dxil', str(len(name)))
+            rows += [row, row] if h == F4Q_DEC else [row]
+    return sorted(rows)
+
+
+def fp16_replaced(f4q, f4q2, fp16):
+    """Sorted (shader, file size) of the FP16_REPLACE lines: every pipeline created from a <hash>.fp16.dxil."""
+    rows = []
+    for h, (name, _geom) in f4q_pso(f4q, f4q2, fp16).items():
+        if name.startswith('fp16-'):
+            rows += [(h, str(len(name)))] * (2 if h == F4Q_DEC else 1)
+    return sorted(rows)
+
+
 def f4q_problems(results):
     """What the F4Q cases' output (F4Q_CASES) shows that it should not."""
     problems = []
@@ -182,32 +291,49 @@ def f4q_problems(results):
              f'{text.strip().splitlines()[-1:] if text.strip() else None}')
         need('MODEL_FAIL' not in text and 'TEST ' not in text, f'f4q-{case}: model_fail or a test error')
     D, E, O = F4Q_DEC, F4Q_ENC, F4Q_OTHER
-    on_lines = [f'PSO {D} hr=0x00000000 name=f4q-dec', f'PSO {E} hr=0x00000000 name=f4q-enc',
-                f'PSO {O} hr=0x00000000 name=exact-other', f'GEOM {D} pso=f4q-dec -2 2 1', f'GEOM {E} pso=f4q-enc -4 2 2',
-                f'GEOM {O} pso=exact-other 2 4 1', f'GEOM {D} pso=stranger 1 4 1', 'SEGMENT 2304=36864 4608=73728 9216=0',
-                'VTABLE unchanged=1', 'TICKS 0 OWN 0', f'F4Q_REPLACE {D} {D}.f4q.dxil 7', f'F4Q_REPLACE {E} {E}.f4q.dxil 7']
-    off_lines = [f'PSO {D} hr=0x00000000 name=exact-dec', f'PSO {E} hr=0x00000000 name=exact-enc',
-                 f'PSO {O} hr=0x00000000 name=exact-other', f'GEOM {D} pso=exact-dec 1 4 1', f'GEOM {E} pso=exact-enc 1 2 2',
-                 'SEGMENT 2304=0 4608=0 9216=0', 'VTABLE unchanged=1', 'TICKS 0 OWN 0']
-    check_only = ('F4Q_SHADOW_PSO', 'F4Q_INSTALLED', 'F4Q_STATUS', 'F4Q_COUNT', 'F4Q_SUMMARY', 'F4Q_SKIP', 'F4Q_STOP')
-    for case, source in (('default', 'default'), ('no-ini', 'default'), ('env-on', 'BC250_XEFG_F4Q')):
+    check_only = ('F4Q_SHADOW_PSO', 'F4Q_INSTALLED', 'F4Q_STATUS', 'F4Q_COUNT', 'F4Q_SUMMARY', 'F4Q_SKIP', 'F4Q_STOP',
+                  'F4Q2_INSTALLED', 'F4Q2_STATUS', 'F4Q3_INSTALLED', 'F4Q3_STATUS')
+    # (case, F4Q on, F4Q source, F4Q2 layers, F4Q2 line: mode and source, FP16 forms, FP16 line source)
+    switch_cases = (('default', 1, 'default', 7, 'on', 'default', 3, 'default'),
+                    ('no-ini', 1, 'default', 7, 'on', 'default', 3, 'default'),
+                    ('env-on', 1, 'BC250_XEFG_F4Q', 7, 'on', 'default', 3, 'default'),
+                    ('ini-off', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('env-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('shadow-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('f4q2-ini-off', 1, 'default', 0, 'off', 'settings.ini', 3, 'default'),
+                    ('f4q2-env-off', 1, 'default', 0, 'off', 'BC250_XEFG_F4Q2', 3, 'default'),
+                    ('f4q2-env-on', 1, 'default', 7, 'on', 'BC250_XEFG_F4Q2', 3, 'default'),
+                    ('f4q2-env-bad', 1, 'default', 0, 'off', 'settings.ini', 3, 'default'),
+                    ('f4q2-on-f4q-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('exact-ini', 1, 'default', 7, 'on', 'default', 0, 'settings.ini'),
+                    ('exact-env', 1, 'default', 7, 'on', 'default', 0, 'BC250_XEFG_EXACT'),
+                    ('exact-env-over-ini', 1, 'default', 7, 'on', 'default', 3, 'BC250_XEFG_EXACT'),
+                    ('exact-env-bad', 1, 'default', 7, 'on', 'default', 0, 'settings.ini'),
+                    ('exact-f4q2-off', 1, 'default', 0, 'off', 'BC250_XEFG_F4Q2', 0, 'BC250_XEFG_EXACT'))
+    for case, f4q, source, f4q2, mode2, source2, fp16, source16 in switch_cases:
         text = results.get(case, {}).get('stdout', '')
         lines = text.splitlines()
-        need(f'F4Q_CONFIG mode=on source={source} (' in text and 'CONFIG mode=1' in lines, f'f4q-{case}: not on from {source}')
-        for want in on_lines:
+        on = 'on' if f4q else 'off'
+        need(f'F4Q_CONFIG mode={on} source={source} (' in text, f'f4q-{case}: F4Q not {on} from {source}')
+        need(f'F4Q2_CONFIG mode={mode2} source={source2} layers={f4q2} f4q={on} dropped_by_layout=0 ('
+             in text, f'f4q-{case}: F4Q2_CONFIG {[x for x in lines if x.startswith("F4Q2_CONFIG")]}')
+        need(f'FP16_CONFIG mode={"on" if fp16 else "off"} source={source16} forms={fp16} f4q={on} f4q2={f4q2} dropped=0 ('
+             in text, f'f4q-{case}: FP16_CONFIG {[x for x in lines if x.startswith("FP16_CONFIG")]}')
+        f4q3 = ('F4Q3_CONFIG mode=on layers=3 f4q=on (' if f4q and not fp16 & 8 else
+                f'F4Q3_CONFIG mode=off layers=0 f4q={on} source={"FP16" if f4q else "F4Q"} (')
+        need(f4q3 in text, f'f4q-{case}: F4Q3_CONFIG {[x for x in lines if x.startswith("F4Q3_CONFIG")]}, want {f4q3!r}')
+        for want in f4q_switch_lines(f4q, f4q2, fp16):
             need(want in lines, f'f4q-{case}: no line {want!r}')
-        need(lines.count(f'GEOM {D} pso=f4q-dec -2 2 1') == 2 and lines.count(f'F4Q_REPLACE {D} {D}.f4q.dxil 7') == 2,
-             f'f4q-{case}: the second b3941ac8 pipeline is not F(4x4) with its geometry')
-        need(lines[-3:-1] == [f'GEOM {D} pso=f4q-dec 1 4 1', 'TICKS 0 OWN 0'], f'f4q-{case}: F(4x4) geometry after release')
-        need(not any(line.startswith(check_only) for line in lines), f'f4q-{case}: lines of the check without its variable')
-    for case, source in (('ini-off', 'settings.ini'), ('env-off', 'BC250_XEFG_F4Q'), ('shadow-off', 'BC250_XEFG_F4Q')):
-        text = results.get(case, {}).get('stdout', '')
-        lines = text.splitlines()
-        need(f'F4Q_CONFIG mode=off source={source} (' in text and 'CONFIG mode=0' in lines, f'f4q-{case}: not off from {source}')
-        for want in off_lines:
-            need(want in lines, f'f4q-{case}: no line {want!r}')
-        need(not any(line.startswith(('F4Q_REPLACE', 'F4Q_FALLBACK') + check_only) for line in lines),
-             f'f4q-{case}: F4Q_REPLACE, F4Q_FALLBACK or a line of the check while off')
+        replaced = sorted(re.findall(r'^F4Q_REPLACE (\S+) (\S+) (\d+)$', text, re.M))
+        need(replaced == f4q_replaced(f4q, f4q2, fp16), f'f4q-{case}: F4Q_REPLACE {replaced}, want {f4q_replaced(f4q, f4q2, fp16)}')
+        fp16_rows = sorted(re.findall(r'^FP16_REPLACE (\S+) \S+\.fp16\.dxil (\d+)$', text, re.M))
+        need(fp16_rows == fp16_replaced(f4q, f4q2, fp16), f'f4q-{case}: FP16_REPLACE {fp16_rows}, want {fp16_replaced(f4q, f4q2, fp16)}')
+        dec = f4q_pso(f4q, f4q2, fp16)[D][0]
+        need(lines.count(f'GEOM {D} pso={dec} {"-2 2 1" if f4q else "1 4 1"}') == (2 if f4q else 3),
+             f'f4q-{case}: the second b3941ac8 pipeline does not follow F4Q')
+        need(lines[-3:-1] == [f'GEOM {D} pso={dec} 1 4 1', 'TICKS 0 OWN 0'], f'f4q-{case}: F(4x4) geometry after release')
+        need(not any(line.startswith(('F4Q_FALLBACK', 'FP16_FALLBACK') + check_only) for line in lines),
+             f'f4q-{case}: a fallback line or a line of the check without its variable')
     text = results.get('fallback', {}).get('stdout', '')
     lines = text.splitlines()
     need(f'F4Q_FALLBACK {D} pipeline creation failed (hr=0x80070057): the F(2x2) kernel runs for this pipeline' in lines,
@@ -215,29 +341,95 @@ def f4q_problems(results):
     need(f'F4Q_FALLBACK {E} its F4Q file cannot be read (hr=0x00000000): the F(2x2) kernel runs for this pipeline' in lines,
          'f4q-fallback: no fallback line for the missing f030948d file')
     for want in (f'PSO {D} hr=0x00000000 name=exact-dec', f'PSO {E} hr=0x00000000 name=exact-enc',
-                 f'GEOM {D} pso=exact-dec 1 4 1', f'GEOM {E} pso=exact-enc 1 2 2', 'CONFIG mode=1'):
+                 f'GEOM {D} pso=exact-dec 1 4 1', f'GEOM {E} pso=exact-enc 1 2 2', 'CONFIG mode=1',
+                 f'PSO {O} hr=0x00000000 name=f4q-1a3b', f'GEOM {O} pso=f4q-1a3b 1 2 1'):
         need(want in lines, f'f4q-fallback: no line {want!r}')
-    need(not any(line.startswith('F4Q_REPLACE') for line in lines), 'f4q-fallback: a F(4x4) pipeline was noted')
+    replaced = sorted(re.findall(r'^F4Q_REPLACE (\S+) (\S+) (\d+)$', text, re.M))
+    want = [r for r in f4q_replaced(1, 7, 0) if r[0] not in (D, E)]
+    need(replaced == want, f'f4q-fallback: F4Q_REPLACE {replaced}: only the F4Q2 and F4Q3 layers, whose files are there')
+    need('FP16_CONFIG mode=off source=BC250_XEFG_EXACT forms=0 f4q=on f4q2=7 dropped=0 (' in text, 'f4q-fallback: FP16 forms not off')
+    # the FP16 forms' fallbacks: a missing FP16 file of an in-place layer (F(2x2)), of a copy-reading target (its F(4x4) file)
+    # and of a packed-FP16 layer (F(2x2)); a failed packed-FP16 pipeline (F(2x2))
+    text = results.get('fp16-fallback', {}).get('stdout', '')
+    lines = text.splitlines()
+    for want in (f'FP16_FALLBACK {F4Q2_E83E} {F4Q2_E83E}.fp16.dxil cannot be read: the F(2x2) kernel runs (its table is FP16 in place)',
+                 f'F4Q_FALLBACK {F4Q2_E83E} its F4Q file cannot be read (hr=0x00000000): the F(2x2) kernel runs for this pipeline',
+                 f'PSO {F4Q2_E83E} hr=0x00000000 name=exact-e83e', f'GEOM {F4Q2_E83E} pso=exact-e83e 1 1 4',
+                 f'FP16_FALLBACK {F4Q_OTHER} {F4Q_OTHER}.fp16.dxil cannot be read: the F(4x4) file runs',
+                 f'PSO {F4Q_OTHER} hr=0x00000000 name=f4q-1a3b', f'GEOM {F4Q_OTHER} pso=f4q-1a3b 1 2 1',
+                 'FP16_FALLBACK 1f27b449fb99a587 1f27b449fb99a587.fp16.dxil cannot be read: the F(2x2) / 1D kernel runs',
+                 'PSO 1f27b449fb99a587 hr=0x00000000 name=exact-1f27',
+                 'FP16_FALLBACK f2e2e13fea432d20 f2e2e13fea432d20.fp16.dxil 9 pipeline creation failed (hr=0x80070057): the F(2x2) / 1D kernel runs',
+                 'PSO f2e2e13fea432d20 hr=0x00000000 name=exact-f2e2', 'GEOM f2e2e13fea432d20 pso=exact-f2e2 1 1 2',
+                 f'PSO {D} hr=0x00000000 name=f4q-dec', f'PSO {E} hr=0x00000000 name=f4q-enc',
+                 f'PSO {F4Q2_9E00} hr=0x00000000 name=fp16-9e00', f'PSO {F4Q3_60ED} hr=0x00000000 name=f4q-60ed',
+                 f'PSO {F4Q3_B3DD} hr=0x00000000 name=f4q-b3dd', 'PSO 5654aa3800432b13 hr=0x00000000 name=fp16-5654',
+                 'FP16_CONFIG mode=on source=default forms=3 f4q=on f4q2=7 dropped=0 ('):
+        need(any(line.startswith(want) for line in lines), f'f4q-fp16-fallback: no line {want!r}')
+    replaced = sorted(re.findall(r'^F4Q_REPLACE (\S+) (\S+) (\d+)$', text, re.M))
+    want = sorted([(D, f'{D}.f4q.dxil', '7')] * 2 + [(E, f'{E}.f4q.dxil', '7'), (F4Q_OTHER, f'{F4Q_OTHER}.f4q.dxil', '8'),
+                                                     (F4Q2_9E00, f'{F4Q2_9E00}.fp16.dxil', '9'),
+                                                     (F4Q3_60ED, f'{F4Q3_60ED}.f4q.dxil', '8'), (F4Q3_B3DD, f'{F4Q3_B3DD}.f4q.dxil', '8')])
+    need(replaced == want, f'f4q-fp16-fallback: F4Q_REPLACE {replaced}, want {want}')
+    fp16_rows = sorted(re.findall(r'^FP16_REPLACE (\S+) \S+\.fp16\.dxil (\d+)$', text, re.M))
+    want = sorted([(F4Q2_9E00, '9'), ('4bb52a635e6d221a', '9'), ('5654aa3800432b13', '9')])
+    need(fp16_rows == want, f'f4q-fp16-fallback: FP16_REPLACE {fp16_rows}, want {want}')
     text = results.get('layout', {}).get('stdout', '')
     lines = text.splitlines()
     need('F4Q_CONFIG mode=off source=layout (' in text and 'CONFIG mode=0' in lines and 'SEGMENT 2304=0 4608=0 9216=0' in lines
          and f'PSO {D} hr=0x00000000 name=exact-dec' in lines, 'f4q-layout: F4Q not off for a layout it was not built for')
+    need('F4Q2_CONFIG mode=off source=F4Q layers=0 f4q=off dropped_by_layout=0 (' in text
+         and 'SEGMENT2 18432=0 73728=0 36864=0 mask=0' in lines and f'PSO {O} hr=0x00000000 name=exact-other' in lines,
+         'f4q-layout: F4Q2 not off with F4Q off by the layout check')
+    need('FP16_CONFIG mode=off source=F4Q forms=0 f4q=off f4q2=0 dropped=0 (' in text
+         and 'F4Q3_CONFIG mode=off layers=0 f4q=off source=F4Q (' in text and 'PSO 1f27b449fb99a587 hr=0x00000000 name=exact-1f27' in lines,
+         'f4q-layout: the FP16 forms or F4Q3 not off with F4Q off by the layout check')
+    # a layout that holds for F4Q's sizes but not for 18432- and 73728-byte models: those two layers stay F(2x2)
+    text = results.get('f4q2-layout', {}).get('stdout', '')
+    lines = text.splitlines()
+    need('F4Q_CONFIG mode=on source=default (' in text
+         and 'F4Q2_CONFIG mode=on source=default layers=1 f4q=on dropped_by_layout=6 (' in text
+         and 'FP16_CONFIG mode=on source=default forms=1 f4q=on f4q2=1 dropped=2 (' in text,
+         f'f4q-f4q2-layout: config {[x for x in lines if "_CONFIG" in x]}')
+    for want in f4q_switch_lines(1, 1, 1):
+        need(want in lines, f'f4q-f4q2-layout: no line {want!r}')
     lines = results.get('pack', {}).get('stdout', '').splitlines()
-    for bytes_, size, values in ((2304, 36864, 9216), (4608, 73728, 18432)):
+    for bytes_, size, values, tbase in ((2304, 36864, 9216, 3025), (4608, 73728, 18432, 6049), (18432, 294912, 73728, 18049),
+                                        (73728, 1179648, 294912, 72193)):
         packed = [line for line in lines if line.startswith(f'PACK bytes={bytes_} ')]
         m = re.fullmatch(r'PACK bytes=\d+ segment=(\d+) values=(\d+) differing=(\d+) maxabs=(\d+)', packed[0]) if packed else None
         need(m is not None and int(m[1]) == size and int(m[2]) == values and m[3] == '0' and int(m[4]) <= 73728,
              f'f4q-pack: {packed[:1]} (want segment {size}, {values} values, 0 differing, |U\'| <= 73728)')
-        need(any(line.startswith(f'F4Q_SEGMENT bytes={bytes_} tbase=') for line in lines), f'f4q-pack: no F4Q_SEGMENT for {bytes_}')
-    # the check (research build ce02's test, with this build's names)
-    shadow = results.get('shadow', {}).get('stdout', '')
+        need(any(line.startswith(f'F4Q_SEGMENT bytes={bytes_} tbase={tbase} ') for line in lines),
+             f'f4q-pack: no F4Q_SEGMENT for {bytes_} at {tbase}')
+    problems += f4q_shadow_problems(results.get('shadow-f4q2-off', {}).get('stdout', ''), 'shadow-f4q2-off', False)
+    problems += f4q_shadow_problems(results.get('shadow', {}).get('stdout', ''), 'shadow', True)
+    return problems
+
+
+def f4q_shadow_problems(shadow, case, f4q2):
+    """The diagnostic check: F4Q's points 0..2 (research build ce02's test, with this build's names), and with F4Q2 on
+    its points 3..5 (F(4x4) groups from Intel's dispatch, compare point, counters)."""
+    problems = []
+
+    def need(ok, what):
+        if not ok:
+            problems.append(what.replace('f4q-shadow:', f'f4q-{case}:'))
+
+    D, E, O = F4Q_DEC, F4Q_ENC, F4Q_OTHER
+    need(f'F4Q2_CONFIG mode={"shadow" if f4q2 else "off"} source={"default" if f4q2 else "BC250_XEFG_F4Q2"} '
+         f'layers={7 if f4q2 else 0} f4q=shadow dropped_by_layout=0 (' in shadow, 'f4q-shadow: F4Q2_CONFIG')
     need('F4Q_CONFIG mode=shadow source=BC250_XEFG_F4Q_SHADOW' in shadow and 'CONFIG mode=2' in shadow.splitlines(),
          'f4q-shadow: not in the check')
+    need(f'FP16_CONFIG mode=off source=F4Q forms=0 f4q=shadow f4q2={7 if f4q2 else 0} dropped=0 (' in shadow
+         and 'F4Q3_CONFIG mode=shadow layers=3 f4q=shadow (' in shadow and 'FP16_REPLACE' not in shadow,
+         'f4q-shadow: the FP16 forms not off, or F4Q3 not in the check')
     need('PIPELINES dec=exact-dec enc=exact-enc other=exact-other' in shadow and f'GEOM {D} pso=exact-dec 1 4 1' in shadow,
          'f4q-shadow: the F(2x2) pipelines or geometry are not the runtime\'s')
     need('VTABLE unchanged=0' in shadow and 'F4Q_INSTALLED' in shadow and 'F4Q_REPLACE' not in shadow, 'f4q-shadow: hooks')
     pso_lines = re.findall(r'^F4Q_SHADOW_PSO (\S+) bytes=\d+ ok$', shadow, re.M)
-    need(sorted(pso_lines) == sorted([D, E]), f'f4q-shadow: F(4x4) pipelines {pso_lines}')
+    need(sorted(pso_lines) == sorted([D, E, F4Q3_60ED, F4Q3_B3DD] + ([O, F4Q2_E83E, F4Q2_9E00] if f4q2 else [])),
+         f'f4q-shadow: F(4x4) pipelines {pso_lines}')
     lines = [line for line in shadow.splitlines() if line.startswith(('OWN ', 'INTEL ', 'F4Q_SKIP'))]
     expect_groups = {('f4q-enc', '80,12,1'): '20,24,2', ('f4q-dec', '40,12,1'): '20,24,1', ('f4q-dec', '80,23,1'): '40,46,1'}
     fp_size = {'f4q-enc': '10,6,2', 'f4q-dec-half': '20,12,1', 'f4q-dec-full': '40,23,1'}
@@ -300,6 +492,60 @@ def f4q_problems(results):
     need(psos.get('f4q-dec') == '0' and psos.get('f4q-enc') == '0' and all(psos.get(n) == '0' for n in psos if n.startswith('f4q-check')),
          f'f4q-shadow: pipelines after finish {psos}')
     need(re.search(r'^TOTALS .* ticks_after_finish=0$', shadow, re.M) is not None, 'f4q-shadow: ticks not reset')
+    lines = shadow.splitlines()
+    # F4Q3's points (6 = 60edebbb, 7 = b3ddf030), on in the check whatever F4Q2 does: each runtime dispatch of a row layer
+    # preceded by its F(4x4) dispatch with the groups from Intel's dispatch (x / 4, y / 2), followed by the compare
+    problems += f4q_shadow_points(lines, 'f4q-' + case, {F4Q3_60ED: ('f4q-60ed', '80,45,1', '20,23,1', 6),
+                                                         F4Q3_B3DD: ('f4q-b3dd', '40,23,1', '10,12,1', 7)})
+    for name, eq, ne in (('60edebbb', 3, 0), ('b3ddf030', 2, 1)):
+        need(f'F4Q_COUNT stamp=7 point={name} equal={eq} differ={ne}' in lines, f'f4q-shadow: no F4Q_COUNT for {name}')
+    need('F4Q3_INSTALLED shadow compares also at the F4Q3 row layers 3 (points 6..7)' in lines
+         and 'PIPELINES3 60ed=exact-60ed b3dd=exact-b3dd' in lines and 'F4Q3_STATUS dispatches=3/3 (60edebbb/b3ddf030)' in lines,
+         'f4q-shadow: F4Q3 install, runtime pipelines or status')
+    need(all(psos.get(n) == '0' for n in ('f4q-60ed', 'f4q-b3dd')), f'f4q-shadow: F4Q3 pipelines after finish {psos}')
+    if not f4q2:
+        need(not re.search(r'^(F4Q2_INSTALLED|F4Q2_STATUS|OWN pso=f4q-(1a3b|e83e|9e00))', shadow, re.M)
+             and 'point=1a3b0782' not in shadow and 'point=e83e868f' not in shadow and 'point=9e0080ee' not in shadow,
+             'f4q-shadow: F4Q2 work or lines while F4Q2 is off')
+        return problems
+    # F4Q2's points: each runtime dispatch of a layer preceded by its F(4x4) dispatch with the groups from Intel's
+    # dispatch, followed by the compare at its point (3 = 1a3b0782, 4 = e83e868f, 5 = 9e0080ee)
+    need('F4Q2_INSTALLED shadow compares also at the F4Q2 layers 7 (points 3..5)' in lines
+         and 'PIPELINES2 e83e=exact-e83e 9e00=exact-9e00' in lines, 'f4q-shadow: F4Q2 install or runtime pipelines')
+    problems += f4q_shadow_points(lines, 'f4q-' + case, {O: ('f4q-1a3b', '40,23,1', '40,46,1', 3),
+                                                         F4Q2_E83E: ('f4q-e83e', '40,12,1', '10,12,4', 4),
+                                                         F4Q2_9E00: ('f4q-9e00', '10,12,1', '5,6,8', 5)})
+    for name, eq, ne in (('1a3b0782', 3, 0), ('e83e868f', 3, 0), ('9e0080ee', 2, 1)):
+        need(f'F4Q_COUNT stamp=7 point={name} equal={eq} differ={ne}' in lines, f'f4q-shadow: no F4Q_COUNT for {name}')
+    need('F4Q2_STATUS dispatches=3/3/3 (1a3b0782/e83e868f/9e0080ee)' in lines, 'f4q-shadow: F4Q2_STATUS')
+    need(all(psos.get(n) == '0' for n in ('f4q-1a3b', 'f4q-e83e', 'f4q-9e00')),
+         f'f4q-shadow: F4Q2 pipelines after finish {psos}')
+    return problems
+
+
+def f4q_shadow_points(lines, case, want_groups):
+    """Each runtime dispatch of a layer of want_groups ({shader: (F(4x4) pipeline, Intel's groups, F(4x4) groups,
+    point)}) preceded by its F(4x4) dispatch and followed by the compare at its point; three per layer."""
+    problems = []
+
+    def need(ok, what):
+        if not ok:
+            problems.append(what)
+
+    seen = {h: 0 for h in want_groups}
+    for i, line in enumerate(lines):
+        m = re.match(r'INTEL shader=(\S+) groups=(\S+) STATE (\w+)', line)
+        if not m or m.group(1) not in want_groups:
+            continue
+        pso, intel, groups, point = want_groups[m.group(1)]
+        need(m.group(2) == intel and m.group(3) == 'ok', f'{case}: runtime dispatch {line}')
+        before = [x for x in lines[max(0, i - 10):i] if x.startswith(f'OWN pso={pso} ')]
+        need(len(before) == 1 and before[0].startswith(f'OWN pso={pso} groups={groups} heap=intel RT ok'),
+             f'{case}: F(4x4) dispatch before {m.group(1)}: {before}')
+        after = [x for x in lines[i + 1:i + 12] if x.startswith('OWN pso=f4q-check-aux') and f4q_consts(x)[0] == 1]
+        need(bool(after) and f4q_consts(after[0])[11] == point, f'{case}: compare point for {m.group(1)}: {after[:1]}')
+        seen[m.group(1)] += 1
+    need(all(v == 3 for v in seen.values()), f'{case}: compares per layer {seen} (want 3 each)')
     return problems
 
 

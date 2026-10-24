@@ -4,13 +4,13 @@
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `b0b71d6575ad8c27072741545459364a880ccb6f0f369a23de58558f02505ec3` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
 
 Each script builds its binary twice, requires both builds to be identical, and exits with status 1 when the result
 differs from the reference hash in `release/inputs.lock.json` (`--no-reference-check` exits 0). On the pinned toolchain
-the result equals the shipped file byte for byte. A different compiler, Wine or glibc version normally changes the
-bytes; a binary with another hash is a new build that needs its own testing. The package's OptiScaler build is not built
+([Toolchain](#toolchain)) the result equals the shipped file byte for byte. A different compiler, Wine or glibc version
+normally changes the bytes; a binary with another hash is a new build that needs its own testing. The package's OptiScaler build is not built
 here ([What this tree does not build](#what-this-tree-does-not-build)).
 
 ## Toolchain
@@ -32,6 +32,24 @@ Linux on x86-64 with:
 Locations are settings with environment variables, such as `XEMFG_BUILD` (outputs, default `build/`, which git ignores)
 and `XEMFG_CACHE` (downloads, default `build/cache`); `python3 release/config.py --help` lists them all.
 
+### The pinned toolchain
+
+The compilers, Wine and headers of the table need not be installed. `release/toolchain.py` takes the Arch Linux package
+files pinned by SHA-256 in `release/ci/ci.lock.json` (the versions above plus gcc's runtime libraries), from pacman's
+package cache, a folder in `XEMFG_PACKAGES` or the Arch Linux Archive, and unpacks them into a folder of their own,
+without root. With `XEMFG_TOOLCHAIN=pinned` the build scripts prepare and use that folder (`<cache>/toolchain-<id>`):
+clang, lld, gcc, Wine's headers and import libraries and the C and Vulkan headers all come from it, and a compiler
+version or header digest that differs from `release/inputs.lock.json` fails the build. Without the variable the builds
+use the host's tools and only warn on a difference.
+
+```sh
+python3 release/toolchain.py prepare      # unpack and check the pinned packages (about 0.9 GB)
+export XEMFG_TOOLCHAIN=pinned
+```
+
+From the host, a pinned build still uses the Python interpreter, the shared libraries the compilers load that no pinned
+package holds (such as zlib and libxml2), and the Wine that runs `check_proxy_wine.py`; none of them reaches an output.
+
 ## Downloaded inputs
 
 `release/fetch.py` downloads the groups under `fetch` in `release/inputs.lock.json` from
@@ -44,7 +62,7 @@ cache.
 | `intel-xess` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `inc/xess_fg/*.h`, `inc/xell/*.h`, `LICENSE.txt`, `third-party-programs.txt` | API types for the proxy; licence texts for the package |
 | `intel-xess-runtime` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `bin/libxess_fg.dll` | the proxy's export table, and the size and hash the proxy checks before loading the runtime; never copied into an output |
 | `optiscaler-license` | `optiscaler/OptiScaler` | `92337ebfbf07d533eabe3731fd8de1bb19437aea` | `LICENSE` | the package's `licenses/OptiScaler.txt` |
-| `fsr4-notices` | `daniel-h-0/bc250-fsr4-fork` | `f37421e7befb11a3a50f6f385332a8d1e02e7190` | `dll/notices/*` | the package's `licenses/fsr4/` |
+| `fsr4-notices` | `daniel-h-0/bc250-fsr4-fork` | `b2ab949477b4d2745babae146393db5537d87fcb` | `dll/notices/*` | the package's `licenses/fsr4/` |
 | `minhook` | `TsudaKageyu/minhook` | `c3fcafdc10146beb5919319d0683e44e3c30d537` | sources, `LICENSE.txt` | nothing in FreeFG; fetched because `fetch.py` without arguments fetches every group |
 
 Intel's XeFG headers carry Intel's proprietary notice. They are fetched at build time and must never be committed to
@@ -58,6 +76,7 @@ From a checkout of <https://github.com/daniel-h-0/freefg>:
 ```sh
 python3 release/ci/toolchain.py dxc --dest build/dxc   # DXC v1.9.2609, downloaded and checked
 export XEMFG_DXC=build/dxc
+export XEMFG_TOOLCHAIN=pinned                          # optional: the pinned toolchain (prepared on first use)
 python3 release/fetch.py
 python3 release/build_layer.py                         # unit tests under sanitizers, then libxefg_wave.so twice
 python3 release/build_proxy.py                         # libxess_fg.dll twice, then its ABI checks
@@ -119,10 +138,10 @@ needs v1.9.2607 ([The shader profile](#the-shader-profile)).
 
 ## The shader profile
 
-The package's `payload/BC250-XeFG/shaders/` holds 40 shaders and 9 tables and markers, all of this project's own origin.
+The package's `payload/BC250-XeFG/shaders/` holds 52 shaders and 9 tables and markers, all of this project's own origin.
 The tree holds them compiled in `release/profile/` (33 shaders, the tables and markers) and `release/profile-mfg/` (the
-nine U-Net shaders the multi-frame build ships in a faster form, which replace their `release/profile/` files in its
-profile, and F4Q's seven shaders), and the HLSL they are compiled from in `src/kernels/`. Each file is pinned by SHA-256
+nine U-Net shaders and three refinement shaders the multi-frame build ships in a faster form, which replace their
+`release/profile/` files in its profile, F4Q's seven shaders, F4Q2's three, F4Q3's two and the seven FP16 forms), and the HLSL they are compiled from in `src/kernels/`. Each file is pinned by SHA-256
 in `release/inputs.lock.json` with origin `own` (`release/profile-mfg/` as the tree group `profile-intel-free-mfg`). The
 builds read `release/profile/` unless `XEMFG_PROFILE` names another directory; `release/profile-mfg/` is always read
 from the tree.
@@ -179,4 +198,5 @@ git config --system --add safe.directory <path in the container>
 - Build records (`build.json`) and the package manifest hold no absolute paths. The builds give the same bytes from a
   tree exported to another directory (`release/export_tree.py --public DIR`).
 - The proxy build warns when the Wine headers or import libraries differ from those recorded in the lock (by count and
-  digest), and the layer build when the system headers do.
+  digest), and the layer build when the system headers do. With `XEMFG_TOOLCHAIN` set, either difference, or another
+  compiler version, is an error, and each `build.json` names the toolchain's id.

@@ -66,8 +66,8 @@ The tables and markers are data and nothing compiles them:
 - `waves.txt`: the wave size to request for each pipeline, by module hash (FNV-1a 64 of its bytes), 123 entries.
   It is the profile's table as pinned. Besides the 33 shaders here it therefore lists pipelines this directory does not
   hold: Intel's own pipelines, the Intel-derived replacements of the full profile that the Intel-free builds leave out,
-  and four other own shaders. It holds hashes and wave sizes only. The multi-frame build ships it with nine lines
-  rewritten and seven more lines (130 entries; below);
+  and four other own shaders. It holds hashes and wave sizes only. The multi-frame build ships it with twelve lines
+  rewritten and 19 more lines (142 entries; below);
 - `dispatch-scale.txt`: group-count scaling for replacements whose groups cover more output;
 - the `*.required` markers: features the add-on checks for before it uses the profile.
 
@@ -80,17 +80,19 @@ The tables and markers are data and nothing compiles them:
   them (`release/intel_free_2x.json`). They stay here because the Intel-free builds first copy every file of
   `release/intel_free.json`'s `keep` list and only then apply the 2x drop.
 - `dispatch-scale.txt` is stored as pinned. The Intel-free builds remove one line from it while they build (the line for
-  a replacement that is not part of this profile).
+  a replacement that is not part of this profile); the multi-frame build appends identity rows for the two U-Net row
+  layers (`release/intel_free_mfg.json` `append_dispatch_scale`), so a dispatch bound to their F(4x4) pipeline gets its
+  own group counts.
 - `waves.txt` is stored as pinned (123 entries). The multi-frame build (`intel-free-mfg`) changes it while it builds:
-  the lines of the nine shaders it ships in another form name their new modules in place (below), five lines are
+  the lines of the twelve shaders it ships in another form name their new modules in place (below), five lines are
   appended (`release/intel_free_mfg.json` `append_waves`: wave 32 for five of Intel's unchanged pipelines, its 2x warps
   and one flow-path convolution, that run where the full profile had Intel-derived replacements), then the lines of
-  F4Q's two kernels. Its package ships 130 entries, all of which the pacing layer reads; the add-on embeds that file's
+  F4Q's two kernels, F4Q2's three, F4Q3's two and the seven FP16 forms. Its package ships 142 entries, all of which the pacing layer reads; the add-on embeds that file's
   size and hash. The 2x build ships the pinned table.
 
 ## The multi-frame build's own files (`release/profile-mfg/`)
 
-The multi-frame build (`release/intel_free_mfg.json`, profile `replace` and `add`) ships 16 shaders that no other
+The multi-frame build (`release/intel_free_mfg.json`, profile `replace` and `add`) ships 31 shaders that no other
 build uses, from `release/profile-mfg/` (recipes in its `origin.json`, pinned in `release/inputs.lock.json` as the tree
 group `profile-intel-free-mfg`; `build_profile.py check` rebuilds them too and reports them under `variant_profiles`):
 
@@ -101,7 +103,19 @@ group `profile-intel-free-mfg`; `build_profile.py check` rebuilds them too and r
 - F4Q's F(4x4) kernels `b3941ac8ff95efe7.f4q.dxil` (`f4q_dec16.hlsl`) and `f030948d38e74671.f4q.dxil`
   (`f4q_enc16.hlsl`), loaded in place of the F(2x2) shaders of those two hashes while F4Q is on
   (`packaging/public/ARCHITECTURE.md`, "F4Q");
-- the five check kernels of F4Q's diagnostic (`f4q-check-*.dxil`, `f4q_check.hlsl`).
+- the five check kernels of F4Q's diagnostic (`f4q-check-*.dxil`, `f4q_check.hlsl`);
+- F4Q2's F(4x4) kernels `1a3b0782583fef19.f4q.dxil`, `e83e868f8d5d2c0f.f4q.dxil` and `9e0080eee00255f2.f4q.dxil`
+  (`f4q_enc16.hlsl` with `CIN_SLICES` 1, 2 and 4), loaded in place of the F(2x2) shaders of those three hashes while F4Q
+  and F4Q2 are on;
+- since 1.1.2: F4Q's two kernels in their 1.1.2 form (`f4q_dec16.hlsl` with `XU2D=1 TRIM=1`, `f4q_enc16.hlsl` with
+  `TRIM=1`: the same outputs); F4Q3's F(4x4) kernels `60edebbbd2f9fb69.f4q.dxil` and `b3ddf030f661d487.f4q.dxil`
+  (`f4q_enc16.hlsl` with `POOL=0`), loaded in place of the row layers' 1D shaders while F4Q is on; in place of
+  `wino-ref64-16/17/18.dxil`, the same kernel with `GX=16 ACC_SHR=1` (32 x 4 px groups, acc >> 2: the
+  same outputs; the proxy dispatches it over the output size, `XEFG_REF64_GX16`);
+- the seven FP16 forms `<hash>.fp16.dxil` (1.1.2's default; outputs differ slightly from the exact forms'): F4Q2's
+  kernels with `HALF_TABLE=1` (FP16 U'/2 coefficient pairs), and the F(2x2) kernels of `1f27b449`, `f2e2e13f`,
+  `5654aa38` and `4bb52a63` with `PK16=1` (packed-FP16 MACs, `pk16.hlsli`), each at the base of the FP16 copy its model
+  owner writes (`src/model_f4q.h`).
 
 This directory stays as it is, so the 2x build (0.9.0) and the enabler-era Intel-free add-on still build their
 reference outputs.

@@ -3,6 +3,7 @@
 the add-on is payload/libxess_fg.dll, Intel's runtime comes from the pinned downloads as bc250_xefg_original.dll
 (dependencies.json runtime.ProxyPackage), there is no XeSSMFG enabler or version.dll, and the package is 2x only."""
 import contextlib,io,json,os,unittest
+from pathlib import Path
 from unittest.mock import patch
 from test_game_install import GameFixture,DEPENDENCIES,set_package_file,pins_for,m
 
@@ -134,6 +135,20 @@ class ProxyInstallTests(ProxyFixture):
         values=self.opti_ini();self.assertEqual(values[('xefg','interpolationcount')],'1');self.assertEqual(values[('fakenvapi','forcereflex')],'0')
         self.assertEqual(self.env()['WINEDLLOVERRIDES'],'dxgi=n,b')
         m.restore(self.exe);self.assertFalse(ini.exists())
+    def test_reinstall_keeps_the_exact_switch(self):
+        # 1.1.2: the package's settings.ini (release/files/BC250-XeFG-settings.ini) ships Exact=0, F4Q=1 and F4Q2=1, so a
+        # user's Exact=1 (output identical to Intel's in every test) and F4Q2=0 are carried across Restore and Install,
+        # and stay the installation's baseline through a later untouched cycle.
+        shipped=(Path(__file__).resolve().parents[1]/'release/files/BC250-XeFG-settings.ini').read_bytes()
+        self.assertIn(b'\nExact=0\n',shipped);set_package_file(self.package,'payload/BC250-XeFG/settings.ini',shipped)
+        settings=self.game/'BC250-XeFG/settings.ini';read=lambda:m.read_ini(settings.read_bytes())
+        m.install(self.package,self.exe,route='opti');self.assertEqual(read()[('bc250','exact')],'0')
+        settings.write_bytes(m.patch_ini(settings.read_bytes(),{('BC250','Exact'):'1',('BC250','F4Q2'):'0'}))
+        for cycle in (1,2):
+            with self.subTest(cycle=cycle):
+                m.restore(self.exe);m.install(self.package,self.exe,route='opti')
+                self.assertEqual((read()[('bc250','exact')],read()[('bc250','f4q2')],read()[('bc250','f4q')]),('1','0','1'))
+        m.restore(self.exe);self.assertFalse(settings.exists())
     def test_fresh_setup_loads_optipatcher(self):
         # A fresh setup places OptiPatcher (dependencies.json payload) and must let OptiScaler load it: the pinned INI's
         # LoadAsiPlugins=auto means false, which left OptiPatcher unloaded in 0.9.0's proxy packages.

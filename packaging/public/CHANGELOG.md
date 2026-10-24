@@ -2,6 +2,66 @@
 
 Changes in each release of FreeFG. The private test builds made before 0.9.0 are not covered.
 
+## 1.1.2 – 2026-10-24
+
+Faster U-Net and refinement kernels, and FSR 4 RC12. By default the generated frames differ slightly from Intel's (the
+FP16 forms below); `BC250_XEFG_EXACT=1` gives output identical to Intel's in every test. The proxy, the shader profile and
+the FSR 4 build change; the pacing layer, OptiScaler and Intel's runtime pin are 1.1.1's. Setup and Status are 1.1.1's
+plus the new key, the log line and the FSR 4 build's name.
+
+In Cyberpunk 2077 (headless, one block per condition, n = 6 per arm, both builds with FSR 4 RC12), 1.1.2 at its default
+shows 1.64% (SE 0.08) more frames per second than 1.1.1 at 2× in SDR and 1.50% (SE 0.11) in HDR10. Shader caches: new
+for each block, filled by one warm-up start per build ([MEASUREMENTS.md](MEASUREMENTS.md#checks-of-112)).
+
+### Changed
+
+- **FP16 forms, on by default** (while F4Q is on): seven U-Net kernels run in faster forms whose outputs differ slightly
+  from the exact forms' ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-the-default-slightly-different)). F4Q2's three
+  F(4×4) kernels read their coefficients as FP16 pairs; four F(2×2) kernels multiply and add in packed FP16. With a test
+  build of the same kernels, on 19 synthetic SDK scenes, the generated images differ from Intel's in 0.12–16.2% of
+  pixels, with an error against the scenes' analytic truth of 0.985–1.007× Intel's. No quality gate has passed these
+  images.
+- **Exact switch**: `BC250_XEFG_EXACT=1` in the launch options, or `Exact=1` under `[BC250]` in the game folder's
+  `BC250-XeFG/settings.ini`, turns the FP16 forms off. Every kernel then runs its exact form, and the generated images
+  were identical to Intel's in every test. Setup keeps the key on reinstall; the launch option wins. Its frame rate in a
+  game was not measured.
+- F4Q2, on by default while F4Q is on: the U-Net encoders `1a3b0782`, `e83e868f` and `9e0080ee` run Winograd F(4×4)
+  kernels instead of F(2×2), as F4Q's two layers do since 1.1.0. `BC250_XEFG_F4Q2=0` or `F4Q2=0` turns F4Q2 off: those
+  three layers then run their F(2×2) kernels, also by default (without their FP16 form).
+- F4Q3, on by default while F4Q is on: the U-Net row layers `60edebbb` and `b3ddf030` run F(4×4) kernels instead of their
+  1D F(2,3) kernel. No switch of its own.
+- F4Q, F4Q2 and F4Q3 were identical to the kernels they replace in every test, but are not proven for every input
+  ([ARCHITECTURE.md](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)). F4Q's switch (`BC250_XEFG_F4Q=0`, `F4Q=0`)
+  turns off all of them and the FP16 forms: the U-Net then runs 1.1.1's F(2×2) and 1D kernels.
+- Exact by construction, no switch: F4Q's decoder fills and transforms in packed 16-bit arithmetic; F4Q's two kernels
+  skip thread groups wholly below the output; the fused flow refinement runs 32 × 4 px groups and divides by a shift.
+- GPU time in the SDK test program, measured with test builds of the same kernels (2× at 2560×1440, ms per generated
+  frame, SDR / HDR10): F4Q2 0.097 / 0.142–0.146; F4Q3 and the exact changes 0.117 / 0.169; the FP16 forms on top 0.125 /
+  0.185. The HDR10 runs ran at lower GPU clocks than games do (1,220–1,490 MHz), so their figures overstate the saving at
+  game clocks ([MEASUREMENTS.md](MEASUREMENTS.md#checks-of-112)).
+- `waves.txt` lists 142 shaders (1.1.1: 130): the new kernels at wave size 32. `dispatch-scale.txt` gains identity rows
+  for the two row layers.
+- The shader profile holds 61 files, 52 of them shaders (1.1.1: 49 and 40). The package's `settings.ini` has `F4Q2=1`
+  and `Exact=0` lines.
+- The FSR 4 option installs the BC-250 build RC12 (`4.1.1r12`) instead of RC11, and Status names the build a game has.
+  In its project's checks RC12's images were byte-identical to RC11's; its GPU time per frame was 0.41–0.43 ms lower at
+  1920×1080 output and unchanged at 2560×1440 ([RC12](https://github.com/daniel-h-0/bc250-fsr4-fork/releases/tag/v4.0.0-rc12)).
+
+### Added
+
+- Fast-log lines `FP16_CONFIG` (the FP16 forms' state and what set it), `FP16_SEGMENT`, `FP16_REPLACE`, `FP16_FALLBACK`,
+  `F4Q2_CONFIG`, `F4Q3_CONFIG`, `WINO_REF64_GROUPS`; with `BC250_XEFG_F4Q_SHADOW=1`, the diagnostic also covers F4Q2's
+  and F4Q3's layers ([TROUBLESHOOTING.md](TROUBLESHOOTING.md#logs)). Status and Check name the output form of the last
+  session (`Output:` line).
+- Release builds use the pinned toolchain: `release/toolchain.py` unpacks the package files pinned in
+  `release/ci/ci.lock.json` into a folder of their own, and `XEMFG_TOOLCHAIN=pinned` builds with it
+  ([BUILDING.md](BUILDING.md#the-pinned-toolchain)). With it, 1.1.1's proxy and pacing layer rebuild byte for byte on a
+  host whose own compilers no longer do.
+
+### Checked
+
+Results, conditions and what was not checked: [MEASUREMENTS.md](MEASUREMENTS.md#checks-of-112).
+
 ## 1.1.1 – 2026-10-21
 
 Wave sizes now apply on every start, and Setup sets `XeFGModel=default` for MFG Unlocker. Only the installer

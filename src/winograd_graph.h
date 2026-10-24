@@ -8,7 +8,12 @@ _Static_assert(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION==16384,"texture bound");
 static UINT graph_enabled,graph_ready,graph_adaptive,graph_coarse17;
 static UINT graph_refine_columns=48,graph_refine_pad;
 /* Fused exact F(2x2,3x3) refinement (wino-ref64.required): one dispatch per 64->64 refinement instead of the
- * prepare/matmul/finish graph. Clamp 16 = 558c3931, 17 = 08155f47/990b9bf8, 18 = 44702172. */
+ * prepare/matmul/finish graph. Clamp 16 = 558c3931, 17 = 08155f47/990b9bf8, 18 = 44702172.
+ * XEFG_REF64_GX16 (the multi-frame proxy since FreeFG 1.1.2; release/intel_free_mfg.json): its profile's wino-ref64 kernels
+ * are compiled with GX=16 and ACC_SHR=1 (src/kernels/wino_ref64.hlsl; release/profile-mfg): 32 x 4 px groups (16 x 2 tiles
+ * per role) dispatched over the output size, ((w + 31) / 32, (h + 3) / 4, 2), and acc >> 2 for acc / 4. Both are exact
+ * (the kernel bounds its loads by c0.zw and its stores by c1.xy; acc = 4 x conv exactly), so the outputs are the 16 x 8 px
+ * form's for every input the owner accepts. */
 static UINT graph_ref64;static ID3D12PipelineState*graph_ref64_pso[3];static UINT64 graph_ref64_counts[3];
 static ID3D12Device*graph_device;
 static ID3D12RootSignature*graph_root;
@@ -73,7 +78,7 @@ static void install_graph(ID3D12Device*d,ID3D12CommandQueue*q){
  if(f){int enabled=fgetc(f);fclose(f);
   /* The kernel reads the conv64 segment (bit 128) and sums all 64 channels in FP32 (bit 256 proofs). */
   if(enabled!='1'||!(graph_enabled&2)||(model_wino_enc16&384)!=384)model_fail("invalid fused refinement profile");
-  graph_ref64=1;logline("WINO_REF64 fused exact refinement enabled\n");
+  graph_ref64=1;logline("WINO_REF64 fused exact refinement enabled\n");logline("WINO_REF64_GROUPS 32x4 px over the output size, acc>>2\n");
  }
  graph_device=d;graph_execute_original=q->lpVtbl->ExecuteCommandLists;replace((void*)&q->lpVtbl->ExecuteCommandLists,graph_execute_hook);
 }
@@ -102,7 +107,7 @@ static int graph_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
  if(family&&graph_ref64){
   /* wino_ref64: 16x8-pixel, 32-channel groups; the kernel bounds its loads (c0.zw) and stores (c1.xy). */
   UINT clamp=kind==1?16:kind==6?18:17;
-  set_original(l,graph_ref64_pso[clamp-16]);dispatch_original(l,(x+1)/2,y,2);set_original(l,original);graph_ref64_counts[clamp-16]++;
+  set_original(l,graph_ref64_pso[clamp-16]);dispatch_original(l,(w+31)/32,(h+3)/4,2);set_original(l,original);graph_ref64_counts[clamp-16]++;
   if(!(graph_logged&(256u<<kind))){char line[160];snprintf(line,sizeof(line),"WINO_REF64_EXECUTE shader=%016llx clamp=%u\n",(unsigned long long)shader,clamp);logline(line);graph_logged|=256u<<kind;}
   ReleaseSRWLockExclusive(&graph_lock);return 1;
  }

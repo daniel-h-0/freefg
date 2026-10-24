@@ -5,6 +5,9 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 ## Scope
 
 - One AMD BC-250 ([test system](#test-system)).
+- 1.1.2 adds the FP16 forms of seven kernels (the default; slightly different output), F4Q2, F4Q3 and three exact
+  kernel changes, and installs FSR 4 RC12: its [checks](#checks-of-112), with test builds of the same kernels, with an
+  earlier 1.1.2 candidate and with the release's proxy, and one block against 1.1.1 at 2× in SDR and HDR10.
 - 1.1.0 had the [checks](#checks-of-110), then one block with three arms (Intel's shaders, 1.0.x, 1.1.0):
   [2× in SDR and HDR10](#frame-rate-cyberpunk-2077) and [3× and 4× with MFG Unlocker](#3-and-4-with-mfg-unlocker), all
   with [warm shader caches](#shader-caches).
@@ -20,6 +23,11 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
   comparable. Some comparisons cross two days, as marked.
 - Each figure is drawn from `docs/data/<figure>/data.json` in the repository (with its `plot.py`), which names its
   sources; context runs from other days or earlier private builds are marked.
+- The game runs before 1.1.2's block and live start used FSR 4 RC11, the build that 0.9.0 to 1.1.1 install, and
+  GE-Proton 11-7; 1.1.2's block and live start used RC12, which 1.1.2 installs, and GE-Proton 11-11. In its project's
+  checks RC12's images were byte-identical to RC11's and its GPU time at 2560×1440 Performance unchanged
+  ([RC12](https://github.com/daniel-h-0/bc250-fsr4-fork/releases/tag/v4.0.0-rc12)); with GE-Proton 11-11 the SDK test
+  program's images were byte-identical to those with 11-7 where compared.
 - The SDK scene, the headless and TV harnesses and the benchmark driver belong to the project's unpublished research
   tooling. The release tree reproduces the build and its CPU-side checks ([BUILDING.md](BUILDING.md)), not these GPU
   measurements.
@@ -31,25 +39,97 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 | `libxess_fg.dll` | 0.9.0 | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
 | `libxess_fg.dll` | 1.0.0 and 1.0.1 | `77f2625174fb88c149a3f76e6c4ae829382d620b256e4a3213a64eca56ea42a7` |
 | `libxess_fg.dll` | 1.1.0 and 1.1.1 | `830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a` |
+| `libxess_fg.dll` | 1.1.2 | `b0b71d6575ad8c27072741545459364a880ccb6f0f369a23de58558f02505ec3` |
 | Shader profile, digest of its files | 1.1.0 and 1.1.1: 49 files, 130 `waves.txt` entries | `a35efb131305708d4fa7b719bd3d2472952f540a52dc52cf755548710004cdbf` |
-| Pacing layer `libxefg_wave.so` | 0.9.0 to 1.1.1 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
+| Shader profile, digest of its files | 1.1.2: 61 files, 142 `waves.txt` entries | `2058acb6ce0965900cceaa1bd477560724b5afd8ea675a369815182aa909ae0a` |
+| Pacing layer `libxefg_wave.so` | 0.9.0 to 1.1.2 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
 | `OptiScaler.dll` | 0.9.0 | `244eca5c0927dff802d7f2a506afe9e7776bcdc489bdc3acdf56e9c92f7b437d` |
-| `OptiScaler.dll` | 1.0.0 to 1.1.1 | `5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6` |
-| Installer `install.py` | 1.1.1 | `8701a13286d10eeb76ef640bdd72d42acb6bfcab5dae609d04869c659c4be1e7` |
-| Installer `launcher_config.py` (the launch settings) | 1.1.1 | `094667194ea353ea247d52a540395af39d80b00892c6bea5c695f4d2921c0c0d` |
+| `OptiScaler.dll` | 1.0.0 to 1.1.2 | `5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6` |
+| Installer `install.py` | 1.1.1 | `1d1844c0252d1e782fd6dedae49074962438b1910780c86bbc97a3849eb4c6f6` |
+| Installer `install.py` | 1.1.2 | `5833344047bd3678c49b9f8f7e60a1ef28d7a132c224aff66280a76580093b49` |
+| Installer `launcher_config.py` (the launch settings) | 1.1.1 and 1.1.2 | `094667194ea353ea247d52a540395af39d80b00892c6bea5c695f4d2921c0c0d` |
 | Intel's XeFG runtime, unmodified | 1.3.1.78 | `ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27` |
+| FSR 4 DLL, BC-250 build RC11 (`4.1.1r11`) | installed by 0.9.0 to 1.1.1 | `8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175` |
+| FSR 4 DLL, BC-250 build RC12 (`4.1.1r12`) | installed by 1.1.2 | `4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79` |
 | MFG Unlocker `MFGUnlocker.dll`, not shipped | 1.6.0 | `161b9e1245a3736dc462ee83f4ad51e6125d8e7e73ce3eedde89d2eed60c69fa` |
 
 The shader profile's digest is the SHA-256 of its files' sorted `<file name><TAB><SHA-256>` lines, one per line.
+1.1.1's copy of this table gave `8701a132…` for `install.py`: the file of its [live install](#live-install-and-restore),
+before the fix to Status and Check named there. 1.1.1 shipped the file above.
 
 ## Test system
 
 | | |
 | --- | --- |
 | Hardware | AMD BC-250 (Cyan Skillfish APU), GPU clock limit 1850 MHz, 6 GiB GTT (`ttm.pages_limit=1572864`) |
-| Software | CachyOS, kernel `linux-cachyos-bc250` 7.2.8; Mesa 26.2.2 RADV, a BC-250 build with the compute queue enabled; GE-Proton 11-7 through umu-launcher; gamescope 3.16.28; Python 3.14 for the installer |
+| Software | CachyOS, kernel `linux-cachyos-bc250` 7.2.8; Mesa 26.2.2 RADV, a BC-250 build with the compute queue enabled; GE-Proton 11-7 through umu-launcher; gamescope 3.16.28; Python 3.14 for the installer. 1.1.2's checks: kernel 7.3.0, Mesa 26.2.5 (a BC-250 build), GE-Proton 11-11 for its block and live start |
 | Headless runs | `gamescope --backend headless`, 2560×1440 at a fixed 120 Hz (240 Hz for [3× and 4×](#3-and-4-with-mfg-unlocker)); 3840×2160 at 240 Hz for [4K](#4k); no VRR |
 | TV runs | LG G5 OLED TV at 2560×1440 and 120 Hz with VRR (range 40–165 Hz), through a DisplayPort-to-HDMI adapter, in Steam Game Mode (gamescope outputs HDR10) |
+
+## Checks of 1.1.2
+
+1.1.2 changes the U-Net and refinement kernels ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-the-default-slightly-different))
+and installs FSR 4 RC12. Each new kernel is byte-identical to one that a test build ran first. An earlier 1.1.2 candidate
+(proxy `f9f8c020`) had the same kernels plus four more FP16 forms, which it ran by default; this release turns those four
+off and drops their files. The release's proxy had its own checks. All ran on the [test system](#test-system) with
+kernel `linux-cachyos-bc250` 7.3.0 and Mesa 26.2.5 RADV (a BC-250 build), 2026-10-23 and 2026-10-24.
+
+**Output.** By default (the FP16 forms on) the generated images differ slightly from Intel's. With the exact switch
+(`BC250_XEFG_EXACT=1`) they were identical to Intel's in every test below.
+
+| Check | Build | Result |
+| --- | --- | --- |
+| Build | 1.1.2 | Reproducible byte for byte on the pinned toolchain ([BUILDING.md](BUILDING.md#the-pinned-toolchain)); the 52 shaders rebuild byte for byte with the pinned compiler. |
+| Static check | 1.1.2 | Passes with no allowance ([NOTICE.md](NOTICE.md#the-shader-profile)). |
+| Installer | 1.1.2 | Unit tests pass. The package's `settings.ini` gains `F4Q2=1` and `Exact=0`, so Setup keeps a user's values; Status and Check gain the `Output:` line; Status names the FSR 4 build. |
+| Wine loader check, no GPU | 1.1.2 | As for 1.1.0, plus 1.1.2's cases: the FP16 forms on by default (seven shaders) with F4Q3; off by the launch option and by `settings.ini`; the launch option over the file; off whenever F4Q is off and in the diagnostic; their fallbacks (a missing file, a failed pipeline); F4Q2 on and off; layouts without some layers; the diagnostic at F4Q2's and F4Q3's layers; the coefficient segments against an independent product. |
+| Model owner, no GPU | 1.1.2 | The coefficient buffers of every model size, three weight statistics, 16 switch settings: byte-identical to the test builds' (the default's FP16 forms, exact switch, F4Q2 off, the diagnostic) and to 1.1.1's (F4Q off). |
+| Kernels, no GPU | 1.1.2 | All 17 new or changed kernels compile byte-identical to the test builds' kernels. |
+| Software rasteriser, no GPU | test builds | F4Q2's, F4Q3's and the exact changes' kernels gave the exact outputs on test inputs; the FP16 forms gave the outputs of their FP16 arithmetic (the rasteriser rounds their multiply-adds unfused). 1.1.2's kernels and coefficient buffers equal the test builds' byte for byte (rows above), so these results hold for it unchanged; not re-run. |
+| SDK GPU time, 2560×1440 2× engine motion vectors, scene 3, 3 runs per arm and row | test builds | ms per generated frame, SDR / HDR10, Mesa's shader cache warm: F4Q2 against 1.1.1 0.097 / 0.142–0.146 (−2.3% / −2.5 to −2.6%, 2026-10-23 morning; 4 configurations); F4Q3 and the exact changes against F4Q2 0.117 / 0.169 (−2.8%); the FP16 forms against that 0.125 / 0.185 (−3.2% / −2.9%) (both 2026-10-23 evening, one run series). The HDR10 rows ran at 1,220–1,490 MHz, below game clocks, so they overstate the saving in a game. |
+| Synthetic scenes (SDK), 20 configurations | test build, exact | 704 of 704 generated images identical to Intel's shaders' with F4Q2, F4Q3 and the exact changes. |
+| Synthetic scenes (SDK), 19 configurations | test build, default | Against Intel's: 0.12–16.2% of pixels differ; error against the scenes' analytic truth 0.985–1.007× Intel's. No quality gate has passed these images ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-the-default-slightly-different)). |
+| Cyberpunk 2077, the diagnostic (`BC250_XEFG_F4Q_SHADOW=1`), headless | test builds | F4Q2: 162,992 comparisons at F4Q's and F4Q2's six points; F4Q3 and the exact decoder: 241,376 comparisons at eight points, 30,172 at each row layer; native 2× and 3× with MFG Unlocker (`XeFGModel=default`), SDR; none differing. |
+| Synthetic scenes (SDK), 19 configurations, GE-Proton 11-11 | 1.1.2 default | 640 of 640 generated images identical to the test build's above (rendered with GE-Proton 11-7), so the comparisons with Intel's above hold for this release; the seven FP16 forms and the four other F(4×4) kernels ran, no F(2×2) or 1D U-Net kernel. |
+| Synthetic scenes (SDK), 20 configurations, GE-Proton 11-11 | 1.1.2 exact (`Exact=1` in `settings.ini`) | 704 of 704 generated images identical to Intel's shaders'; the seven F(4×4) kernels ran, no FP16 form. With `F4Q=0`: 80 of 80 on 2 configurations identical to Intel's shaders'. |
+| Cyberpunk 2077, the diagnostic, headless | earlier candidate | Native 2× and 3× with MFG Unlocker (`XeFGModel=default`), SDR, one benchmark start each: 70,320 comparisons at the eight points (8,790 at each), none differing. The diagnostic turns the FP16 forms off in both builds, so it ran this release's F(4×4) kernels and diagnostic. |
+| Cyberpunk 2077, the switches, headless | earlier candidate | One native 2× SDR start each: `BC250_XEFG_EXACT=1` turned the FP16 forms off and ran the seven F(4×4) kernels; `BC250_XEFG_F4Q2=0` turned F4Q2 off. At 3× and 4× (MFG Unlocker v1.6.0, `XeFGModel=default`, 240 Hz, pacing layer off) its default, with this release's seven FP16 kernels and four more, ran accelerated with no fallback; the runtime reported 3 and 4 frames per present. Not repeated with this release. |
+
+**Frame rate, 1.1.2 against 1.1.1** (2026-10-24; settings as in [Frame rate](#frame-rate-cyberpunk-2077), native
+2×, GE-Proton 11-11 and FSR 4 RC12 in both arms; n = 6 per arm, mirrored order, one discarded warm-up start per arm and
+condition; frames shown per second, mean ± SD; difference ± SE):
+
+| Condition | 1.1.1 | 1.1.2 (default) | Difference |
+| --- | --- | --- | --- |
+| 2× SDR | 104.05 ± 0.10 | 105.75 ± 0.17 | +1.64% ± 0.08 |
+| 2× HDR10 | 102.65 ± 0.15 | 104.19 ± 0.22 | +1.50% ± 0.11 |
+
+Both arms run 1.1.1's launch settings, F4Q, the faster U-Net shaders and the wave sizes; the difference is 1.1.2's kernel
+changes together as they run by default (the seven FP16 forms, F4Q2, F4Q3, the exact changes). Shader caches: new folders
+for each condition, filled by one warm-up start per build: vkd3d-proton's one per build, as Setup makes one per
+installation; Mesa's one for both builds, which still grew after the warm-ups: in SDR by 4.7% of its files (8,254 to
+8,644; 4.1% of its bytes) up to the ninth measured run, in HDR10 by 2.6% (8,435 to 8,651; 1.9% of its bytes) up to the
+seventh, then not.
+
+- SDR: 0.31 ms less per generated frame (game 52.02 against 52.87 FPS). All 12 runs within 0.3% of their arm's median.
+- HDR10: 0.29 ms less per generated frame (game 51.32 against 52.10 FPS). All 12 runs within 0.5% of their arm's
+  median. An earlier HDR10 block with the same rules stopped after 9 of its 14 starts, when the test harness waited for
+  the TV's power-on to settle and then gave up; its 7 measured runs gave +1.72% ± 0.15 and are not pooled with these.
+- Every run valid: 2.000 frames shown per game frame, no `FAIL` line, no GPU error in the kernel log. Every 1.1.2 run
+  logged the default as shipped (F4Q, F4Q2 and F4Q3 on, the FP16 forms of seven shaders, no fallback); every 1.1.1 run
+  F4Q on with both its kernels. The wave sizes applied in every run.
+- Pacing: the layer held every present of every run's measured window. The release interval's 5th–95th percentile
+  spread was 1.83–1.95 ms (SDR) and 1.84–1.94 ms (HDR10) with 1.1.1, 1.84–1.91 ms and 1.80–1.93 ms with 1.1.2, its
+  median 1000 / FPS.
+- 1.1.1 here against its blocks of the earlier candidate's checks (GE-Proton 11-7, FSR 4 RC11, the same kernel and Mesa):
+  +0.24% in SDR, +0.31% in HDR10.
+
+Not covered: the frame rate with the exact switch (`BC250_XEFG_EXACT=1`); the FP16 forms compared with Intel's in a
+game (only on synthetic SDK scenes and by eye on crops); this release's default at 3× and 4× (the earlier candidate's ran
+there, with four more FP16 forms), its frame rate there, and HDR10 at 3×/4×; F4Q2 and F4Q3 compared in a game in HDR10, at
+4×, in other games, or without the diagnostic; the SDK timing at 3×/4× or 4K; the shader caches of an upgrade from 1.1.1;
+the Setup window and a game started from Heroic itself; a live install in Steam with this release's package; a VRR
+display; gameplay.
 
 ## Checks of 1.1.0
 
@@ -580,6 +660,42 @@ with the settings Setup wrote for Heroic.
   MFG Unlocker's files were removed and Echo Point Nova's `OptiScaler.ini`, which OptiScaler and the MFG Unlocker steps
   had changed, was set back to the bytes Setup wrote, so Restore met an unchanged file. The kernel logged no GPU
   message.
+
+**1.1.2's earlier candidate** (2026-10-24, the same method and games): a package with the earlier candidate's proxy
+and shader profile (eleven FP16 forms by default), built before the FSR 4 change, so it installed RC11 and its
+`install.py` was 1.1.1's. Setup wrote `settings.ini` with `F4Q=1`, `F4Q2=1` and `Exact=0`, both vkd3d-proton launch
+settings and `XeFGModel=default`.
+
+| Start | `waves.txt` lines for Intel's shaders | Status after the start: acceleration; `Output:` | Frames shown per game frame |
+| --- | --- | --- | --- |
+| Echo Point Nova, 2× | 3 of 3 applied | full, 13 of 13 programs; the FP16 forms ran | 2.00 |
+| Echo Point Nova, 2×, `Exact=1` in `settings.ini` | 3 of 3 applied | full, 13 of 13 programs; exact (set by `settings.ini`) | 2.00 |
+| Echo Point Nova, 3×, MFG Unlocker, `XeFGModel=default` | 3 of 3 applied | full, 13 of 13 programs; the FP16 forms ran | 3.00 |
+| Echo Point Nova, 3×, MFG Unlocker's own model | none used | partial, 7 of 13 programs, and the fix (`XeFGModel=default`); the FP16 forms ran | 3 (SDK status) |
+| Cyberpunk 2077, native 2× | 3 of 3 applied | full, 13 of 13 programs; the FP16 forms ran | 2.000 |
+
+- No `FAIL` or fallback line; Check named the same acceleration and output form as Status. Echo Point Nova's ratios are
+  indirect, as for 1.1.1. One start (MFG Unlocker's own model) was repeated: a key press of the test harness left
+  Steam's game page in front of the game.
+- After Restore: both game folders as before (content, permissions, file times), except OptiScaler's log of the last
+  start and some folder times; the `vkd3d-cache` folder and the `XeFGModel` line gone; the Steam launch options and
+  Heroic's settings file as before. The kernel logged no GPU message.
+
+**1.1.2** (2026-10-24, the same method, Cyberpunk 2077 only, with 1.1.2's package): Setup (the installer's command
+line, input Automatic) placed FSR 4 RC12 and wrote `settings.ini` with `F4Q=1`, `F4Q2=1` and `Exact=0`, both vkd3d-proton
+launch settings in Heroic's settings and `XeFGModel=default`. The benchmark was started headless by the test harness with
+the settings Setup wrote for Heroic, on GE-Proton 11-11.
+
+| Start | `waves.txt` lines | Status after the start: acceleration; `Output:`; upscaler | Frames shown per game frame |
+| --- | --- | --- | --- |
+| Cyberpunk 2077, native 2× | 3 of 3 for Intel's shaders and 11 of 11 for the seven FP16 forms and four F(4×4) kernels applied | full, 13 of 13 programs; the FP16 forms ran; FSR 4 (BC-250 build RC12) | 2.000 |
+
+- In the fast log: the FP16 forms of seven shaders, F4Q3 on, no `FAIL` or fallback line. Check named the same
+  acceleration and output form as Status. No frame over 40 ms (the longest 27.2 ms); the new vkd3d-proton cache held
+  34.6 MB.
+- After Restore: the game folder as before (content, permissions, file times), except OptiScaler's log and some folder
+  times; the `vkd3d-cache` folder gone; Heroic's settings file as before. The kernel logged no GPU message.
+
 
 Not covered: gameplay; a game started from Heroic itself (with its cloud saves); the desktop Setup window; Lutris;
 Flatpak launchers.

@@ -70,6 +70,9 @@ int quantize(int value, int negativeScale) {
     int n = asint(asuint(min(value, 0)) * asuint(negativeScale) + (1u << ((ns + 31) & 31)));
     return clamp((p >> ps) + (n >> ns), -128, 127);
 }
+#ifndef ACC_SHR
+#define ACC_SHR 0 // 1: the epilogue divides by 4 as acc >> 2 (acc = 4 x conv exactly, the owner's FLOAT_ALL proof): the same values
+#endif
 uint pack4(int4 v) { return (asuint(v.x) & 255) | ((asuint(v.y) & 255) << 8) | ((asuint(v.z) & 255) << 16) | ((asuint(v.w) & 255) << 24); }
 
 // xs/ys are texel coordinates, -1 outside the logical load bounds (a Load there returns 0 = int8 zeros).
@@ -206,8 +209,14 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
     int4 s0 = slopes[slice * 4 + h * 2], s1 = slopes[slice * 4 + h * 2 + 1];
     uint2 pw[4];
     [unroll] for (uint px = 0; px < 4; px++) {
+#if ACC_SHR
+        // acc = 4 x conv exactly (the owner's FLOAT_ALL proof), so acc >> 2 = acc / 4 bit for bit
+        int4 lo = (int4(acc[px][0], acc[px][1], acc[px][2], acc[px][3]) >> 2) + bias0;
+        int4 hi = (int4(acc[px][4], acc[px][5], acc[px][6], acc[px][7]) >> 2) + bias1;
+#else
         int4 lo = int4(acc[px][0], acc[px][1], acc[px][2], acc[px][3]) / 4 + bias0;
         int4 hi = int4(acc[px][4], acc[px][5], acc[px][6], acc[px][7]) / 4 + bias1;
+#endif
         int4 ql, qh;
         [unroll] for (uint l = 0; l < 4; l++) { ql[l] = quantize(lo[l], s0[l]); qh[l] = quantize(hi[l], s1[l]); }
         pw[px] = uint2(pack4(ql), pack4(qh));

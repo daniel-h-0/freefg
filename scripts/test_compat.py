@@ -514,7 +514,7 @@ class RunAndReportTests(unittest.TestCase):
             '(created from Game.exe) keeps the caller\'s device and runs Intel\'s or that module\'s shaders\n')
     BESIDE = 'FAST_COEXIST this context is accelerated beside the other module; replaced pipelines keep Intel\'s originals beside them\n'
 
-    def logs(self, proxy, programs=None, f4q=0, model=None, unlocker=False):
+    def logs(self, proxy, programs=None, f4q=0, model=None, unlocker=False, fp16=None):
         """The game folder after a session: BC250-MFG.log, a fast log with programs REPLACE lines (None: no fast log),
         OptiScaler.ini with XeFGModel (None: no key) and MFG Unlocker's plugin."""
         for name in ('BC250-MFG.log', 'BC250-XeFG-fast.log', 'OptiScaler.ini', 'OptiScaler/plugins/MFGUnlocker.asi'):
@@ -525,6 +525,8 @@ class RunAndReportTests(unittest.TestCase):
             for i in range(programs):
                 lines += [f'REPLACE {i:016x} 56888', f'PSO 00000001058455C0 {i:016x}']
             lines += [f'F4Q_REPLACE {i:016x} {i:016x}.f4q.dxil 72484' for i in range(f4q)]
+            if fp16 is not None:   # the FP16 forms' line of 1.1.2 (src/model_f4q.h fp16_configure)
+                lines.insert(1, f'FP16_CONFIG {fp16} f4q=on f4q2=7 dropped=0 (FP16 forms of the U-Net kernels)')
             (self.root/'BC250-XeFG-fast.log').write_text('\n'.join(lines) + '\n')
         (self.root/'OptiScaler.ini').write_text('[XeFG]\nForceBorderless=true\n' + (f'XeFGModel = {model}\n' if model is not None else ''))
         if unlocker:
@@ -552,6 +554,51 @@ class RunAndReportTests(unittest.TestCase):
         self.assertEqual(self.case('native')[3], ["Acceleration: full (this build's shaders ran on 19 programs)."])
         # The last run line no longer repeats the stage count beside it.
         self.assertNotIn('accelerated stages', '\n'.join(c.last_run_lines(c.last_run(self.root))))
+
+    def test_output_form(self):
+        # 1.1.2: the FP16 forms' state of the session (its FP16_CONFIG line); builds before 1.1.2 log none.
+        for fp16, want in (('mode=on source=default forms=15', "Output: the FP16 forms ran (the default): generated frames differ "
+                            "slightly from Intel's. For output identical to Intel's in every test: BC250_XEFG_EXACT=1 in the launch "
+                            "options or Exact=1 in BC250-XeFG/settings.ini."),
+                           ('mode=off source=BC250_XEFG_EXACT forms=0', "Output: exact (set by BC250_XEFG_EXACT): identical to Intel's "
+                            "in every test."),
+                           ('mode=off source=settings.ini forms=0', "Output: exact (set by settings.ini): identical to Intel's in every "
+                            "test."),
+                           ('mode=off source=F4Q forms=0', 'Output: exact (F4Q was off or in its diagnostic, so the FP16 forms were off).'),
+                           ('mode=off source=layout forms=0', 'Output: exact (the model layout did not fit the FP16 forms).'),
+                           (None, None)):
+            with self.subTest(fp16=fp16):
+                self.logs(self.READY + self.OWNER + self.GENERATES, 13, 2, fp16=fp16)
+                run = c.last_run(self.root, 'native')
+                lines = c.last_run_lines(run)
+                self.assertEqual(c.output_lines(run), [want] if want else [])
+                self.assertEqual([x for x in lines if x.startswith('Output:')], [want] if want else [])
+                if want:   # after the acceleration line
+                    self.assertEqual(lines.index(want), lines.index("Acceleration: full (this build's shaders ran on 13 of 13 programs).") + 1)
+        # Fallbacks with the FP16 forms on: an F(4x4) target whose FP16 pipeline failed logs FP16_REPLACE, then F4Q_FALLBACK
+        # (its F(2x2) kernel ran); a packed-FP16 layer logs FP16_FALLBACK. The Output: line names them.
+        for extra, n in (('FP16_REPLACE b3941ac8ff95efe7 b3941ac8ff95efe7.fp16.dxil 70000\nF4Q_FALLBACK b3941ac8ff95efe7 pipeline creation '
+                          'failed (hr=0x80070057): the F(2x2) kernel runs for this pipeline\n', 1),
+                         ('FP16_FALLBACK 1f27b449fb99a587 1f27b449fb99a587.fp16.dxil cannot be read: the F(2x2) / 1D kernel runs\n'
+                          'F4Q_FALLBACK f030948d38e74671 pipeline creation failed (hr=0x80070057): the F(2x2) kernel runs for this '
+                          'pipeline\nF4Q_FALLBACK f030948d38e74671 pipeline creation failed (hr=0x80070057): the F(2x2) kernel runs '
+                          'for this pipeline\n', 2)):
+            with self.subTest(extra=extra[:40]):
+                self.logs(self.READY + self.OWNER + self.GENERATES, 13, 2, fp16='mode=on source=default forms=15')
+                with open(self.root/'BC250-XeFG-fast.log', 'a') as f:
+                    f.write(extra)
+                run = c.last_run(self.root, 'native')
+                self.assertEqual(len(run['output_fallbacks']), n)
+                self.assertEqual(c.output_lines(run), [f"Output: the FP16 forms ran (the default), but {n} shader(s) ran an exact form "
+                                                       "instead (fallback lines in BC250-XeFG-fast.log): generated frames differ "
+                                                       "slightly from Intel's. For output identical to Intel's in every test: "
+                                                       "BC250_XEFG_EXACT=1 in the launch options or Exact=1 in BC250-XeFG/settings.ini."])
+        # An exact session with a fallback stays exact (the fallback kernel is the exact F(2x2) one).
+        self.logs(self.READY + self.OWNER + self.GENERATES, 13, 2, fp16='mode=off source=BC250_XEFG_EXACT forms=0')
+        with open(self.root/'BC250-XeFG-fast.log', 'a') as f:
+            f.write('F4Q_FALLBACK b3941ac8ff95efe7 pipeline creation failed (hr=0x80070057): the F(2x2) kernel runs for this pipeline\n')
+        self.assertEqual(c.output_lines(c.last_run(self.root, 'native')), ["Output: exact (set by BC250_XEFG_EXACT): identical to "
+                                                                           "Intel's in every test."])
 
     def test_acceleration_partial_with_mfg_unlocker_model(self):
         # OptiScaler's FG with MFG Unlocker, XeFGModel unset, empty or auto: 7 of 13 programs (4K report, 2026-10-21).

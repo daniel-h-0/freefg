@@ -8,15 +8,23 @@
  *   test_f4q.exe MODE DIR      DIR: a scratch shader folder; the settings file is BC250-XeFG\settings.ini beside the
  *                              program, which check_proxy_wine.py writes per case
  * MODE (the environment is set here):
- *   switch     BC250_XEFG_F4Q and BC250_XEFG_F4Q_SHADOW as the case sets them; prints the configuration, the segment
- *              sizes, the pipelines compute_hook creates for b3941ac8, f030948d and another shader, each one's dispatch
- *              geometry, and whether the check installed any hook
- *   fallback   F4Q on; b3941ac8's F(4x4) pipeline cannot be created and f030948d's F(4x4) file is missing: both fall
- *              back to the F(2x2) file and geometry
+ *   switch     BC250_XEFG_F4Q, BC250_XEFG_F4Q2, BC250_XEFG_EXACT and BC250_XEFG_F4Q_SHADOW as the case sets them; prints
+ *              the configuration, the segment sizes (SEGMENT, SEGMENT2 for F4Q2's 18432- and 73728-byte models, SEGMENT3
+ *              for the FP16 forms' copies of every size), the pipelines compute_hook creates for b3941ac8, f030948d,
+ *              the F4Q2 layers 1a3b0782 (named "other": a F(2x2) shader whenever F4Q2 is off), e83e868f and 9e0080ee,
+ *              the row layers 60edebbb and b3ddf030, the F(2x2) layers 1f27b449, f2e2e13f, 5654aa38 and 4bb52a63, and a
+ *              shader that is never a target, each one's dispatch geometry, and whether the check installed any hook
+ *   fallback   F4Q on (the case sets BC250_XEFG_EXACT=1); b3941ac8's F(4x4) pipeline cannot be created and f030948d's
+ *              F(4x4) file is missing: both fall back to the F(2x2) file and geometry
+ *   fp16fallback  F4Q and the FP16 forms on; the FP16 files of e83e868f (FP16 table in place), 1a3b0782 (FP16 copy) and
+ *              1f27b449 (packed FP16) are missing and f2e2e13f's FP16 pipeline cannot be created
  *   layout     F4Q on, but the profile's enc16 marker lacks the row16 segment, so the segment offsets are not the
  *              kernels': F4Q stays off
- *   shadow     BC250_XEFG_F4Q_SHADOW=1: the check's sequence at every target dispatch (as research build ce02's test)
- *   pack       F4Q on: the model owner's segment of one 2304- and one 4608-byte model against an independent computation
+ *   layout2    as switch, but the marker lacks the 18432- and 73728-byte layouts: F4Q2's e83e868f and 9e0080ee stay off
+ *   shadow     BC250_XEFG_F4Q_SHADOW=1: the check's sequence at every target dispatch, with F4Q2 on also at its three
+ *              layers (points 3..5)
+ *   pack       F4Q on (the case sets BC250_XEFG_EXACT=1: FP32 tables): the model owner's segment of one 2304- and one
+ *              4608-byte model (with F4Q2 on also one 18432- and one 73728-byte model) against an independent computation
  * Output: the fast-log lines of F4Q, plus test lines (CONFIG, SEGMENT, PSO, GEOM, VTABLE, OWN, INTEL, REFS, TOTALS, PACK)
  * and DONE. check_proxy_wine.py checks them.
  */
@@ -42,13 +50,17 @@ static struct{ID3D12GraphicsCommandList*l;ID3D12PipelineState*p;} bindings[8];st
 static void model_fail(const char*w){char line[200];snprintf(line,sizeof(line),"MODEL_FAIL %s\n",w);logline(line);ExitProcess(4);}
 /* the model owner's layout for the profile's marker (1535 = the release marker; owner 7): 2304- and 4608-byte models */
 static UINT model_wino_enc16=1535;
-static UINT model_enc16_layout(UINT bytes,UINT*cin_slices){
- UINT bit=bytes==2304?1:bytes==4608?2:0;if(!(model_wino_enc16&bit))return 0;*cin_slices=1;return bytes/2304;
+static UINT model_enc16_layout(UINT bytes,UINT*cin_slices){   /* src/model_wino_enc16.h's sizes */
+ UINT bit=bytes==2304?1:bytes==4608?2:bytes==18432?4:bytes==9216?8:bytes==73728?16:bytes==36864?32:0;
+ if(!(model_wino_enc16&bit))return 0;
+ *cin_slices=bytes==18432||bytes==9216?2:bytes==73728||bytes==36864?4:1;return bytes/2304;
 }
-static UINT model_enc16_offset(UINT bytes){return bytes*5;}
+/* the owner's real offsets for every size, the 36864-byte models included (base 7x + the flow-graph segment, the conv64
+ * segment and its FP16 copy), so the FP16 forms' layout check sees the add-on's layout */
+static UINT model_enc16_offset(UINT bytes){return bytes==36864?bytes*7u+64u*64u*81u:bytes*5;}
 static UINT model_row16_size(UINT bytes){return (model_wino_enc16&64)&&((bytes==2304&&model_wino_enc16&1)||(bytes==4608&&model_wino_enc16&2))?bytes/2304*12288u:0;}
-static UINT model_ref64_size(UINT bytes){(void)bytes;return 0;}
-static UINT model_f16_size(UINT bytes){UINT cs;UINT chunks=model_enc16_layout(bytes,&cs);if(!(model_wino_enc16&1024)||!chunks)return 0;return chunks*8192u;}
+static UINT model_ref64_size(UINT bytes){return (model_wino_enc16&128)&&bytes==36864?16*16384u+16u:0;}
+static UINT model_f16_size(UINT bytes){UINT cs;UINT chunks=model_enc16_layout(bytes,&cs);if(!(model_wino_enc16&1024)||!chunks)return 0;return chunks*8192u+(model_ref64_size(bytes)?16*8192u:0);}
 /* the model owner's innermost entries: absent in this test (the hooks then call the next entry) */
 static __typeof__(((ID3D12DeviceVtbl*)0)->CreateCommittedResource) model_committed_original;
 static __typeof__(((ID3D12DeviceVtbl*)0)->CreateRootSignature) model_create_root_original;
@@ -68,6 +80,8 @@ static void(STDMETHODCALLTYPE*dispatch_original)(ID3D12GraphicsCommandList*,UINT
 static int profile_lists_replacement(uint64_t s){(void)s;return 1;}   /* every profile file is listed here */
 #include "model_f4q.h"
 #include "f4q.h"
+/* src/model_wino_enc16.h's FP16 of an integer |v| < 2048 (the FP16 forms' copies) */
+static uint16_t model_half_int(int v){UINT mag=v<0?(UINT)-v:(UINT)v;if(!mag)return 0;if(mag>=2048)model_fail("FP16 Winograd coefficient range");UINT e=0;while((1u<<(e+1))<=mag)e++;return (uint16_t)((v<0?0x8000u:0)|((e+15)<<10)|((mag-(1u<<e))<<(10-e)));}
 
 /* ---- generic refcounted mock objects */
 struct mobj { const void*vtbl; LONG refs; char name[48]; };
@@ -183,7 +197,9 @@ static void write_file(const char*name,const char*text){
  char path[1200];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=fopen(path,"wb");if(!f){logline("TEST cannot write profile file\n");ExitProcess(3);}
  fwrite(text,1,strlen(text),f);fclose(f);
 }
-#define OTHER 0x1a3b0782583fef19ULL
+#define OTHER 0x1a3b0782583fef19ULL   /* F4Q2's 16 -> 16 encoder; its F(2x2) file is named exact-other */
+#define NEVER 0x0123456789abcdefULL   /* a shader no form replaces */
+static const uint64_t XU1_LAYERS[4]={0x1f27b449fb99a587ULL,0xf2e2e13fea432d20ULL,0x5654aa3800432b13ULL,0x4bb52a635e6d221aULL};
 static ID3D12PipelineState*create(uint64_t h,const char*intel){
  D3D12_COMPUTE_PIPELINE_STATE_DESC cd={.CS={intel,strlen(intel)}};ID3D12PipelineState*p=NULL;
  HRESULT hr=f4q_compute(D,&cd,h,&IID_ID3D12PipelineState,(void**)&p);
@@ -199,7 +215,9 @@ static void pack_check(UINT bytes,unsigned seed){
  int8_t*raw=malloc(bytes);for(UINT i=0;i<bytes;i++){seed=seed*1103515245u+12345u;raw[i]=(int8_t)(seed>>16);}
  raw[0]=-128;raw[1]=127;   /* the extremes of int8 */
  UINT size=model_f4q_size(bytes);float*seg=calloc(1,size?size:16);
- model_f4q_pack(raw,bytes,seg,bytes==2304?F4Q_TBASE_2304:F4Q_TBASE_4608);
+ model_f4q_pack(raw,bytes,seg,bytes==2304?F4Q_TBASE_2304:bytes==4608?F4Q_TBASE_4608:
+               bytes==18432?F4Q2_TBASE_18432:bytes==73728?F4Q2_TBASE_73728:
+               0);
  static const int GP[6][3]={{6,0,0},{-4,-4,-4},{-4,4,-4},{1,2,4},{1,-2,4},{0,0,24}};
  UINT chunks=bytes/2304,bad=0,count=0;long long maxabs=0;
  for(UINT s=0;s<chunks;s++)for(UINT k=0;k<16;k++)for(UINT c=0;c<16;c++){
@@ -219,10 +237,12 @@ static void pack_check(UINT bytes,unsigned seed){
 void mainCRTStartup(void){
  out=GetStdHandle(STD_OUTPUT_HANDLE);
  char*cmd=GetCommandLineA();
- int mode=strstr(cmd," shadow ")?4:strstr(cmd," layout ")?3:strstr(cmd," fallback ")?2:strstr(cmd," pack ")?5:strstr(cmd," switch ")?1:0;
- if(!mode){logline("TEST usage: test_f4q.exe switch|fallback|layout|shadow|pack DIR\n");ExitProcess(2);}
+ int mode=strstr(cmd," shadow ")?4:strstr(cmd," layout ")?3:strstr(cmd," fallback ")?2:strstr(cmd," pack ")?5:strstr(cmd," switch ")?1:
+          strstr(cmd," layout2 ")?6:strstr(cmd," fp16fallback ")?7:0;
+ if(!mode){logline("TEST usage: test_f4q.exe switch|fallback|fp16fallback|layout|layout2|shadow|pack DIR\n");ExitProcess(2);}
  char*dir=strrchr(cmd,' ');snprintf(patchdir,sizeof(patchdir),"%s",dir?dir+1:".");
  if(mode==3)model_wino_enc16=1535&~64u;   /* no row16 segment: the F4Q segment would start elsewhere */
+ if(mode==6)model_wino_enc16=1535&~(4u|16u);   /* no 18432- or 73728-byte layout: F4Q2's two larger layers stay off */
  HMODULE d3d12=LoadLibraryA("d3d12.dll");
  serialize=d3d12?(void*)GetProcAddress(d3d12,"D3D12SerializeVersionedRootSignature"):NULL;
  if(!serialize){logline("TEST no d3d12 serializer\n");ExitProcess(2);}
@@ -241,16 +261,39 @@ void mainCRTStartup(void){
  /* the profile: the F(2x2) and F(4x4) files of the two targets and one other shader (each file holds its name) */
  write_file("b3941ac8ff95efe7.dxil","exact-dec");write_file("f030948d38e74671.dxil","exact-enc");write_file("1a3b0782583fef19.dxil","exact-other");
  write_file("b3941ac8ff95efe7.f4q.dxil","f4q-dec");if(mode!=2)write_file("f030948d38e74671.f4q.dxil","f4q-enc");
+ write_file("1a3b0782583fef19.f4q.dxil","f4q-1a3b");write_file("e83e868f8d5d2c0f.dxil","exact-e83e");
+ write_file("e83e868f8d5d2c0f.f4q.dxil","f4q-e83e");write_file("9e0080eee00255f2.dxil","exact-9e00");
+ write_file("9e0080eee00255f2.f4q.dxil","f4q-9e00");write_file("0123456789abcdef.dxil","exact-0123");
+ write_file("60edebbbd2f9fb69.dxil","exact-60ed");write_file("60edebbbd2f9fb69.f4q.dxil","f4q-60ed");
+ write_file("b3ddf030f661d487.dxil","exact-b3dd");write_file("b3ddf030f661d487.f4q.dxil","f4q-b3dd");
+ for(UINT i=0;i<4;i++){char name[40],text[16];snprintf(name,sizeof(name),"%016llx.dxil",(unsigned long long)XU1_LAYERS[i]);
+  snprintf(text,sizeof(text),"exact-%04x",(unsigned)(XU1_LAYERS[i]>>48));write_file(name,text);}
+ /* the FP16 forms the package ships, bits 1 and 2 (fp16fallback: e83e868f's, 1a3b0782's and 1f27b449's missing); none
+  * for b3941ac8, f030948d and the row layers (bits 4 and 8), as in the package */
+ if(mode!=7)write_file("1a3b0782583fef19.fp16.dxil","fp16-1a3b");
+ if(mode!=7)write_file("e83e868f8d5d2c0f.fp16.dxil","fp16-e83e");
+ write_file("9e0080eee00255f2.fp16.dxil","fp16-9e00");
+ for(UINT i=0;i<4;i++){if(mode==7&&!i)continue;char name[40],text[16];snprintf(name,sizeof(name),"%016llx.fp16.dxil",(unsigned long long)XU1_LAYERS[i]);
+  snprintf(text,sizeof(text),"fp16-%04x",(unsigned)(XU1_LAYERS[i]>>48));write_file(name,text);}
  const char*fp[5]={"f4q-check-uav-uint.dxil","f4q-check-uav-float.dxil","f4q-check-uav-sint.dxil","f4q-check-uav-raw.dxil","f4q-check-aux.dxil"};
  for(UINT i=0;i<5;i++)write_file(fp[i],fp[i]);
  if(mode==2)fail_bytecode="f4q-dec";
+ if(mode==7)fail_bytecode="fp16-f2e2";
  /* fast_prepare: the settings (mfg_settings_init at load), then install_model_owner, f4q_configure, fq_install */
  mfg_settings_init();
  f4q_configure();
  char line[300];
  snprintf(line,sizeof(line),"CONFIG mode=%u\n",f4q_mode);logline(line);
  snprintf(line,sizeof(line),"SEGMENT 2304=%u 4608=%u 9216=%u\n",model_f4q_size(2304),model_f4q_size(4608),model_f4q_size(9216));logline(line);
- if(mode==5){pack_check(2304,1);pack_check(4608,2);logline("DONE\n");ExitProcess(0);}
+ if(mode==5){pack_check(2304,1);pack_check(4608,2);
+  if(f4q2_mask&2)pack_check(18432,3);
+  if(f4q2_mask&4)pack_check(73728,4);
+  logline("DONE\n");ExitProcess(0);}
+ snprintf(line,sizeof(line),"SEGMENT2 18432=%u 73728=%u 36864=%u mask=%u\n",model_f4q_size(18432),model_f4q_size(73728),model_f4q_size(36864),f4q2_mask);
+ logline(line);
+ snprintf(line,sizeof(line),"SEGMENT3 2304=%u 4608=%u 9216=%u 18432=%u 36864=%u 73728=%u fp16=%u f4q3=%u\n",model_fp16_size(2304),model_fp16_size(4608),
+          model_fp16_size(9216),model_fp16_size(18432),model_fp16_size(36864),model_fp16_size(73728),fp16_mask,f4q3_mask);
+ logline(line);
  fq_install(D,L);
  snprintf(line,sizeof(line),"VTABLE unchanged=%d\n",!memcmp(&before_d,&dv,sizeof(dv))&&!memcmp(&before_l,&lv,sizeof(lv)));logline(line);
  if(mode!=4){
@@ -259,6 +302,15 @@ void mainCRTStartup(void){
   ID3D12PipelineState*dec=create(FQ_DEC,"intel-dec"),*enc=create(FQ_ENC,"intel-enc"),*other=create(OTHER,"intel-other");
   ID3D12PipelineState*dec2=create(FQ_DEC,"intel-dec");   /* a second pipeline of the same shader (another root signature) */
   geometry(FQ_DEC,dec,1,4,1);geometry(FQ_DEC,dec2,1,4,1);geometry(FQ_ENC,enc,1,2,2);geometry(OTHER,other,2,4,1);
+  /* F4Q2's other two layers from their dispatch-scale rows (e83e868f 1 1 4, 9e0080ee 1 1 8), the row layers from their
+   * identity rows (1 1 1), the four F(2x2) layers of FP16 bit 2 from theirs (1f27b449 1 2 4, f2e2e13f 1 1 2, 5654aa38
+   * 2 1 2, 4bb52a63 1 1 4), and a shader that is never a target (1 1 2) */
+  ID3D12PipelineState*e83e=create(F4Q2_E83E,"intel-e83e"),*e9e0=create(F4Q2_9E00,"intel-9e00"),*never=create(NEVER,"intel-0123");
+  geometry(F4Q2_E83E,e83e,1,1,4);geometry(F4Q2_9E00,e9e0,1,1,8);geometry(NEVER,never,1,1,2);
+  ID3D12PipelineState*r60=create(F4Q3_60ED,"intel-60ed"),*rb3=create(F4Q3_B3DD,"intel-b3dd");
+  geometry(F4Q3_60ED,r60,1,1,1);geometry(F4Q3_B3DD,rb3,1,1,1);
+  static const int XROW[4][3]={{1,2,4},{1,1,2},{2,1,2},{1,1,4}};
+  for(UINT i=0;i<4;i++){ID3D12PipelineState*x=create(XU1_LAYERS[i],"intel-xu1");geometry(XU1_LAYERS[i],x,XROW[i][0],XROW[i][1],(UINT)XROW[i][2]);}
   ID3D12PipelineState*stranger=(ID3D12PipelineState*)mk(&mpso_vtbl,"stranger");geometry(FQ_DEC,stranger,1,4,1);
   fq_frame_tick();fq_finish();
   geometry(FQ_DEC,dec,1,4,1);   /* after the context's release: its F(4x4) pipeline table is gone */
@@ -284,6 +336,10 @@ void mainCRTStartup(void){
  D->lpVtbl->CopyDescriptorsSimple(D,5,C(vis,20),C(vis,0),D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);   /* the half-size table: a copy, then its own output */
  D->lpVtbl->CreateUnorderedAccessView(D,&dst_half->iface,NULL,&uv,C(vis,25));
  uv.Texture2DArray.ArraySize=2;D->lpVtbl->CreateUnorderedAccessView(D,&enc_out->iface,NULL,&uv,C(vis,14));
+ /* the row layers' own outputs (one 16-channel slice each), tables at 30 and 40 of the encoder root (UAV at +4) */
+ struct mres*row60=tex("row60-out",640,360,1,DXGI_FORMAT_R32G32B32A32_UINT,1),*rowb3=tex("rowb3-out",320,180,1,DXGI_FORMAT_R32G32B32A32_UINT,1);
+ uv.Texture2DArray.ArraySize=1;D->lpVtbl->CreateUnorderedAccessView(D,&row60->iface,NULL,&uv,C(vis,34));
+ D->lpVtbl->CreateUnorderedAccessView(D,&rowb3->iface,NULL,&uv,C(vis,44));
  /* decoder root: table (SRV t0..t4 at 0..4, UAV u0 at 5) + Dims (2 constants); encoder root: table (SRV t0..t3, UAV u0) */
  D3D12_DESCRIPTOR_RANGE1 rd[2]={{D3D12_DESCRIPTOR_RANGE_TYPE_SRV,5,0,0,0,0},{D3D12_DESCRIPTOR_RANGE_TYPE_UAV,1,0,0,0,D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}};
  D3D12_ROOT_PARAMETER1 pd[2]={0};pd[0].ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;pd[0].DescriptorTable.NumDescriptorRanges=2;pd[0].DescriptorTable.pDescriptorRanges=rd;
@@ -299,6 +355,14 @@ void mainCRTStartup(void){
  cd.pRootSignature=root_enc;cd.CS.pShaderBytecode="intel-enc";f4q_compute(D,&cd,FQ_ENC,&IID_ID3D12PipelineState,(void**)&exact_enc);
  cd.CS.pShaderBytecode="intel-other";f4q_compute(D,&cd,OTHER,&IID_ID3D12PipelineState,(void**)&other);
  snprintf(line,sizeof(line),"PIPELINES dec=%s enc=%s other=%s\n",((struct mobj*)exact_dec)->name,((struct mobj*)exact_enc)->name,((struct mobj*)other)->name);logline(line);
+ ID3D12PipelineState*e83e_exact=NULL,*e9e0_exact=NULL;
+ cd.CS.pShaderBytecode="intel-e83e";f4q_compute(D,&cd,F4Q2_E83E,&IID_ID3D12PipelineState,(void**)&e83e_exact);
+ cd.CS.pShaderBytecode="intel-9e00";f4q_compute(D,&cd,F4Q2_9E00,&IID_ID3D12PipelineState,(void**)&e9e0_exact);
+ snprintf(line,sizeof(line),"PIPELINES2 e83e=%s 9e00=%s\n",((struct mobj*)e83e_exact)->name,((struct mobj*)e9e0_exact)->name);logline(line);
+ ID3D12PipelineState*r60_exact=NULL,*rb3_exact=NULL;
+ cd.CS.pShaderBytecode="intel-60ed";f4q_compute(D,&cd,F4Q3_60ED,&IID_ID3D12PipelineState,(void**)&r60_exact);
+ cd.CS.pShaderBytecode="intel-b3dd";f4q_compute(D,&cd,F4Q3_B3DD,&IID_ID3D12PipelineState,(void**)&rb3_exact);
+ snprintf(line,sizeof(line),"PIPELINES3 60ed=%s b3dd=%s\n",((struct mobj*)r60_exact)->name,((struct mobj*)rb3_exact)->name);logline(line);
  geometry(FQ_DEC,exact_dec,1,4,1);
  /* three real frames: per generated frame the decoder at both sizes and the encoder, and one other dispatch */
  for(UINT frame=0;frame<3;frame++){
@@ -308,6 +372,11 @@ void mainCRTStartup(void){
   rt_dispatch(other,OTHER,40,23,1);
   rt_root(root_dec);rt_table(0,20);UINT dh[2]={640,368};rt_consts(1,2,dh);rt_dispatch(exact_dec,FQ_DEC,40,12,1);
   rt_table(0,0);UINT df[2]={1280,736};rt_consts(1,2,df);rt_dispatch(exact_dec,FQ_DEC,80,23,1);
+  /* F4Q2's other two layers (1a3b0782 is "other" above; the encoder root and views stand in for theirs; Intel's 1440p
+   * dispatches: 40 x 12, 10 x 12) */
+  if(f4q2_mask){rt_root(root_enc);rt_table(0,10);rt_dispatch(e83e_exact,F4Q2_E83E,40,12,1);rt_dispatch(e9e0_exact,F4Q2_9E00,10,12,1);}
+  /* the row layers at Intel's 1440p dispatches (80 x 45, 40 x 23), each with its own output view */
+  if(f4q3_mask){rt_root(root_enc);rt_table(0,30);rt_dispatch(r60_exact,F4Q3_60ED,80,45,1);rt_table(0,40);rt_dispatch(rb3_exact,F4Q3_B3DD,40,23,1);}
  }
  /* geometry refusal: a target dispatched with z != 1 */
  rt_dispatch(exact_dec,FQ_DEC,80,23,2);
@@ -316,6 +385,8 @@ void mainCRTStartup(void){
  rb[0]=5;rb[FQ_WORDS-1]=6;
  UINT*s1=rb+FQ_WORDS;s1[0]=7;s1[FQ_WORDS-1]=7;s1[1]=0;s1[2]=9;
  s1[FQ_PTBASE+(0*8+4)*2]=3;s1[FQ_PTBASE+(1*8+4)*2]=2;s1[FQ_PTBASE+(1*8+4)*2+1]=1;s1[FQ_PTBASE+(2*8+4)*2]=3;
+ if(f4q2_mask){s1[FQ_PTBASE+(3*8+4)*2]=3;s1[FQ_PTBASE+(4*8+4)*2]=3;s1[FQ_PTBASE+(5*8+4)*2]=2;s1[FQ_PTBASE+(5*8+4)*2+1]=1;}
+ if(f4q3_mask){s1[FQ_PTBASE+(6*8+4)*2]=3;s1[FQ_PTBASE+(7*8+4)*2]=2;s1[FQ_PTBASE+(7*8+4)*2+1]=1;}
  fq_status("test");
  for(UINT i=0;i<res_count;i++){snprintf(line,sizeof(line),"REFS before-finish %s %ld\n",res_all[i]->name,(long)res_all[i]->refs);logline(line);}
  fq_finish();

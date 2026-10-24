@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-// F4Q encoder (FreeFG 1.1): FP32 Winograd F(4x4,3x3) form of the U-Net encoder layer of f030948d (wino_rs16.hlsl, the
-// F(2x2) form; interface in f4q_common.hlsli): 16 int8 input channels -> 16 output channels per slice (SLICES slices,
-// SV_GroupID.z), 2x2 max-pool, requantised.
+// F4Q encoder (FreeFG 1.1; F4Q2 since 1.1.2): FP32 Winograd F(4x4,3x3) form of the U-Net encoder layers f030948d,
+// 1a3b0782 (wino_rs16.hlsl, the F(2x2) form), e83e868f and 9e0080ee (wino_enc16.hlsl; interface in f4q_common.hlsli):
+// 16 * CIN_SLICES int8 input channels -> 16 output channels per slice (SLICES slices, SV_GroupID.z), 2x2 max-pool,
+// requantised.
 // Structure: six waves per group over the same 8 x 4 tiles (32 x 16 px); wave i owns row i of the 6 x 6 transform
 // domain for all 16 output channels (96 accumulators). The staging holds the decoded input codes as FP16 pairs (exact);
 // each wave computes its own transform row from it (column pass for one Bt row, then the row pass), then the channel
@@ -12,6 +13,16 @@
 // Defines: POOL (1), DECODE_OFFSET (1), ZROUNDS (2 | 4), TBASE (the segment's float4 index in the model buffer, checked
 //          by the model owner), SLICES (1: output slices of 16 channels, SV_GroupID.z; the table holds them one after
 //          the other, scale and bias as [slice * 4 + word], dst layer = slice).
+//          CIN_SLICES (1: input slices of 16 channels, src layer = input slice; F4Q2's e83e868f 2, 9e0080ee 4): each
+//          slice is staged into LDS in turn and accumulated into the same 96 accumulators, so the channel chain stays one
+//          chain over all 16 * CIN_SLICES channels in order; the table holds chunk (slice * CIN_SLICES + input slice)
+//          after chunk, as the model owner packs every chunk; LOOPCIN (0: the input-slice loop unrolled, 1: [loop]).
+//          CIN_SLICES=1 compiles the single-slice text unchanged.
+//          POOL=0 with CLAMP_LO=-128 and DECODE_OFFSET=0: signed, unpooled outputs (1.1.2: the U-Net row layers 60edebbb
+//          and b3ddf030, F(4x4) in place of their 1D F(2,3) kernel wino_row16.hlsl).
+//          TRIM (0 | 1): as f4q_dec16.hlsl (a group whose output rows all lie at or below the destination's height
+//          returns at entry; the same outputs for every input).
+//          HALF_TABLE (0 | 1): as f4q_dec16.hlsl (FP16 U'/2 coefficient pairs at TBASE, scale 1/288; the outputs can differ).
 #include "f4q_common.hlsli"
 
 #ifndef ZROUNDS
@@ -22,6 +33,23 @@
 #endif
 #ifndef SLICES
 #define SLICES 1
+#endif
+#ifndef CIN_SLICES
+#define CIN_SLICES 1
+#endif
+#ifndef LOOPCIN
+#define LOOPCIN 0
+#endif
+#ifndef TRIM
+#define TRIM 0
+#endif
+#ifndef HALF_TABLE
+#define HALF_TABLE 0 // 1: FP16 U'/2 coefficient pairs, scale 1/288 (the outputs can differ)
+#endif
+#if HALF_TABLE
+#define RSTRIDE (16 * 6 * 2) // uint4 per (chunk, row i): [c][j][2] = U'/2 [i][j][c][0 .. 15] FP16 pairs
+#else
+#define RSTRIDE (16 * 6 * 4) // float4 per (chunk, row i): [c][j][4] = U' [i][j][c][4q .. 4q+3]
 #endif
 #define TGX 8
 #define TGY 4
@@ -66,6 +94,20 @@ void at6(float a, float b, float c, float d, float e, float f, out float o[4]) {
 
 [numthreads(32, 6, 1)]
 void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
+#if TRIM
+    // TRIM: the group's output rows are gid.y * (8 | 16) + 0 .. (8 | 16) - 1 (pooled | not). Group row 0 always holds
+    // image row 0, so only gid.y > 0 reads the size: dst's descriptor read then does not dominate the stores and is not
+    // kept live through the kernel.
+    [branch] if (gid.y > 0) {
+        uint dw, dh, dl;
+        dst.GetDimensions(dw, dh, dl);
+#if POOL
+        if (gid.y * (2 * TGY) >= dh) return;
+#else
+        if (gid.y * (4 * TGY) >= dh) return;
+#endif
+    }
+#endif
     uint t = gt.x, i = WaveReadLaneFirst(gt.y);
 #if SLICES > 1
     uint slice = gid.z;
@@ -74,13 +116,37 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
 #endif
     uint tx = t % TGX, ty = t / TGX;
     int gx0 = int(gid.x * (4 * TGX)) - 1, gy0 = int(gid.y * (4 * TGY)) - 1;
+#if CIN_SLICES > 1
+    // the Bt row selectors and the LDS addresses as below, outside the input-slice loop
+    uint rP = (0x133110u >> (4 * i)) & 15u, rQ = (0x311222u >> (4 * i)) & 15u;
+    uint rR = (0x544434u >> (4 * i)) & 15u, rS = (0x322342u >> (4 * i)) & 15u;
+    float s12 = (i == 1) ? 1.0 : -1.0;
+    float alpha = (i == 1) ? -4.0 : (i == 3) ? 2.0 : (i == 4) ? -2.0 : 4.0;
+    float corr = (i == 1) ? 4608.0 : 0.0;
+    uint sbase = 4 * ty * PITCH + 4 * tx + ty;
+    uint aP = sbase + rP * PITCH + (rP >> 2), aQ = sbase + rQ * PITCH + (rQ >> 2);
+    uint aR = sbase + rR * PITCH + (rR >> 2), aS = sbase + rS * PITCH + (rS >> 2);
+    float m[6][16];
+    [unroll] for (uint j0 = 0; j0 < 6; j0++) [unroll] for (uint k0 = 0; k0 < 16; k0++) m[j0][k0] = 0;
+#if LOOPCIN
+    [loop]
+#else
+    [unroll]
+#endif
+    for (uint cs = 0; cs < CIN_SLICES; cs++) {
+    if (cs > 0) GroupMemoryBarrierWithGroupSync(); // every wave has read the previous input slice's staging
+#endif
     {
         uint lin = gt.y * 32 + gt.x;
         [unroll] for (uint it = 0; it < (SX * SY + 191) / 192; it++) {
             uint idx = lin + it * 192;
             if (idx < SX * SY) {
                 uint sy = idx / SX, sx = idx - sy * SX;
+#if CIN_SLICES > 1
+                uint4 w = src.Load(int4(gx0 + int(sx), gy0 + int(sy), int(cs), 0));
+#else
                 uint4 w = src.Load(int4(gx0 + int(sx), gy0 + int(sy), 0, 0));
+#endif
                 uint a = sy * PITCH + sx + (sy >> 2);
                 uint dw[4] = { decode_word(w.x), decode_word(w.y), decode_word(w.z), decode_word(w.w) };
                 [unroll] for (uint q = 0; q < 4; q++) {
@@ -91,6 +157,10 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
         }
     }
     GroupMemoryBarrierWithGroupSync();
+#if CIN_SLICES > 1
+    // raw chunk slice * CIN_SLICES + cs: float4 [c][j][4] = U' [i][j][c][4q .. 4q+3] of that chunk
+    uint rb = WaveReadLaneFirst(TBASE + ((slice * CIN_SLICES + cs) * 6 + i) * RSTRIDE);
+#else
 
     // Bt row i on a column (rows d0..d5): o = alpha * (d[P] + s1 * d[Q]) + (d[R] + s2 * d[S]), exact small integers.
     //   i: P Q s1 | R S s2 | alpha  =  0: 0 2 - | 4 2 - | 4;  1: 1 2 + | 3 4 + | -4;  2: 1 2 - | 4 3 - | 4;
@@ -103,10 +173,11 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
     uint sbase = 4 * ty * PITCH + 4 * tx + ty;
     uint aP = sbase + rP * PITCH + (rP >> 2), aQ = sbase + rQ * PITCH + (rQ >> 2);
     uint aR = sbase + rR * PITCH + (rR >> 2), aS = sbase + rS * PITCH + (rS >> 2);
-    uint rb = WaveReadLaneFirst(TBASE + (slice * 6 + i) * (16 * 6 * 4));   // float4: [c][j][4] = U' [i][j][c][4q .. 4q+3]
+    uint rb = WaveReadLaneFirst(TBASE + (slice * 6 + i) * RSTRIDE);   // float4: [c][j][4] = U' [i][j][c][4q .. 4q+3]
 
     float m[6][16];
     [unroll] for (uint j0 = 0; j0 < 6; j0++) [unroll] for (uint k0 = 0; k0 < 16; k0++) m[j0][k0] = 0;
+#endif
     [unroll] for (uint pp = 0; pp < 8; pp++) {
         float o2[6][2];
         [unroll] for (uint col = 0; col < 6; col++) {
@@ -125,15 +196,29 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
             bt6(o2[0][hh], o2[1][hh], o2[2][hh], o2[3][hh], o2[4][hh], o2[5][hh], v);
             v[1] -= corr;
             [unroll] for (uint j = 0; j < 6; j++) {
+#if HALF_TABLE
+                uint4 h0 = asuint(model[rb + (c * 6 + j) * 2]), h1 = asuint(model[rb + (c * 6 + j) * 2 + 1]);
+                uint hw[8] = { h0.x, h0.y, h0.z, h0.w, h1.x, h1.y, h1.z, h1.w };
+                [unroll] for (uint k = 0; k < 16; k++)
+                    m[j][k] = mad(v[j], f16tof32((k & 1) ? (hw[k >> 1] >> 16) : hw[k >> 1]), m[j][k]);
+#else
                 [unroll] for (uint q = 0; q < 4; q++) {
                     float4 w = model[rb + (c * 6 + j) * 4 + q];
                     m[j][4 * q + 0] = mad(v[j], w.x, m[j][4 * q + 0]); m[j][4 * q + 1] = mad(v[j], w.y, m[j][4 * q + 1]);
                     m[j][4 * q + 2] = mad(v[j], w.z, m[j][4 * q + 2]); m[j][4 * q + 3] = mad(v[j], w.w, m[j][4 * q + 3]);
                 }
+#endif
             }
         }
     }
+#if CIN_SLICES > 1
+    } // input slices
+#endif
+#if HALF_TABLE
+    const float inv = 1.0 / 288.0;
+#else
     const float inv = 1.0 / 576.0;
+#endif
     // rows first: Z[v][k] = (M[i][.] A)[v]
     float z[4][16];
     [unroll] for (uint k1 = 0; k1 < 16; k1++) {

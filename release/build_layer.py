@@ -89,9 +89,10 @@ def build(config, tests=True):
     if len(digests) != 1:
         raise ReleaseError('Two builds of the layer differ')
     depends = dependencies(config)
-    own = [p for p in depends
-           if p.is_relative_to(REPO) and not (p.is_relative_to(config.build) or p.is_relative_to(config.cache))]
-    system = sorted(f'{header_name(p)}\t{sha256(p)}\n' for p in depends if not p.is_relative_to(REPO))
+    own = [p for p in depends if p.is_relative_to(REPO) and not config.in_toolchain(p)
+           and not (p.is_relative_to(config.build) or p.is_relative_to(config.cache))]
+    system = sorted(f'{header_name(p)}\t{sha256(p)}\n' for p in depends
+                    if config.in_toolchain(p) or not p.is_relative_to(REPO))
     # The tests and the build tooling count as sources too: assemble.py rechecks them, so a stale build is never packaged.
     own = set(own) | {REPO / f'src/game/{t}.c' for t, _ in TESTS} | {Path(__file__).resolve(), RELEASE / 'config.py'}
     digest = sha256(output)
@@ -102,11 +103,27 @@ def build(config, tests=True):
         command=[relative(a, config) if a.startswith('/') else a for a in command],
         sources={str(p.relative_to(REPO)): sha256(p) for p in sorted(own)},
         system_headers=dict(count=len(system), sha256=hashlib.sha256(''.join(system).encode()).hexdigest()),
-        toolchain=dict(gcc=tool_version([config.gcc, '--version'])),
+        toolchain=dict(gcc=tool_version([config.gcc, '--version']),
+                       pinned=config.toolchain()['id'] if config.pinned_toolchain else None),
         unit_tests=test_results or 'skipped',
     )
     (out / 'build.json').write_text(json.dumps(record, indent=2) + '\n')
+    if config.pinned_toolchain:
+        differences = toolchain_differences(config, record)
+        if differences:
+            raise ReleaseError('The pinned toolchain did not give the locked build environment: ' + '; '.join(differences))
     return output, record
+
+
+def toolchain_differences(config, record):
+    """The layer record's system headers and gcc against inputs.lock.json toolchain.layer."""
+    locked = config.lock.get('toolchain', {}).get('layer', {})
+    found = []
+    if locked.get('system_headers') and record['system_headers'] != locked['system_headers']:
+        found.append(f'system headers {record["system_headers"]} (locked {locked["system_headers"]})')
+    if locked.get('gcc') and record['toolchain']['gcc'] != locked['gcc']:
+        found.append(f'gcc {record["toolchain"]["gcc"]!r} (locked {locked["gcc"]!r})')
+    return found
 
 
 def main():

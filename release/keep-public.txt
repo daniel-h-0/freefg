@@ -21,6 +21,7 @@
 # CPU-only Wine loader check of the proxy, the offline installer smoke test and this export
 release/config.py
 release/fetch.py
+release/toolchain.py  # the pinned toolchain (release/ci/ci.lock.json) unpacked into a folder of its own
 release/build_proxy.py
 release/build_layer.py
 release/assemble.py
@@ -101,24 +102,40 @@ release/profile/winograd-coarse17.required
 release/profile/winograd-refine-pitch.required
 release/profile/winograd.required
 # The multi-frame build's own shader files (release/profile-mfg/origin.json; inputs.lock.json tree group
-# profile-intel-free-mfg): the nine U-Net shaders in their XU-1 form and F4Q's kernels, rebuilt by the same check.
+# profile-intel-free-mfg): the nine U-Net shaders in their XU-1 form, the three wino-ref64 forms, the F4Q, F4Q2 and F4Q3
+# kernels and the FP16 forms, rebuilt by the same check.
 release/profile-mfg/1a3b0782583fef19.dxil
+release/profile-mfg/1a3b0782583fef19.f4q.dxil
+release/profile-mfg/1a3b0782583fef19.fp16.dxil
 release/profile-mfg/1f27b449fb99a587.dxil
+release/profile-mfg/1f27b449fb99a587.fp16.dxil
 release/profile-mfg/4bb52a635e6d221a.dxil
+release/profile-mfg/4bb52a635e6d221a.fp16.dxil
 release/profile-mfg/5654aa3800432b13.dxil
+release/profile-mfg/5654aa3800432b13.fp16.dxil
+release/profile-mfg/60edebbbd2f9fb69.f4q.dxil
 release/profile-mfg/9e0080eee00255f2.dxil
+release/profile-mfg/9e0080eee00255f2.f4q.dxil
+release/profile-mfg/9e0080eee00255f2.fp16.dxil
 release/profile-mfg/b3941ac8ff95efe7.dxil
 release/profile-mfg/b3941ac8ff95efe7.f4q.dxil
+release/profile-mfg/b3ddf030f661d487.f4q.dxil
 release/profile-mfg/e83e868f8d5d2c0f.dxil
+release/profile-mfg/e83e868f8d5d2c0f.f4q.dxil
+release/profile-mfg/e83e868f8d5d2c0f.fp16.dxil
 release/profile-mfg/f030948d38e74671.dxil
 release/profile-mfg/f030948d38e74671.f4q.dxil
 release/profile-mfg/f2e2e13fea432d20.dxil
+release/profile-mfg/f2e2e13fea432d20.fp16.dxil
 release/profile-mfg/f4q-check-aux.dxil
 release/profile-mfg/f4q-check-uav-float.dxil
 release/profile-mfg/f4q-check-uav-raw.dxil
 release/profile-mfg/f4q-check-uav-sint.dxil
 release/profile-mfg/f4q-check-uav-uint.dxil
 release/profile-mfg/origin.json
+release/profile-mfg/wino-ref64-16.dxil
+release/profile-mfg/wino-ref64-17.dxil
+release/profile-mfg/wino-ref64-18.dxil
 src/kernels/conv_64.hlsl
 src/kernels/conv_wino4_common.hlsli
 src/kernels/conv_wino4_finish.hlsl
@@ -128,6 +145,7 @@ src/kernels/f4q_check.hlsl
 src/kernels/f4q_common.hlsli
 src/kernels/f4q_dec16.hlsl
 src/kernels/f4q_enc16.hlsl
+src/kernels/pk16.hlsli
 src/kernels/wino_dec16.hlsl
 src/kernels/wino_enc16.hlsl
 src/kernels/wino_ref64.hlsl

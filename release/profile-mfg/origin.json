@@ -5,8 +5,8 @@
  "lock_group": "profile-intel-free-mfg",
  "toolchain": "inputs.lock.json toolchain \"profile\": Microsoft DirectX Shader Compiler v1.9.2607 for Linux (release asset, sha256 pinned there)",
  "verified": {
-  "date": "2026-10-20",
-  "result": "16 of 16 shaders rebuilt byte-identical from src/kernels with the pinned DXC"
+  "date": "2026-10-24",
+  "result": "31 of 31 shaders rebuilt byte-identical from src/kernels with the pinned DXC"
  },
  "files": {
   "1a3b0782583fef19.dxil": {
@@ -37,6 +37,53 @@
      "WHALF=1",
      "WINO16_BASE=2513",
      "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1a3b0782583fef19.f4q.dxil": {
+   "sha256": "50bf28dfc2a000c32a4fa41e39609f20f7681aeac5a983d86c8e627688a3f808",
+   "bytes": 72516,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q2: Winograd F(4x4,3x3) 3x3 convolution 16->16 with 2x2 max-pool (offset decode), FP32, 32x16 input tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; replaces 1a3b0782583fef19.dxil while F4Q and F4Q2 are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=1",
+     "TBASE=3025"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1a3b0782583fef19.fp16.dxil": {
+   "sha256": "2de43b95fe7a17e64dbc190d4dde0d3287178de2cf046c59c57dae05c9b461f6",
+   "bytes": 88948,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "FP16 form (bit 1): 1a3b0782's F4Q2 encoder reading FP16 U'/2 coefficient pairs (HALF_TABLE=1) from the FP16 copy at float4 5713 of 2304-byte models; the outputs can differ from the F4Q2 form's; replaces 1a3b0782583fef19.dxil while F4Q, F4Q2 and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=1",
+     "TBASE=5713",
+     "HALF_TABLE=1"
     ]
    },
    "rebuild": "byte-identical"
@@ -81,6 +128,43 @@
    },
    "rebuild": "byte-identical"
   },
+  "1f27b449fb99a587.fp16.dxil": {
+   "sha256": "c91dd2aedc47edacc37cb91d3d47c6ce3a23ea602627b8812a2fb693b6e7642c",
+   "bytes": 79824,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "FP16 form (bit 2): 1f27b449's F(2x2) kernel (128->64, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy (U' x 2^-8) at float4 145921 of 73728-byte models; the outputs can differ from the exact form's; replaces 1f27b449fb99a587.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=8",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "NOPOOL=1",
+     "FLOAT_ALL=1",
+     "KSPLIT=4",
+     "WHALF=1",
+     "WINO16_BASE=145921",
+     "XU1=1",
+     "PK16=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
   "4bb52a635e6d221a.dxil": {
    "sha256": "c157909434e3d952ea9e6e13bf6b7741e9393d4d850b65bcbca070b0014923cf",
    "bytes": 100036,
@@ -115,6 +199,40 @@
      "WHALF=1",
      "UP_SHIFT=1",
      "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "4bb52a635e6d221a.fp16.dxil": {
+   "sha256": "b612da7889c2bfea72a0162acc818cbe6b1937d75d545f54cefe31cee313bb46",
+   "bytes": 81864,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "FP16 form (bit 2): 4bb52a63's F(2x2) decoder kernel (64->64, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy at float4 86018 of 36864-byte models; the outputs can differ from the exact form's; replaces 4bb52a635e6d221a.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=8",
+     "TILE_H=16",
+     "SLICES=4",
+     "CIN_SLICES=4",
+     "WINO_BASE=36864",
+     "WINO16_BASE=86018",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1",
+     "PK16=1"
     ]
    },
    "rebuild": "byte-identical"
@@ -157,6 +275,66 @@
    },
    "rebuild": "byte-identical"
   },
+  "5654aa3800432b13.fp16.dxil": {
+   "sha256": "4ffe27941c7b3c7103d82985d00bb3d12775bfd0f2550efe4a31169604fb0251",
+   "bytes": 81872,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "FP16 form (bit 2): 5654aa38's F(2x2) decoder kernel (32->32, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy at float4 9025 of 9216-byte models; the outputs can differ from the exact form's; replaces 5654aa3800432b13.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=16",
+     "TILE_H=8",
+     "SLICES=2",
+     "CIN_SLICES=2",
+     "WINO_BASE=2880",
+     "WINO16_BASE=9025",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1",
+     "PK16=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "60edebbbd2f9fb69.f4q.dxil": {
+   "sha256": "de9707aad5e1e25aa67873b72aca4fc4cc38d477666c72c8c1cacae68ca7c5e7",
+   "bytes": 83644,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q3: Winograd F(4x4,3x3) 3x3 convolution 16->16, signed unpooled outputs, FP32, 32x16 output tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; replaces 60edebbbd2f9fb69.dxil (1D F(2,3)) while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "POOL=0",
+     "ZROUNDS=4",
+     "CLAMP_LO=-128",
+     "DECODE_OFFSET=0",
+     "TBASE=3025"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
   "9e0080eee00255f2.dxil": {
    "sha256": "a08122f6bd8d8aa5dc6b0f244e5eece76a3367ba61ac09e0dc6b253544f5887b",
    "bytes": 91048,
@@ -195,6 +373,59 @@
    },
    "rebuild": "byte-identical"
   },
+  "9e0080eee00255f2.f4q.dxil": {
+   "sha256": "47241a08151a74804826c2d423db94c5f38a741e45a9977cdee5cc99587b5f53",
+   "bytes": 74404,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q2: Winograd F(4x4,3x3) 3x3 convolution 64->128 with 2x2 max-pool, FP32, one channel chain over all four input slices, coefficient segment at float4 72193 of 73728-byte models; replaces 9e0080eee00255f2.dxil while F4Q and F4Q2 are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=8",
+     "CIN_SLICES=4",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=72193"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "9e0080eee00255f2.fp16.dxil": {
+   "sha256": "7c846d7f501c3341def86bccecf67a968810954af9ff8584ae92853fd6fcf4aa",
+   "bytes": 90852,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "FP16 form (bit 1): 9e0080ee's F4Q2 encoder reading FP16 U'/2 coefficient pairs (HALF_TABLE=1) from its segment at float4 72193 of 73728-byte models, written in place as FP16; the outputs can differ from the F4Q2 form's; replaces 9e0080eee00255f2.dxil while F4Q, F4Q2 and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=8",
+     "CIN_SLICES=4",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=72193",
+     "HALF_TABLE=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
   "b3941ac8ff95efe7.dxil": {
    "sha256": "3ad08005f17ff7dbca440e5dc86f403e2c5f100b48030d51851960aa25d55e44",
    "bytes": 96816,
@@ -228,23 +459,55 @@
    "rebuild": "byte-identical"
   },
   "b3941ac8ff95efe7.f4q.dxil": {
-   "sha256": "e6b90eeddf3799e6f5e337638e30dbbd4fa6a0ce8c17dd7a92b5d00ad86cab82",
-   "bytes": 89000,
+   "sha256": "92c4634c2124b37522206c2fefa29d52828b90a2aab488f49536819284d1451a",
+   "bytes": 88336,
    "kind": "shader",
    "shader_model": "6.6",
    "wave": 32,
    "variants": [
     "intel-free-mfg"
    ],
-   "description": "F4Q: Winograd F(4x4,3x3) decoder 3x3 convolution 16->16 over skip + 2x-upsampled input, FP32, 32x16 output tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; replaces b3941ac8ff95efe7.dxil while F4Q is on",
+   "description": "F4Q: Winograd F(4x4,3x3) decoder 3x3 convolution 16->16 over skip + 2x-upsampled input, FP32, 32x16 output tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; since 1.1.2 the fill in packed 16-bit integers and the column pass in packed FP16 (XU2D=1, every operation exact) and an early return of groups wholly below the output (TRIM=1): the same outputs as the 1.1.0 form for every input; replaces b3941ac8ff95efe7.dxil while F4Q is on",
    "build": {
     "pipeline": "dxc",
     "source": "src/kernels/f4q_dec16.hlsl",
     "target": "cs_6_6",
     "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TBASE=3025",
+     "XU2D=1",
+     "TRIM=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3ddf030f661d487.f4q.dxil": {
+   "sha256": "44dd92b3ef0515de9c254b75ba5d4a8a994bcb046a88adceff96e56ac5d004f0",
+   "bytes": 85552,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q3: Winograd F(4x4,3x3) 3x3 convolution 32->16, signed unpooled outputs, FP32, one channel chain over both input slices, coefficient segment at float4 6049 of 4608-byte models; replaces b3ddf030f661d487.dxil (1D F(2,3)) while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
     "options": [],
     "defines": [
-     "TBASE=3025"
+     "POOL=0",
+     "ZROUNDS=4",
+     "CLAMP_LO=-128",
+     "DECODE_OFFSET=0",
+     "CIN_SLICES=2",
+     "LOOPCIN=1",
+     "TBASE=6049"
     ]
    },
    "rebuild": "byte-identical"
@@ -287,6 +550,59 @@
    },
    "rebuild": "byte-identical"
   },
+  "e83e868f8d5d2c0f.f4q.dxil": {
+   "sha256": "82e265e634740a50bd5ee1a753aad9d6d4572d20eec9dd8ec28d7e3ed04db6f2",
+   "bytes": 74412,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "F4Q2: Winograd F(4x4,3x3) 3x3 convolution 32->64 with 2x2 max-pool, FP32, one channel chain over both input slices, coefficient segment at float4 18049 of 18432-byte models; replaces e83e868f8d5d2c0f.dxil while F4Q and F4Q2 are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=4",
+     "CIN_SLICES=2",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=18049"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "e83e868f8d5d2c0f.fp16.dxil": {
+   "sha256": "b0f845b60c0848258a6c7c4e19f1ef820aa69ec16c16d14cf4c530606589e547",
+   "bytes": 90860,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "FP16 form (bit 1): e83e868f's F4Q2 encoder reading FP16 U'/2 coefficient pairs (HALF_TABLE=1) from its segment at float4 18049 of 18432-byte models, written in place as FP16; the outputs can differ from the F4Q2 form's; replaces e83e868f8d5d2c0f.dxil while F4Q, F4Q2 and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=4",
+     "CIN_SLICES=2",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=18049",
+     "HALF_TABLE=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
   "f030948d38e74671.dxil": {
    "sha256": "e0762790c85a8907084a0553674f4dcfe0e9a9e151910ab2605273a04de9809b",
    "bytes": 89812,
@@ -323,15 +639,15 @@
    "rebuild": "byte-identical"
   },
   "f030948d38e74671.f4q.dxil": {
-   "sha256": "7cc03f61410a41ef1b73564946ec8096bd0643faee26ce443e03c0fab82e9e3e",
-   "bytes": 72484,
+   "sha256": "5bdbbe64d37b03610a67e8200e4bcb6037d0cc28f01c74cc65c5829ef301eb4c",
+   "bytes": 72740,
    "kind": "shader",
    "shader_model": "6.6",
    "wave": 32,
    "variants": [
     "intel-free-mfg"
    ],
-   "description": "F4Q: Winograd F(4x4,3x3) 3x3 convolution 16->32 with 2x2 max-pool, FP32, 32x16 input tiles over six waves (transform rows), coefficient segment at float4 6049 of 4608-byte models; replaces f030948d38e74671.dxil while F4Q is on",
+   "description": "F4Q: Winograd F(4x4,3x3) encoder 3x3 convolution 16->32 with 2x2 max-pool, FP32, two output slices, coefficient segment at float4 6049 of 4608-byte models; since 1.1.2 an early return of groups wholly below the output (TRIM=1): the same outputs as the 1.1.0 form for every input; replaces f030948d38e74671.dxil while F4Q is on",
    "build": {
     "pipeline": "dxc",
     "source": "src/kernels/f4q_enc16.hlsl",
@@ -341,7 +657,8 @@
     "defines": [
      "SLICES=2",
      "DECODE_OFFSET=0",
-     "TBASE=6049"
+     "TBASE=6049",
+     "TRIM=1"
     ]
    },
    "rebuild": "byte-identical"
@@ -383,6 +700,43 @@
      "WHALF=1",
      "WINO16_BASE=13953",
      "XU1=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f2e2e13fea432d20.fp16.dxil": {
+   "sha256": "839b6bae6618808e8b85188f1c9b7e2fae74a793a6849440a91ff3599e53ed44",
+   "bytes": 76304,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "FP16 form (bit 2): f2e2e13f's F(2x2) kernel (64->32, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy at float4 36481 of 18432-byte models; the outputs can differ from the exact form's; replaces f2e2e13fea432d20.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "NOPOOL=1",
+     "CLAMP_LO=-128",
+     "KSPLIT=2",
+     "WHALF=1",
+     "WINO16_BASE=36481",
+     "XU1=1",
+     "PK16=1"
     ]
    },
    "rebuild": "byte-identical"
@@ -498,6 +852,108 @@
     "defines": [
      "KIND=0",
      "SRV=0"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "wino-ref64-16.dxil": {
+   "sha256": "b14d487029f2d84f114ba525b046085b0491ef2d4075ba4f248e14120643bae5",
+   "bytes": 101392,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/wino-ref64-16.dxil",
+    "sha256": "b11dc2d987cd07246e68a60a62828e07acd3e3ce93890aabe63acc852ff579d6"
+   },
+   "description": "Fused exact Winograd F(2x2,3x3) 64->64 int8 refinement, clamp 16 bits: the release recipe with 32 x 4 px groups (GX=16: 16 x 2 tiles per role) and acc >> 2 for acc / 4 (ACC_SHR=1); both exact, so the same outputs as the release recipe for every input the model owner accepts; the multi-frame proxy dispatches it over the output size (XEFG_REF64_GX16)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_ref64.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "FLOAT_ALL=1",
+     "STATIC_WORD=1",
+     "ROLES=4",
+     "WHALF=1",
+     "VHALF=1",
+     "REF16_BASE=77826",
+     "CLAMP_BITS=16",
+     "GX=16",
+     "ACC_SHR=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "wino-ref64-17.dxil": {
+   "sha256": "65db21974c9a898cf023b00546abd78ceeffd31357391551ced96d5e38a10426",
+   "bytes": 101392,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/wino-ref64-17.dxil",
+    "sha256": "0515073bc44ddf1b6d28f005638412c91b84a346756b0d526328d2670b8aa7d5"
+   },
+   "description": "Fused exact Winograd F(2x2,3x3) 64->64 int8 refinement, clamp 17 bits: the release recipe with 32 x 4 px groups (GX=16: 16 x 2 tiles per role) and acc >> 2 for acc / 4 (ACC_SHR=1); both exact, so the same outputs as the release recipe for every input the model owner accepts; the multi-frame proxy dispatches it over the output size (XEFG_REF64_GX16)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_ref64.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "FLOAT_ALL=1",
+     "STATIC_WORD=1",
+     "ROLES=4",
+     "WHALF=1",
+     "VHALF=1",
+     "REF16_BASE=77826",
+     "CLAMP_BITS=17",
+     "GX=16",
+     "ACC_SHR=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "wino-ref64-18.dxil": {
+   "sha256": "b804f8f2aee6395a372a32445d9d21c81cfafb09fb4e82ec42fbf638b06f3efe",
+   "bytes": 101392,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "replaces": {
+    "file": "release/profile/wino-ref64-18.dxil",
+    "sha256": "e80aabb71ec12fe9af3e16fbdfdba7f9faa0ffdc55bceb8e76be638ca1b7ad51"
+   },
+   "description": "Fused exact Winograd F(2x2,3x3) 64->64 int8 refinement, clamp 18 bits: the release recipe with 32 x 4 px groups (GX=16: 16 x 2 tiles per role) and acc >> 2 for acc / 4 (ACC_SHR=1); both exact, so the same outputs as the release recipe for every input the model owner accepts; the multi-frame proxy dispatches it over the output size (XEFG_REF64_GX16)",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_ref64.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "FLOAT_ALL=1",
+     "STATIC_WORD=1",
+     "ROLES=4",
+     "WHALF=1",
+     "VHALF=1",
+     "REF16_BASE=77826",
+     "CLAMP_BITS=18",
+     "GX=16",
+     "ACC_SHR=1"
     ]
    },
    "rebuild": "byte-identical"

@@ -39,8 +39,8 @@ static UINT model_enc16_offset(UINT bytes){return model_base_expanded(bytes)+(mo
 static UINT model_row16_size(UINT bytes){return (model_wino_enc16&64)&&((bytes==2304&&model_wino_enc16&1)||(bytes==4608&&model_wino_enc16&2))?bytes/2304*12288u:0;}
 static UINT model_ref64_size(UINT bytes){return (model_wino_enc16&128)&&bytes==36864?16*16384u+16u:0;}
 static UINT model_f16_size(UINT bytes){UINT cs;UINT chunks=model_enc16_layout(bytes,&cs);if(!(model_wino_enc16&1024)||!chunks)return 0;return chunks*8192u+(model_ref64_size(bytes)?16*8192u:0);}
-#include "model_f4q.h"  /* F4Q (the multi-frame proxy): the F(4x4) coefficient segment, last, while F4Q is on */
-static UINT model_enc16_size(UINT bytes){UINT cs;UINT chunks=model_enc16_layout(bytes,&cs);return (chunks?chunks*16384u+16u:0)+model_row16_size(bytes)+model_ref64_size(bytes)+model_f16_size(bytes)+model_f4q_size(bytes);}
+#include "model_f4q.h"  /* F4Q (the multi-frame proxy): the F(4x4) coefficient segment while F4Q is on, then the FP16 forms' copies */
+static UINT model_enc16_size(UINT bytes){UINT cs;UINT chunks=model_enc16_layout(bytes,&cs);return (chunks?chunks*16384u+16u:0)+model_row16_size(bytes)+model_ref64_size(bytes)+model_f16_size(bytes)+model_f4q_size(bytes)+model_fp16_size(bytes);}
 /* Exact for integers |v| < 2048 (all U: |U| <= 1152). */
 static uint16_t model_half_int(int v){UINT mag=v<0?(UINT)-v:(UINT)v;if(!mag)return 0;if(mag>=2048)model_fail("FP16 Winograd coefficient range");UINT e=0;while((1u<<(e+1))<=mag)e++;return (uint16_t)((v<0?0x8000u:0)|((e+15)<<10)|((mag-(1u<<e))<<(10-e)));}
 /* Every partial sum of a whole multi-slice FP32 accumulation is bounded by 512 * sum |U|. */
@@ -96,6 +96,7 @@ static void model_enc16_pack(const void*snapshot,UINT bytes,UINT expanded){
   if(model_ref64_size(bytes)){const float*ref=seg+chunks*4096+4+model_row16_size(bytes)/4;for(UINT i=0;i<16*4096;i++)half[chunks*4096+i]=model_half_int((int)ref[i]);}
  }
  if(model_f4q_size(bytes)){UINT at=f4q_segment_offset(bytes);model_f4q_pack(raw,bytes,(float*)((char*)snapshot+at),at/16u);}
+ model_fp16_pack((void*)snapshot,bytes,raw,seg);   /* the FP16 forms' copies (none while they are off) */
 }
 static void model_enc16_configure(void){
  char path[1400];snprintf(path,sizeof(path),"%s\\wino-enc16.required",patchdir);

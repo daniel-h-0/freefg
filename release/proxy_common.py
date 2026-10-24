@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import REPO, RELEASE, ReleaseError, fnv1a64, relative, sha256  # noqa: E402
+from config import REPO, RELEASE, ReleaseError, fnv1a64, relative, sha256, tool_version  # noqa: E402
 
 # The committed COM forwarding thunks (com_thunks.h/.S), generated from Wine 11.16's d3d12.h.
 COM_THUNKS = RELEASE / 'generated'
@@ -322,6 +322,29 @@ def append_waves(path, additions):
     return result
 
 
+def append_dispatch_scale(path, additions):
+    """Append one "<shader> <x> <y> <z>" row per entry of a variant's "append_dispatch_scale" ({shader: {"scale": [x, y,
+    z], ...}}, in that order) to the profile's dispatch-scale.txt at path; the file's earlier bytes stay its exact
+    prefix. Refused when a shader has a row already, when a factor is not a nonzero integer of |n| <= 16 (z: 1..16), or
+    when the file lacks its final newline. Returns the rows' shaders."""
+    text = path.read_text()
+    have = {line.split()[0] for line in text.splitlines() if line.split()}
+    lines = []
+    for shader, entry in additions.items():
+        scale = entry.get('scale')
+        if not re.fullmatch(r'[0-9a-f]{16}', shader) or not isinstance(scale, list) or len(scale) != 3 \
+                or not all(isinstance(v, int) and v and abs(v) <= 16 for v in scale) or scale[2] < 1:
+            raise ReleaseError(f'append_dispatch_scale: {shader} {scale} is not a shader hash with three scale factors')
+        if shader in have:
+            raise ReleaseError(f'append_dispatch_scale: {path.name} has a row for {shader} already')
+        have.add(shader)
+        lines.append(f'{shader} {scale[0]} {scale[1]} {scale[2]}\n')
+    if lines and not text.endswith('\n'):
+        raise ReleaseError(f'append_dispatch_scale: {path.name} does not end with a newline')
+    path.write_text(text + ''.join(lines))
+    return list(additions)
+
+
 def replace_wave_module(path, old, new):
     """Rewrite the one waves.txt line of module old at path to name module new with the same wave size, in place (the
     table keeps its length and order). Refused when old has no line or several, when new is listed already, or when
@@ -397,6 +420,34 @@ def record_argument(argument, config):
     if argument.startswith('-L/'):
         return '-L' + relative(argument[2:], config)
     return argument
+
+
+def toolchain_record(config):
+    """The compilers of a build record: their version lines, and the pinned toolchain's id (None: the host's tools)."""
+    pinned = config.toolchain()
+    return dict(clang=tool_version([config.clang, '--version']), lld=tool_version([config.lld, '--version']),
+                pinned=pinned['id'] if pinned else None)
+
+
+def toolchain_differences(config, record, section):
+    """What of an add-on or proxy build record differs from inputs.lock.json toolchain: the system headers of
+    "<section>" and the import libraries, clang and lld of "addon"."""
+    locked = config.lock.get('toolchain', {})
+    addon = locked.get('addon', {})
+    wanted = dict(system_headers=locked.get(section, {}).get('system_headers') or addon.get('system_headers'),
+                  import_libraries=addon.get('import_libraries'))
+    found = [f'{key} {record[key]} (locked {value})' for key, value in wanted.items() if value and record[key] != value]
+    found += [f'{tool} {record["toolchain"][tool]!r} (locked {addon[tool]!r})' for tool in ('clang', 'lld')
+              if addon.get(tool) and record['toolchain'].get(tool) != addon[tool]]
+    return found
+
+
+def require_pinned_toolchain(config, record, section):
+    """With a pinned toolchain (XEMFG_TOOLCHAIN) any difference from the lock's toolchain is an error."""
+    if config.pinned_toolchain:
+        differences = toolchain_differences(config, record, section)
+        if differences:
+            raise ReleaseError('The pinned toolchain did not give the locked build environment: ' + '; '.join(differences))
 
 
 def system_digest(paths, config):

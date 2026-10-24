@@ -15,7 +15,16 @@
 // Exactness: the F(2x2) kernels' outputs are exact; this form rounds in its FP32 sums. Its outputs matched them in
 // every test (FreeFG 1.1: 20 SDK test rows and in-game comparisons on the BC-250), which does not prove every input.
 // Defines: ZROUNDS (4 | 2), TBASE (the segment's float4 index in the model buffer, checked by the model owner),
-// UP_SHIFT (1).
+// UP_SHIFT (1), and three forms (FreeFG 1.1.2; release/profile-mfg/origin.json):
+//   XU2D (0 | 1; 1 needs -enable-16bit-types): the fill in packed 16-bit integers and the column pass in packed FP16;
+//          every FP16 and 16-bit integer operation is exact, so the outputs are the XU2D=0 form's for every input.
+//   TRIM (0 | 1): a group whose 16 output rows all lie at or below the destination's height (dst.GetDimensions, not
+//          Dims.H) returns at entry: its typed stores would all be out of bounds and discarded by the bounds check, and it
+//          touches nothing else outside its own LDS. The condition is uniform over the group and precedes every load and
+//          barrier, so the outputs are the TRIM=0 form's for every input.
+//   HALF_TABLE (0 | 1): the coefficients as FP16 U'/2 pairs at TBASE (the model owner's FP16 table), scale 1/288. U'/2 rounds
+//          to FP16 where it needs more than 11 significant bits, so the outputs can differ from the HALF_TABLE=0 form's.
+// The F4Q decoder of 1.1.2 is XU2D=1 TRIM=1 (<hash>.f4q.dxil); its FP16 form adds HALF_TABLE=1 (<hash>.fp16.dxil).
 Texture2DArray<uint4> low : register(t0);
 StructuredBuffer<float4> model : register(t1);  // the F4Q coefficient segment from float4 TBASE (src/model_f4q.h)
 StructuredBuffer<float4> scale : register(t2);  // [output channel / 4]
@@ -33,6 +42,15 @@ cbuffer Dims : register(b0) { int W; int H; };
 #ifndef UP_SHIFT
 #define UP_SHIFT 1
 #endif
+#ifndef TRIM
+#define TRIM 0
+#endif
+#ifndef XU2D
+#define XU2D 0 // 1: packed 16-bit fill and column pass (the same results)
+#endif
+#ifndef HALF_TABLE
+#define HALF_TABLE 0 // 1: FP16 U'/2 coefficient pairs, scale 1/288 (the outputs can differ)
+#endif
 #define TGX 8
 #define TGY 4
 #define SX (4 * TGX + 2)
@@ -47,7 +65,16 @@ cbuffer Dims : register(b0) { int W; int H; };
 #define PADW 40                       // out exchange: [word][px][tile] with 40-word rows
 #define OUTW (4 * NPX * PADW)
 #define LTOT (UNIONW > OUTW ? UNIONW : OUTW)
+#if XU2D
+// XU2D: the staged texels in a 16-bit typed array of their own (FP16 channel pairs, the same word layout as L's staging
+// planes), so the column pass reads half2 values (packed FP16 arithmetic); L keeps the Z rounds and the out exchange.
+// 4928 + 3072 words = 32,000 B: still two groups per CU.
+#define LZO (ZW > OUTW ? ZW : OUTW)
+groupshared half2 S2[SINW];
+groupshared uint L[LZO];
+#else
 groupshared uint L[LTOT];
+#endif
 uint pk16(float lo, float hi) { return f32tof16(lo) | (f32tof16(hi) << 16); }
 
 int4 up(int4 a, int4 b, int4 c, int4 d) {
@@ -68,6 +95,21 @@ void stage_texel(uint a, uint4 S, uint4 A, uint4 B, uint4 Cc, uint4 D, bool outs
     }
 }
 
+#if XU2D
+// XU2D fill, in packed 16-bit integers (two channels per register), the same values as stage_texel and up():
+// unpack_s8s16 gives the signed codes of word q as channel pairs (4q, 4q + 1) and (4q + 2, 4q + 3) = planes 2q and
+// 2q + 1; T = 9a + 3(b + c) + d (|T| <= 2048), trunc(T / 16) = (T + (uint16(T) >> 12)) >> 4 (T >= -2048: the top four
+// bits are 1111 exactly when T < 0), then clamp(s + q, 0, hi) (hi = 127, or 0 for a texel outside the image) and the
+// FP16 pair by OR 0x6400 (1024 + v, exact for 0 <= v <= 1023) and a packed FP16 subtract of 1024. Every intermediate
+// fits 16 bits (u16 wrap-around in the sums is harmless: T, q and s + q are in [-2048, 2032] and [-256, 254]).
+int16_t4 code_s16(uint w) { return unpack_s8s16((int8_t4_packed)w); }
+half2 fill_pair(int16_t2 s, int16_t2 T, int16_t2 hi) {
+    int16_t2 q = (T + int16_t2(uint16_t2(T) >> uint16_t(12))) >> int16_t(4);
+    uint16_t2 v = uint16_t2(min(max(s + q, int16_t(0)), hi));
+    return asfloat16(v | uint16_t(0x6400)) - half(1024.0);
+}
+#endif
+
 void bt6(float a, float b, float c, float d, float e, float f, out float o[6]) {
     float ec = e - c, db = d - b;
     o[0] = mad(4.0, a - c, ec);
@@ -87,6 +129,15 @@ void at6(float a, float b, float c, float d, float e, float f, out float o[4]) {
 
 [numthreads(32, 6, 1)]
 void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
+#if TRIM
+    // TRIM: the group's output rows are gid.y * 16 + 0 .. 15. Group row 0 always holds image row 0, so only gid.y > 0
+    // reads the size: dst's descriptor read then does not dominate the stores and is not kept live through the kernel.
+    [branch] if (gid.y > 0) {
+        uint dw, dh, dl;
+        dst.GetDimensions(dw, dh, dl);
+        if (gid.y * (4 * TGY) >= dh) return;
+    }
+#endif
     uint t = gt.x, i = WaveReadLaneFirst(gt.y);
     uint tx = t % TGX, ty = t / TGX;
     {
@@ -94,7 +145,13 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
         // full-resolution X = 2 lx - 1, 2 lx and Y = 2 ly - 1, 2 ly (the window starts at 32 gx - 1, 16 gy - 1).
         uint lin = gt.y * 32 + gt.x;
         if (lin < (SX / 2) * (SY / 2)) {
+#if XU2D
+            // lin / 17 as (lin * 241) >> 12 (exact for lin < 192: the error lin / 69632 stays below 1 / 17), all in 24 bits
+            uint ur = (lin * 241u) >> 12;
+            int p = int(lin - ur * 17u), r = int(ur);
+#else
             int p = int(lin % (SX / 2)), r = int(lin / (SX / 2));
+#endif
             int lx = p + int(gid.x) * (2 * TGX), ly = r + int(gid.y) * (2 * TGY);
             uint4 L00 = low.Load(int4(lx - 1, ly - 1, 0, 0)), L10 = low.Load(int4(lx, ly - 1, 0, 0));
             uint4 L01 = low.Load(int4(lx - 1, ly, 0, 0)), L11 = low.Load(int4(lx, ly, 0, 0));
@@ -103,11 +160,35 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
             uint4 Smp = skip.Load(int4(Xm, Yp, 0, 0)), Spp = skip.Load(int4(Xp, Yp, 0, 0));
             bool xm = Xm < 0 || Xm > W - 1, xp = Xp < 0 || Xp > W - 1, ym = Ym < 0 || Ym > H - 1, yp = Yp < 0 || Yp > H - 1;
             uint sx = uint(2 * p), sy = uint(2 * r);
+#if XU2D
+            // the same words (sy * PITCH = 68 r, (sy >> 2) = ((sy + 1) >> 2) = r >> 1) with 24-bit products
+            uint a0 = ur * (2 * PITCH) + sx + (ur >> 1), a1 = a0 + PITCH;
+            // stage_texel's four texels (a, b, c, d) = mm (L00, L10, L01, L11), pm (L10, L11, L00, L01),
+            // mp (L01, L00, L11, L10), pp (L11, L01, L10, L00): mm and pp share b + c = L10 + L01, pm and mp L11 + L00.
+            int16_t2 hmm = (xm || ym) ? int16_t2(0, 0) : int16_t2(127, 127), hpm = (xp || ym) ? int16_t2(0, 0) : int16_t2(127, 127);
+            int16_t2 hmp = (xm || yp) ? int16_t2(0, 0) : int16_t2(127, 127), hpp = (xp || yp) ? int16_t2(0, 0) : int16_t2(127, 127);
+            [unroll] for (uint q = 0; q < 4; q++) {
+                int16_t4 u00 = code_s16(L00[q]), u10 = code_s16(L10[q]), u01 = code_s16(L01[q]), u11 = code_s16(L11[q]);
+                int16_t4 umm = code_s16(Smm[q]), upm = code_s16(Spm[q]), ump = code_s16(Smp[q]), upp = code_s16(Spp[q]);
+                [unroll] for (uint hs = 0; hs < 2; hs++) {
+                    int16_t2 c00 = hs ? u00.zw : u00.xy, c10 = hs ? u10.zw : u10.xy, c01 = hs ? u01.zw : u01.xy, c11 = hs ? u11.zw : u11.xy;
+                    int16_t2 bcA = c10 + c01, bcB = c11 + c00;
+                    int16_t2 tmm = c00 * int16_t(9) + (bcA * int16_t(3) + c11), tpp = c11 * int16_t(9) + (bcA * int16_t(3) + c00);
+                    int16_t2 tpm = c10 * int16_t(9) + (bcB * int16_t(3) + c01), tmp = c01 * int16_t(9) + (bcB * int16_t(3) + c10);
+                    uint plane = (2 * q + hs) * PLANE;
+                    S2[plane + a0] = fill_pair(hs ? umm.zw : umm.xy, tmm, hmm);
+                    S2[plane + a0 + 1] = fill_pair(hs ? upm.zw : upm.xy, tpm, hpm);
+                    S2[plane + a1] = fill_pair(hs ? ump.zw : ump.xy, tmp, hmp);
+                    S2[plane + a1 + 1] = fill_pair(hs ? upp.zw : upp.xy, tpp, hpp);
+                }
+            }
+#else
             uint a0 = sy * PITCH + sx + (sy >> 2), a1 = (sy + 1) * PITCH + sx + ((sy + 1) >> 2);
             stage_texel(a0, Smm, L00, L10, L01, L11, xm || ym);
             stage_texel(a0 + 1, Spm, L10, L11, L00, L01, xp || ym);
             stage_texel(a1, Smp, L01, L00, L11, L10, xm || yp);
             stage_texel(a1 + 1, Spp, L11, L01, L10, L00, xp || yp);
+#endif
         }
     }
     GroupMemoryBarrierWithGroupSync();
@@ -120,10 +201,55 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
     uint sbase = 4 * ty * PITCH + 4 * tx + ty;
     uint aP = sbase + rP * PITCH + (rP >> 2), aQ = sbase + rQ * PITCH + (rQ >> 2);
     uint aR = sbase + rR * PITCH + (rR >> 2), aS = sbase + rS * PITCH + (rS >> 2);
+#if HALF_TABLE
+    uint rb = WaveReadLaneFirst(TBASE + i * (16 * 6 * 2));   // uint4: [c][j][2] = U'/2 [i][j][c][0 .. 15] FP16 pairs
+#else
     uint rb = WaveReadLaneFirst(TBASE + i * (16 * 6 * 4));   // float4: [c][j][4] = U' [i][j][c][4q .. 4q+3]
+#endif
 
     float m[6][16];
     [unroll] for (uint j0 = 0; j0 < 6; j0++) [unroll] for (uint k0 = 0; k0 < 16; k0++) m[j0][k0] = 0;
+#if XU2D
+    // XU2D: the column pass on FP16 channel pairs (packed FMA): every operand and result is an integer, |x|, |y| <= 254,
+    // |o| <= 1016 (row 1: -4 (d1 + d2) + d3 + d4), so each operation is exact. The row pass's first level (eight sums
+    // or differences of two column values, |.| <= 2032) is exact in FP16 too; its second level runs in FP32 with the
+    // FP16 operands folded in (v_fma_mix). The values equal bt6's on the FP32 column values exactly.
+    half2 s12h = half2(half(s12), half(s12)), alphah = half2(half(alpha), half(alpha));
+    [unroll] for (uint pp = 0; pp < 8; pp++) {
+        half2 o2[6];
+        [unroll] for (uint col = 0; col < 6; col++) {
+            half2 P = S2[pp * PLANE + aP + col], Q = S2[pp * PLANE + aQ + col];
+            half2 R = S2[pp * PLANE + aR + col], Sv = S2[pp * PLANE + aS + col];
+            o2[col] = mad(alphah, mad(s12h, Q, P), mad(s12h, Sv, R));
+        }
+        half2 ec = o2[4] - o2[2], db = o2[3] - o2[1], ac = o2[0] - o2[2], bc = o2[1] + o2[2];
+        half2 de = o2[3] + o2[4], bmc = o2[1] - o2[2], emd = o2[4] - o2[3], fmd = o2[5] - o2[3];
+        [unroll] for (uint hh = 0; hh < 2; hh++) {
+            uint c = 2 * pp + hh;
+            float v[6];
+            v[0] = mad(4.0, float(ac[hh]), float(ec[hh]));
+            v[1] = mad(-4.0, float(bc[hh]), float(de[hh]));
+            v[2] = mad(4.0, float(bmc[hh]), float(emd[hh]));
+            v[3] = mad(2.0, float(db[hh]), float(ec[hh]));
+            v[4] = mad(-2.0, float(db[hh]), float(ec[hh]));
+            v[5] = mad(-4.0, float(db[hh]), float(fmd[hh]));
+            [unroll] for (uint j = 0; j < 6; j++) {
+#if HALF_TABLE
+                uint4 h0 = asuint(model[rb + (c * 6 + j) * 2]), h1 = asuint(model[rb + (c * 6 + j) * 2 + 1]);
+                uint hw[8] = { h0.x, h0.y, h0.z, h0.w, h1.x, h1.y, h1.z, h1.w };
+                [unroll] for (uint k = 0; k < 16; k++)
+                    m[j][k] = mad(v[j], f16tof32((k & 1) ? (hw[k >> 1] >> 16) : hw[k >> 1]), m[j][k]);
+#else
+                [unroll] for (uint q = 0; q < 4; q++) {
+                    float4 w = model[rb + (c * 6 + j) * 4 + q];
+                    m[j][4 * q + 0] = mad(v[j], w.x, m[j][4 * q + 0]); m[j][4 * q + 1] = mad(v[j], w.y, m[j][4 * q + 1]);
+                    m[j][4 * q + 2] = mad(v[j], w.z, m[j][4 * q + 2]); m[j][4 * q + 3] = mad(v[j], w.w, m[j][4 * q + 3]);
+                }
+#endif
+            }
+        }
+    }
+#else
     [unroll] for (uint pp = 0; pp < 8; pp++) {
         float o2[6][2];
         [unroll] for (uint col = 0; col < 6; col++) {
@@ -141,15 +267,27 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
             float v[6];
             bt6(o2[0][hh], o2[1][hh], o2[2][hh], o2[3][hh], o2[4][hh], o2[5][hh], v);
             [unroll] for (uint j = 0; j < 6; j++) {
+#if HALF_TABLE
+                uint4 h0 = asuint(model[rb + (c * 6 + j) * 2]), h1 = asuint(model[rb + (c * 6 + j) * 2 + 1]);
+                uint hw[8] = { h0.x, h0.y, h0.z, h0.w, h1.x, h1.y, h1.z, h1.w };
+                [unroll] for (uint k = 0; k < 16; k++)
+                    m[j][k] = mad(v[j], f16tof32((k & 1) ? (hw[k >> 1] >> 16) : hw[k >> 1]), m[j][k]);
+#else
                 [unroll] for (uint q = 0; q < 4; q++) {
                     float4 w = model[rb + (c * 6 + j) * 4 + q];
                     m[j][4 * q + 0] = mad(v[j], w.x, m[j][4 * q + 0]); m[j][4 * q + 1] = mad(v[j], w.y, m[j][4 * q + 1]);
                     m[j][4 * q + 2] = mad(v[j], w.z, m[j][4 * q + 2]); m[j][4 * q + 3] = mad(v[j], w.w, m[j][4 * q + 3]);
                 }
+#endif
             }
         }
     }
+#endif
+#if HALF_TABLE
+    const float inv = 1.0 / 288.0;
+#else
     const float inv = 1.0 / 576.0;
+#endif
     // x first: Z[v][k] = (M[i][.] A)[v] on the wave's own transform row
     float z[4][16];
     [unroll] for (uint k1 = 0; k1 < 16; k1++) {
@@ -161,7 +299,11 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
     uint wo[ZROUNDS][8];
     uint zw = i * 4 * CPR * 32 + t;
     [unroll] for (uint h = 0; h < ZROUNDS; h++) {
+#if XU2D
+        if (h > 0) GroupMemoryBarrierWithGroupSync(); // the previous round's Z fully read (staging is S2, not L)
+#else
         GroupMemoryBarrierWithGroupSync(); // staging (h = 0) or the previous round's Z fully read
+#endif
         [unroll] for (uint v2 = 0; v2 < 4; v2++) [unroll] for (uint kk = 0; kk < CPR; kk++)
             L[zw + (v2 * CPR + kk) * 32] = asuint(z[v2][h * CPR + kk]);
         GroupMemoryBarrierWithGroupSync();

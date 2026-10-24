@@ -1,6 +1,6 @@
 {
  "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build (variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-mfg for tools that pass --variant intel-free-mfg, and that entry changes nothing.",
- "name": "freefg-1.1.1",
+ "name": "freefg-1.1.2",
  "variant": "intel-free-mfg",
  "documents_version": "public",
  "documents_component": "documents",
@@ -15,7 +15,7 @@
   },
   "default_factor": 2,
   "default_cap": "match output (this build has no generated-frame scaling)",
-  "fsr4": "4.1.1 RC11 INT8 (downloaded by the installer, see dependencies.json)",
+  "fsr4": "4.1.1 RC12 INT8 (downloaded by the installer, see dependencies.json)",
   "enabler": "none: libxess_fg.dll proxy over Intel's unmodified XeFG runtime (bc250_xefg_original.dll, downloaded by the installer); another module that lifts Intel's frame limit is the user's own addition, never shipped",
   "status": "The public build. release/assemble.py writes its status text (PUBLIC_MANIFEST, with the product's name and version) into the manifest in place of this line.",
   "frame_start_pacing": {
@@ -133,24 +133,36 @@
    }
   },
   "profile-intel-free-mfg": {
-   "description": "Shader profile cl-wino-q33-intel-free-mfg: the Intel-free profile with the multi-frame kernels, nine U-Net shaders in their XU-1 form and F4Q's kernels (release/intel_free_mfg.json; release/profile-mfg), beside the proxy in BC250-XeFG/shaders",
+   "description": "Shader profile cl-wino-q33-intel-free-mfg: the Intel-free profile with the multi-frame kernels, nine U-Net shaders in their XU-1 form, the fused refinement in its 32 x 4 px form, the F4Q, F4Q2 and F4Q3 kernels and the FP16 forms (release/intel_free_mfg.json; release/profile-mfg), beside the proxy in BC250-XeFG/shaders",
    "files": {
     "payload/BC250-XeFG/shaders/08155f47bc92811b.dxil": "build:addon-intel-free-mfg-profile/08155f47bc92811b.dxil",
     "payload/BC250-XeFG/shaders/1a3b0782583fef19.dxil": "build:addon-intel-free-mfg-profile/1a3b0782583fef19.dxil",
+    "payload/BC250-XeFG/shaders/1a3b0782583fef19.f4q.dxil": "build:addon-intel-free-mfg-profile/1a3b0782583fef19.f4q.dxil",
+    "payload/BC250-XeFG/shaders/1a3b0782583fef19.fp16.dxil": "build:addon-intel-free-mfg-profile/1a3b0782583fef19.fp16.dxil",
     "payload/BC250-XeFG/shaders/1f27b449fb99a587.dxil": "build:addon-intel-free-mfg-profile/1f27b449fb99a587.dxil",
+    "payload/BC250-XeFG/shaders/1f27b449fb99a587.fp16.dxil": "build:addon-intel-free-mfg-profile/1f27b449fb99a587.fp16.dxil",
     "payload/BC250-XeFG/shaders/4bb52a635e6d221a.dxil": "build:addon-intel-free-mfg-profile/4bb52a635e6d221a.dxil",
+    "payload/BC250-XeFG/shaders/4bb52a635e6d221a.fp16.dxil": "build:addon-intel-free-mfg-profile/4bb52a635e6d221a.fp16.dxil",
     "payload/BC250-XeFG/shaders/558c3931ba6fb064.dxil": "build:addon-intel-free-mfg-profile/558c3931ba6fb064.dxil",
     "payload/BC250-XeFG/shaders/5654aa3800432b13.dxil": "build:addon-intel-free-mfg-profile/5654aa3800432b13.dxil",
+    "payload/BC250-XeFG/shaders/5654aa3800432b13.fp16.dxil": "build:addon-intel-free-mfg-profile/5654aa3800432b13.fp16.dxil",
     "payload/BC250-XeFG/shaders/60edebbbd2f9fb69.dxil": "build:addon-intel-free-mfg-profile/60edebbbd2f9fb69.dxil",
+    "payload/BC250-XeFG/shaders/60edebbbd2f9fb69.f4q.dxil": "build:addon-intel-free-mfg-profile/60edebbbd2f9fb69.f4q.dxil",
     "payload/BC250-XeFG/shaders/9e0080eee00255f2.dxil": "build:addon-intel-free-mfg-profile/9e0080eee00255f2.dxil",
+    "payload/BC250-XeFG/shaders/9e0080eee00255f2.f4q.dxil": "build:addon-intel-free-mfg-profile/9e0080eee00255f2.f4q.dxil",
+    "payload/BC250-XeFG/shaders/9e0080eee00255f2.fp16.dxil": "build:addon-intel-free-mfg-profile/9e0080eee00255f2.fp16.dxil",
     "payload/BC250-XeFG/shaders/b3941ac8ff95efe7.dxil": "build:addon-intel-free-mfg-profile/b3941ac8ff95efe7.dxil",
     "payload/BC250-XeFG/shaders/b3941ac8ff95efe7.f4q.dxil": "build:addon-intel-free-mfg-profile/b3941ac8ff95efe7.f4q.dxil",
     "payload/BC250-XeFG/shaders/b3ddf030f661d487.dxil": "build:addon-intel-free-mfg-profile/b3ddf030f661d487.dxil",
+    "payload/BC250-XeFG/shaders/b3ddf030f661d487.f4q.dxil": "build:addon-intel-free-mfg-profile/b3ddf030f661d487.f4q.dxil",
     "payload/BC250-XeFG/shaders/dispatch-scale.txt": "build:addon-intel-free-mfg-profile/dispatch-scale.txt",
     "payload/BC250-XeFG/shaders/e83e868f8d5d2c0f.dxil": "build:addon-intel-free-mfg-profile/e83e868f8d5d2c0f.dxil",
+    "payload/BC250-XeFG/shaders/e83e868f8d5d2c0f.f4q.dxil": "build:addon-intel-free-mfg-profile/e83e868f8d5d2c0f.f4q.dxil",
+    "payload/BC250-XeFG/shaders/e83e868f8d5d2c0f.fp16.dxil": "build:addon-intel-free-mfg-profile/e83e868f8d5d2c0f.fp16.dxil",
     "payload/BC250-XeFG/shaders/f030948d38e74671.dxil": "build:addon-intel-free-mfg-profile/f030948d38e74671.dxil",
     "payload/BC250-XeFG/shaders/f030948d38e74671.f4q.dxil": "build:addon-intel-free-mfg-profile/f030948d38e74671.f4q.dxil",
     "payload/BC250-XeFG/shaders/f2e2e13fea432d20.dxil": "build:addon-intel-free-mfg-profile/f2e2e13fea432d20.dxil",
+    "payload/BC250-XeFG/shaders/f2e2e13fea432d20.fp16.dxil": "build:addon-intel-free-mfg-profile/f2e2e13fea432d20.fp16.dxil",
     "payload/BC250-XeFG/shaders/f4q-check-aux.dxil": "build:addon-intel-free-mfg-profile/f4q-check-aux.dxil",
     "payload/BC250-XeFG/shaders/f4q-check-uav-float.dxil": "build:addon-intel-free-mfg-profile/f4q-check-uav-float.dxil",
     "payload/BC250-XeFG/shaders/f4q-check-uav-raw.dxil": "build:addon-intel-free-mfg-profile/f4q-check-uav-raw.dxil",
@@ -260,6 +272,7 @@
    "ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27": "Intel libxess_fg.dll 1.3.1.78",
    "d2030dcd694fda8f2ec7e044b13e6db8f0b56d4ba9113a5efad334e3f3ded8c7": "Intel libxell.dll 1.3.2.10",
    "8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175": "FSR4 RC11 amd_fidelityfx_upscaler_dx12.dll",
+   "4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79": "FSR4 RC12 amd_fidelityfx_upscaler_dx12.dll",
    "82b612a73759117d4203f0ca76f18b325e1c6f3c61c64481c94750abce392a09": "HelixSR 2.0.0 amd_fidelityfx_dx12.dll as shipped by its author (lonewolf0622; a separate project under its own licence, fetched by installations from its GitHub releases on request)"
   }
  },
@@ -287,7 +300,7 @@
  "variants": {
   "intel-free-mfg": {
    "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-mfg builds exactly what release/assemble.py builds.",
-   "name": "freefg-1.1.1",
+   "name": "freefg-1.1.2",
    "package_dir": "package-intel-free-mfg",
    "documents_version": "public",
    "replace": {},

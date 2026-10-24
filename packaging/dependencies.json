@@ -1,5 +1,5 @@
 {
- "version": "OptiScaler 10.0.0-pre1 nightly (2026-09-29, 92337ebf); FSR4 4.0.0-rc11; Intel XeFG 1.3.1.78 / XeLL 1.3.2.10 (intel/xess de0fb9c1); NVIDIA DLSS 310.7.0 helper (DLSS inputs only)",
+ "version": "OptiScaler 10.0.0-pre1 nightly (2026-09-29, 92337ebf); FSR4 4.0.0-rc12; Intel XeFG 1.3.1.78 / XeLL 1.3.2.10 (intel/xess de0fb9c1); NVIDIA DLSS 310.7.0 helper (DLSS inputs only)",
  "inputs": {
   "opti": {
    "url": "https://github.com/optiscaler/OptiScaler-nightly/releases/download/nightly-20260929/OptiScaler_v10.0.0-pre1_20260929.7z",
@@ -70,10 +70,10 @@
    "size": 27176
   },
   "fsr4": {
-   "url": "https://github.com/daniel-h-0/bc250-fsr4-fork/releases/download/v4.0.0-rc11/bc250-fsr4-dll-4.0.0-rc11.zip",
-   "file": "bc250-fsr4-dll-4.0.0-rc11.zip",
-   "sha256": "95ef0c6ea887e0506a3a92f7e4648e7ab7e1100e99f5eff2f70dd33b8dff2a72",
-   "size": 50865005
+   "url": "https://github.com/daniel-h-0/bc250-fsr4-fork/releases/download/v4.0.0-rc12/bc250-fsr4-dll-4.0.0-rc12.zip",
+   "file": "bc250-fsr4-dll-4.0.0-rc12.zip",
+   "sha256": "646778a0d06c42bf3cdcc99f9396680f5cc4a33658b90c0889fd15751bfb800d",
+   "size": 50186200
   },
   "helixsr": {
    "url": "https://github.com/lonewolf0622/HelixSR/releases/download/v2.0.0/HelixSR-2.0.0.zip",
@@ -145,12 +145,12 @@
    "Licenses/XeSS_LICENSE.txt": "784be42c39a4a4d03cf85d88e15e59d75828fca773ce45b8dbfffbd7eaf208df",
    "OptiScaler/libxell.dll": "d2030dcd694fda8f2ec7e044b13e6db8f0b56d4ba9113a5efad334e3f3ded8c7",
    "OptiScaler/libxess_fg.dll": "ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27",
-   "fsr4/amd_fidelityfx_upscaler_dx12.dll": "8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175",
+   "fsr4/amd_fidelityfx_upscaler_dx12.dll": "4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79",
    "fsr4/notices/AMD-SDK-LICENSE.md": "6757f2fec461238da6f84f83536ec195e8c036b1773a06f6f34301b9ed8c0963",
    "fsr4/notices/LICENSE-LLVM.txt": "729615317e28dd03907e46f0fc3b5e88f7853cee61d1a1471d2749335516b46f",
    "fsr4/notices/LICENSE-MS.txt": "734f72f239fe7b07b4c7203f294c1a7ce27095687278bab7e56d630d7c672963",
    "fsr4/notices/LICENSE.new-code": "0a52351600f69642daebbddb6db6313450eadaa98a0d5fa84dd6953ba788772a",
-   "fsr4/notices/PROVENANCE.md": "1d9cddf9d57a3e84b21c624bf66841469f1aae411031cc9b4af6d547df18aa45",
+   "fsr4/notices/PROVENANCE.md": "99080aa86e424e19621477fb9321048afadaf725bf7ef5fae5f03f0b1b5638e8",
    "fsr4/notices/V4-THIRD-PARTY.md": "17a84aabab81b26aefb0a530e83a93b15646bd19a5590c691dd6122248645476"
   },
   "Package": {
@@ -169,7 +169,7 @@
    "OptiScaler/libxess_fg.dll": "Intel XeFG 1.3.1.78, Intel-signed and unmodified: bin/libxess_fg.dll of Intel's XeSS repository (github.com/intel/xess) at commit de0fb9c1c510661c571164e1418ceca8101dab69, the commit whose public headers the build uses (downloaded and hashed 2026-10-18); byte-identical to bin/libxess_fg.dll at its parent 8fe81bdbbaf00b3c1b733fd0d830c333dc84e6f0 (the commit of tag v3.0.2; de0fb9c1 changes only inc/ headers), to the member bin/libxess_fg.dll of the XeSS SDK 3.0.2 release asset (https://github.com/intel/xess/releases/download/v3.0.2/XeSS_SDK_3.0.2.zip, sha256 88b8a373f30e33f3558a77a93e634f11b8132fc3047ea1a8edeead32b8471990) and to the member of the same name in the OptiScaler nightly archive (all three downloaded and hashed 2026-10-18), which are its mirrors in that order (sources)",
    "OptiScaler/libxell.dll": "Intel XeLL 1.3.2.10, Intel-signed and unmodified: bin/libxell.dll of the same intel/xess commit (downloaded and hashed 2026-10-18); byte-identical to bin/libxell.dll at the v3.0.2 tag commit, to the XeSS SDK 3.0.2 release asset's member bin/libxell.dll and to the OptiScaler nightly archive's member (mirrors)",
    "Licenses/XeSS_LICENSE.txt": "LICENSE.txt of the same intel/xess commit (downloaded and hashed 2026-10-18), byte-identical to LICENSE.txt at the v3.0.2 tag commit, to the XeSS SDK 3.0.2 release asset's member LICENSE.txt and to the OptiScaler nightly archive's member (mirrors). The runtime group's copy stays in the download cache and is not placed in games (the package carries the same text as licenses/Intel-XeSS.txt); a fresh OptiScaler setup still installs the same file from the payload group as OptiScaler/Licenses/XeSS_LICENSE.txt, as tester v30 did",
-   "fsr4/amd_fidelityfx_upscaler_dx12.dll": "BC250 FSR4 4.1.1 RC11 INT8 DLL from the public daniel-h-0/bc250-fsr4-fork release v4.0.0-rc11; its notices/ ship in the same archive",
+   "fsr4/amd_fidelityfx_upscaler_dx12.dll": "BC250 FSR4 4.1.1 RC12 INT8 DLL (provider label 4.1.1r12) from the public daniel-h-0/bc250-fsr4-fork release v4.0.0-rc12 (tag commit b2ab949477b4d2745babae146393db5537d87fcb; downloaded and hashed 2026-10-24); its notices/ ship in the same archive",
    "fsr4/notices": "pinned and kept in the download cache beside the DLL, not placed in games: the installer places only the DLL, so the package must keep carrying the same notices (licenses/fsr4/*, byte-identical)",
    "ProxyPackage": "the layout for packages whose add-on is a libxess_fg.dll proxy (manifest addon_entry \"libxess_fg-proxy\", no XeSSMFG enabler): Intel's unmodified XeFG runtime goes beside the proxy as bc250_xefg_original.dll, the file the proxy verifies and loads. Package is the layout for packages with the enabler",
    "sources": "each pinned file names one upstream input and optional mirrors (dependencies.py tries an input already in the cache or needed anyway first, then the others in order; every candidate must yield the pinned sha256). Intel's three files: Intel's repository at de0fb9c1, then at the v3.0.2 tag commit (same host; for a rewritten main), the OptiScaler nightly archive, then the XeSS SDK 3.0.2 release asset (another host; 76.8 MB, used only when the others fail)"
