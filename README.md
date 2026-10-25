@@ -5,11 +5,11 @@ FreeFG makes Intel XeSS Frame Generation (XeFG) faster on the AMD BC-250, in Dir
 
 - Intel's runtime (downloaded unmodified by the user) generates frames. A proxy `libxess_fg.dll` runs part of its GPU work with
   this project's own shaders, which are faster on the BC-250. **By default the generated frames now technically differ slightly from
-  Intel's**: seven U-Net shaders run FP16 forms ([what changes](packaging/public/ARCHITECTURE.md#fp16-forms-the-default-slightly-different)).
+  Intel's**: seven U-Net shaders run FP16 forms ([what changes](packaging/public/ARCHITECTURE.md#fp16-forms-the-default-slightly-different)). Differences are assessed to be on the range of
+  extraordinarily minor to imperceptible - more precision and information on measurement methods/tooling forthcoming!
   With `BC250_XEFG_EXACT=1` (or `Exact=1` in `BC250-XeFG/settings.ini`) every shader runs its exact form, and the
   pixels were identical to Intel's where compared. Seven of those, the F4Q kernels, are identical in every test but not
-  proven for every input ([turn them off](packaging/public/ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)). Differences are assessed to be on the range of
-  extraordinarily minor to imperceptible - more precision and information on measurement methods/tooling forthcoming!
+  proven for every input ([turn them off](packaging/public/ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)). 
 - A Vulkan layer paces the output for VRR displays. Upscaling runs through OptiScaler, with a BC-250 build of AMD FSR 4
   or HelixSR.
 - On GPUs other than Intel's, the runtime generates 2× (Intel's documented limit); FreeFG does not raise that limit.
