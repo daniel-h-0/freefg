@@ -28,6 +28,38 @@ class ProxyFixture(GameFixture):
         return json.loads((self.game/m.STATE/'state.json').read_text())
 
 class ProxyInstallTests(ProxyFixture):
+    def test_upgrade_repairs_saved_fg_and_latency_paths_without_losing_custom_sr_paths(self):
+        original=self.original['OptiScaler.ini']
+        for route in ['native','opti']:
+            for path in [r'.\libxess_fg.dll',r'.\libxell.dll','CUSTOM/LIBXESS_FG.DLL',r'custom\real-upscaler.dll']:
+                with self.subTest(route=route,path=path):
+                    before=m.patch_ini(original,{('Libraries','XeSSPath'):path})
+                    self.original['OptiScaler.ini']=before
+                    (self.game/'OptiScaler.ini').write_bytes(before)
+                    m.install(self.package,self.exe,route=route)
+                    expected=path if 'real-upscaler' in path else 'auto'
+                    self.assertEqual(self.opti_ini()[('libraries','xesspath')],expected)
+                    self.assertEqual(self.opti_ini()[('libraries','xefgpath')],r'.\libxess_fg.dll')
+                    self.assertEqual(self.opti_ini()[('libraries','xellpath')],r'.\libxell.dll')
+                    m.restore(self.exe);self.assertOriginal()
+
+    def test_configure_repairs_saved_path_and_keeps_factor_and_unrelated_keys(self):
+        m.install(self.package,self.exe,route='opti')
+        ini=self.game/'OptiScaler.ini'
+        ini.write_bytes(m.patch_ini(ini.read_bytes(),{('Libraries','XeSSPath'):r'.\libxess_fg.dll',('Other','Keep'):'yes'}))
+        m.configure(self.exe,factor=2)
+        values=self.opti_ini()
+        self.assertEqual(values[('libraries','xesspath')],'auto')
+        self.assertEqual(values[('xefg','interpolationcount')],'1')
+        self.assertEqual(values[('other','keep')],'yes')
+        self.assertIn(dict(section='Libraries',key='XeSSPath',value='auto'),self.record()['ini_changes'])
+        # A later genuine SR override is still the user's; configure and Restore leave it alone.
+        ini.write_bytes(m.patch_ini(ini.read_bytes(),{('Libraries','XeSSPath'):'custom/real-upscaler.dll'}))
+        m.configure(self.exe)
+        m.restore(self.exe)
+        self.assertEqual(self.opti_ini()[('libraries','xesspath')],'custom/real-upscaler.dll')
+        self.assertEqual(self.opti_ini()[('other','keep')],'yes')
+
     def test_opti_roundtrip(self):
         m.install(self.package,self.exe,route='opti')
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')

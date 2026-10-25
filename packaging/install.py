@@ -56,6 +56,13 @@ def carry_settings(default,previous,skip=()):
     kept={names[key]:value for key,value in read_ini(previous).items() if key in known and key not in skip and value!=known[key]}
     return (patch_ini(default,kept) if kept else default),kept
 
+def xess_library_repair(data):
+    """Repair the saved path alias from the older OptiScaler config reader; keep real SR overrides."""
+    value=read_ini(data).get(('libraries','xesspath'),'auto').strip().replace('\\','/')
+    if value.rsplit('/',1)[-1].lower() in ['libxess_fg.dll','libxell.dll']:
+        return {('Libraries','XeSSPath'):'auto'}
+    return {}
+
 # A key line: (indent)(key as written)(the '=' with the blanks around it); the value follows.
 KEY_LINE=re.compile(r'(\s*)([^;#=]+?)(\s*=\s*)')
 
@@ -1059,6 +1066,9 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         if (section,key)==('XeFG','InterpolationCount') and (route!='opti' or proxy):continue
         if changes.get((section,key))==value:continue  # the installer writes this value anyway: nothing of the user's to keep
         changes[(section,key)]=value;kept.append('OptiScaler.ini '+section+'.'+key+'='+value)
+    # Older OptiScaler read XeFGPath/XeLLPath into XeSSLibrary and then saved the FG/latency DLL as XeSSPath.
+    # The fixed DLL reads each key independently; remove that invalid inherited SR override on upgrade as well.
+    changes.update(xess_library_repair(patch_ini(original_ini,changes)))
     ini_after=patch_ini(original_ini,changes)
     # The launcher's own fields carry the loader overrides and the Vulkan layer: no wrapper script.
     import launcher_config
@@ -1472,9 +1482,11 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     for line in waiting:print('Game setting pending: '+line)
     managed={item['path'] for item in record['files']}
     changes={}
+    repair=xess_library_repair(safe(root,'OptiScaler.ini').read_bytes())
+    if repair:changes['OptiScaler.ini']=repair
     if factor is not None and not proxy:
         changes['XeSSMFG/settings.ini']={('XeSSMFG','Multiplier'):str(factor if record['route']=='native' else 0)}
-    if factor is not None and record['route']=='opti':changes['OptiScaler.ini']={('XeFG','InterpolationCount'):str(factor-1)}
+    if factor is not None and record['route']=='opti':changes.setdefault('OptiScaler.ini',{})[('XeFG','InterpolationCount')]=str(factor-1)
     modern='OptiScaler/plugins/BC250-XeFG/shaders/mfg-frame-settings.required' in managed
     setting_values={}
     if any(v is not None for v in [resolution,percent,limit,downscale,upscale]):

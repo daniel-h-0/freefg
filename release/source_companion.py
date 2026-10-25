@@ -12,7 +12,7 @@ source. The companion holds, under <name>-source/source/:
                                  source.commit, checked against source.tree; the group is under "work" until the fork's
                                  release is public, then under "fetch"), plus its build route at the locked tag commit
                                  (source.build_route: FORK.md, which documents the build, and tools/bc250-build.py, the
-                                 script that ran it; the tag commit must add only these files to the build commit's
+                                 script that ran it; the tag commit may add or update only these files in the build commit's
                                  tree, and the checkout's tag source.tag must point at it). Read from the fork's git
                                  checkout as git stores them (no line-ending conversion), so the bytes do not depend on
                                  the git configuration of the machine; nothing in the checkout is written. Submodules
@@ -172,7 +172,7 @@ def check_records(section, group, source, archive=True):
 def build_route(folder, source):
     """[(mode, object id, path)] of the build route (source.build_route) at the tag commit (source.tag_commit), after
     checking that the checkout's tag source.tag points at the tag commit and that its tree is the build commit's tree
-    plus exactly these files."""
+    with only the listed build-route files added or updated."""
     for key in ('tag', 'tag_commit', 'build_route'):
         if not source.get(key):
             raise ReleaseError(f'inputs.lock.json {FORK_GROUP}.source lacks "{key}": the source offer needs the '
@@ -188,8 +188,8 @@ def build_route(folder, source):
                   source['tag_commit']).split('\0')
     changed = dict(zip(changes[1::2], changes[0::2]))
     wanted = set(source['build_route'])
-    if set(changed) != wanted or set(changed.values()) != {'A'}:
-        raise ReleaseError(f'Tag commit {source["tag_commit"][:12]} must only add {sorted(wanted)} to build commit '
+    if not set(changed).issubset(wanted) or not set(changed.values()).issubset({'A','M'}):
+        raise ReleaseError(f'Tag commit {source["tag_commit"][:12]} must only add or update {sorted(wanted)} in build commit '
                            f'{source["commit"][:12]}; it changes {dict(sorted(changed.items()))}')
     entries = {path: (mode, object_id) for mode, object_id, path in tree(folder, source['tag_commit'])}
     out = []
@@ -243,8 +243,6 @@ def fork_files(config):
             if mode != GITLINK:
                 files[path] = (blobs.read(object_id), FILE_MODES[mode])
         for mode, object_id, path in route:
-            if path in files:
-                raise ReleaseError(f'Build route file {path} is already in the build commit\'s tree')
             data = blobs.read(object_id)
             files[path] = (data, FILE_MODES[mode])
             route_record.append(dict(path=path, git_blob=object_id, sha256=hashlib.sha256(data).hexdigest()))

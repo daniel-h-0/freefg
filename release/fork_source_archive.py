@@ -8,7 +8,7 @@ Under <name>/ (default name: OptiScaler-<tag>-source) the archive holds:
 
   the fork's tree at the locked build commit (inputs.lock.json optiscaler-fork source.commit, checked against
   source.tree; the group is under "work" until the fork's release is public, then under "fetch") plus the build route
-  at the locked tag commit (source.build_route: FORK.md and tools/bc250-build.py; the tag commit must add only these
+    at the locked tag commit (source.build_route: FORK.md and tools/bc250-build.py; the tag commit may add or update only these
   files, and the checkout's tag source.tag must point at it), i.e. the tag's tree, read from the fork's git checkout
   (XEMFG_OPTISCALER_SOURCE or --optiscaler-source; nothing in it is written);
   every submodule the build commit pins (.gitmodules and the tree's links) at its pinned commit, fetched read-only from
@@ -44,7 +44,7 @@ The result lists under "warnings" the placeholders ([PRODUCT], [REPO-URL], ...) 
 route files: an archive for the fork's release is made after FORK.md is filled in.
 
 Moving the tag (a new commit on the fork's branch, such as the one that fills in FORK.md before publication):
-  1. Commit only FORK.md and tools/bc250-build.py on the branch (the build commit's tree stays as it is, so the DLL does
+  1. Commit only additions or updates to FORK.md and tools/bc250-build.py on the branch (the build commit's tree stays as it is, so the DLL does
      not change), as the fork's publishing identity (author and committer) under TZ=UTC, so that the dates read +0000,
      and move the annotated tag onto it the same way: TZ=UTC git tag -f -a <tag> <commit>. The build commit and the
      commits before it keep their dates: changing them changes the commit digits in the DLL's version string.
@@ -213,7 +213,7 @@ def plan(config, folder, pointer_only, url_overrides):
         if unknown:
             raise ReleaseError(f'{label} names paths the fork does not pin: {sorted(unknown)}')
     parts = [dict(label='.', prefix='', folder=folder, commit=commit, tree=tree_id, attributes=source['tag_commit'],
-                  entries=[e for e in entries if e[0] != fork.GITLINK] + route,
+                  entries=[e for e in entries if e[0] != fork.GITLINK and e[2] not in {r[2] for r in route}] + route,
                   extra=dict(tag=source['tag'], tag_commit=source['tag_commit'],
                              build_route=[path for _m, _o, path in route]))]
     for link in links:

@@ -19,7 +19,8 @@
  * changes no limit itself: beyond one generated frame per real frame it accelerates only beside another module the
  * user installed that hooks Intel's runtime (to lift Intel's limit), and only OptiScaler's own contexts there; it then
  * keeps that module's view of its callers and steps aside rather than end the game (mfg_proxy_coexist.h). Without such
- * a module it accelerates what the 2x build accelerates. No frame-start pacer: such a module paces frame starts itself.
+ * a module it accelerates what the 2x build accelerates. This proxy has no frame-start pacer. MFG Unlocker's output
+ * pacing does not pace game simulation starts; the OptiScaler fork supplies the adaptive correction through XeLL.
  */
 #define WIDL_C_INLINE_WRAPPERS
 #define COBJMACROS
@@ -44,6 +45,7 @@ static void proxy_log(const char*s){if(logfile!=INVALID_HANDLE_VALUE){AcquireSRW
 #include "fast_trial.h"
 #include "mfg_scoped_retire.h"
 static volatile LONG64 proxy_status_generated;  /* mfg_proxy_coexist.h; the pacing signal adds it */
+static volatile LONG proxy_status_multiplier; /* actual frames per present, for the layer's MFG jitter allowance */
 static void proxy_snapshot_entries(const wchar_t*path);
 #include "mfg_pace_signal.h"
 static int original_verified(const wchar_t*path){

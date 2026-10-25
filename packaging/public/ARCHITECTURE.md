@@ -261,7 +261,10 @@ layer:
 
 - waits until each frame is rendered and releases it no sooner than 99% of the average frame interval after the
   previous one;
-- after a late frame, keeps a margin of 1 ms plus half the lateness (at most 5 ms), shrinking by 0.3 ms per second;
+- after a late frame, grows its jitter allowance by 1 ms plus half the lateness, shrinking by 0.3 ms per second.
+  The SDK output count sets its ceiling: 5 ms at 2×, 10 ms at 3× and 15 ms at 4×. A stream that never misses gains no
+  extra allowance. Holds stay bounded at 3.5 output intervals, or 4.5 at 4×;
+- requests three extra swapchain images where the surface permits them, so held MFG frames do not stall new GPU work;
 - presents from a compute queue it reserves where the driver has one, else from the game's queue under a lock;
 - after each paced present, changes a property on the game's X display's root window seven times within 2.6 ms: stock
   gamescope shows a frame that arrived complete only at its next refresh-timer tick, and each change wakes it to show
@@ -269,7 +272,16 @@ layer:
 
 It holds frames only while XeFG generates, at any frame count, as the proxy's signal page in `/dev/shm` shows (item 7);
 a game's own FSR 3 frame generation, frame generation off and menus pass through. With no signal page, or no proxy
-answer within 3 seconds, it holds every present. MFG Unlocker, where loaded, also paces frame starts on AMD GPUs.
+answer within 3 seconds, it holds every present. The proxy also reports the SDK's actual frames per present through
+that page; older producers leave the field zero and keep the previous 5 ms policy.
+
+### Game-frame starts (OptiScaler XeLL output)
+
+Even display intervals cannot correct alternating simulation intervals. At 3×/4× the bundled OptiScaler detects
+sustained short/long game-frame starts and tops up starts that XeLL leaves clearly early. It resets on loading gaps,
+multiplier changes, or eight consecutive holds, and does not act at 2×. This runs directly after OptiScaler's XeLL
+sleep call, without new SDK hooks. `BC250_XELL_PACE=0` disables the correction. MFG Unlocker's additional output
+pacing does not supply this game-frame correction.
 
 ### Wave sizes (BC-250 only)
 

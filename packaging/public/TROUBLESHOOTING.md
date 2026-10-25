@@ -75,6 +75,7 @@ For troubleshooting, as launch options before `%command%`. Setup keeps them on r
 | Variable | Effect |
 | --- | --- |
 | `BC250_XEFG_DISABLE=1` | Intel's original shaders instead of the accelerated path. Presents are still held while XeFG generates. |
+| `BC250_XELL_PACE=0` | Disable the bundled OptiScaler's adaptive 3×/4× game-frame correction for comparison. |
 | `BC250_XEFG_PACE=0` / `=1` | Output pacing off / hold every present, also while XeFG is not generating. |
 | `BC250_XEFG_PACE_NUDGE=0` / `=1` | The X nudge for stock gamescope off / on. |
 | `BC250_XEFG_PACE_QUEUE=app` | Present from the game's own queue even when a compute queue exists. |

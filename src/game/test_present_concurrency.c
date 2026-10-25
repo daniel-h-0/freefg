@@ -18,7 +18,9 @@ static VkResult VKAPI_CALL f_submit(VkQueue q,uint32_t n,const VkSubmitInfo*s,Vk
 static VkResult VKAPI_CALL f_present(VkQueue q,const VkPresentInfoKHR*p){(void)q;
  for(uint32_t i=0;i<p->waitSemaphoreCount;i++)__atomic_sub_fetch(&signals[((uintptr_t)p->pWaitSemaphores[i]-1)%PACE_SLOTS],1,__ATOMIC_SEQ_CST);
  __atomic_add_fetch(&presents,1,__ATOMIC_SEQ_CST);return present_result;}
-static VkResult VKAPI_CALL f_create_chain(VkDevice d,const VkSwapchainCreateInfoKHR*i,const VkAllocationCallbacks*a,VkSwapchainKHR*o){(void)d;(void)i;(void)a;*o=(VkSwapchainKHR)9;return VK_SUCCESS;}
+static uint32_t created_images,surface_maximum;static VkResult caps_result=VK_SUCCESS;
+static VkResult VKAPI_CALL f_caps(VkPhysicalDevice d,VkSurfaceKHR surface,VkSurfaceCapabilitiesKHR*caps){(void)d;(void)surface;memset(caps,0,sizeof(*caps));caps->maxImageCount=surface_maximum;return caps_result;}
+static VkResult VKAPI_CALL f_create_chain(VkDevice d,const VkSwapchainCreateInfoKHR*i,const VkAllocationCallbacks*a,VkSwapchainKHR*o){(void)d;(void)a;created_images=i->minImageCount;*o=(VkSwapchainKHR)9;return VK_SUCCESS;}
 static void VKAPI_CALL f_destroy_chain(VkDevice d,VkSwapchainKHR c,const VkAllocationCallbacks*a){(void)d;(void)c;(void)a;}
 static void*key=(void*)0x77;static void*queue_a=(void*)0x77,*queue_b=(void*)0x77;
 static void*presenter(void*q){
@@ -55,6 +57,14 @@ int main(void){
  /* ...and a stored error goes with its swapchain (recreated with oldSwapchain, or destroyed). */
  VkSwapchainCreateInfoKHR ci={.sType=VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,.minImageCount=3,.oldSwapchain=(VkSwapchainKHR)1};VkSwapchainKHR fresh;
  assert(create_swapchain((VkDevice)&queue_a,&ci,NULL,&fresh)==VK_SUCCESS);assert(pq.error==VK_SUCCESS);
+ assert(created_images==4); // no capabilities function: original one-image allowance
+ s->surface_caps=f_caps;surface_maximum=0;
+ assert(create_swapchain((VkDevice)&queue_a,&ci,NULL,&fresh)==VK_SUCCESS&&created_images==6);
+ surface_maximum=4;assert(create_swapchain((VkDevice)&queue_a,&ci,NULL,&fresh)==VK_SUCCESS&&created_images==4);
+ surface_maximum=3;assert(create_swapchain((VkDevice)&queue_a,&ci,NULL,&fresh)==VK_SUCCESS&&created_images==3);
+ caps_result=VK_ERROR_SURFACE_LOST_KHR;
+ assert(create_swapchain((VkDevice)&queue_a,&ci,NULL,&fresh)==VK_SUCCESS&&created_images==4);
+ s->pace_shared=0;assert(create_swapchain((VkDevice)&queue_a,&ci,NULL,&fresh)==VK_SUCCESS&&created_images==3);s->pace_shared=1;
  present_result=VK_SUBOPTIMAL_KHR;assert(present_on((VkSwapchainKHR)2)==VK_SUCCESS);pace_drain();present_result=VK_SUCCESS;
  destroy_swapchain((VkDevice)&queue_a,(VkSwapchainKHR)2,NULL);assert(pq.error==VK_SUCCESS);
  assert(present_on((VkSwapchainKHR)2)==VK_SUCCESS);pace_drain();

@@ -2,6 +2,65 @@
 
 The numbers describe FreeFG on this hardware; they are not a prediction for other games, settings, displays or GPUs.
 
+
+## Checks of 1.1.3
+
+Release checks, 25 October 2026. The shader profile, Intel runtime and upscalers are 1.1.2's. The changes are
+library-path handling and pacing; these checks do not add an image-quality claim.
+
+Candidate binaries (sha256):
+
+- Proxy: `a3d9f72fee97a789f1f9f822f293bcfc1563eed9302c991bfa084e47eff47623`.
+- Presentation layer: `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687`.
+- OptiScaler: `1e8025628911495a35d40764bef69157a3d80ce0c3b67b19b2cf7e090ea1dc20`, source `be42012aff2dbe26e5565d076e50f227e428cad1`, tag `bc250-be42012`.
+
+CONTROL Resonant, the saved outdoor rooftop, AMD BC-250, GE-Proton 11-11, HelixSR 2.0.0, physical 2560×1440 120 Hz
+HDR/VRR TV under gamescope 3.16.30. Output intervals come from DRM flip events; game starts from XeLL markers.
+Each sample is 25–45 seconds with one second omitted at each end. A long interval is greater than 1.5 times that
+sample's median. No image readback runs during the timing samples. Later samples let the hardware-breakpoint
+attachment settle for eight seconds before timing. Camera pans are separate from stationary samples.
+
+| Check | Before | Candidate |
+| --- | --- | --- |
+| 3× game starts, 1706×960 input, VSync off, uncapped; 5th–95th percentile | 16.2–34.7 ms | 24.0–26.9 ms |
+| Same 3× scene, adjacent interval pairs with `abs(a-b)/(a+b) > 0.2` | 89.5% | 0% |
+| Same 3× scene, frames displayed per second | 117.94 | 118.10 |
+| 4× stationary, 2560×1440 input through HelixSR, VSync off, uncapped; 99th-percentile display interval | 16.4 ms | 11.3 ms |
+| Same 4× scene, long flips | 69 in 33 s | 0 in 38 s |
+| Same 4× scene, frames displayed per second | 97.28 | 97.54 |
+| 2× saved settings, 1706×960 input; frames displayed per second | 96.77 | 96.91 |
+| Same 2× scene, long flips | 0 in 28 s | 0 in 33 s |
+
+The frame-start cause was also isolated by switching `BC250_XELL_PACE` off and on in the **same early candidate DLL**:
+89.5% uneven pairs became 0%, at 117.94 versus 117.64 displayed FPS. The later candidate adds immediate reset after a
+large stall. The output-layer changes were checked separately at 4×, where XeLL was already giving regular game starts.
+
+Continuous camera motion at 3×, after five seconds of motion to let its onset settle, showed 114.07 displayed FPS,
+a 10.3 ms 99th-percentile interval and one long flip in 33 seconds. The final build's game starts were 24.0–26.9 ms
+at the 5th–95th percentiles in the stationary sample. Starting the scripted pan caused an 80–200 ms transient in
+separate samples; its source in the game/capture path was not isolated, and this release does not claim to fix it.
+The 2×/4× rows preceded the final large-hitch reset in the frame-start controller; the presentation binaries are the
+same, and the final controller was checked at 3× and in the stall-burst simulation.
+
+Motion is not hitch-free. At 4× with the normal 1706×960 input and the saved 115.8 FPS cap, a 33-second camera-pan
+sample showed 115.42 FPS, a 10.5 ms 99th-percentile interval and 9 long flips. At native input, a camera pan showed
+91.77 FPS, a 13.8 ms 99th-percentile interval and 7 long flips. CPU/game stalls still reach the screen. A controlled
+90 ms process pause remains visible, but extra swapchain capacity removes the earlier several-second throughput
+slowdown after it. At uncapped 4× with the normal input size the game produces about 131 FPS, above this TV's 120 Hz
+ceiling; that is not a valid all-frames-shown VRR condition. Keep the output below the display's maximum.
+
+The larger MFG allowance buffers frames only when timing misses require it and decays afterwards. Its latency cost
+varies with the scene and stalls; end-to-end input latency was not measured. Two extra 1440p HDR swapchain images
+were available compared with the old layer (six instead of four), within the surface's reported limit. HelixSR stayed
+active throughout; its own frame generation stayed disabled.
+
+The path fix has a 27-case read/save/reload regression using OptiScaler's real config fragments. The preceding path-fix
+candidate also passed an Echo Point Nova HelixSR/2× start. CPU checks cover frame-start bunching and stall recovery,
+presentation jitter and swapchain limits, concurrent presents, and the proxy's loader/bookkeeping under Wine. The
+current native-route game check is still pending: the existing Cyberpunk benchmark exits with the released build and
+with the path-fix build, under either upscaler. These pacing results cover CONTROL Resonant, not library-wide gameplay,
+SDR, other GPUs, or a different compositor.
+
 ## Scope
 
 - One AMD BC-250 ([test system](#test-system)).

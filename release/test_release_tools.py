@@ -1718,6 +1718,7 @@ class ForkSource(unittest.TestCase):
         self.assertEqual(files['tools/bc250-build.py'], (b'#!/usr/bin/env python3\n', True))
         self.assertEqual(files['src/x.c'], (b'int x;\n', False))
         self.assertNotIn('ext/a', files)
+
         self.assertEqual((pins['tag'], pins['tag_commit'], [r['path'] for r in pins['build_route']]),
                          ('bc250-test', self.tag_commit, ['FORK.md', 'tools/bc250-build.py']))
         self.assertEqual([(s['path'], s['commit']) for s in pins['submodules']],
@@ -1728,6 +1729,36 @@ class ForkSource(unittest.TestCase):
         self.assertEqual(pins['recursive_source_archive'], archive)
         with self.assertRaisesRegex(self.companion.ReleaseError, 'must only add'):
             self.companion.fork_files(self.config(tag='bc250-bad', tag_commit=self.bad_tag_commit))
+
+    def test_later_build_can_update_existing_route_files_without_changing_runtime_sources(self):
+        # Later build commits already contain FORK.md/the build script; only the document needs a tag-time update.
+        fixture_git(self.fork, 'checkout', '-q', self.tag_commit)
+        try:
+            (self.fork/'FORK.md').write_text('# Updated fork\n')
+            fixture_git(self.fork, 'commit', '-q', '-am', 'refresh build document')
+            updated=fixture_git(self.fork, 'rev-parse', 'HEAD')
+            fixture_git(self.fork, 'tag', '-a', '-m', 'updated route', 'bc250-updated-route')
+            config=self.config(commit=self.tag_commit,tree=fixture_git(self.fork,'rev-parse',self.tag_commit+'^{tree}'),
+                               tag='bc250-updated-route',tag_commit=updated)
+            files,_=self.companion.fork_files(config)
+            self.assertEqual(files['FORK.md'],(b'# Updated fork\n',False))
+            self.assertEqual(files['tools/bc250-build.py'],(b'#!/usr/bin/env python3\n',True))
+            result=self.tool.build(config,{'ext/b':'not bundled'},out=self.root/'updated-route')
+            with tarfile.open(self.root/'updated-route'/result['archive'],'r:xz') as archive:
+                names=archive.getnames()
+                self.assertEqual(len(names),len(set(names)))
+            for path,delete in [('src/x.c',False),('tools/bc250-build.py',True)]:
+                fixture_git(self.fork,'checkout','-q',updated)
+                if delete:(self.fork/path).unlink()
+                else:(self.fork/path).write_text('int changed;\n')
+                fixture_git(self.fork,'commit','-q','-am','disallowed tag change')
+                tag='bc250-route-delete' if delete else 'bc250-route-runtime'
+                fixture_git(self.fork,'tag','-a','-m','bad route',tag)
+                config.lock['work']['optiscaler-fork']['source'].update(tag=tag,tag_commit=fixture_git(self.fork,'rev-parse','HEAD'))
+                with self.assertRaisesRegex(self.companion.ReleaseError,'must only add or update'):
+                    self.companion.fork_files(config)
+        finally:
+            fixture_git(self.fork,'checkout','-q','main')
 
     def test_the_tag_must_point_at_the_locked_commit(self):
         """A tag moved to another commit (a FORK.md commit before publication) or missing stops the companion and the

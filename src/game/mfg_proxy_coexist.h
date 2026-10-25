@@ -507,6 +507,7 @@ static void proxy_frames_changed(xefg_swapchain_handle_t handle,UINT frames){
 static volatile LONG proxy_status_caller_tick,proxy_status_caller_seen;
 static void proxy_status_count(const xefg_swapchain_present_status_t*status){
  if(!status||status->framesPresented<2)return;
+ InterlockedExchange(&proxy_status_multiplier,(LONG)status->framesPresented);
  if(!InterlockedExchangeAdd64(&proxy_status_generated,(LONG64)status->framesPresented-1)){char line[120];
   snprintf(line,sizeof(line),"MFG_STATUS XeFG generates: %u frames per present (SDK status)\n",status->framesPresented);proxy_log(line);}
 }

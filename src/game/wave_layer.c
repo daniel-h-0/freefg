@@ -16,6 +16,7 @@
 struct instance_state {VkInstance instance;PFN_vkGetInstanceProcAddr next;struct instance_state*link;};
 struct physical_state {VkPhysicalDevice physical;VkInstance instance;struct physical_state*link;};
 struct device_state {VkDevice device;PFN_vkGetDeviceProcAddr next;int enabled;struct device_state*link;void*key;VkQueue pace_queue;
+ VkPhysicalDevice physical;PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR surface_caps;
  PFN_vkQueuePresentKHR present;PFN_vkQueueSubmit submit;PFN_vkCreateFence create_fence;PFN_vkDestroyFence destroy_fence;PFN_vkCreateSemaphore create_sem;
  PFN_vkDestroySemaphore destroy_sem;PFN_vkWaitForFences wait_fences;PFN_vkResetFences reset_fences;PFN_vkAcquireNextImageKHR acquire;PFN_vkAcquireNextImage2KHR acquire2;
  PFN_vkCreateSwapchainKHR create_swapchain;PFN_vkDestroySwapchainKHR destroy_swapchain;PFN_vkQueueWaitIdle queue_wait_idle;PFN_vkDeviceWaitIdle device_wait_idle;
@@ -134,6 +135,7 @@ static VkResult VKAPI_CALL create_device(VkPhysicalDevice physical,const VkDevic
  pthread_once(&config_once,configuration);enabled&=choice_count!=0;
  unsigned wave_min=0,wave_max=0;if(enabled)wave_range(instance,next_i,physical,&wave_min,&wave_max);enabled&=wave_max!=0;
  *state=(struct device_state){.device=*out,.next=next_d,.enabled=enabled,.wave_min=wave_min,.wave_max=wave_max,.key=*(void**)*out};
+ state->physical=physical;state->surface_caps=(PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR)next_i(instance,"vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
 #define NEXT(field,type,name) state->field=(type)next_d(*out,name)
  NEXT(present,PFN_vkQueuePresentKHR,"vkQueuePresentKHR");NEXT(submit,PFN_vkQueueSubmit,"vkQueueSubmit");NEXT(create_fence,PFN_vkCreateFence,"vkCreateFence");
  NEXT(destroy_fence,PFN_vkDestroyFence,"vkDestroyFence");NEXT(create_sem,PFN_vkCreateSemaphore,"vkCreateSemaphore");NEXT(destroy_sem,PFN_vkDestroySemaphore,"vkDestroySemaphore");

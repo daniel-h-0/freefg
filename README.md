@@ -20,7 +20,7 @@ How it works: [ARCHITECTURE.md](packaging/public/ARCHITECTURE.md).
 
 ![Cyberpunk 2077 frames shown per second at 2× on an AMD BC-250 (2560×1440, FSR 4 Performance, headless): SDR, XeFG with Intel's shaders 85.30 and FreeFG 1.1.0 104.34 (+22.3%); HDR10, 83.98 and 102.45 (+22.0%).](docs/assets/cyberpunk-2x-fps.svg)
 
-Frames  per second, generated frames included. Headless, all arms in one block, 4 runs per arm in SDR and in
+Frames per second, generated frames included. Headless, all arms in one block, 4 runs per arm in SDR and in
 HDR10, [warm shader caches](packaging/public/MEASUREMENTS.md#shader-caches), 1.1.0's launch settings. FreeFG 1.0.x in the same
 block: 102.93 and 101.24.
 Details and TV figures: [MEASUREMENTS.md](packaging/public/MEASUREMENTS.md#frame-rate-cyberpunk-2077).
@@ -215,7 +215,12 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.1.2, 24 October 2026. Tested only on the AMD BC-250 under Proton: 1.1.0 and 1.1.2 only headless, the other releases
+1.1.3, released 25 October 2026. Fixes OptiScaler library-path configuration, repairs affected saved paths, and improves
+3×/4× VRR pacing. The pacing checks use CONTROL Resonant with HelixSR on a physical HDR/VRR TV; the shader profile
+and upscalers are unchanged. Results and limits: [MEASUREMENTS.md](packaging/public/MEASUREMENTS.md#checks-of-113). Native-route runtime
+qualification for this release is pending.
+
+Tested only on the AMD BC-250 under Proton: 1.1.0 and 1.1.2 only headless, the other releases
 also in Steam Game Mode. 1.1.2 changes the proxy and the shader profile: the FP16 forms of seven U-Net shaders (on by
 default; the output differs slightly from Intel's), F4Q2, F4Q3 and three exact kernel changes; the installer adds the
 `Exact` key and an `Output:` line to Status and Check, and installs FSR 4 RC12 instead of RC11. It was checked in the SDK

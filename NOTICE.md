@@ -79,10 +79,11 @@ get every other check.
 ## OptiScaler source
 
 The bundled `opti/OptiScaler.dll` is a modified build of OptiScaler, licensed under the GNU GPL version 3. Its complete
-corresponding source is available at <https://github.com/daniel-h-0/OptiScaler>, tag `bc250-f971ed1`, commit
-`f971ed143de0bdbbbac6d526c95a20227c22e1c6`. The tag is that commit plus its FORK.md and build script.
+corresponding source is included in the source companion and identified by tag `bc250-be42012`, commit
+`be42012aff2dbe26e5565d076e50f227e428cad1`. The fork repository is <https://github.com/daniel-h-0/OptiScaler>.
+The tag adds the updated FORK.md to the build commit.
 
-The source is upstream master of 19 October 2026 (`c2e44a8bc911010d7ed3e4fa63843185fbb55d03`) with three commits:
+The source is upstream master of 19 October 2026 (`c2e44a8bc911010d7ed3e4fa63843185fbb55d03`) with these changes:
 
 - A fixed lock order for the Streamline plugin locks of upstream `f6db41d` ("Try to prevent race conditions when hooking
   sl plugins", 26 September 2026): the Windows loader lock first, then the plugin's lock, and no plugin lock held across
@@ -90,6 +91,7 @@ The source is upstream master of 19 October 2026 (`c2e44a8bc911010d7ed3e4fa63843
   games; CONTROL Resonant hung on about half of its starts with an earlier upstream build.
 - Automatic saving of menu changes.
 - Build-portability fixes for the Linux cross-build.
+- Independent XeSS, XeFG and XeLL library-path configuration, with a save/reload regression check.
 
 Where to get it:
 

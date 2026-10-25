@@ -32,6 +32,7 @@ static void proxy_log(const char*s){size_t n=strlen(s);if(log_size+n<sizeof(log_
 static void logline(const char*s){proxy_log(s);}
 static HMODULE proxy_module,original_module;
 static volatile LONG64 proxy_status_generated;
+static volatile LONG proxy_status_multiplier;
 static UINT env_uint(const char*k,UINT v){(void)k;return v;}
 static void mfg_tag_capture(xefg_swapchain_handle_t h){(void)h;}
 static void mfg_settings_note_context(xefg_swapchain_handle_t h){(void)h;}
@@ -125,6 +126,11 @@ void mainCRTStartup(void){
  proxy_frames_changed(H(1),2);CHECK(count_logged("MFG_RETIRED")==1);
  /* No status read for a NULL handle. */
  int before=resolves;proxy_status_poll(NULL);CHECK(resolves==before);
+ /* The layer follows the actual SDK output count, including a decrease; an empty status is not generation. */
+ xefg_swapchain_present_status_t status={0};
+ status.framesPresented=4;proxy_status_count(&status);CHECK(proxy_status_multiplier==4);
+ status.framesPresented=2;proxy_status_count(&status);CHECK(proxy_status_multiplier==2);
+ status.framesPresented=0;proxy_status_count(&status);proxy_status_count(NULL);CHECK(proxy_status_multiplier==2);
  /* Destroyed: released at the next creation, with every reference on the device and queue. */
  proxy_frames_forget(H(1));proxy_destroy_foreign(H(1));CHECK(proxy_deferred==1);CHECK(device.refs==2);
  candidate_answer=0;CHECK(proxy_create_foreign(D,&b,self)==NULL);

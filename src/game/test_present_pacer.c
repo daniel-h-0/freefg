@@ -31,6 +31,21 @@ static int jitter_run(int every,double late_ms,int frames,int warmup,double*max_
  }
  return longs;
 }
+/* 4x's bursty GPU completion with a 7 ms shift every twelfth game frame. The shift is paid back next group;
+ * output rate must stay the same. An allowance limited to the old 2x policy misses every shifted group. */
+static int four_jitter(unsigned multiplier,double late_ms,int burst,double*mean_hold,double*max_hold){
+ static struct pace_signal_page page;page.multiplier=multiplier;pace_sig=&page;
+ pace_rn=pace_sn=0;pace_prev=pace_margin=pace_margin_t=0;memset(pace_hold,0,sizeof(pace_hold));
+ const double gaps[]={burst?40.5:35,.1,.1,burst?.5:6};double g=1000,prev=0,sum=0;int longs=0;*max_hold=0;
+ for(int i=0;i<4000;i++){
+  double gap=gaps[i%4];int group=i/4;
+  if(i%4==0){if(group%12==11)gap+=late_ms;else if(group%12==0&&group)gap-=late_ms;}
+  g+=gap*.001;double d=pace_target(g);pace_prev=d;assert(d>=g);
+  if(i>192){if(d-prev>1.5*.0412/4)longs++;sum+=d-g;if(d-g>*max_hold)*max_hold=d-g;}
+  prev=d;
+ }
+ *mean_hold=sum/3807;pace_sig=NULL;return longs;
+}
 int main(void){
  setvbuf(stdout,NULL,_IONBF,0);
  double mm;int longs=jitter_run(1000000,0,3000,96,&mm);
@@ -54,6 +69,15 @@ int main(void){
  assert(r.last_hold<2.6);
  r=simulate(two,2,300,40,150,250.0); // A pause longer than 100 ms restarts the estimate: the next frame goes out when ready.
  assert(r.last_hold<2.6);
+ double old_hold,new_hold,max_hold;
+ int old_longs=four_jitter(0,7,0,&old_hold,&max_hold); // an older producer has no multiplier field
+ int new_longs=four_jitter(4,7,0,&new_hold,&max_hold);
+ printf("4x +7 ms jitter: long intervals %d -> %d, mean hold %.2f -> %.2f ms, max %.2f ms\n",old_longs,new_longs,old_hold*1e3,new_hold*1e3,max_hold*1e3);
+ assert(old_longs>50&&new_longs<=2&&new_hold-old_hold<.006&&max_hold<.036);
+ four_jitter(4,0,0,&new_hold,&max_hold);assert(pace_margin==0); // no extra reserve for steady batches
+ new_longs=four_jitter(4,7,1,&new_hold,&max_hold);
+ printf("4x nearly simultaneous completion +7 ms jitter: %d long, max hold %.2f ms\n",new_longs,max_hold*1e3);
+ assert(new_longs<=2&&max_hold<.047); // a 3.5-period cap clips the reserve and leaves 79 long intervals
  /* Who gets output pacing: BC250_XEFG_PACE decides; otherwise every game under gamescope. The X nudge (stock gamescope)
   * is on unless the patched gamescope's session variable is set; BC250_XEFG_PACE_NUDGE overrides. */
  unsetenv("BC250_XEFG_PACE");unsetenv("BC250_XEFG_PACE_NUDGE");unsetenv("BC250_GAMESCOPE_READY_NUDGE");unsetenv("GAMESCOPE_WAYLAND_DISPLAY");
@@ -89,9 +113,9 @@ int main(void){
  char stale[64];snprintf(stale,sizeof(stale),"/dev/shm/bc250-xefg-pace-test-%d",(int)getpid());
  int sfd=open(stale,O_RDWR|O_CREAT|O_TRUNC,0600);assert(sfd>=0&&ftruncate(sfd,4096)==0);
  struct pace_signal_page*addon=mmap(NULL,4096,PROT_READ|PROT_WRITE,MAP_SHARED,sfd,0);assert(addon!=MAP_FAILED);close(sfd);
- memcpy(addon->magic,"BC250XP1",8);addon->owner=999999;addon->generated=77;addon->beat=5;
+ memcpy(addon->magic,"BC250XP1",8);addon->owner=999999;addon->generated=77;addon->beat=5;addon->multiplier=4;
  pace_sig=NULL;pace_signal_sweep(stale);assert(access(stale,F_OK)==0);
- assert(pace_signal_map(stale)&&pace_sig->beat==0&&pace_sig->generated==0&&pace_sig->owner==(uint32_t)getpid());
+ assert(pace_signal_map(stale)&&pace_sig->beat==0&&pace_sig->generated==0&&pace_sig->multiplier==0&&pace_sig->owner==(uint32_t)getpid());
  addon->beat++;addon->generated++;assert(pace_sig->beat==1&&pace_sig->generated==1); /* the add-on's writes reach the layer */
  munmap(addon,4096);munmap(pace_sig,4096);unlink(stale);
  pace_sig=NULL;pace_force=-1;

@@ -11,7 +11,7 @@
  *  - presents from a compute queue reserved for the layer where the driver has one, otherwise from the game's queue
  *    with the device's queue entry points behind one lock (a present without a blit is not ordered behind newer work
  *    in Mesa's WSI either way),
- *  - adds one swapchain image for the held frame, and hides present-wait so vkd3d releases DXGI frame-latency objects
+ *  - adds swapchain capacity for held frames, and hides present-wait so vkd3d releases DXGI frame-latency objects
  *    on GPU completion rather than on the display of a frame the pacer is holding.
  * Gamescope imports new commits after it has handled the finished ones in each loop, and a commit that is already
  * complete at import (every held frame) gets no wakeup of its own: it would wait for gamescope's next vblank-timer tick,
@@ -89,7 +89,8 @@ static int pace_forced(void){int forced=pace_switch("BC250_XEFG_PACE");return fo
  * an unclean exit the add-on may already have mapped the old page (it opens the page once); the layer reuses that file
  * and clears it rather than replacing it with a new one the add-on would never see. */
 static double pace_now(void);
-struct pace_signal_page {char magic[8];volatile uint64_t generated,beat;uint32_t owner;};
+struct pace_signal_page {char magic[8];volatile uint64_t generated,beat;uint32_t owner;volatile uint32_t multiplier;};
+_Static_assert(sizeof(struct pace_signal_page)==32,"XP1 pacing signal layout");
 static struct pace_signal_page*pace_sig;static char pace_sig_path[96];static double pace_sig_made;
 static uint64_t pace_sig_last,pace_sig_beat;static double pace_sig_when=-1e9;static int pace_sig_seen,pace_sig_heard,pace_sig_state=-1,pace_force=-1;
 static void pace_signal_unlink(void){if(pace_sig_path[0])unlink(pace_sig_path);}
@@ -110,7 +111,7 @@ static void pace_signal_sweep(const char*keep){
 static int pace_signal_map(const char*path){
  int fd=open(path,O_RDWR|O_CREAT|O_CLOEXEC,0600);if(fd<0)return 0;
  if(ftruncate(fd,4096)==0){void*m=mmap(NULL,4096,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-  if(m!=MAP_FAILED){pace_sig=m;pace_sig->generated=0;pace_sig->beat=0;pace_sig->owner=(uint32_t)getpid();memcpy(pace_sig->magic,"BC250XP1",8);pace_sig_made=pace_now();}}
+  if(m!=MAP_FAILED){pace_sig=m;pace_sig->generated=0;pace_sig->beat=0;pace_sig->multiplier=0;pace_sig->owner=(uint32_t)getpid();memcpy(pace_sig->magic,"BC250XP1",8);pace_sig_made=pace_now();}}
  close(fd);return pace_sig!=NULL;
 }
 static void pace_signal_create(void){
@@ -189,20 +190,29 @@ static void pace_nudge(double r){
 /* Release time for a present that became ready at g. period: mean ready interval of the last 32 presents, measured
  * from GPU completion so holds cannot bias it. If every present of the last 8 (two MFG groups at 4x) was held beyond
  * the jitter margin, the queue carries a backlog from a hitch and drains at 95% of the period. Holds are capped at 3.5
- * periods, because multi-frame generation can finish a whole group at once.
+ * periods (4.5 at 4x), because multi-frame generation can finish a whole group at once and needs room for its reserve.
  * Jitter margin: the earliest frame of each MFG group has no slack of its own, so a game frame that arrives a few ms
  * late (CONTROL Resonant's simulation step occasionally runs 21-28 instead of 15 ms) became one long refresh, which VRR
  * shows as flicker. Slots advance at 99% of the period (settling earlier) only while every recent frame had more slack
- * than pace_margin, otherwise at 100%. A miss (a frame ready after its slot, less than half a period late, after a long
- * interval, once the period rests on 32 frames) raises the margin by 1 ms plus half the lateness, up to 5 ms; it decays
+ * than pace_margin, otherwise at 100%. A miss (a frame ready after its slot, after a long interval, once the period rests on 32 frames) raises the margin
+ * by 1 ms plus half the lateness. At 2x, misses under half a period count and the reserve is capped at 5 ms; at 3x/4x
+ * those bounds scale with the number of generated frames (10/15 ms ceilings, from the SDK status signal); it decays
  * by 0.3 ms per second. A stream that never misses keeps no margin. Replay of 11 minutes of CONTROL Resonant 3x ready
  * times: 62% fewer long intervals for a 2.1 ms longer mean hold (CONTROL Resonant flicker study, 2026-09-29). */
 #define PACE_MARGIN_MAX 0.005
 #define PACE_MARGIN_DECAY 0.0003
+/* A 4x batch has three generated frames competing with the next real frame's GPU work. The old 5 ms ceiling left
+ * recurring misses even with steady simulation. Allow the existing adaptive reserve to grow per generated frame;
+ * it still starts at zero and decays. 2x and an older producer keep exactly the original ceiling. */
+static double pace_margin_limit(void){
+ unsigned factor=pace_sig?pace_sig->multiplier:0;
+ return factor==3?2*PACE_MARGIN_MAX:factor==4?3*PACE_MARGIN_MAX:PACE_MARGIN_MAX;
+}
 static double pace_margin,pace_margin_t,pace_slack[8];static unsigned pace_sn;
 static double pace_target(double g){
  if(pace_rn&&(g-pace_rt[(pace_rn-1)%64]>0.1||g<pace_rt[(pace_rn-1)%64])){pace_rn=0;pace_prev=0;}
  if(!pace_rn)pace_sn=0;
+ double margin_limit=pace_margin_limit();if(pace_margin>margin_limit)pace_margin=margin_limit;
  if(pace_margin_t>0){pace_margin-=PACE_MARGIN_DECAY*(g-pace_margin_t);if(pace_margin<0)pace_margin=0;}
  pace_margin_t=g;
  pace_rt[pace_rn%64]=g;pace_rn++;
@@ -211,9 +221,11 @@ static double pace_target(double g){
  double lo=pace_hold[0];for(int i=1;i<8;i++)if(pace_hold[i]<lo)lo=pace_hold[i];
  double smin=1.0;if(pace_sn>=8){smin=pace_slack[0];for(int i=1;i<8;i++)if(pace_slack[i]<smin)smin=pace_slack[i];}
  double target=pace_prev+(lo>0.001+pace_margin?0.95:smin>pace_margin?0.99:1.0)*period;
- if(target>g+3.5*period)target=g+3.5*period;
+ double hold_limit=pace_sig&&pace_sig->multiplier==4?4.5:3.5;
+ if(target>g+hold_limit*period)target=g+hold_limit*period;
  double slack=target-g;pace_slack[pace_sn++%8]=slack;
- if(pace_rn>=32&&slack<0&&-slack<0.5*period&&g-pace_prev>1.12*period){pace_margin+=0.001+0.5*-slack;if(pace_margin>PACE_MARGIN_MAX)pace_margin=PACE_MARGIN_MAX;}
+ double miss_limit=0.5*period*(margin_limit/PACE_MARGIN_MAX);
+ if(pace_rn>=32&&slack<0&&-slack<miss_limit&&g-pace_prev>1.12*period){pace_margin+=0.001+0.5*-slack;if(pace_margin>margin_limit)pace_margin=margin_limit;}
  if(target<g)target=g;
  pace_hold[pace_rn%8]=target-g;return target;
 }
@@ -349,7 +361,17 @@ static VkResult VKAPI_CALL acquire_image2(VkDevice device,const VkAcquireNextIma
 }
 static VkResult VKAPI_CALL create_swapchain(VkDevice device,const VkSwapchainCreateInfoKHR*info,const VkAllocationCallbacks*a,VkSwapchainKHR*out){
  struct device_state*d=device_by_key(*(void**)device);if(!d||!d->create_swapchain)return VK_ERROR_INITIALIZATION_FAILED;
- pace_drain();pace_forget_error(info->oldSwapchain);VkSwapchainCreateInfoKHR copy=*info;if(pace_on(d))copy.minImageCount++;
+ pace_drain();pace_forget_error(info->oldSwapchain);VkSwapchainCreateInfoKHR copy=*info;
+ if(pace_on(d)){
+  /* A held 4x group can consume three images. With only one extra image, Acquire can stall new GPU work behind
+   * our release times, making those holds feed back into the measured ready period after a hitch. */
+  VkSurfaceCapabilitiesKHR caps;unsigned extra=1;uint32_t maximum=0;
+  if(d->surface_caps&&d->surface_caps(d->physical,info->surface,&caps)==VK_SUCCESS){extra=3;maximum=caps.maxImageCount;}
+  uint64_t desired=(uint64_t)copy.minImageCount+extra;
+  if(maximum&&desired>maximum)desired=maximum;
+  if(desired>UINT32_MAX)desired=UINT32_MAX;
+  if(desired>copy.minImageCount)copy.minImageCount=(uint32_t)desired;
+ }
  if(pace_on(d))fprintf(stderr,"BC250_PACE swapchain %ux%u images %u present mode %d\n",info->imageExtent.width,info->imageExtent.height,copy.minImageCount,(int)info->presentMode);
  return d->create_swapchain(device,&copy,a,out);
 }

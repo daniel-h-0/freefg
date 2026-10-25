@@ -2,7 +2,7 @@
   "about": "Definition of the multi-frame enabler-free Intel-free variant (how it works: packaging/public/ARCHITECTURE.md; the C side: src/game/mfg_proxy.c with XEFG_PROXY_MFG and src/game/mfg_proxy_coexist.h): the libxess_fg.dll proxy of release/intel_free_2x.json, but with the multi-frame support of the enabler-era Intel-free add-on (release/intel_free.json) kept, so Intel's runtime gets this project's replacement pipelines at whatever frame count it runs: 2x on its own, and 3x/4x when another module the user installed has lifted Intel's frame limit for GPUs other than its own. FreeFG lifts no limit and patches nothing in Intel's runtime. When another module has hooked Intel's entry points, the lifecycle entries tail-call Intel's (that module sees the caller it would see without this proxy), contexts this proxy does not accelerate get the caller's own device and queue, and a model census or order of work this project did not verify makes the context step aside (Intel's or that module's shaders) instead of ending the game. Read by release/build_proxy.py --variant intel-free-mfg and release/assemble.py --variant intel-free-mfg.",
   "variant": "intel-free-mfg",
   "base": "release/intel_free.json",
-  "configuration": "Enabler-free Intel-free add-on, multi-frame: libxess_fg.dll proxy over Intel's unmodified XeFG runtime (bc250_xefg_original.dll), own shaders only, at the frame count the runtime runs (multi-frame network, pooled model sets, retirement at frame-count changes, SDK-status pacing signal); beside another module hooking the runtime it keeps the callers of the lifecycle entries and steps aside instead of ending the game; no XeSSMFG enabler, MinHook or frame-start pacer",
+  "configuration": "Enabler-free Intel-free add-on, multi-frame: libxess_fg.dll proxy over Intel's unmodified XeFG runtime (bc250_xefg_original.dll), own shaders only, at the frame count the runtime runs (multi-frame network, pooled model sets, retirement at frame-count changes, SDK-status pacing signal); beside another module hooking the runtime it keeps the callers of the lifecycle entries and steps aside instead of ending the game; no XeSSMFG enabler or MinHook; the bundled OptiScaler supplies adaptive frame-start correction at 3x/4x",
   "addon": {
     "output_dir": "addon-intel-free-mfg",
     "output": "libxess_fg.dll",
@@ -10,7 +10,7 @@
     "original": "bc250_xefg_original.dll",
     "define": "XEFG_PROXY_MFG=1",
     "dropped_defines": {
-      "XEFG_MFG_XELL_PACE=1": "Frame-start pacer: it reads the factor from the enabler's ApplyMultiplier hook and inline-hooks XeLL and the SDK's Present. This build hooks nothing; a module that lifts Intel's frame limit paces frame starts itself, and two pacers on Intel's Present would conflict. The pacing layer still learns when XeFG generates (accelerated counters and the SDK's present status).",
+      "XEFG_MFG_XELL_PACE=1": "The old frame-start pacer reads the enabler's ApplyMultiplier hook and inline-hooks XeLL and the SDK's Present. This proxy hooks neither. MFG Unlocker's output pacing does not correct game simulation starts; the OptiScaler fork calls the adaptive controller directly through its XeLL output at 3x/4x. The presentation layer still learns when XeFG generates (accelerated counters and the SDK's present status).",
       "XEFG_MFG_NO_ENABLER_UI=1": "Hook on the enabler's overlay; no enabler."
     },
     "kept_defines": {

@@ -11,7 +11,10 @@
  * without BC250_XEFG_ANY_GPU=1), where no accelerated counter does. The layer holds while the count moved within
  * the last 250 ms. Without the layer the page never appears and the thread only retries once a second. */
 #define MFG_PACE_SIGNAL_MAGIC "BC250XP1"
-struct mfg_pace_page {char magic[8];volatile UINT64 generated,beat;UINT32 owner;};
+/* multiplier uses XP1's trailing padding; old layers ignore it, old producers leave it zero after the layer resets
+ * the page. It reports the SDK's actual output count, not a configured maximum or an accelerated-shader counter. */
+struct mfg_pace_page {char magic[8];volatile UINT64 generated,beat;UINT32 owner;volatile UINT32 multiplier;};
+_Static_assert(sizeof(struct mfg_pace_page)==32,"XP1 pacing signal layout");
 static UINT64 mfg_pace_generated(void){
  /* XeFG's final output pass (every generated frame), plus the accelerated network and warp counters as further evidence. */
  UINT64 sum=(UINT64)InterlockedCompareExchange64(&frame_outputs_recorded,0,0)+*(volatile UINT64*)&graph_geometry_fallbacks;
@@ -42,7 +45,9 @@ static DWORD WINAPI mfg_pace_signal_thread(void*unused){
  (void)unused;struct mfg_pace_page*page=NULL;
  for(unsigned tick=0;;tick++){
   if(!page&&tick%50==0&&(page=mfg_pace_open()))proxy_log("MFG pace signal: telling the pacing layer when XeFG generates frames\n");
-  if(page){page->generated=mfg_pace_generated();page->beat++;}
+  if(page){page->generated=mfg_pace_generated();
+   page->multiplier=(UINT32)InterlockedCompareExchange(&proxy_status_multiplier,0,0);
+   page->beat++;}
   Sleep(20);
  }
  return 0;

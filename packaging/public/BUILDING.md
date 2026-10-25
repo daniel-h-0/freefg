@@ -4,8 +4,8 @@
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `b0b71d6575ad8c27072741545459364a880ccb6f0f369a23de58558f02505ec3` |
-| `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `a3d9f72fee97a789f1f9f822f293bcfc1563eed9302c991bfa084e47eff47623` |
+| `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 
 Each script builds its binary twice, requires both builds to be identical, and exits with status 1 when the result
 differs from the reference hash in `release/inputs.lock.json` (`--no-reference-check` exits 0). On the pinned toolchain
@@ -186,8 +186,8 @@ git config --system --add safe.directory <path in the container>
 ## What this tree does not build
 
 - The OptiScaler build (`opti/OptiScaler.dll`, GPL-3.0, sha256
-  `5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6`). The package ships this DLL. Its source is the
-  OptiScaler fork at <https://github.com/daniel-h-0/OptiScaler>, tag `bc250-f971ed1` ([NOTICE.md](NOTICE.md)). The
+  `1e8025628911495a35d40764bef69157a3d80ce0c3b67b19b2cf7e090ea1dc20`). The package ships this DLL. Its source is the
+  OptiScaler fork at <https://github.com/daniel-h-0/OptiScaler>, tag `bc250-be42012` ([NOTICE.md](NOTICE.md)). The
   release tooling does not download the built DLL, so CI assembles the package without it; it is the only component CI
   may leave out.
 - The source companion (`assemble.py` without `--no-source-companion`), which reads a git checkout of the OptiScaler

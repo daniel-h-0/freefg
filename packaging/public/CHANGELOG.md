@@ -2,6 +2,25 @@
 
 Changes in each release of FreeFG. The private test builds made before 0.9.0 are not covered.
 
+## 1.1.3 – 2026-10-25
+
+- Restore adaptive game-frame starts at 3×/4× through the bundled OptiScaler's XeLL output. Sustained short/long
+  simulation intervals are corrected before they become uneven motion. The controller resets after a burst of stalls;
+  `BC250_XELL_PACE=0` disables it for comparison.
+- Let the VRR presentation layer adapt its jitter allowance to the SDK's actual frame count (5/10/15 ms ceilings at
+  2×/3×/4×), with enough hold range for 4×. Reserve extra swapchain images, within the surface's limit, so held frames
+  do not block new GPU work and cause a slow recovery after a hitch. The timing policy at 2× keeps its previous values.
+- Keep the shader profile, Intel runtime, FSR 4 and HelixSR selection unchanged. The library-path correction
+  below is included. The source README also incorporates the wording changes made on GitHub after 1.1.2.
+- Live pacing checks: CONTROL Resonant, HelixSR, GE-Proton 11-11, 2560×1440 HDR/VRR at 120 Hz, 2×/3×/4×, camera motion,
+  factor changes and controlled stalls. [Measurements and limits](MEASUREMENTS.md#checks-of-113).
+- Fix the bundled OptiScaler's library-path reader: `XeSSPath`, `XeFGPath` and `XeLLPath` now configure their own
+  libraries. Previously, the FG and latency paths could become the XeSS upscaler path and be saved under that key,
+  causing a failed XeSS load.
+- Install and Settings repair the known saved `XeSSPath` values pointing to `libxess_fg.dll` or `libxell.dll`, using
+  automatic XeSS upscaler discovery. Other custom upscaler paths and unrelated settings are preserved. Updating an
+  existing installation still uses Restore, then Install from this release, to replace the bundled OptiScaler DLL.
+
 ## 1.1.2 – 2026-10-24
 
 Faster U-Net and refinement kernels, and FSR 4 RC12. By default the generated frames differ slightly from Intel's (the
