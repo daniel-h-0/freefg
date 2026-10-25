@@ -2,6 +2,17 @@
 
 Changes in each release of FreeFG. The private test builds made before 0.9.0 are not covered.
 
+## 1.1.3.1 – 2026-10-25
+
+- Use wave64 for the 224-channel Winograd input-transform shader on the BC-250. Its wave32 selection triggered an
+  early GPU fault in Cyberpunk 2077 2.5 with HelixSR; changing only this wave setting passed the full SDR and HDR10
+  benchmarks. The choice applies to this shader in every game, at every frame-generation factor, without a game recipe.
+- The shader bytes and arithmetic are unchanged. The proxy is rebuilt to accept the updated profile; OptiScaler,
+  the presentation layer, upscalers and game recipes remain 1.1.3's. The exact cause beneath the wave32 trigger is still
+  under investigation. [Checks and scope](MEASUREMENTS.md#checks-of-1131).
+- Update through Restore in the existing release, then Install from 1.1.3.1. Copying just `waves.txt` is insufficient:
+  the proxy verifies its profile's hashes.
+
 ## 1.1.3 – 2026-10-25
 
 - Restore adaptive game-frame starts at 3×/4× through the bundled OptiScaler's XeLL output. Sustained short/long

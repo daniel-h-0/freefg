@@ -906,6 +906,7 @@ class ExportRename(unittest.TestCase):
         """A decided version is two edits of names.json (public_template and the replacement's template, the same fixed
         text): the export names the public package with it, with no change to rename.py or assemble.py."""
         for form, name, version in ((FIXED_SEMVER_FORM, 'lumen-pace-0.1.0', 'v0.1.0'),
+                                    (('{slug}-1.1.3.1', '\\1{slug}-1.1.3.1\\3'), 'lumen-pace-1.1.3.1', 'v1.1.3.1'),
                                     (('{slug}-0.1.0-2x', '\\1{slug}-0.1.0-2x\\3'), 'lumen-pace-0.1.0-2x', 'v0.1.0-2x'),
                                     (('{slug}-32-2x', '\\1{slug}-32-2x\\3'), 'lumen-pace-32-2x', 'v32-2x')):
             out, report = self.export_tree.public_rename(export_contents(), names_with(CHOSEN, form))
@@ -1071,15 +1072,16 @@ class PublicNameAssembly(unittest.TestCase):
                 assemble.package_naming(name, names)
 
     def test_dotted_versions(self):
-        """{number} is a build number or a dotted semantic version MAJOR.MINOR.PATCH; the private names stay as they
+        """{number} is a build number or a dotted version MAJOR.MINOR.PATCH[.REVISION]; the private names stay as they
         are."""
         assemble, names = self.assemble, self.names
         self.assertEqual(assemble.package_naming('lumen-pace-0.1.0-2x', names),
                          dict(kind='public', version='v0.1.0-2x', receipt='lumen-pace-v0.1.0-2x-package.json',
                               slug='lumen-pace', number='0.1.0'))
+        self.assertEqual(assemble.package_naming('lumen-pace-1.1.3.1-2x', names)['number'], '1.1.3.1')
         self.assertEqual(assemble.package_naming('pace-2-10.20.30-2x', names)['number'], '10.20.30')
         self.assertEqual(assemble.package_naming('pace-2-10.20.30-2x', names)['slug'], 'pace-2')
-        for name in ('lumen-pace-0.1-2x', 'lumen-pace-01.2.3-2x', 'lumen-pace-1.02.3-2x', 'lumen-pace-0.1.0.1-2x',
+        for name in ('lumen-pace-0.1-2x', 'lumen-pace-01.2.3-2x', 'lumen-pace-1.02.3-2x', 'lumen-pace-0.1.0.01-2x', 'lumen-pace-0.1.0.1.2-2x',
                      'lumen-pace-v0.1.0-2x', 'lumen-pace-0.1.0-rc1-2x', 'lumen-pace-0.1.0', 'lumen-pace-.1.0-2x'):
             with self.assertRaises(assemble.ReleaseError, msg=name):
                 assemble.package_naming(name, names)
@@ -1105,6 +1107,7 @@ class PublicNameAssembly(unittest.TestCase):
         names = json.loads((RELEASE_DIR / 'names.json').read_text())
         family = next(f for f in names['families'] if f['id'] == 'package-name')
         cases = {'{slug}-0.1.0': ('lumen-pace-0.1.0', 'v0.1.0'),
+                 '{slug}-1.1.3.1': ('lumen-pace-1.1.3.1', 'v1.1.3.1'),
                  '{slug}-0.1.0-2x': ('lumen-pace-0.1.0-2x', 'v0.1.0-2x'),
                  '{slug}-32-2x': ('lumen-pace-32-2x', 'v32-2x'), '{slug}-v1.2.3': ('lumen-pace-v1.2.3', 'v1.2.3'),
                  '{slug}-10.0.0': ('lumen-pace-10.0.0', 'v10.0.0')}
@@ -1118,7 +1121,7 @@ class PublicNameAssembly(unittest.TestCase):
                 if other != name:
                     with self.assertRaises(assemble.ReleaseError, msg=(template, other)):
                         assemble.package_naming(other, names)
-        for template in ('{slug}-2x', '{slug}-0.1', '{slug}-0.1.0.1', '{slug}-01.2.3', '{slug}-1.2.3x', '{slug}',
+        for template in ('{slug}-2x', '{slug}-0.1', '{slug}-0.1.0.1.2', '{slug}-01.2.3', '{slug}-1.2.3x', '{slug}',
                          '{slug}-', '{slug}-v'):
             family['public_template'] = template
             with self.assertRaisesRegex(assemble.ReleaseError, 'fixed version', msg=template):
@@ -2258,8 +2261,14 @@ class WaveTable(unittest.TestCase):
             rows = pinned.split('\n')
             expected = '\n'.join(f'{swap[r.split()[0]]} {r.split()[1]}' if r.split() and r.split()[0] in swap else r
                                  for r in rows)
+            overrides = definition['profile'].get('wave_overrides', {})
+            for name, entry in overrides.items():
+                module = fnv1a64((Path(folder) / 'profile' / name).read_bytes())
+                self.assertIn(module, table)
+                expected = expected.replace(f'{module} 32', f'{module} {entry["wave"]}')
+                self.assertEqual(table[module], entry['wave'])
             self.assertTrue(built.startswith(expected))
-            self.assertEqual(sum(1 for a, b in zip(rows[:-1], built.split('\n')) if a != b), 12)
+            self.assertEqual(sum(1 for a, b in zip(rows[:-1], built.split('\n')) if a != b), 12 + len(overrides))
             self.assertEqual({module: table[module] for module in appended}, dict.fromkeys(appended, 32))
             own = {fnv1a64(p.read_bytes()) for p in PROFILE.glob('*.dxil')} | set(swap.values())
             self.assertEqual(len(own), 45)
@@ -2272,6 +2281,19 @@ class WaveTable(unittest.TestCase):
                 for p in files:
                     self.assertEqual(hashlib.sha256(p.read_bytes()).hexdigest(),
                                      publish_local.QUALIFIED_PAYLOAD[f'payload/BC250-XeFG/shaders/{p.name}'], p.name)
+
+    def test_wave_size_override_is_pinned_and_preserves_other_rows(self):
+        import proxy_common
+        from config import ReleaseError
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'waves.txt'
+            original = f'{self.A}\t32\n\n{self.B} 32\n'
+            path.write_text(original)
+            self.assertEqual(proxy_common.set_wave_size(path, self.A, 64), {self.A: 64, self.B: 32})
+            self.assertEqual(path.read_text(), original.replace('\t32', '\t64'))
+            for module, wave in [('f' * 16, 32), (self.A, 16)]:
+                with self.assertRaises(ReleaseError):
+                    proxy_common.set_wave_size(path, module, wave)
 
     def test_replace_in_place(self):
         import proxy_common

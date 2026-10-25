@@ -77,6 +77,9 @@
       "5654aa3800432b13.fp16.dxil": {"wave": 32, "about": "FP16 form, bit 2: 5654aa38's F(2x2) kernel with packed-FP16 MACs (wino_dec16.hlsl PK16=1)"},
       "4bb52a635e6d221a.fp16.dxil": {"wave": 32, "about": "FP16 form, bit 2: 4bb52a63's F(2x2) kernel with packed-FP16 MACs (wino_dec16.hlsl PK16=1)"}
     },
+    "wave_overrides": {
+      "graph-prepare224.dxil": {"wave": 64, "about": "FreeFG 1.1.3.1: use wave64 for the 224-channel, 48-column input transform. On Cyberpunk 2077 2.5 with HelixSR Quality, BC-250, Mesa 26.2.5 and GE-Proton11-11, a wave-table bisection isolated this shader's wave32 selection as the trigger for an early GPU fault. The full table with only this choice changed runs; shader bytes and arithmetic are unchanged."}
+    },
     "append_dispatch_scale_about": "Rows appended to the profile's dispatch-scale.txt (release/build_proxy.py prepare_profile): identity rows for the two U-Net row layers, so the dispatch hook sees their dispatches and gives a dispatch bound to an F4Q3 pipeline its F(4x4) groups (src/game/f4q.h). An identity row changes no other dispatch.",
     "append_dispatch_scale": {
       "60edebbbd2f9fb69": {"scale": [1, 1, 1], "pipeline": "U-Net row layer 16->16 (F4Q3)"},

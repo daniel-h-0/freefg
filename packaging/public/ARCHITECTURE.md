@@ -287,6 +287,9 @@ pacing does not supply this game-frame correction.
 
 The layer has the driver compile the compute shaders listed by hash in `waves.txt` (`XEFG_WAVE_CONFIG`), FreeFG's and
 some unchanged ones of the runtime, with a required subgroup size of 32 or 64. The shader code is not changed.
+Since 1.1.3.1, the 224-channel, 48-column Winograd input transform uses 64 to avoid an early GPU fault found with
+Cyberpunk 2077 2.5 and HelixSR. This choice applies in every game; the other wave settings are unchanged
+([checks and unresolved cause](MEASUREMENTS.md#checks-of-1131)).
 
 A line takes effect only when the pipeline is compiled with it. On RADV, vkd3d-proton's cache normally stores a
 pipeline's shader as an identifier, not as code; on a later start it recreates the pipeline from that identifier, so

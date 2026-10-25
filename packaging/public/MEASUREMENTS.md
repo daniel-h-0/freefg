@@ -3,6 +3,37 @@
 The numbers describe FreeFG on this hardware; they are not a prediction for other games, settings, displays or GPUs.
 
 
+## Checks of 1.1.3.1
+
+25 October 2026. One profile entry changes: `graph-prepare224.dxil` (`835dc58bffaad6d9`) uses wave64 instead of
+wave32. The shader bytes are identical. The rebuilt proxy is
+`f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805`; the wave table is
+`076fc0f41dd87e26b695b0384d5f46476d218e2c5e1703159ab7a75f9bcb078e`. The other 141 wave choices, OptiScaler,
+the presentation layer and game recipes remain 1.1.3's. This setting applies wherever the shader is created, without
+an executable-name check.
+
+A wave-table bisection in Cyberpunk 2077 2.5 isolated the wave32 selection for this module as a trigger for an early
+GPU fault. Keeping the complete table and changing only that entry to 64 completed full SDR and HDR10 benchmarks:
+HelixSR 2.0.0 Quality, High preset, 2560×1440 output, GE-Proton 11-11, Mesa 26.2.5, BC-250. Those diagnostic runs used
+a newer OptiScaler fork and a DLSSG-to-XeFG recipe under separate qualification; they do not qualify 1.1.3.1's bundled
+Cyberpunk recipe. Their frame rates are not a scored performance comparison.
+
+The rebuilt proxy passed nine same-day native 2× SDK comparisons against 1.1.3: 144 generated images were
+byte-identical. Cases cover 1920×1080, 2560×1440 and 3840×2160; SDR and HDR10; normalized and pixel motion; the
+default forms and Exact mode. Both arms used the shipped presentation layer. The 1080p and 4K cases include 320
+observed calls to the affected 48-column transform in the hotfix runs. No fault, failed program replacement or
+fallback was reported. This is an output comparison, not a timing result.
+
+The hotfix payload also passed Echo Point Nova menu starts at 2×, 3× and 4× with HelixSR and MFG Unlocker 1.6.0.
+Each start reported the requested SDK factor, all 13 accelerated programs and seven FP16 pipelines, with no fallback
+or GPU fault, and exited normally. The original files and settings were then restored byte-for-byte. These are
+compatibility checks; the menu runs do not establish display pacing or gameplay performance.
+
+The exact underlying cause is unresolved. This input-transform shader has no wave operations in its shipped form,
+and each thread owns its scratch addresses. The change does not alter its arithmetic. The earlier pacing checks
+below remain the evidence for the unchanged presentation layer and OptiScaler; this hotfix makes no new latency or
+performance claim.
+
 ## Checks of 1.1.3
 
 Release checks, 25 October 2026. The shader profile, Intel runtime and upscalers are 1.1.2's. The changes are

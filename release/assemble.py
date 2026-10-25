@@ -64,7 +64,7 @@ xemfg-vNN[-variant]-package.json), and in a public tree renamed under the chosen
 "chosen", release/export_tree.py --public) the name release/names.json package-name public_template gives: today
 {slug}-1.0.0, the decided version as fixed text (<slug>-1.0.0, version v1.0.0, receipt public_receipt_template:
 <slug>-v1.0.0-package.json), which the rename's package-name replacement writes too. A public version is a build
-number (an integer) or a dotted semantic version MAJOR.MINOR.PATCH, as fixed text or as {number}, which matches either:
+number (an integer) or a dotted version MAJOR.MINOR.PATCH[.REVISION], as fixed text or as {number}, which matches either:
 {slug}-{number}-2x, the template before the version was decided, gives <slug>-NN-2x with the private build number
 (version vNN-2x, receipt <slug>-vNN-2x-package.json) or <slug>-0.1.0-2x (v0.1.0-2x). The receipt name is the same
 under qualification/ in the package and under evidence/ for the version check.
@@ -102,9 +102,10 @@ EVIDENCE = REPO / 'evidence'
 PRIVATE_NAME = re.compile(r'bc250-fsr4-xemfg-private-test-(\d+)(-[a-z][a-z0-9-]*)?')
 NAMES = RELEASE / 'names.json'
 # A public version (package_naming()): a build number (an integer, as the private builds count) or a dotted semantic
-# version MAJOR.MINOR.PATCH (0.1.0), no part with a leading zero.
+# version MAJOR.MINOR.PATCH, optionally followed by a maintenance revision (1.1.3.1).
+# No component may have a leading zero.
 SEMVER = r'(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)'
-PUBLIC_NUMBER = rf'{SEMVER}|\d+'
+PUBLIC_NUMBER = rf'{SEMVER}(?:\.(?:0|[1-9]\d*))?|\d+'
 # A fixed version in public_template's text after {slug} (once decided: {slug}-0.1.0, {slug}-32-2x): text without
 # digits, the version, then text that does not continue it (-2x, or nothing).
 FIXED_VERSION = re.compile(rf'(?P<lead>\D*?)(?P<number>{PUBLIC_NUMBER})(?P<suffix>(?![0-9A-Za-z.]).*)', re.S)
@@ -157,7 +158,7 @@ def public_naming(names):
     public_template is {slug}<text>{number}<text> ({slug}-{number}-2x: the number in the name, version
     v<number>-2x), or, once the version is decided, {slug}<text> with that version as fixed text ({slug}-0.1.0:
     version v0.1.0; {slug}-32-2x: v32-2x). A version, in a name or in the template, is a build number (an integer) or
-    a dotted semantic version MAJOR.MINOR.PATCH (PUBLIC_NUMBER)."""
+    a dotted version MAJOR.MINOR.PATCH[.REVISION] (PUBLIC_NUMBER)."""
     if names is None:
         return None
     family = next(f for f in names['families'] if f['id'] == 'package-name')
@@ -170,7 +171,7 @@ def public_naming(names):
     fixed = FIXED_VERSION.fullmatch(tail) if fields == ['slug'] else None
     if not (fields == ['slug', 'number'] or fixed) or any(s or c for _t, _f, s, c in parts):
         raise ReleaseError(f'names.json package-name public_template must name {{slug}}, then {{number}} or a fixed '
-                           f'version (a build number or MAJOR.MINOR.PATCH): {template!r}')
+                           f'version (a build number or MAJOR.MINOR.PATCH[.REVISION]): {template!r}')
     unknown = {f for _t, f, _s, _c in string.Formatter().parse(receipt) if f is not None} - {'slug', 'version', 'number'}
     if unknown or '/' in receipt or not receipt.endswith('.json'):
         raise ReleaseError(f'names.json package-name public_receipt_template must be a .json file name using {{slug}}, '
@@ -188,7 +189,7 @@ def package_naming(name, names=None):
 
     Private: bc250-fsr4-xemfg-private-test-NN[-variant] -> vNN[-variant], xemfg-vNN[-variant]-package.json (the private
     library owner reads that receipt of private-test-NN builds). Public (a renamed public tree): a name of names.json
-    package-name public_template, {slug}-{number}-2x -> v<number>-2x (<number> a build number or MAJOR.MINOR.PATCH),
+    package-name public_template, {slug}-{number}-2x -> v<number>-2x (<number> a build number or MAJOR.MINOR.PATCH[.REVISION]),
     or a template's fixed version ({slug}-0.1.0 -> v0.1.0), and public_receipt_template ({slug}-{version}-package.json).
     A public name must not match the library owner's pattern and its slug must not carry a refused word
     (release/rename.py check_name). names: names.json (default: this tree's)."""

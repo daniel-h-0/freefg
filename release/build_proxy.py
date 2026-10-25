@@ -343,6 +343,10 @@ def prepare_profile(config, base, definition, folder):
             lines[fnv1a64(data)] = dict(wave=entry['wave'])
     if lines:
         common.append_waves(folder / 'waves.txt', lines)
+    for name, entry in definition['profile'].get('wave_overrides', {}).items():
+        if Path(name).name != name or not name.endswith('.dxil') or not (folder / name).is_file():
+            raise ReleaseError(f'wave override names no supplied shader: {name}')
+        common.set_wave_size(folder / 'waves.txt', fnv1a64((folder / name).read_bytes()), entry['wave'])
     rows = definition['profile'].get('append_dispatch_scale', {})
     if rows:
         common.append_dispatch_scale(folder / 'dispatch-scale.txt', rows)
@@ -447,7 +451,8 @@ def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
     group, replaced, added = own_files(definition)
     tree = config.lock.get('tree', {}).get(group, {}).get('files', {}) if group else {}
     # each rewritten file with the locked sha256 of the base file it was derived from (assemble.py checks that base)
-    rewritten = sorted(set(base['profile']['rewrite']) | ({'waves.txt'} if appended or replaced or added else set()))
+    rewritten = sorted(set(base['profile']['rewrite']) |
+                       ({'waves.txt'} if appended or replaced or added or definition['profile'].get('wave_overrides') else set()))
     record = dict(
         output=spec['output'], sha256=digest, reference_sha256=reference,
         matches_reference=digest == reference if reference else None, variant=definition['variant'],

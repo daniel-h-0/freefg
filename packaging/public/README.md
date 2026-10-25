@@ -4,15 +4,16 @@ FreeFG makes Intel XeSS Frame Generation (XeFG) faster on the AMD BC-250, in Dir
 
 - Intel's runtime (downloaded unmodified by the user) generates frames. A proxy `libxess_fg.dll` runs part of its GPU work with
   this project's own shaders, which are faster on the BC-250. **By default the generated frames now technically differ slightly from
-  Intel's**: seven U-Net shaders run FP16 forms ([what changes](ARCHITECTURE.md#fp16-forms-the-default-slightly-different)).
+  Intel's**: seven U-Net shaders run FP16 forms ([what changes](ARCHITECTURE.md#fp16-forms-the-default-slightly-different)). Differences are assessed to be on the range of
+  extraordinarily minor to imperceptible - more precision and information on measurement methods/tooling forthcoming!
   With `BC250_XEFG_EXACT=1` (or `Exact=1` in `BC250-XeFG/settings.ini`) every shader runs its exact form, and the
   pixels were identical to Intel's where compared. Seven of those, the F4Q kernels, are identical in every test but not
-  proven for every input ([turn them off](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)). Differences are assessed to be on the range of
-  extraordinarily minor to imperceptible - more precision and information on measurement methods/tooling forthcoming!
-- A Vulkan layer paces the output for VRR displays. Upscaling runs through OptiScaler, with a BC-250 build of AMD FSR 4
+  proven for every input ([turn them off](ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)).
+- A Vulkan layer paces the output for VRR displays, leading to profoundly better frame pacing than vanilla Xe(M)FG. Upscaling runs through OptiScaler, with a BC-250 build of AMD FSR 4
   or HelixSR.
-- On GPUs other than Intel's, the runtime generates 2× (Intel's documented limit); FreeFG does not raise that limit.
-  With MFG Unlocker, a separate tool that **does raise that limit**, FreeFG's shaders also run at 3× and 4× and retain their speedups.
+- On GPUs other than Intel's, the runtime generates 2× (Intel's documented limit); **FreeFG itself does not raise that limit.**
+  With MFG Unlocker, a separate tool that **does raise that limit**, FreeFG's shaders also run at 3× and 4× and retain their speedups. This project is intentionally designed to work alongside MFG Unlocker,
+  but has no affiliation with that project or *official* support.
 - This project does not modify Intel's DLL, replace the graphics driver, or run on Windows.
 
 How it works: [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -214,13 +215,14 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.1.3, released 25 October 2026. Fixes OptiScaler library-path configuration, repairs affected saved paths, and improves
-3×/4× VRR pacing. The pacing checks use CONTROL Resonant with HelixSR on a physical HDR/VRR TV; the shader profile
-and upscalers are unchanged. Results and limits: [MEASUREMENTS.md](MEASUREMENTS.md#checks-of-113). Native-route runtime
-qualification for this release is pending.
+1.1.3.1, released 25 October 2026. A global wave64 setting for one Winograd shader avoids a GPU fault isolated in
+Cyberpunk 2077 2.5 with HelixSR. Shader code is unchanged; the proxy and profile must be updated together through
+Restore, then Install. [Checks and scope](MEASUREMENTS.md#checks-of-1131). It includes 1.1.3's OptiScaler library-path
+repairs and 3×/4× VRR pacing improvements, tested with CONTROL Resonant on a physical HDR/VRR TV
+([pacing checks](MEASUREMENTS.md#checks-of-113)). The updated Cyberpunk testbed needs further compatibility work;
+this hotfix alone does not qualify the bundled recipe for that game version.
 
-Tested only on the AMD BC-250 under Proton: 1.1.0 and 1.1.2 only headless, the other releases
-also in Steam Game Mode. 1.1.2 changes the proxy and the shader profile: the FP16 forms of seven U-Net shaders (on by
+Tested only on the AMD BC-250 under Proton. 1.1.2 changes the proxy and the shader profile: the FP16 forms of seven U-Net shaders (on by
 default; the output differs slightly from Intel's), F4Q2, F4Q3 and three exact kernel changes; the installer adds the
 `Exact` key and an `Output:` line to Status and Check, and installs FSR 4 RC12 instead of RC11. It was checked in the SDK
 test program and in Cyberpunk 2077 benchmarks, headless, on GE-Proton 11-11 with RC12: by default its generated images

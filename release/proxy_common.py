@@ -345,6 +345,20 @@ def append_dispatch_scale(path, additions):
     return list(additions)
 
 
+def set_wave_size(path, module, wave):
+    """Change one existing selection, preserving the table's other bytes; fail on a stale module pin."""
+    text = path.read_text()
+    table = wave_table(text)
+    if module not in table or wave not in (32, 64):
+        raise ReleaseError(f'wave override: {module} {wave} needs an existing module and wave 32 or 64')
+    result, count = re.subn(r'(?m)^(\s*' + re.escape(module) + r'\s+)(32|64)([ \t]*\r?$)',
+                            lambda m: m[1] + str(wave) + m[3], text)
+    if count != 1 or wave_table(result) != dict(table, **{module: wave}):
+        raise ReleaseError(f'wave override: failed to change exactly one selection for {module}')
+    path.write_text(result)
+    return wave_table(result)
+
+
 def replace_wave_module(path, old, new):
     """Rewrite the one waves.txt line of module old at path to name module new with the same wave size, in place (the
     table keeps its length and order). Refused when old has no line or several, when new is listed already, or when

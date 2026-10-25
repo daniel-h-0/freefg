@@ -88,7 +88,8 @@ The tables and markers are data and nothing compiles them:
   appended (`release/intel_free_mfg.json` `append_waves`: wave 32 for five of Intel's unchanged pipelines, its 2x warps
   and one flow-path convolution, that run where the full profile had Intel-derived replacements), then the lines of
   F4Q's two kernels, F4Q2's three, F4Q3's two and the seven FP16 forms. Its package ships 142 entries, all of which the pacing layer reads; the add-on embeds that file's
-  size and hash. The 2x build ships the pinned table.
+  size and hash. Since 1.1.3.1 it also changes the existing `graph-prepare224.dxil` entry to wave64 through
+  `wave_overrides`, without changing that shader's bytes or the number of entries. The 2x build ships the pinned table.
 
 ## The multi-frame build's own files (`release/profile-mfg/`)
 

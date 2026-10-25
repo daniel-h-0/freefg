@@ -4,7 +4,7 @@
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `a3d9f72fee97a789f1f9f822f293bcfc1563eed9302c991bfa084e47eff47623` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 
 Each script builds its binary twice, requires both builds to be identical, and exits with status 1 when the result
