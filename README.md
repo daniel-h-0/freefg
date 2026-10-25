@@ -3,23 +3,24 @@
 
 FreeFG makes Intel XeSS Frame Generation (XeFG) faster on the AMD BC-250, in DirectX 12 games under Proton on Linux.
 
-- Intel's runtime, downloaded unmodified, generates the frames. A proxy `libxess_fg.dll` runs part of its GPU work with
-  this project's own shaders, which are faster on the BC-250. **By default the generated frames differ slightly from
+- Intel's runtime (downloaded unmodified by the user) generates frames. A proxy `libxess_fg.dll` runs part of its GPU work with
+  this project's own shaders, which are faster on the BC-250. **By default the generated frames now technically differ slightly from
   Intel's**: seven U-Net shaders run FP16 forms ([what changes](packaging/public/ARCHITECTURE.md#fp16-forms-the-default-slightly-different)).
   With `BC250_XEFG_EXACT=1` (or `Exact=1` in `BC250-XeFG/settings.ini`) every shader runs its exact form, and the
   pixels were identical to Intel's where compared. Seven of those, the F4Q kernels, are identical in every test but not
-  proven for every input ([turn them off](packaging/public/ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)).
+  proven for every input ([turn them off](packaging/public/ARCHITECTURE.md#f4q-identical-in-every-test-not-proven)). Differences are assessed to be on the range of
+  extraordinarily minor to imperceptible - more precision and information on measurement methods/tooling forthcoming!
 - A Vulkan layer paces the output for VRR displays. Upscaling runs through OptiScaler, with a BC-250 build of AMD FSR 4
-  or with HelixSR.
+  or HelixSR.
 - On GPUs other than Intel's, the runtime generates 2× (Intel's documented limit); FreeFG does not raise that limit.
-  With MFG Unlocker, a separate tool that does, FreeFG's shaders also run at 3× and 4×.
-- It does not modify Intel's DLL, replace the graphics driver or run on Windows.
+  With MFG Unlocker, a separate tool that **does raise that limit**, FreeFG's shaders also run at 3× and 4× and retain their speedups.
+- This project does not modify Intel's DLL, replace the graphics driver, or run on Windows.
 
 How it works: [ARCHITECTURE.md](packaging/public/ARCHITECTURE.md).
 
 ![Cyberpunk 2077 frames shown per second at 2× on an AMD BC-250 (2560×1440, FSR 4 Performance, headless): SDR, XeFG with Intel's shaders 85.30 and FreeFG 1.1.0 104.34 (+22.3%); HDR10, 83.98 and 102.45 (+22.0%).](docs/assets/cyberpunk-2x-fps.svg)
 
-Frames shown per second, generated frames included. Headless, all arms in one block, 4 runs per arm in SDR and in
+Frames  per second, generated frames included. Headless, all arms in one block, 4 runs per arm in SDR and in
 HDR10, [warm shader caches](packaging/public/MEASUREMENTS.md#shader-caches), 1.1.0's launch settings. FreeFG 1.0.x in the same
 block: 102.93 and 101.24.
 Details and TV figures: [MEASUREMENTS.md](packaging/public/MEASUREMENTS.md#frame-rate-cyberpunk-2077).
@@ -35,7 +36,7 @@ works with.
 | Item | Needed |
 | --- | --- |
 | Hardware | AMD BC-250 (ASRock board, Cyan Skillfish APU, PCI ID `1002:13fe`); [other GPUs](packaging/public/TROUBLESHOOTING.md#other-gpus) |
-| System | a Linux distribution with Steam; GE-Proton 11-6 or 11-7 (others untested); a larger GTT helps at 1440p and 4K |
+| System | a Linux distribution with Steam; GE-Proton 11-6 or newer (others untested); a larger GTT helps at 1440p and 4K |
 | Graphics driver | Mesa RADV, any current version. The BC-250's compute queue (off in stock Mesa) is optional and needs a kernel with the matching BC-250 fixes. |
 | Compositor | gamescope 3.16.28 or newer, as in Steam Game Mode; realtime priority helps ([Extras](#extras)) |
 | Setup | Python 3.11 or newer, Zenity (desktop Setup), `bsdtar` (libarchive); network access for the first installation ([PRIVACY.md](packaging/public/PRIVACY.md)) |
