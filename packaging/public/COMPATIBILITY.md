@@ -1,21 +1,17 @@
 # Game compatibility
 
-XeFG builds each generated frame from the game's motion vectors and depth. FreeFG gets them only in DirectX 12, from
-an upscaler or frame-generation SDK that OptiScaler hooks (DLSS, FSR 2, FSR 3.x, XeSS, DLSS FG, FSR 3.1 FG) or from the
-game's own XeSS frame generation. A game without one has nothing to generate from. The other requirements are in the
-[refusals](#refusals).
-
-Of the maintainers' 85 installed games on a BC-250, 22 have a usable input (19 with a recipe, 3 found automatically and
-not yet checked in a game); 2 ship only the DLSS DLL that Unity bundles, unused by the game (refused unless you accept);
-34 have no upscaler input; 27 cannot run FreeFG (12 native Linux builds, 6 32-bit games, 8 without DirectX 12, 1
-tool).
+FreeFG needs a 64-bit DirectX 12 game with a supported upscaler or frame-generation input. Motion vectors and
+depth come through OptiScaler's hooked inputs or the game's native XeSS FG. Detection alone does not prove that a
+game will generate correctly; use Check before installation and Status after a run.
 
 ## Supported games
 
-Setup has a recipe for 19 games: the input, OptiScaler settings, the game's own frame-generation setting and a DirectX
-12 launch option where needed. Restore undoes all of it. "Observed" was seen on a BC-250 with earlier private builds
-that use the same installer, recipes and route at 2×; 2.0 is the measured presents per game frame. "FreeFG:" marks
-runs with FreeFG itself; the Cyberpunk 2.5 row uses 1.1.3.1.
+The package contains **19 curated BC-250 recipes**. The UI calls these **Verified on BC-250**, but their evidence
+varies: some were played, some reached a menu, some were only installed, and two record generation failures.
+The observations below are not a promise that every current game build, upscaler and frame count works.
+
+Most rows describe earlier private integrations at 2×. `FreeFG` identifies public-build checks; `2.0` is the
+observed output/game-frame ratio. Current release checks are in [MEASUREMENTS.md](MEASUREMENTS.md).
 
 | Game | Input the recipe picks | Observed |
 | --- | --- | --- |
@@ -23,7 +19,7 @@ runs with FreeFG itself; the Cyberpunk 2.5 row uses 1.1.3.1.
 | Crimson Desert | FSR 3.1 FG (turns the game's frame generation on) | played at 2× |
 | Cyberpunk 2077 2.5 | DLSS FG (DLSS upscaling input; native Anti-Lag 2 off) | FreeFG 1.1.3.1: HelixSR Quality, reactive mask off, benchmark at 2.0 in SDR and HDR10 (headless). Earlier versions used native XeSS FG. |
 | Dead as Disco | FSR 3.1 FG (`FrameGenerationMode=FSR`) | 2.0 |
-| Echo Point Nova | OptiFG | 2.0; FreeFG: installed, started to the main menu, restored |
+| Echo Point Nova | OptiFG | FreeFG 1.1.3.1: HelixSR menu starts at 2×/3×/4×; exact Restore. |
 | Kingdom Come: Deliverance II | OptiFG | 2.0 in gameplay |
 | RoboCop: Rogue City | DLSS FG (the game's DLSS upscaling and frame generation) | 2.0 |
 | System Shock | OptiFG, `-dx12` | 2.0 at start-up |
@@ -33,29 +29,25 @@ runs with FreeFG itself; the Cyberpunk 2.5 row uses 1.1.3.1.
 | Deadzone: Rogue | FSR 3.1 FG | does not generate yet |
 | Deep Rock Galactic | DLSS FG, `-dx12` | did not generate: choose an upscaler (DLSS / DLSS FG) once in the game's own Video menu |
 
-Installed, generation not checked: Assassin's Creed Black Flag Resynced (native XeSS FG), Hogwarts Legacy (DLSS FG,
+Recipes with installation evidence but no recorded generation check: Assassin's Creed Black Flag Resynced (native XeSS FG), Hogwarts Legacy (DLSS FG,
 turns the game's DLSS frame generation on), Red Dead Redemption 2 (OptiFG), Tainted Grail: The Fall of Avalon (OptiFG,
-`-force-d3d12`), Thymesia (OptiFG, `-dx12`; needs an in-game resolution scale above 100%), TRYP FPV (OptiFG, `-dx12`).
+`-force-d3d12`), Thymesia (OptiFG, `-dx12`), TRYP FPV (OptiFG, `-dx12`).
 
 ## Verdicts
 
-Check (in Setup or `install.py check`) and Install give every game a verdict offline, with its reason and how sure the
-check is, before anything is downloaded or written; a refusal stops there.
+Check and Install produce an offline verdict before dependency downloads or game-file writes.
 
 | Verdict | Meaning |
 | --- | --- |
-| Verified on BC-250 | A recipe [above](#supported-games); its input, settings and launch option are applied. |
-| Community-reported on BC-250 | A reviewed recipe from other BC-250 owners, not reproduced by the maintainers; applied and labelled. |
-| Automatic, guided by the OptiScaler wiki | No recipe; one of the 758 games with a wiki entry. The [OptiScaler wiki](https://github.com/optiscaler/OptiScaler/wiki) identifies the game and supplies a DirectX 12 launch option, rules out an input it reports broken, or supplies one of six promoted fixes. |
-| Automatic (no recipe) | Detection found a 64-bit DirectX 12 executable with an input: native XeSS FG beside it, else OptiFG from the game's upscaler, else the game's own frame generation. |
-| Not supported | A [refusal](#refusals), with the way forward. |
+| Verified on BC-250 | A curated recipe supplies the input/settings. Read its recorded observation above. |
+| Community-reported on BC-250 | A reviewed user report, not reproduced by a maintainer. |
+| Automatic, guided by the OptiScaler wiki | Detection is supplemented by one of 758 imported wiki entries. Most reports concern Windows and other GPUs. |
+| Automatic (no recipe) | Detection found a DirectX 12 input; in-game behavior is unverified. |
+| Not supported | A refusal with a reason and suggested next step. |
 
-Only verified recipes were played on a BC-250; automatic setups are labelled as such. A verdict can come with a step for
-you (turn on the game's frame generation, select DirectX 12, check that OptiScaler loads under another proxy name the
-wiki names), shown before you confirm Install. Other wiki advice is shown with its condition checked against your setup
-(AMD, Linux, DirectX 12, XeFG output, FSR 4): applies, does not apply, or depends on what only you see in the game. Most
-wiki reports come from Windows PCs with other GPUs. After a run, Check also reads the game's own logs. Which source
-decides: [ARCHITECTURE.md](ARCHITECTURE.md#which-source-decides).
+Setup may ask you to select an upscaler, enable the game's FG option, or use DirectX 12. Wiki advice is shown with its
+applicability; only selected rules are applied automatically. After a run, Check also summarises the installation's
+logs. [Source precedence](ARCHITECTURE.md#which-source-decides).
 
 ## Refusals
 
@@ -80,38 +72,31 @@ lifts the anti-cheat refusal (kind `risk`), which has an [override](#anti-cheat)
 
 ## Anti-cheat
 
-FreeFG loads DLLs into the game process. Anti-cheat software can treat that as tampering and answer with a ban of
-your account or a refusal to start the game, so a game with anti-cheat files is refused; Check cannot tell offline-only
-modes apart. The override applies per game, never to every selected game at once. Before using it:
+FreeFG loads DLLs into the game process. Anti-cheat software may refuse them or ban the account, including in an
+offline mode. Check detects files; it cannot establish that anti-cheat is inactive. FreeFG does not hide itself,
+and Restore cannot undo a ban.
 
-- FreeFG does not hide itself from anti-cheat and will not try to. Use it at most in offline or single-player modes;
-  the anti-cheat can run in those modes too.
-- The maintainers cannot help with bans.
-- Restore removes the DLLs and launch settings FreeFG added; its backup folder `.bc250-xefg-experimental` (with its
-  logs) stays in the game folder. Restore cannot undo a ban.
-
-In Setup, select the game and choose **Override anti-cheat refusal...**. Setup shows these facts (**Cancel** is the
-default button), then asks you to type `I accept that my account may be banned` exactly; anything else cancels. The
-input and upscaler are then chosen as in Install, for that game only.
-
-On the command line, `--accept-anticheat-risk` shows the facts and asks for the same sentence at the terminal, once
-for each game. Without a terminal (a script, or output piped elsewhere) the sentence goes in `--confirm-anticheat-risk`,
-once for every game named with `--accept-anticheat-risk=EXE`; at a terminal it is typed all the same:
+The override is **per game**. In Setup, choose **Override anti-cheat refusal...**, read the warning, then type
+`I accept that my account may be banned` exactly. Cancel is the default. Other hard refusals still apply.
 
 ```sh
-python3 install.py install GAME.exe --accept-anticheat-risk             # asks for the sentence
-python3 install.py install A.exe B.exe --accept-anticheat-risk=A.exe    # for A.exe only
-python3 install.py install GAME.exe --accept-anticheat-risk \
-    --confirm-anticheat-risk 'I accept that my account may be banned'   # only without a terminal
+python3 install.py install GAME.exe --accept-anticheat-risk
+python3 install.py install A.exe B.exe --accept-anticheat-risk=A.exe
 ```
 
-The installation record keeps the anti-cheat names, the time and the package. Status, Check and `check --all` show
-"Installed despite anti-cheat (…), risk accepted on <date>". Restore works as for any game and ends the override; the
-next Install of the game asks for it again.
+At a terminal, each named game requires the typed sentence. Without a terminal, supply it explicitly:
+
+```sh
+python3 install.py install GAME.exe --accept-anticheat-risk \
+    --confirm-anticheat-risk 'I accept that my account may be banned'
+```
+
+The record keeps the detected anti-cheat names, time and package. Status and Check display the accepted risk.
+Restore ends the override; a new Install requires it again. The maintainers cannot reverse account bans.
 
 ## Checking a game
 
-Check only reads: it writes nothing and uses no network
+Check reads files and local system state; it makes no external network requests or persistent changes
 ([PRIVACY.md](PRIVACY.md#what-the-installer-reads-and-writes-on-your-computer) lists what it reads).
 
 ```sh

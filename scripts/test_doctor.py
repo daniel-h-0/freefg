@@ -80,6 +80,16 @@ class Doctor(unittest.TestCase):
         self.assertIn('a context asking for more keeps Intel\'s shaders', text)
         self.assertIn('installer sets the OptiScaler routes to 2x', text)
 
+    def test_current_proxy_describes_sdk_pacing_and_optional_mfg(self):
+        card(self.drm, 'card0', '0x1002', '0x731f')
+        rows = self.rows(dict(self.PROXY, variant='intel-free-mfg'))
+        self.assertIn("SDK's reported generation, including Intel's shaders", rows['GPU'][1])
+        self.assertIn('untested', rows['GPU'][1])
+        self.assertIn('no Scale/Limit', rows['GPU'][1])
+        self.assertIn('3x/4x through OptiScaler', rows['Build'][1])
+        self.assertIn('BC250_XEFG_DISABLE=1', rows['Build'][1])
+        self.assertNotIn('not paced', rows['GPU'][1])
+
     def test_enabler_build_on_another_gpu(self):
         card(self.drm, 'card0', '0x8086', '0xe20b')
         text = self.rows(self.ENABLER)['GPU'][1]
@@ -100,7 +110,7 @@ class Doctor(unittest.TestCase):
     def test_kernel_line_names_the_checked_kernel(self):
         level, text = self.rows()['Kernel']
         self.assertEqual(level, 'INFO')
-        self.assertIn('linux-cachyos-bc250 7.2.8-1.219', text)
+        self.assertIn('linux-cachyos-bc250 7.3.0-2.326', text)
         self.assertNotIn('7.2.7-1.212', text)
 
     def test_no_manifest_no_build_line(self):

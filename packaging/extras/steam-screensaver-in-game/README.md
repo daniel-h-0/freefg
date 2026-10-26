@@ -1,19 +1,17 @@
-# Steam screensaver behind games (optional extra)
+# Suppress Steam's screensaver during games
 
-In Steam Game Mode, Steam starts its screensaver after the idle time under Settings > Customization > Screensaver
-(5 minutes on AC by default) even while a game is running. You don't see it (the game stays in front), but every
-20 seconds its slideshow cross-fades for 2 seconds and takes GPU time from the game. With frame generation that shows
-as VRR flicker in bursts (refreshes alternating 8 and 21 ms). In-game controller input resets Steam's idle timer, so
-you meet it in long cutscenes, when standing still to watch, or when leaving a game running.
+In the tested September 2026 Steam Game Mode client, the screensaver continued rendering behind games. Its periodic
+cross-fades consumed GPU time and caused bursts of uneven VRR refresh. Long cutscenes and idle gameplay could trigger
+it.
 
-Two ways around it:
+You can set the screensaver timeout to **Never** in Steam settings, or use this helper to suppress it only while a game
+runs and restore your timeout afterwards.
 
-- **Simplest:** set the screensaver timeout to *Never* in Steam's settings. That also turns it off in the Steam menus.
-- **This helper:** keeps the timeout at *Never* only while a game runs and puts your own value back when the game
-  exits. `./install.sh` installs it as a user service (`~/.local/bin`, `~/.config/systemd/user`); `./uninstall.sh`
-  removes it and writes back any value it changed. `bc250-steam-screensaver-in-game status` shows what it sees.
+- `./install.sh` installs and starts a user service under `~/.local/bin` and `~/.config/systemd/user`.
+- `bc250-steam-screensaver-in-game status` reports its state.
+- `./uninstall.sh` removes it and restores any timeout it changed.
 
-The helper talks to Steam's local CEF DevTools endpoint (127.0.0.1:8080). Decky Loader turns that on; without Decky,
-create the empty file `~/.steam/steam/.cef-enable-remote-debugging` and restart Steam. It only reads whether a game runs
-and writes the two screensaver timeouts (AC and battery), the way Steam's settings page does. Tested on a BC-250
-(CachyOS, Steam Game Mode, September 2026 client).
+The helper reads game-running state and writes Steam's AC/battery screensaver timeouts through the local DevTools
+endpoint at `127.0.0.1:8080`. Decky commonly enables it. Otherwise, create
+`~/.steam/steam/.cef-enable-remote-debugging` and restart Steam. This endpoint is unauthenticated; local programs that
+can reach it can control Steam. Use it only on a machine where you trust those programs.

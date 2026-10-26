@@ -1,9 +1,9 @@
 {
  "about": "Licence texts of the third-party code compiled or linked into the shipped opti/OptiScaler.dll, copied byte for byte from the files named below (url = the file at its commit). release/package.json ships them as licenses/OptiScaler-third-party/ (component optiscaler-fork) with README.md, the index for players; release/test_release_tools.py checks every sha256 and that package.json ships every file.",
  "dll": {
-  "sha256": "5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6",
-  "source_commit": "f971ed143de0bdbbbac6d526c95a20227c22e1c6",
-  "method": "The reference build of 18 October 2026 (tools/bc250-build.py of the fork): every file of the fork tree in ninja's dependency log (1411 files over 200 objects) and every library on the link line, read for copyright and licence statements; licence texts from each component's repository at the commit named (the pinned submodule commit where the component is a submodule). Checked again for the build of 19 October 2026 (fork commit f971ed14 on upstream master c2e44a8b, sha256 5e570dff): ninja's dependency log of that build (228 objects) names the same third-party folders as the build of 18 October (fork commit a7932870, sha256 244eca5c); its new folders are OptiScaler's own shaders (camera_motion, menu_blur, ui_unblend), which carry no third-party notice; OptiScaler/library (the libraries on the link line) is unchanged; the third-party files that changed between the two commits are external/streamline/sl_helpers_vk.h (NVIDIA, the MIT text of NVIDIA-Streamline-2.txt) and a six-line addition to Dear ImGui's Vulkan backend (OptiScaler's own)."
+  "sha256": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656",
+  "source_commit": "03db4f8692878e65748769ebe583c053cae96360",
+  "method": "Rechecked the October 25 build: ninja dependency records cover 228 objects and 784 fork-tree input paths. The third-party folder set and static libraries remain those of the prior audit. Between f971ed14 and 03db4f86, the only changed external dependency is Vulkan-Headers, now 1.4.350 (8864cdc896bbc2a9b6eb36b3218fc9ef57908d77). Its LICENSE.md and Apache-2.0 text are byte-identical to the copies here. Other new build inputs are OptiScaler source files. The earlier audit and original notice-source pins are retained below."
  },
  "files": {
   "AMD-Anti-Lag-2-SDK.txt": {
@@ -749,5 +749,10 @@
  "toolchain": {
   "Microsoft C/C++ runtime and Windows SDK import libraries": "system libraries of the build toolchain; the DLL uses the shared runtime (/MD)",
   "Microsoft C++ standard library (MSVC 14.44), the parts compiled into the DLL": "Apache-2.0 WITH LLVM-exception, which needs no notice for object code"
+ },
+ "previous_dll": {
+  "sha256": "5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6",
+  "source_commit": "f971ed143de0bdbbbac6d526c95a20227c22e1c6",
+  "method": "The reference build of 18 October 2026 (tools/bc250-build.py of the fork): every file of the fork tree in ninja's dependency log (1411 files over 200 objects) and every library on the link line, read for copyright and licence statements; licence texts from each component's repository at the commit named (the pinned submodule commit where the component is a submodule). Checked again for the build of 19 October 2026 (fork commit f971ed14 on upstream master c2e44a8b, sha256 5e570dff): ninja's dependency log of that build (228 objects) names the same third-party folders as the build of 18 October (fork commit a7932870, sha256 244eca5c); its new folders are OptiScaler's own shaders (camera_motion, menu_blur, ui_unblend), which carry no third-party notice; OptiScaler/library (the libraries on the link line) is unchanged; the third-party files that changed between the two commits are external/streamline/sl_helpers_vk.h (NVIDIA, the MIT text of NVIDIA-Streamline-2.txt) and a six-line addition to Dear ImGui's Vulkan backend (OptiScaler's own)."
  }
 }

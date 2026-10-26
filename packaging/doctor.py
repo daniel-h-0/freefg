@@ -43,7 +43,7 @@ def gpu_card(drm=None):
 
 PROXY_ENTRY = 'libxess_fg-proxy'
 # The kernel the latest checks ran on (linux-cachyos-bc250 carries the BC-250 display and compute-queue patches).
-KERNEL = 'linux-cachyos-bc250 7.2.8-1.219'
+KERNEL = 'linux-cachyos-bc250 7.3.0-2.326'
 
 
 def package_info(package=None):
@@ -56,7 +56,8 @@ def package_info(package=None):
     except (OSError, ValueError, KeyError, TypeError):
         return None
     proxy = manifest.get('addon_entry') == PROXY_ENTRY
-    return dict(proxy=proxy, scaling=any(name.endswith('BC250-XeFG/shaders/mfg-frame-settings.required') for name in files),
+    return dict(proxy=proxy, mfg=manifest.get('variant') == 'intel-free-mfg',
+                scaling=any(name.endswith('BC250-XeFG/shaders/mfg-frame-settings.required') for name in files),
                 max_factor=manifest.get('max_factor', 2 if proxy else 4))
 
 
@@ -64,6 +65,12 @@ def any_gpu_text(info):
     """The GPU line's text for a GPU other than the BC-250: what runs there, and the experimental opt-in."""
     opt_in = ('BC250_XEFG_ANY_GPU=1 in a game\'s launch options (before %command%; in Heroic as an environment variable) is an '
               'experimental opt-in, untested outside the BC-250')
+    if info and info.get('mfg'):
+        return ('XeFG uses Intel\'s shaders by default; generated frames match the output resolution (no Scale/Limit). '
+                'The pacing layer follows the SDK\'s reported generation, including Intel\'s shaders, under gamescope; '
+                'pacing on this GPU is untested. On non-Intel GPUs the runtime allows 2x unless a separate tool lifts '
+                'that limit. ' + opt_in + '; acceleration beside another mod requires an OptiScaler-created context. '
+                'Logs are beside the game\'s executable.')
     if info and info['proxy']:
         # Intel's runtime generates one frame per real frame on non-Intel GPUs; on an Intel GPU it allows more, and the
         # proxy leaves such a context to Intel's shaders (src/game/mfg_proxy.c). Only the OptiScaler routes are set to 2x.
@@ -82,6 +89,11 @@ def any_gpu_text(info):
 
 
 def build_text(info):
+    if info.get('mfg'):
+        return ('2x by default; 3x/4x through OptiScaler with separately installed MFG Unlocker. The proxy uses Intel\'s '
+                'unmodified runtime and does not lift its frame-count limit. Generated frames match the output '
+                '(no Scale/Limit). Pacing follows XeFG generation under gamescope, including with BC250_XEFG_DISABLE=1. '
+                'Logs are beside the game\'s executable.')
     if info['proxy']:
         return ('2x: one generated frame per real frame (the most Intel\'s runtime generates on a non-Intel GPU; on an '
                 'Intel GPU a native XeSS FG game may ask Intel\'s shaders for more), from this '
@@ -198,7 +210,7 @@ def checks(home=None, drm=None, package=None):
         (f'{others}: not a BC-250' if others else 'No BC-250 GPU found') + '; this package is qualified on the BC-250 only. ' + any_gpu_text(info))
     if info:
         add('INFO', 'Build', build_text(info))
-    add('INFO', 'Kernel', os.uname().release + f' (checked on {KERNEL}; other kernels untested)')
+    add('INFO', 'Kernel', os.uname().release + f' (current reference: {KERNEL}; earlier configurations are in MEASUREMENTS.md)')
     if card:  # the compute-queue, memory and clock checks are about the BC-250
         families = vulkan_queue_families()
         if families is None:
@@ -266,8 +278,8 @@ def checks(home=None, drm=None, package=None):
                    Path('/usr/share/steam/compatibilitytools.d')):  # distribution packages (proton-ge-custom)
         tools += [p.name for p in folder.glob('*GE-Proton*') if p.is_dir()]
     tools = sorted(set(tools))
-    add('OK' if any(re.match(r'GE-Proton11-[67]\b', t) for t in tools) else 'INFO', 'Proton',
-        (', '.join(tools) if tools else 'no GE-Proton found') + '; qualified on GE-Proton11-6/11-7 (other Proton builds untested)')
+    add('OK' if any(re.match(r'GE-Proton11-(?:6|7|11)\b', t) for t in tools) else 'INFO', 'Proton',
+        (', '.join(tools) if tools else 'no GE-Proton found') + '; current checks: GE-Proton11-11; earlier checks: 11-6/11-7')
     missing = [t for t in ('zenity', 'bsdtar') if not shutil.which(t)]
     add('OK' if not missing else 'WARN', 'Setup tools', 'zenity and bsdtar present' if not missing else 'missing: ' + ', '.join(missing))
     try:

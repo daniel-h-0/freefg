@@ -7,14 +7,14 @@ into the DLL. This folder holds their licence texts, unchanged.
 FreeType credit: Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org). All rights
 reserved.
 
-## How this list was made
+## Build and provenance
 
-- From the build of the DLL itself (fork commit `a7932870`, 18 October 2026): every source file its compiler read and
-  every library its linker used.
-- Checked again for the shipped build (fork commit `f971ed14`, 19 October 2026), which compiles the same third-party
-  code.
-- The repository, commit and SHA-256 of each licence text are in
-  `packaging/licenses/OptiScaler-third-party/PROVENANCE.json` in the source.
+This index covers DLL `b3602882…`, source `03db4f86` (OptiScaler fork tag `bc250-03db4f8`). The October 25 build's
+compiler dependency records and link inputs were checked against the earlier audit. The third-party component set
+is unchanged; Vulkan-Headers advanced to 1.4.350, with identical licence text.
+
+`PROVENANCE.json` in this directory records the current DLL, the earlier audit, and each notice's source URL, commit
+and SHA-256. The licence files are copied verbatim.
 
 ## Components
 
@@ -44,7 +44,7 @@ reserved.
 | NVIDIA Streamline 2.11.1 | `external/streamline` (headers), `OptiScaler/include/sl.param` | MIT | `NVIDIA-Streamline-2.txt` | © 2022-2025 NVIDIA Corporation |
 | NVIDIA Streamline 1 (headers) | `external/streamline1` | MIT | `NVIDIA-Streamline-1.txt` | © 2022 NVIDIA Corporation |
 | NVIDIA NVAPI R595 (headers) | `external/nvapi` | MIT | `NVIDIA-NVAPI.txt` | © 2019-2026 NVIDIA Corporation & affiliates |
-| Vulkan-Headers 1.4.310 | `external/vulkan`; `OptiScaler/library/vulkan/vulkan-1.lib` (import library of the Vulkan loader) | Apache-2.0 (the C++ headers are Apache-2.0 or MIT; Apache-2.0 is used here) | `Khronos-Vulkan-Headers.txt`, `Apache-2.0.txt` | © 2014-2025 The Khronos Group Inc. |
+| Vulkan-Headers 1.4.350 | `external/vulkan`; `OptiScaler/library/vulkan/vulkan-1.lib` (import library of the Vulkan loader) | Apache-2.0 (the C++ headers are Apache-2.0 or MIT; Apache-2.0 is used here) | `Khronos-Vulkan-Headers.txt`, `Apache-2.0.txt` | © 2014-2025 The Khronos Group Inc. |
 | LatencyFleX (header) | `external/latencyflex/latencyflex.h` | Apache-2.0 | `Apache-2.0.txt` | © 2021 Tatsuyuki Ishi |
 | Intel XeSS, XeLL and XeSS Frame Generation SDK headers | `external/xess/inc` | Intel Simplified Software License | `licenses/Intel-XeSS.txt` (the same text as in that submodule) | © 2021-2024 Intel Corporation |
 | NVIDIA NGX (DLSS SDK) headers | `external/nvngx_dlss_sdk` | NVIDIA's DLSS SDK licence (NVIDIA RTX SDKs License, https://github.com/NVIDIA/DLSS) | `NVIDIA-DLSS-SDK.txt` (the text of DLSS SDK 310.7.0; the headers come from an earlier SDK release) | © 2018-2023 NVIDIA Corporation & affiliates |

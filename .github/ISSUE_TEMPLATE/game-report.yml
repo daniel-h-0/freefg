@@ -22,8 +22,8 @@ body:
     id: generated
     attributes:
       label: Did frames generate?
-      description: 2.0 presents per game frame in the OptiScaler overlay, or XeFG started in the report's "After the last run".
-      options: ["Yes, 2.0 in gameplay", "Only in menus", "No", "Not sure"]
+      description: Report the observed frame count or ratio. "XeFG started" alone does not establish that frames were generated.
+      options: ["Yes, in gameplay (give factor/ratio below)", "Only in menus", "No", "Not sure"]
     validations:
       required: true
   - type: input
@@ -37,7 +37,7 @@ body:
     id: restore
     attributes:
       label: Restore checked?
-      description: After Restore, Status and the launcher's launch options show nothing of the installation.
+      description: Check Status, game files and launcher settings after Restore; note any differences. The backup record may remain.
       options: ["Yes", "No"]
     validations:
       required: true
@@ -45,4 +45,4 @@ body:
     id: details
     attributes:
       label: What you saw
-      description: HUD, crashes or hangs, HDR on or off, VRR, resolution, upscaler mode, anything you changed in the game.
+      description: Requested factor and observed ratio, HUD, crashes or hangs, HDR, VRR, resolution, upscaler mode and changed settings.

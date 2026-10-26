@@ -1422,8 +1422,7 @@ class PublicArchiveGate(unittest.TestCase):
 
     def tree(self):
         """A folder with what check_public_docs.py reads: packaging/public/, the linked figures and their data
-        (docs/assets/ and docs/data/), packaging/dependencies.json, release/package.json and release/inputs.lock.json,
-        copied from this tree."""
+        (docs/assets/ and docs/data/), linked profile/recipe guides, dependency and package pins, copied from this tree."""
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         root = Path(folder.name)
@@ -1431,7 +1430,8 @@ class PublicArchiveGate(unittest.TestCase):
                         ignore=shutil.ignore_patterns('__pycache__'))
         shutil.copytree(TREE / 'docs/assets', root / 'docs/assets')
         shutil.copytree(TREE / 'docs/data', root / 'docs/data', ignore=shutil.ignore_patterns('__pycache__'))
-        for name in ('packaging/dependencies.json', 'release/package.json', 'release/inputs.lock.json'):
+        for name in ('packaging/dependencies.json', 'release/package.json', 'release/inputs.lock.json',
+                     'release/profile/ORIGIN.md', 'research/recipes/community/README.md'):
             (root / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(TREE / name, root / name)
         return root

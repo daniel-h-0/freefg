@@ -1,9 +1,8 @@
 # Notices and licences
 
-FreeFG's own code is under the MIT licence. Every other component keeps its own licence; nothing here relicenses
-anyone else's work. The release archive contains only the files listed under [Shipped](#shipped-in-the-release-archive).
-The installer downloads the components listed under [Downloaded](#downloaded-by-the-installer-not-shipped) from their
-publishers on your behalf; [PRIVACY.md](PRIVACY.md) gives each download's condition, URL and SHA-256.
+FreeFG's code is MIT-licensed. Third-party components retain their own terms. This page distinguishes files
+[shipped in the archive](#shipped-in-the-release-archive) from [installer downloads](#downloaded-by-the-installer-not-shipped).
+[PRIVACY.md](PRIVACY.md) lists download URLs, conditions and hashes.
 
 ## FreeFG's licence
 
@@ -30,7 +29,7 @@ release is taken down.
 | FreeFG | every file not named in another row: the installer and Setup (the package's top-level `.py` files and `Start-freefg.sh`), `dependencies.json`, `extras/`, the proxy `payload/libxess_fg.dll`, the pacing layer `payload/BC250-XeFG/layer/`, the shader profile `payload/BC250-XeFG/shaders/`, `payload/BC250-XeFG/settings.ini`, `manifest.json`, `qualification/`, the documents | this project | MIT (`licenses/freefg.txt`) |
 | Per-game recipes | `recipes/recipes.json` | this project and the sources in [Per-game recipes](#per-game-recipes) | MIT for this project's part |
 | PyYAML 6.0.3 (pure Python), unmodified; reads and writes Lutris settings | `vendor/yaml/` | Kirill Simonov and the PyYAML contributors | MIT (`vendor/PyYAML-LICENSE.txt`, `licenses/PyYAML.txt`) |
-| OptiScaler, modified build | `opti/OptiScaler.dll` | the [OptiScaler](https://github.com/optiscaler/OptiScaler) contributors, plus three commits by this project | GNU GPL version 3 (`licenses/OptiScaler.txt`); the code of other projects inside it: `licenses/OptiScaler-third-party/`. See [OptiScaler source](#optiscaler-source). |
+| OptiScaler, modified build | `opti/OptiScaler.dll` | the [OptiScaler](https://github.com/optiscaler/OptiScaler) contributors and this project | GNU GPL version 3 (`licenses/OptiScaler.txt`); the code of other projects inside it: `licenses/OptiScaler-third-party/`. See [OptiScaler source](#optiscaler-source). |
 | Licence texts of the downloaded components | `licenses/Intel-XeSS.txt`, `licenses/Intel-third-party-programs.txt`, `licenses/fsr4/` | as named | as named |
 
 [Build inputs](#build-inputs-not-shipped) lists what the binaries are compiled against.
@@ -45,24 +44,17 @@ release is taken down.
   titles, tested versions, inputs, settings and their stated conditions, launch options, proxy names, the compatibility
   list's verdict, and links to the pages. No page text is copied. Setup labels these lines "OptiScaler wiki (community
   reports)" and links the page. Credit belongs to the wiki's contributors and to the game reporters named on its pages;
-- the list of OptiScaler's built-in game fixes, from the shipped build `f971ed14` and upstream `737a21d5`.
+- the list of OptiScaler's built-in game fixes, from the shipped fork `03db4f86` and upstream `08e13adf`.
 
 ### The shader profile
 
-`payload/BC250-XeFG/shaders/` holds 40 shaders, compiled with Microsoft's DirectX Shader Compiler from this project's
-HLSL source, and 9 other files: this project's tables (`waves.txt` and `dispatch-scale.txt` name shaders by hash) and
-switches. The shaders contain no weights and none of Intel's code or constant tables. They read the network's
-coefficients at run time from the buffers Intel's runtime uploads ([ARCHITECTURE.md](ARCHITECTURE.md)).
+`payload/BC250-XeFG/shaders/` contains **52 shaders and 9 tables/markers**. The shaders are compiled from this
+project's HLSL and contain no model weights; coefficients are read from runtime buffers. Tables identify pipelines
+by hash. [Mechanism](ARCHITECTURE.md#the-shader-profile) · [Build recipes](BUILDING.md#the-shader-profile).
 
-The release build runs a static check over the whole package (`release/check_intel_free.py`). It fails on:
-
-- a file whose SHA-256 is that of an Intel file or of one of the shader programs of Intel's runtime;
-- a DXIL shader that is not one of the profile's own;
-- a DXIL shader of shader model 6.4;
-- a copy of Intel's warp weight tables.
-
-The release passes the check with no allowance. OptiScaler's embedded shaders are recognised as OptiScaler's and still
-get every other check.
+The release passes `release/check_intel_free.py` with no allowance. That check rejects known Intel files and shader
+bytecode, unrecognised embedded DXIL, shader model 6.4 and known Intel warp-weight tables. Pinned OptiScaler shaders
+are recognised separately and undergo the remaining checks. This is a content check, not a licence determination.
 
 ## Downloaded by the installer, not shipped
 
@@ -77,35 +69,21 @@ get every other check.
 
 ## OptiScaler source
 
-The bundled `opti/OptiScaler.dll` is a modified build of OptiScaler, licensed under the GNU GPL version 3. Its complete
-corresponding source is included in the source companion and identified by tag `bc250-be42012`, commit
-`be42012aff2dbe26e5565d076e50f227e428cad1`. The fork repository is <https://github.com/daniel-h-0/OptiScaler>.
-The tag adds the updated FORK.md to the build commit.
+The bundled GPL-3.0 DLL is built from commit `03db4f8692878e65748769ebe583c053cae96360`, based on upstream
+`08e13adf55b3fd71a67071eac2e95973ac598df3` (25 October 2026). Its SHA-256 is
+`b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656`.
 
-The source is upstream master of 19 October 2026 (`c2e44a8bc911010d7ed3e4fa63843185fbb55d03`) with these changes:
+The [fork release `bc250-03db4f8`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-03db4f8) provides the DLL
+and matching source archive. The tag includes build documentation at `d191284a`; `SOURCE.md` in the FreeFG archive
+identifies its source companion and build route. Available submodules are bundled; Intel's XeSS SDK is a separately
+fetched, pinned input.
 
-- A fixed lock order for the Streamline plugin locks of upstream `f6db41d` ("Try to prevent race conditions when hooking
-  sl plugins", 26 September 2026): the Windows loader lock first, then the plugin's lock, and no plugin lock held across
-  a library load. Upstream's order since that commit can deadlock with the loader lock at start-up in some Streamline
-  games; CONTROL Resonant hung on about half of its starts with an earlier upstream build.
-- Automatic saving of menu changes.
-- Build-portability fixes for the Linux cross-build.
-- Independent XeSS, XeFG and XeLL library-path configuration, with a save/reload regression check.
+The fork retains loader-first Streamline locking, automatic menu saving, Linux cross-build support, independent
+XeSS/XeFG/XeLL paths and adaptive 3×/4× game-frame starts. It is not an official OptiScaler release.
 
-Where to get it:
-
-- The fork's source tree lists its submodules with their public repositories and commits.
-- This release's source archive (named in `SOURCE.md`) carries the same source with its build script.
-- The fork's release at that tag offers the source as one archive together with its submodules, apart from Intel's XeSS
-  SDK, which comes from its own repository.
-
-OptiScaler contains code of other projects, compiled or linked into the DLL. Their licence texts are in
-`licenses/OptiScaler-third-party/`; its `README.md` lists each component with its licence and copyright holders.
-FreeType asks for this credit: Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org).
+Third-party licence texts and the component index are in `licenses/OptiScaler-third-party/`.
+Required FreeType credit: Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org).
 All rights reserved.
-
-This build is not an official OptiScaler or OptiScaler Client release. Its version string ends in `(BC250 private)`,
-fixed text of this build; its source is the public source above.
 
 ## Intel's terms
 
@@ -146,54 +124,34 @@ and without a recipe has not been measured.
 
 ## HelixSR
 
-[HelixSR](https://github.com/lonewolf0622/HelixSR) is a separate project by lonewolf0622, not part of FreeFG. Its
-source is not published. It runs NVIDIA's DLSS Model E upscaling network as Direct3D 12 compute shaders.
+[HelixSR 2.0.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project distributed under the
+HelixSR Freeware License. Its upscaler source is not published. It runs NVIDIA's DLSS Model E network as Direct3D 12
+compute shaders.
 
-Its licence, the HelixSR Freeware License:
+Its licence permits free use and redistribution of the complete, unmodified official release without charge. It
+prohibits modification and reverse engineering. Network files built from NVIDIA's DLSS DLL remain NVIDIA's and must
+not be shared. The licence permits configuration through `helixsr.ini`.
 
-- allows free use;
-- allows redistribution only of the complete, unmodified official release, free of charge;
-- forbids modification and reverse engineering;
-- says that the network files HelixSR's setup builds from NVIDIA's DLSS DLL remain NVIDIA's and must not be shared.
+FreeFG ships no HelixSR files. On request it downloads and verifies the complete official archive. You run HelixSR's
+own setup, which requests download consent and builds the network locally. FreeFG then verifies the official DLL
+plus its appended network, copies it into your selected games and sets `[DlssFrameGeneration] Enabled=false`.
+Restore removes those copies. FreeFG neither runs HelixSR's setup nor downloads NVIDIA files for it.
 
-How FreeFG handles it:
-
-- It ships none of HelixSR.
-- When you choose HelixSR, the installer downloads the complete official release from HelixSR's own GitHub releases
-  page, pinned by version and SHA-256, and unpacks it unchanged.
-- You run HelixSR's own setup. It asks you before it downloads NVIDIA's DLSS DLL, and it builds the network on your
-  computer.
-- The installer copies the DLL that setup built into the games you choose, on your computer only. Before it does, it
-  checks that the DLL is the official file of a HelixSR release it knows, with only the locally built network appended.
-  Restore removes the copies.
-- It never changes HelixSR's files, never downloads NVIDIA's files for HelixSR, never builds the network, and never
-  ships or uploads it.
-- The only HelixSR setting it writes is the documented `[DlssFrameGeneration] Enabled = false` in `helixsr.ini`.
-  HelixSR's licence does not count a change through `helixsr.ini` as a modification.
-
-NVIDIA's licence speaks of systems with NVIDIA GPUs ([NVIDIA's terms](#nvidias-terms)), and HelixSR's setup downloads
-NVIDIA's DLSS DLL under that licence. HelixSR runs NVIDIA's network on other GPUs. This project cannot tell you whether
-that is compatible with NVIDIA's licence; HelixSR's own documentation describes its position. Decide for yourself
-whether to use HelixSR. FSR 4 remains the default.
+HelixSR obtains NVIDIA's DLL under [NVIDIA's terms](#nvidias-terms), which refer to NVIDIA-GPU systems. This project
+has no permission from NVIDIA to extend those terms. Consult the licences and HelixSR's documentation when deciding
+whether to use it. FSR 4 is the default upscaler.
 
 ## MFG Unlocker (not shipped)
 
-[MFG Unlocker](https://github.com/dashdogy/MFG-Unlocker) by dashdogy is a separate tool, not part of FreeFG. The
-README links to it for 3× and 4× ([3× and 4× with MFG Unlocker](README.md#3-and-4-with-mfg-unlocker)).
+[MFG Unlocker](https://github.com/dashdogy/MFG-Unlocker), by dashdogy, is an optional, separate tool that lifts Intel's
+non-Intel frame-count limit. FreeFG does not ship, download, install or remove it.
 
-- FreeFG does not ship, download, mirror or install it. Its installer neither places nor removes it.
-- MFG Unlocker's own code is under the MIT licence. Its NOTICE says that its DLL also contains programs derived from
-  Intel's XeSS SDK, which stay under Intel's licence.
-- While the runtime runs, it lifts Intel's limit of one generated frame per real frame on GPUs other than Intel's. That
-  change is MFG Unlocker's, made by your choice to add it, not FreeFG's. Whether to use it, and whether that is
-  compatible with [Intel's terms](#intels-terms), is your decision.
-- FreeFG does not read, hook or patch MFG Unlocker, and contains none of its code. It detects that another module
-  hooks Intel's runtime by comparing the runtime's entry points in memory with Intel's file on disk. It then runs its
-  own shaders only where the runtime still runs Intel's
-  ([ARCHITECTURE.md](ARCHITECTURE.md#another-mod-on-intels-runtime)).
-- Setup writes `XeFGModel=default` under `[XeFG]` in `OptiScaler.ini` where it is unset. Only MFG Unlocker reads that
-  key; with it, FreeFG's shaders run the whole network beside MFG Unlocker. Status and Check look for its plugin file
-  by name and read FreeFG's own logs.
+MFG Unlocker's code is MIT-licensed. Its NOTICE identifies included programs derived from Intel's XeSS SDK, which
+retain Intel's terms. Its in-memory changes to Intel's runtime are also relevant to [Intel's licence](#intels-terms).
+
+FreeFG contains no MFG Unlocker code and does not read, hook or patch that module. It detects hooks on Intel's
+runtime and substitutes its own shaders where Intel's programs remain. Setup writes `XeFGModel=default` when unset;
+only MFG Unlocker reads that setting. [Setup and limitations](README.md#3-and-4-with-mfg-unlocker).
 
 ## Build inputs (not shipped)
 

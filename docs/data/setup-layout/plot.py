@@ -67,7 +67,7 @@ def render():
     used = {path for _, _, path, _ in TREE if path}
     assert used == set(entries), sorted(set(entries) ^ used)
 
-    s.text(ax, 56, 62, 'What Setup changes in a game', 36, s.INK, 'bold')
+    s.text(ax, 56, 62, 'Setup layout in FreeFG 1.0–1.1.0', 36, s.INK, 'bold')
 
     # Game folder: the file tree
     left, right, role_x = 40, 780, 548
@@ -109,9 +109,9 @@ def render():
 
     assert bottom + 40 == H, bottom
     s.check_inside(fig, W, H)
-    return s.save(fig, 'setup-file-layout', 'What FreeFG Setup changes in a game folder and launcher entry',
+    return s.save(fig, 'setup-file-layout', 'Historical FreeFG 1.0–1.1.0 setup layout',
                   'Files Setup places beside the game executable, where each comes from, and the launcher variables it '
-                  'adds. Source: docs/data/setup-layout/data.json.')
+                  'adds. Historical example; later releases add cache settings and shaders. Source: docs/data/setup-layout/data.json.')
 
 
 if __name__ == '__main__':

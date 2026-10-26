@@ -1,5 +1,8 @@
 # Building FreeFG from source
 
+The public tree builds the XeFG proxy, Vulkan pacing layer, shader profile and installer. The bundled OptiScaler DLL
+has its own pinned source and build route.
+
 ## Outputs
 
 | Output | Built by | Reference sha256 |
@@ -7,55 +10,46 @@
 | `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 
-Each script builds its binary twice, requires both builds to be identical, and exits with status 1 when the result
-differs from the reference hash in `release/inputs.lock.json` (`--no-reference-check` exits 0). On the pinned toolchain
-([Toolchain](#toolchain)) the result equals the shipped file byte for byte. A different compiler, Wine or glibc version
-normally changes the bytes; a binary with another hash is a new build that needs its own testing. The package's OptiScaler build is not built
-here ([What this tree does not build](#what-this-tree-does-not-build)).
+The proxy and layer scripts build twice and require identical outputs. They also compare against
+`release/inputs.lock.json`; `--no-reference-check` skips that final comparison, not the other checks. A different hash
+is a different build and needs testing before distribution.
 
 ## Toolchain
 
-Linux on x86-64 with:
+Reference build, x86-64 Linux:
 
-| Tool | Version of the reference build | Used for |
+| Tool | Pinned version | Purpose |
 | --- | --- | --- |
-| Python | 3.11.4 or newer (reference: 3.14.7); `toolchain.py` extracts archives with tarfile's `data` filter | all build scripts |
-| clang, lld | 22.1.8 | the proxy (`--target=x86_64-w64-windows-gnu`) |
-| Wine | 11.16: headers (`/usr/include/wine`), x86-64 Windows import libraries (`/usr/lib/wine/x86_64-windows`), `wine` | compiling the proxy; `check_proxy_wine.py` |
-| GCC | 16.2.1, with AddressSanitizer, UBSan and ThreadSanitizer | the pacing layer and its unit tests |
-| glibc, binutils | 2.44, 2.47 | the pacing layer |
-| vulkan-headers | 1.4.357 | the pacing layer |
-| DirectX Shader Compiler (DXC) | Microsoft's release for Linux: v1.9.2607; v1.9.2609 for the static check alone | the shader profile; the static check ([DXC](#dxc)) |
-| `bsdtar` (libarchive) | any | the installer's unit tests |
-| git | any | `assemble.py` records the checked-out commit |
+| Python | 3.14.7; build scripts require 3.11.4+ | Build scripts and archive extraction |
+| clang / lld | 22.1.8 | Windows proxy DLL |
+| Wine | 11.16 | Headers/import libraries; CPU-only loader tests |
+| GCC | 16.2.1 | Pacing layer and sanitizer tests |
+| glibc / binutils | 2.44 / 2.47 | Pacing layer |
+| Vulkan-Headers | 1.4.357 | Pacing layer |
+| DXC | v1.9.2607 for shader reproduction; v1.9.2609 for static scans | [DXC details](#dxc) |
+| git / bsdtar | Available on the host | Source records / installer tests |
 
-Locations are settings with environment variables, such as `XEMFG_BUILD` (outputs, default `build/`, which git ignores)
-and `XEMFG_CACHE` (downloads, default `build/cache`); `python3 release/config.py --help` lists them all.
+Output and cache locations default to `build/` and `build/cache`. `XEMFG_BUILD` and `XEMFG_CACHE` override them;
+`python3 release/config.py --help` lists the shared options.
 
 ### The pinned toolchain
 
-The compilers, Wine and headers of the table need not be installed. `release/toolchain.py` takes the Arch Linux package
-files pinned by SHA-256 in `release/ci/ci.lock.json` (the versions above plus gcc's runtime libraries), from pacman's
-package cache, a folder in `XEMFG_PACKAGES` or the Arch Linux Archive, and unpacks them into a folder of their own,
-without root. With `XEMFG_TOOLCHAIN=pinned` the build scripts prepare and use that folder (`<cache>/toolchain-<id>`):
-clang, lld, gcc, Wine's headers and import libraries and the C and Vulkan headers all come from it, and a compiler
-version or header digest that differs from `release/inputs.lock.json` fails the build. Without the variable the builds
-use the host's tools and only warn on a difference.
+`release/toolchain.py` verifies Arch package hashes from `release/ci/ci.lock.json` and extracts tools and headers into
+an isolated directory without root. It uses `XEMFG_PACKAGES`, pacman's cache or the Arch Linux Archive.
 
 ```sh
-python3 release/toolchain.py prepare      # unpack and check the pinned packages (about 0.9 GB)
+python3 release/toolchain.py prepare
 export XEMFG_TOOLCHAIN=pinned
 ```
 
-From the host, a pinned build still uses the Python interpreter, the shared libraries the compilers load that no pinned
-package holds (such as zlib and libxml2), and the Wine that runs `check_proxy_wine.py`; none of them reaches an output.
+Builds then require the pinned compiler versions and header digests. Without that variable they use host tools and
+warn on mismatches. Host Python, the Wine used to run tests, and some compiler support libraries remain host-provided;
+the pinned CI container is the reference environment.
 
 ## Downloaded inputs
 
-`release/fetch.py` downloads the groups under `fetch` in `release/inputs.lock.json` from
-`https://raw.githubusercontent.com/<repository>/<commit>/<path>`, checks each file's SHA-256 and keeps it in
-`XEMFG_CACHE`. It never runs what it downloads. The builds call it on demand; `--offline` restricts every tool to the
-cache.
+`release/fetch.py` retrieves the lock's `fetch` groups from pinned GitHub commits, verifies SHA-256 and caches them.
+It does not execute downloaded files. The build tools accept `--offline` to use cached inputs only.
 
 | Group | Repository | Commit | Files | Used for |
 | --- | --- | --- | --- | --- |
@@ -65,138 +59,103 @@ cache.
 | `fsr4-notices` | `daniel-h-0/bc250-fsr4-fork` | `b2ab949477b4d2745babae146393db5537d87fcb` | `dll/notices/*` | the package's `licenses/fsr4/` |
 | `minhook` | `TsudaKageyu/minhook` | `c3fcafdc10146beb5919319d0683e44e3c30d537` | sources, `LICENSE.txt` | nothing in FreeFG; fetched because `fetch.py` without arguments fetches every group |
 
-Intel's XeFG headers carry Intel's proprietary notice. They are fetched at build time and must never be committed to
-this tree or shipped. The installer's own downloads are pinned separately, in `packaging/dependencies.json`
-([PRIVACY.md](PRIVACY.md)).
+Intel's XeFG headers carry Intel's proprietary notice: fetch them at build time; do not commit or ship them.
+Installer downloads use the separate `packaging/dependencies.json` pins ([PRIVACY.md](PRIVACY.md)).
 
 ## Build and check
 
 From a checkout of <https://github.com/daniel-h-0/freefg>:
 
 ```sh
-python3 release/ci/toolchain.py dxc --dest build/dxc   # DXC v1.9.2609, downloaded and checked
+python3 release/ci/toolchain.py dxc --dest build/dxc
 export XEMFG_DXC=build/dxc
-export XEMFG_TOOLCHAIN=pinned                          # optional: the pinned toolchain (prepared on first use)
+export XEMFG_TOOLCHAIN=pinned
 python3 release/fetch.py
-python3 release/build_layer.py                         # unit tests under sanitizers, then libxefg_wave.so twice
-python3 release/build_proxy.py                         # libxess_fg.dll twice, then its ABI checks
-python3 release/check_proxy_wine.py                    # the proxy under Wine's loader, CPU only
-export XEMFG_OPTISCALER=/path/to/folder                # holds OptiScaler.dll from the release archive
+python3 release/build_layer.py
+python3 release/build_proxy.py
+python3 release/check_proxy_wine.py
+export XEMFG_OPTISCALER=/path/to/folder  # contains the pinned OptiScaler.dll
 python3 release/assemble.py --variant intel-free-mfg --no-source-companion
-python3 release/check_intel_free.py check build/package-intel-free-mfg/<name>   # result "pass", exit status 0
+python3 release/check_intel_free.py check build/package-intel-free-mfg/<name>
 ```
 
-`assemble.py` takes the OptiScaler DLL (`opti/OptiScaler.dll` in the release archive) from `XEMFG_OPTISCALER` and checks
-it against its pinned SHA-256. `python3 release/ci/assemble_ci.py --variant intel-free-mfg` assembles the package
-without it, as CI does; it also requires a clean checkout and outputs equal to the reference hashes.
+Take `opti/OptiScaler.dll` from the release archive; assembly verifies its hash. For a CI-style package without that
+DLL, use `release/ci/assemble_ci.py --variant intel-free-mfg`. It requires a clean checkout and matching reference
+outputs. Neither route establishes GPU/game qualification.
 
 ### What each step checks
 
-- `build_layer.py` builds and runs the layer's unit tests (pacer, wave layer, concurrent presents) under
-  AddressSanitizer with UBSan and under ThreadSanitizer; any sanitizer report fails the build. It writes
-  `build/layer/build.json`.
-- `build_proxy.py` checks its inputs against the lock; assembles the shader profile into the build folder and builds its
-  size-and-hash manifest into the DLL; generates the export definitions from Intel's DLL (57 exports at their ordinals,
-  8 wrapped and 49 forwarded to `bc250_xefg_original`, plus the 4 exports of FreeFG's settings interface); and
-  compiles `src/game/mfg_proxy.c` twice. It checks the built DLL: Intel's export table reproduced ordinal by ordinal,
-  imports only from `kernel32.dll` and `ucrtbase.dll`, no reference to `version.dll` or an `XeSSMFG` loader. It writes
-  `build/addon-intel-free-mfg/build.json`.
-- `check_proxy_wine.py` runs a test program under Wine in a private prefix, with no GPU or display, in four layouts:
-  - the pinned runtime: forwarded and wrapped calls reach Intel's code;
-  - a runtime altered by one byte, and no runtime: the wrapped call refuses without loading anything;
-  - a stand-in hooking eight of Intel's entries: each is reached once; six of them (the four lifecycle entries,
-    `xefgSwapChainD3D12GetSwapChainPtr` and `xefgSwapChainTagFrameConstants`) with the caller they would see without the
-    proxy, `xefgSwapChainGetLastPresentStatus` and `xefgSwapChainSetNumInterpolatedFrames` with the proxy as caller.
-    Only a module whose version resource names OptiScaler is considered for acceleration.
-
-  It also runs the unit test of the proxy's bookkeeping beside another module (`src/game/test_proxy_coexist.c`).
-- `assemble.py` runs the installer's unit tests first. It refuses stale builds and files the package must not carry
-  (Intel's runtime, the FSR 4 DLL), and with `--archive` documents that still carry the draft marker. It writes
-  `build/package-intel-free-mfg/<name>/` with `manifest.json` (every file's SHA-256, the git commit, and which shipped
-  files differ from that commit), then runs the static check and removes the package if the check fails.
-- `check_intel_free.py check`, the static check, reads every file of the package. It fails on a file whose SHA-256 is
-  that of an Intel file or of a shader program of Intel's runtime; on DXIL that is not one of the profile's own shaders,
-  also inside other files (the pinned OptiScaler DLL's own shaders excepted); on DXIL of shader model 6.4; and on any
-  copy of Intel's warp weight tables, as raw bytes or as a constant array in DXIL. It knows Intel's material only by
-  hashes and checksums (`release/intel_material.json`); the tree holds no Intel bytes. `release/ci/check_controls.py`
-  tests each detector on synthetic material.
+| Step | Checks and record |
+| --- | --- |
+| `build_layer.py` | Pacer, wave-layer and concurrent-present tests under ASan/UBSan and TSan; two matching builds; `build/layer/build.json`. |
+| `build_proxy.py` | Pinned inputs, profile manifest, two matching DLLs, 57 Intel exports (8 wrapped/49 forwarded) plus 4 own exports, and imports limited to `kernel32.dll`/`ucrtbase.dll`; `build/addon-intel-free-mfg/build.json`. |
+| `check_proxy_wine.py` | Forwarding to the pinned runtime; refusal of missing/altered runtimes; caller preservation with stand-in hooks; coexistence bookkeeping. Private Wine prefix, no GPU/display. |
+| `assemble.py` | Installer tests, build freshness, allowed package contents, manifest hashes and static material scan. `--archive` also requires a passed qualification receipt and completed public documents. |
+| `check_intel_free.py check` | Known Intel files/shaders, unrecognised embedded DXIL, shader model 6.4 and known warp-weight constants. Pinned OptiScaler shaders are recognised separately. Synthetic detector controls are in `release/ci/check_controls.py`. |
 
 ### DXC
 
-The static check reads DXIL constant arrays from DXC's disassembly, so `check_intel_free.py` and `assemble.py` fail
-without `XEMFG_DXC`. `check_intel_free.py check --skip-constant-scan` leaves that scan out and records this in its
-report; `assemble.py` has no such option. For this scan, v1.9.2609 (which `toolchain.py dxc` downloads and CI uses)
-gives the same constant arrays as v1.9.2607 for every DXIL file of the profile. Rebuilding the profile byte for byte
-needs v1.9.2607 ([The shader profile](#the-shader-profile)).
+The static material check needs DXC to inspect constant arrays. CI uses v1.9.2609. `check --skip-constant-scan` omits
+that check and records the omission; assembly does not allow it. Rebuilding the shader profile byte for byte requires
+v1.9.2607.
 
 ### Installer tests and an offline install
 
-- `python3 release/ci/installer_tests.py` runs the installer's unit tests on their own.
-- `python3 release/smoke_install.py --variant intel-free-mfg --deps <dir>` installs the assembled package into a
-  throwaway game folder and restores it, offline. `<dir>` holds the installer's prepared downloads, for example
-  `~/.cache/bc250-xefg-testers/payload` after one Setup run.
+```sh
+python3 release/ci/installer_tests.py --fail-on-skip
+python3 release/smoke_install.py --variant intel-free-mfg --deps /path/to/prepared/payload
+```
+
+The smoke test installs into a throwaway game folder and Restores it exactly. The dependency directory can be the
+installer's `~/.cache/bc250-xefg-testers/payload` after preparation.
 
 ## The shader profile
 
-The package's `payload/BC250-XeFG/shaders/` holds 52 shaders and 9 tables and markers, all of this project's own origin.
-The tree holds them compiled in `release/profile/` (33 shaders, the tables and markers) and `release/profile-mfg/` (the
-nine U-Net shaders and three refinement shaders the multi-frame build ships in a faster form, which replace their
-`release/profile/` files in its profile, F4Q's seven shaders, F4Q2's three, F4Q3's two and the seven FP16 forms), and the HLSL they are compiled from in `src/kernels/`. Each file is pinned by SHA-256
-in `release/inputs.lock.json` with origin `own` (`release/profile-mfg/` as the tree group `profile-intel-free-mfg`). The
-builds read `release/profile/` unless `XEMFG_PROFILE` names another directory; `release/profile-mfg/` is always read
-from the tree.
+The shipped profile has **52 shaders and 9 tables/markers**. `release/profile/` supplies 33 base shaders;
+`release/profile-mfg/` replaces 12 and adds 19. The latter comprise seven F(4×4) alternatives, seven FP16 alternatives
+and five comparison kernels. HLSL and compile recipes are in `src/kernels/` and the two `origin.json` files.
 
-To rebuild every shader and compare the bytes, extract Microsoft's DXC release v1.9.2607 for Linux
-(`linux_dxc_2026_07_29.x86_x64.tar.gz`, SHA-256 `55665c87824051ed4774ff3280a79ccbbb7d39243b9736ca5e98222134112d54`) and
-run:
+Extract Microsoft's Linux DXC v1.9.2607 archive, `linux_dxc_2026_07_29.x86_x64.tar.gz`, SHA-256
+`55665c87824051ed4774ff3280a79ccbbb7d39243b9736ca5e98222134112d54`, then run:
 
 ```sh
-XEMFG_DXC=/path/to/linux_dxc_2026_07_29.x86_x64 python3 release/build_profile.py check   # "result": "pass", 33 byte-identical, and 16 in variant_profiles
+XEMFG_DXC=/path/to/linux_dxc_2026_07_29.x86_x64 python3 release/build_profile.py check
 ```
 
-Another DXC version compiles the same sources to different bytes. `release/profile/ORIGIN.md` describes each shader's
-recipe (`release/profile/origin.json`, and `release/profile-mfg/origin.json` for that folder).
+Expected: 33 byte-identical base shaders and 31 in `variant_profiles`. `--no-rebuild` checks stored files, not compiler
+reproducibility. [Profile provenance and composition](../../release/profile/ORIGIN.md).
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every push to `main`, every pull request and on demand:
+`.github/workflows/ci.yml` runs on main pushes, pull requests and manual dispatch. It uses an Arch image pinned by
+digest, the 2026-09-03 package snapshot, and packages pinned by file hash. It runs release/document checks, installer
+and sanitizer tests, proxy loader tests, package/material checks and strict public export. Reference-output mismatches
+fail the pinned job. Artifacts contain reports and build records, not binaries.
 
-- Toolchain: an official Arch Linux container image pinned by digest, with pacman pointed at the Arch Linux Archive
-  snapshot of 2026-09-03. The packages that reach an output are also pinned by file SHA-256 (`release/ci/ci.lock.json`).
-- Steps: those of [Build and check](#build-and-check) (assembling with `assemble_ci.py`), plus the release tools' unit
-  tests, `check_public_docs.py`, the profile checks without the rebuild, the static check's controls and a strict public
-  export.
-- Result: every output is compared with its reference hash; on this toolchain a difference fails the job. The job
-  uploads build records and reports, not binaries.
-- Not run: the byte-for-byte profile rebuild (it needs the 515 MB DXC v1.9.2607 release) and the maintainers'
-  `check_intel_free.py self-test` (it needs private material; `check_controls.py` covers every detector instead).
+CI skips the DXC v1.9.2607 shader rebuild and the private-material detector self-test; synthetic controls cover the
+static detectors instead. `.github/workflows/pins.yml` checks download pins weekly and runs an informational build
+with current Arch packages, where output-hash differences are warnings.
 
-`.github/workflows/pins.yml` runs weekly. It checks that every pinned download still serves its pinned bytes, and runs
-the CI job on the current Arch packages, where hash differences are warnings.
-
-`python3 release/ci/toolchain.py --help` explains the toolchain setup; the same steps run in a local container. If the
-container user differs from the owner of a bind-mounted checkout (root, as in the CI job), git refuses the tree
-("detected dubious ownership") and `assemble.py` cannot record the commit. Mark the mount as safe first, as the workflow
-does:
+A container running as a different user from a bind-mounted checkout's owner may need the workflow's safe-directory
+setting before git can read the commit:
 
 ```sh
-git config --system --add safe.directory <path in the container>
+git config --system --add safe.directory <path-in-the-container>
 ```
 
 ## What this tree does not build
 
-- The OptiScaler build (`opti/OptiScaler.dll`, GPL-3.0, sha256
-  `1e8025628911495a35d40764bef69157a3d80ce0c3b67b19b2cf7e090ea1dc20`). The package ships this DLL. Its source is the
-  OptiScaler fork at <https://github.com/daniel-h-0/OptiScaler>, tag `bc250-be42012` ([NOTICE.md](NOTICE.md)). The
-  release tooling does not download the built DLL, so CI assembles the package without it; it is the only component CI
-  may leave out.
-- The source companion (`assemble.py` without `--no-source-companion`), which reads a git checkout of the OptiScaler
-  fork (`XEMFG_OPTISCALER_SOURCE`).
+- **OptiScaler:** DLL SHA-256 `b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656`, built from
+  `03db4f8692878e65748769ebe583c053cae96360`. The [fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-03db4f8)
+  supplies the DLL and matching source. Its `FORK.md` and `tools/bc250-build.py` describe the separate build.
+  OptiScaler is the only component CI may omit from its test package.
+- **Source companion without its inputs:** normal assembly needs a fork checkout named by `XEMFG_OPTISCALER_SOURCE`.
+  Use `--no-source-companion` only for a local build that does not distribute the complete source companion.
+- **GPU measurements:** the public tree reproduces binaries and CPU checks. The SDK scene and game benchmark harnesses
+  are separate research tooling; [MEASUREMENTS.md](MEASUREMENTS.md) reports their results and limits.
 
 ## Reproducibility
 
-- Build records (`build.json`) and the package manifest hold no absolute paths. The builds give the same bytes from a
-  tree exported to another directory (`release/export_tree.py --public DIR`).
-- The proxy build warns when the Wine headers or import libraries differ from those recorded in the lock (by count and
-  digest), and the layer build when the system headers do. With `XEMFG_TOOLCHAIN` set, either difference, or another
-  compiler version, is an error, and each `build.json` names the toolchain's id.
+Build records and manifests omit absolute host paths. The pinned proxy/layer and shader builds are checked byte for
+byte. A package records its source commit, payload hashes and qualification receipt; use those to identify what was
+built, rather than treating a matching version label as proof of identical contents.
