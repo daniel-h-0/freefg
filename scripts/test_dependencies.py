@@ -453,14 +453,14 @@ class ShippedPinsTests(unittest.TestCase):
         for name in self.pins['runtime']['Files']:
             self.assertNotEqual(d.source(self.pins, name)[0], 'opti', name)
 
-    def test_fresh_setup_is_tester_v30s_without_the_dlss_helper(self):
-        # The downloaded files remain v30's payload. The old FreeFG fork is additionally accepted for upgrades.
+    def test_fresh_setup_uses_the_qualified_nightly_and_separate_dlss_helper(self):
+        # October 25's support files match the earlier pins; its proxy/INI and accepted upgrade hashes are refreshed.
         # The DLSS helper and its licence are their own group, not part of every fresh setup.
         merged = dict(self.pins['payload'], Files=dict(self.pins['payload']['Files'], **self.pins['dlss']['Files']))
         compatible=list(merged['CompatibleProxyHashes'])
         compatible.remove('5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6')
         merged['CompatibleProxyHashes']=compatible
-        self.assertEqual(sha(json.dumps(merged, sort_keys=True).encode()), '11511b4b431afd6d0f7ca068e464b361d9dfa31247281443c15b9398272f70cf')
+        self.assertEqual(sha(json.dumps(merged, sort_keys=True).encode()), '50d352246f393ed9dfa24fb66f5edc3c46008c14c259e5ed64736f5200c76e8a')
         self.assertNotIn('nvngx_dlss.dll', self.pins['payload']['Files'])
         self.assertEqual(sorted(self.pins['dlss']['Files']), ['Licenses/NVIDIA-DLSS-LICENSE.txt', 'nvngx_dlss.dll'])
         for key in ('dlss', 'dlss_license'):

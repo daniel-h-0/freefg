@@ -15,13 +15,13 @@ tool).
 Setup has a recipe for 19 games: the input, OptiScaler settings, the game's own frame-generation setting and a DirectX
 12 launch option where needed. Restore undoes all of it. "Observed" was seen on a BC-250 with earlier private builds
 that use the same installer, recipes and route at 2×; 2.0 is the measured presents per game frame. "FreeFG:" marks
-runs with FreeFG itself (0.9.0 or 1.0.0).
+runs with FreeFG itself; the Cyberpunk 2.5 row uses 1.1.3.1.
 
 | Game | Input the recipe picks | Observed |
 | --- | --- | --- |
 | CONTROL Resonant | DLSS FG (turns the game's DLSS frame generation on) | 2.0 |
 | Crimson Desert | FSR 3.1 FG (turns the game's frame generation on) | played at 2× |
-| Cyberpunk 2077 | native XeSS FG | played at 2×; FreeFG: installed and restored, benchmark at 2.0 (headless and on a TV with VRR) |
+| Cyberpunk 2077 2.5 | DLSS FG (DLSS upscaling input; native Anti-Lag 2 off) | FreeFG 1.1.3.1: HelixSR Quality, reactive mask off, benchmark at 2.0 in SDR and HDR10 (headless). Earlier versions used native XeSS FG. |
 | Dead as Disco | FSR 3.1 FG (`FrameGenerationMode=FSR`) | 2.0 |
 | Echo Point Nova | OptiFG | 2.0; FreeFG: installed, started to the main menu, restored |
 | Kingdom Come: Deliverance II | OptiFG | 2.0 in gameplay |

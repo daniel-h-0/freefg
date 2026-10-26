@@ -2,8 +2,8 @@
  "schema": 1,
  "generated_by": "research/recipes/build_recipes.py",
  "sources": {
-  "optiscaler_pinned": "f971ed143de0bdbbbac6d526c95a20227c22e1c6",
-  "optiscaler_upstream": "737a21d56b56518f91f917c5ec8a4247af5af284",
+  "optiscaler_pinned": "03db4f8692878e65748769ebe583c053cae96360",
+  "optiscaler_upstream": "08e13adf55b3fd71a67071eac2e95973ac598df3",
   "wiki": "9812e2d (2026-10-17)",
   "wiki_url": "https://github.com/optiscaler/OptiScaler/wiki/",
   "host": "maintainers' BC-250 library, 2026-09-29"
@@ -366,11 +366,16 @@
     ]
    },
    "status": "verified-bc250",
-   "route": "native",
-   "fg_input": null,
+   "route": "opti",
+   "fg_input": "dlssg",
    "ini": {
-    "Inputs.EnableDlssInputs": "false",
-    "Spoofing.Dxgi": "false"
+    "Inputs.EnableDlssInputs": "true",
+    "Spoofing.Dxgi": "false",
+    "Inputs.EnableXeSSInputs": "false",
+    "Libraries.XeSSPath": ".\\libxess.dll",
+    "Hotfix.RestoreComputeSignature": "true",
+    "Hotfix.RestoreGraphicSignature": "true",
+    "Hotfix.ExtendedStateRestore": "true"
    },
    "game_settings": [
     {
@@ -379,20 +384,28 @@
      "format": "json-options",
      "section": null,
      "values": {
-      "FrameGeneration": "XESS",
-      "XESS_FrameGeneration": true,
+      "ResolutionScaling": "DLSS",
+      "FrameGeneration": "DLSS",
+      "XESS_FrameGeneration": false,
       "FSR3_FrameGeneration": false,
-      "DLSSFrameGen": false,
-      "WindowMode": "BorderlessWindowed"
+      "DLSSFrameGen": true,
+      "WindowMode": "BorderlessWindowed",
+      "FSR_AntiLag2Mode": "Disabled",
+      "ReflexMode": "Enabled"
      },
-     "why": null,
-     "requires_fg_input": null
+     "why": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
+     "requires_fg_input": "dlssg"
     }
    ],
    "launch_args": [],
-   "note": null,
-   "evidence": "gameplay",
-   "observed": "played at 2x"
+   "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
+   "evidence": "generates",
+   "observed": "2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10",
+   "upscaler_ini": {
+    "helixsr": {
+     "InitFlags.DisableReactiveMask": "true"
+    }
+   }
   },
   {
    "title": "Hogwarts Legacy",
@@ -585,17 +598,7 @@
    }
   ]
  },
- "backports": {
-  "beamng.drive.x64.exe": {
-   "Spoofing.Dxgi": {
-    "value": "false",
-    "quirk": "set:Spoofing.Dxgi=false",
-    "comment": [
-     "BeamNG"
-    ]
-   }
-  }
- },
+ "backports": {},
  "quirk_keys": {
   "007firstlight.exe": {
    "FSR.Fsr4DoNotLoadAmdxc64": "true",
@@ -683,6 +686,9 @@
    "Inputs.EnableFsr2Inputs": "false",
    "Inputs.EnableFsr3Inputs": "false"
   },
+  "beamng.drive.x64.exe": {
+   "Spoofing.Dxgi": "false"
+  },
   "beastofreincarnation-win64-shipping.exe": {
    "Inputs.EnableFsr2Inputs": "false",
    "Inputs.EnableFsr3Inputs": "false",
@@ -720,6 +726,7 @@
   },
   "controlresonant.exe": {
    "FrameGen.PreserveSwapChain": "false",
+   "Hotfix.SimulateWaitableObject": "true",
    "Spoofing.Dxgi": "false"
   },
   "crimsondesert.exe": {
@@ -1013,6 +1020,9 @@
   "metaleden-wingdk-shipping.exe": {
    "Inputs.EnableFsr2Inputs": "false",
    "Inputs.EnableFsr3Inputs": "false"
+  },
+  "metro.exe": {
+   "Spoofing.Dxgi": "false"
   },
   "metroexodus.exe": {
    "InitFlags.AutoExposure": "true",
@@ -11953,6 +11963,9 @@
    "match": {
     "title": [
      "kingdom come deliverance 2"
+    ],
+    "exe": [
+     "kingdomcome.exe"
     ]
    },
    "status": "wiki-reported",

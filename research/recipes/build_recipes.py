@@ -61,7 +61,7 @@ NOTES = {
 # observation.
 EVIDENCE = {
     '3669870': ('generates', '2.0 presents per game frame'), '3321460': ('gameplay', 'played at 2x'),
-    '1423049311': ('gameplay', 'played at 2x'), '3404260': ('generates', '2.0'), '1836730': ('generates', '2.0'),
+    '1423049311': ('generates', '2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10'), '3404260': ('generates', '2.0'), '1836730': ('generates', '2.0'),
     '1771300': ('gameplay', '2.0 in gameplay'), '1681430': ('generates', '2.0'), '482400': ('startup', '2.0 at start-up'),
     '731040': ('gameplay', '2.0 in gameplay'), '2464530': ('generates', '2.0'), '3156770': ('gameplay', '2.0; played at 2x'),
     '3751950': ('installed', 'installed; generation not checked'), 'fa4240e57a3c46b39f169041b7811293': ('installed', 'installed; generation not checked'),
@@ -168,11 +168,16 @@ def apply_changes(ver, changes):
                 by_id[{'steam': '', 'gog': 'gog-', 'epic': 'epic-'}[key] + i] = entry
     for appid, change in changes['games'].items():
         entry = by_id[appid]
+        if 'route' in change:
+            entry['route'] = change['route']
         if 'fg_input' in change:
             entry['fg_input'] = change['fg_input']
             # Settings tied to the old input no longer apply.
             entry['game_settings'] = [s for s in entry['game_settings'] if s.get('requires_fg_input') is None]
             entry['ini'] = {k: v for k, v in entry['ini'].items() if k.split('.')[0].lower() not in ('framegen', 'fsrfg', 'optifg', 'dlssg')}
+        entry['ini'].update(change.get('ini', {}))
+        if change.get('upscaler_ini'):
+            entry['upscaler_ini'] = change['upscaler_ini']
         for s in change.get('game_settings', []):
             entry['game_settings'] = [x for x in entry['game_settings'] if x['file'] != s['file']]
             entry['game_settings'].append(dict(file=s['file'], base='steamuser', format=s['format'], section=s.get('section'),
@@ -415,7 +420,7 @@ def exe_titles(quirks):
 
 # What packaging/recipes.py and install.py read from each part of the file; the compact runtime file keeps only these.
 # Keep in step with them: test_recipes.py proves the full and compact files resolve every game alike.
-VERIFIED_FIELDS = ('title', 'match', 'route', 'fg_input', 'ini', 'game_settings', 'launch_args', 'note', 'evidence', 'observed')
+VERIFIED_FIELDS = ('title', 'match', 'route', 'fg_input', 'ini', 'upscaler_ini', 'game_settings', 'launch_args', 'note', 'evidence', 'observed')
 COMMUNITY_FIELDS = VERIFIED_FIELDS + ('status', 'manual_steps', 'known_problems')
 # requires_fg_input is kept whenever present, even as null: a missing key means "the recipe's own input".
 SETTING_FIELDS = ('file', 'format', 'section', 'values', 'requires_fg_input')

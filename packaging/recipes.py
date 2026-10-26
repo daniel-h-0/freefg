@@ -130,7 +130,7 @@ def split_key(key):
     return section, name
 
 
-def ini_changes(verified, backports, parsed, fg_input, recipe_input, route=None):
+def ini_changes(verified, backports, parsed, fg_input, recipe_input, route=None, upscaler=None):
     """OptiScaler keys to write: recipe keys and backported upstream quirks, each only where the INI still says auto.
     Frame-generation keys belong to the recipe's route and input: skipped when the user chose another. The other keys
     (upscaler inputs, spoofing, hotfixes) are about the game's upscaler, which OptiScaler hooks on both routes."""
@@ -143,6 +143,8 @@ def ini_changes(verified, backports, parsed, fg_input, recipe_input, route=None)
         out[(section, name)] = str(value)
     for key, b in (backports or {}).items():
         out.setdefault(split_key(key), str(b['value']))
+    for key, value in (verified or {}).get('upscaler_ini', {}).get(upscaler, {}).items():
+        out[split_key(key)] = str(value)
     return {k: v for k, v in out.items() if parsed.get((k[0].lower(), k[1].lower()), 'auto').strip().lower() in ('', 'auto')}
 
 

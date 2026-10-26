@@ -19,12 +19,11 @@ FreeFG makes Intel XeSS Frame Generation (XeFG) faster on the AMD BC-250, in Dir
 
 How it works: [ARCHITECTURE.md](packaging/public/ARCHITECTURE.md).
 
-![Cyberpunk 2077 frames shown per second at 2× on an AMD BC-250 (2560×1440, FSR 4 Performance, headless): SDR, XeFG with Intel's shaders 85.30 and FreeFG 1.1.0 104.34 (+22.3%); HDR10, 83.98 and 102.45 (+22.0%).](docs/assets/cyberpunk-2x-fps.svg)
+![Cyberpunk 2077 2.5, High settings, HelixSR 2.0.0 Quality at 1440p on AMD BC-250. SDR: no FG 71.9, Intel XeFG 2× 86.4, FreeFG 2× 108.4 output FPS; HDR10: no FG 72.0, Intel XeFG 2× 84.9, FreeFG 2× 106.4 output FPS. Game-rendered FPS is shown separately. Four runs per condition; 95% confidence intervals; reactive mask off in every condition.](docs/assets/cyberpunk-helixsr-fps.svg)
 
-Frames per second, generated frames included. Headless, all arms in one block, 4 runs per arm in SDR and in
-HDR10, [warm shader caches](packaging/public/MEASUREMENTS.md#shader-caches), 1.1.0's launch settings. FreeFG 1.0.x in the same
-block: 102.93 and 101.24.
-Details and TV figures: [MEASUREMENTS.md](packaging/public/MEASUREMENTS.md#frame-rate-cyberpunk-2077).
+FreeFG 1.1.3.1 produces **25.4% more output FPS in SDR and 25.3% more in HDR10** than the same XeFG 2× route with Intel's shaders. The chart separates game-rendered FPS from output FPS, which includes generated frames.
+
+High graphics, HelixSR Quality, 1706×960 → 2560×1440; reactive mask off in every condition. Headless and uncapped, four runs per condition after a warm-up; whiskers show 95% confidence intervals across runs. This measures throughput, not input latency or TV pacing. [Method and data](packaging/public/MEASUREMENTS.md#cyberpunk-25-with-helixsr) · [Compact chart](docs/assets/cyberpunk-helixsr-fps-narrow.svg).
 
 FreeFG is an independent project. It is not affiliated with, endorsed by, sponsored by or supported by Intel, AMD,
 NVIDIA, ASRock, Valve or the OptiScaler project. Intel, XeSS and Xe are trademarks of Intel Corporation. AMD, FidelityFX
@@ -82,7 +81,8 @@ python3 install.py doctor               # Check system
 
 `install` also takes `--fg-input` (`dlssg`, `upscaler`, `fsrfg`, `fsrfg30`), `--route native` (the game's own XeSS FG),
 `--upscaler helixsr` and `--dlss-helper no` or `yes` ([NOTICE.md](NOTICE.md#nvidias-terms)). A game's existing
-OptiScaler must be the 10.0.0-pre1 nightly of 4 or 29 September 2026 (restore or update any other first); a custom DLL
+OptiScaler must be a supported pinned build (the 25 October nightly, the earlier 4/29 September nightlies, or a
+previous FreeFG fork); restore or update another build first. A custom DLL
 path in `OptiScaler.ini`, symlinked game files or another proxy DLL need manual integration.
 
 ## Upscaler: FSR 4 or HelixSR
@@ -216,12 +216,13 @@ Never while a game runs, then restores yours.
 
 ## Status
 
-1.1.3.1, released 25 October 2026. A global wave64 setting for one Winograd shader avoids a GPU fault isolated in
-Cyberpunk 2077 2.5 with HelixSR. Shader code is unchanged; the proxy and profile must be updated together through
-Restore, then Install. [Checks and scope](packaging/public/MEASUREMENTS.md#checks-of-1131). It includes 1.1.3's OptiScaler library-path
-repairs and 3×/4× VRR pacing improvements, tested with CONTROL Resonant on a physical HDR/VRR TV
-([pacing checks](packaging/public/MEASUREMENTS.md#checks-of-113)). The updated Cyberpunk testbed needs further compatibility work;
-this hotfix alone does not qualify the bundled recipe for that game version.
+1.1.3.1, released 25 October 2026, updates OptiScaler to the 25 October nightly and the Cyberpunk 2077 2.5 recipe to
+DLSS FG input. It also selects wave64 for one Winograd input-transform shader in every game, a workaround for
+GPU faults observed in Cyberpunk 2.5 with HelixSR. The underlying cause is unresolved. Shader code is unchanged; update the proxy
+and profile together through Restore, then Install. [Checks and scope](packaging/public/MEASUREMENTS.md#checks-of-1131).
+
+It includes 1.1.3's OptiScaler library-path repairs and 3×/4× VRR pacing improvements, tested with CONTROL Resonant on a
+physical HDR/VRR TV ([pacing checks](packaging/public/MEASUREMENTS.md#checks-of-113)).
 
 Tested only on the AMD BC-250 under Proton. 1.1.2 changes the proxy and the shader profile: the FP16 forms of seven U-Net shaders (on by
 default; the output differs slightly from Intel's), F4Q2, F4Q3 and three exact kernel changes; the installer adds the

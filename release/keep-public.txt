@@ -368,3 +368,11 @@ scripts/fixtures/compat/library-synthetic.json
 # The ignore rule for build/ (this project's licence text is packaging/public/LICENSE above; LICENSE.new-code, which
 # names the internal project as copyright holder, stays in the maintainers' tree)
 .gitignore
+
+# Cyberpunk 2.5 / HelixSR comparison, including no FG.
+docs/data/cyberpunk-helixsr/data.json
+docs/data/cyberpunk-helixsr/plot.py
+docs/assets/cyberpunk-helixsr-fps.svg
+docs/assets/cyberpunk-helixsr-fps.png
+docs/assets/cyberpunk-helixsr-fps-narrow.svg
+docs/assets/cyberpunk-helixsr-fps-narrow.png

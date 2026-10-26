@@ -473,8 +473,14 @@ def decide(scan, data=None, ids=None, choice=None, ctx=None, accept=(), launcher
             break
     if route == 'native':
         manual.insert(0, 'Turn on the game\'s XeSS frame generation in its graphics settings.')
+    elif any(s.get('values', {}).get('ResolutionScaling') == 'DLSS'
+             for s in (verified or {}).get('game_settings', [])):
+        step = 'Select DLSS upscaling in the game\'s graphics settings; your chosen upscaler takes its place.'
+        if fg_input == 'dlssg':
+            step += ' Enable DLSS frame generation for XeFG.'
+        manual.insert(0, step)
     else:
-        manual.insert(0, 'In the game\'s graphics settings choose its upscaler (DLSS, FSR or XeSS: FSR 4 takes its place).')
+        manual.insert(0, 'In the game\'s graphics settings choose its upscaler (DLSS, FSR or XeSS: your chosen upscaler takes its place).')
     if verified and verified.get('note'):
         warnings.append('Known on BC-250: ' + verified['note'])
     manual += list((community or {}).get('manual_steps', []))

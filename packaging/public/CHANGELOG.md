@@ -4,12 +4,24 @@ Changes in each release of FreeFG. The private test builds made before 0.9.0 are
 
 ## 1.1.3.1 – 2026-10-25
 
-- Use wave64 for the 224-channel Winograd input-transform shader on the BC-250. Its wave32 selection triggered an
-  early GPU fault in Cyberpunk 2077 2.5 with HelixSR; changing only this wave setting passed the full SDR and HDR10
-  benchmarks. The choice applies to this shader in every game, at every frame-generation factor, without a game recipe.
-- The shader bytes and arithmetic are unchanged. The proxy is rebuilt to accept the updated profile; OptiScaler,
-  the presentation layer, upscalers and game recipes remain 1.1.3's. The exact cause beneath the wave32 trigger is still
-  under investigation. [Checks and scope](MEASUREMENTS.md#checks-of-1131).
+- Replace the primary performance chart with Cyberpunk 2.5, HelixSR Quality and High graphics at 1440p.
+  Include no FG, Intel XeFG 2× and FreeFG 2× in SDR/HDR10, separate game/output FPS and run-level confidence intervals.
+  [Method and data](MEASUREMENTS.md#cyberpunk-25-with-helixsr).
+
+- Update the OptiScaler fork and setup files to the 25 October nightly (`08e13adf`), retaining FreeFG's independent
+  library paths, automatic settings saving and adaptive frame starts. The fork source and build record are pinned.
+- Cyberpunk 2077 2.5 uses DLSS upscaling input and DLSS FG input to XeFG. Its recipe keeps the game's XeSS upscaler
+  DLL, disables XeSS upscaler input and native Anti-Lag 2, enables Reflex, and enables compute and graphics state
+  restoration for this route. Setup's instructions name the correct game options.
+- Cyberpunk with HelixSR disables the reactive/bias mask input as a compatibility workaround. Switching to FSR 4
+  restores the original recipe-owned setting; explicit user choices stay intact. This removes a temporal-reconstruction
+  input, so it is part of the reported benchmark configuration.
+- Use wave64 for the 224-channel Winograd input-transform shader on the BC-250. Wave-table bisection associated its
+  wave32 selection with an early Cyberpunk 2077 2.5 GPU fault; changing only this setting passed full SDR and HDR10
+  benchmarks with HelixSR. The choice applies to this shader in every game, at every frame-generation factor, without a game recipe.
+- The shader bytes and arithmetic are unchanged. The proxy is rebuilt to accept the updated profile; the presentation
+  layer and upscalers retain 1.1.3's bytes. The underlying cause remains unresolved.
+  [Checks and scope](MEASUREMENTS.md#checks-of-1131).
 - Update through Restore in the existing release, then Install from 1.1.3.1. Copying just `waves.txt` is insufficient:
   the proxy verifies its profile's hashes.
 

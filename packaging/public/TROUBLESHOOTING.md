@@ -39,10 +39,34 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | Bursts of VRR flicker after some idle minutes, in long cutscenes or with a game left running | Steam's screensaver: in Game Mode it starts behind a running game after the idle timeout (5 minutes by default; controller input resets it) and every 20 seconds cross-fades for 2 seconds, taking GPU time. Set the timeout to **Never**, or install the `steam-screensaver-in-game` extra. |
 | The first start after installing (or reinstalling) loads for longer | Expected once: vkd3d-proton fills the game's new shader cache in `.bc250-xefg-experimental/vkd3d-cache` ([MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)). `install.py status` shows its size; Restore deletes it. |
 | A game installed despite its anti-cheat does not start, or reports tampering | The anti-cheat refuses FreeFG's DLLs: Restore the game. The maintainers cannot help with bans ([COMPATIBILITY.md](COMPATIBILITY.md#anti-cheat)). |
-| `Existing OptiScaler must be the 10.0.0-pre1 nightly …` | Restore or update the game's OptiScaler first. |
+| `Existing OptiScaler must be a supported pinned build …` | Restore or update the game's OptiScaler first. |
 | `Cannot download …` | The first installation needs internet access, or the file already in `~/.cache/bc250-xefg-testers`. |
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |
 | Setup does not find HelixSR | Setup looks for an unpacked folder named `HelixSR…` in your home folder and its `Downloads` and `Applications` folders. Elsewhere, name it once with `--helixsr /path/to/HelixSR-2.0.0` (with `install.py helixsr`, `install` or `configure`); the folder is remembered. `install.py helixsr` says what is missing. FreeFG uses only official releases it knows (2.0.0): with another version present it offers to download 2.0.0, and a newer version needs an updated FreeFG. |
+| Cyberpunk 2.5 resets DLSS, HDR or graphics settings | Check the legacy settings entries [below](#cyberpunk-25-resets-settings). |
+
+## Cyberpunk 2.5 with HelixSR stops at the first rendered frames
+
+The 1.1.3.1 recipe sets `[InitFlags] DisableReactiveMask=true` only when HelixSR is selected. Repeated checks passed
+with this input disabled; restoring it reproduced the early GPU fault, including on a control without FreeFG. The
+underlying cause is unresolved. Disabling the mask removes one temporal-reconstruction input; equal image quality
+has not been established. Setup preserves explicit user settings, so check this key if you already set it to `false`.
+Switching back to FSR 4 through Configure returns a recipe-owned value to its original setting.
+
+## Cyberpunk 2.5 resets settings
+
+An older `UserSettings.json` (schema 140) reset to defaults in our 2.5 checks, including DLSS Auto, SDR and ray tracing.
+Updating two legacy control entries allowed the game to load the profile and save schema 152. Back up the file before
+editing it:
+
+- `InputSchemesMode`: replace the old `UI-Settings-Interface-InputScheme…` names with `Legacy`, `Agile` or `Alternative`
+  in its value and list of choices, preserving the selected mode.
+- Move the `SteeringSensitivity` option from `/controls` to `/controls/vehicle`, preserving its numeric value.
+
+The file is under `AppData/Local/CD Projekt Red/Cyberpunk 2077` in the game's Proton user folder. Check the settings
+after the game saves them: the controller zoom range and HDR paper-white units also changed. In these checks the game
+wrote a 0–2 paper-white value instead of the old nits value. Recheck HDR calibration in the game. The 1.1.3.1 recipe and
+performance checks use the current schema, DLSS upscaling input and DLSS FG input to XeFG.
 
 ## Frame generation adds little
 

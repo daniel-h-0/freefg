@@ -285,6 +285,79 @@ class FSR4Builds(HelixFixture):
                          dict(name='fsr4', target='OptiScaler/' + m.DLL))
 
 
+class UpscalerRecipe(HelixFixture):
+    KEY=('initflags','disablereactivemask')
+
+    def setUp(self):
+        super().setUp()
+        entry=dict(title='Example',match=dict(exe=['game.exe'],gog=['123']),status='verified-bc250',
+                   route='opti',fg_input='upscaler',ini={},game_settings=[],launch_args=[],note='test fixture',
+                   upscaler_ini={'helixsr':{'InitFlags.DisableReactiveMask':'true'}})
+        set_package_file(self.package,'recipes/recipes.json',json.dumps(dict(schema=1,verified=[entry],wiki=[],
+                         leave_auto={},backports={},quirk_keys={},community=[])).encode())
+
+    def value(self):
+        return m.read_ini((self.game/'OptiScaler.ini').read_bytes()).get(self.KEY,'auto')
+
+    def test_install_switch_both_directions_and_exact_restore(self):
+        for initial in ('helixsr','fsr4'):
+            with self.subTest(initial=initial):
+                m.install(self.package,self.exe,route='opti',upscaler=initial)
+                self.assertEqual(self.value(),'true' if initial=='helixsr' else 'auto')
+                for selected,want in (('helixsr','true'),('fsr4','auto'),('helixsr','true')):
+                    m.configure(self.exe,upscaler=selected,package=self.package)
+                    self.assertEqual(self.value(),want)
+                m.restore(self.exe);self.assertOriginal()
+
+    def test_preexisting_explicit_setting_stays_on_install_and_switch(self):
+        self.ini+=b'[InitFlags]\r\nDisableReactiveMask=false\r\n'
+        (self.game/'OptiScaler.ini').write_bytes(self.ini);self.original['OptiScaler.ini']=self.ini
+        m.install(self.package,self.exe,route='opti',upscaler='helixsr')
+        for selected in ('fsr4','helixsr'):
+            m.configure(self.exe,upscaler=selected,package=self.package)
+            self.assertEqual(self.value(),'false')
+        m.restore(self.exe);self.assertOriginal()
+
+    def test_user_edit_after_install_is_preserved(self):
+        m.install(self.package,self.exe,route='opti',upscaler='helixsr')
+        path=self.game/'OptiScaler.ini'
+        path.write_bytes(m.patch_ini(path.read_bytes(),{('InitFlags','DisableReactiveMask'):'false'}))
+        for selected in ('fsr4','helixsr'):
+            m.configure(self.exe,upscaler=selected,package=self.package)
+            self.assertEqual(self.value(),'false')
+        m.restore(self.exe)
+        self.assertEqual(self.value(),'false')
+
+    def test_existing_installation_can_apply_new_recipe_without_dll_change(self):
+        recipe=(self.package/'recipes/recipes.json').read_bytes()
+        set_package_file(self.package,'recipes/recipes.json',b'{"schema":1,"verified":[],"wiki":[]}')
+        m.install(self.package,self.exe,route='opti',upscaler='helixsr')
+        before=(self.game/'OptiScaler'/m.DLL).read_bytes()
+        set_package_file(self.package,'recipes/recipes.json',recipe)
+        m.configure(self.exe,upscaler='helixsr',package=self.package)
+        self.assertEqual(self.value(),'true')
+        self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),before)
+        m.restore(self.exe);self.assertOriginal()
+
+    def test_changed_backup_refuses_before_switching_dll(self):
+        m.install(self.package,self.exe,route='opti',upscaler='fsr4')
+        index=next(i for i,item in enumerate(self.record()['files']) if item['path']=='OptiScaler.ini')
+        (self.game/m.STATE/'backups'/str(index)).write_bytes(b'changed')
+        before=(self.game/'OptiScaler'/m.DLL).read_bytes()
+        with self.assertRaisesRegex(ValueError,'Backup checksum mismatch'):
+            m.configure(self.exe,upscaler='helixsr',package=self.package)
+        self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),before)
+
+    def test_saved_recipe_survives_missing_launcher_registration(self):
+        m.install(self.package,self.exe,route='opti',upscaler='helixsr')
+        (self.root/'.config/heroic/gog_store/installed.json').unlink()
+        m.configure(self.exe,upscaler='fsr4',package=self.package)
+        self.assertEqual(self.value(),'auto')
+        m.configure(self.exe,upscaler='helixsr',package=self.package)
+        self.assertEqual(self.value(),'true')
+        m.restore(self.exe);self.assertOriginal()
+
+
 class Switching(HelixFixture):
     def test_fsr4_to_helixsr_and_back(self):
         m.install(self.package, self.exe, route='opti')

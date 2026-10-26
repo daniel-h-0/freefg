@@ -957,7 +957,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         if custom_opti is not None:accepted_hashes.add(digest(custom_opti))
         matches=[name for name in proxies if (root/name).is_file() and digest(safe(root,name).read_bytes()) in accepted_hashes]
         if not matches:
-            raise ValueError('Existing OptiScaler must be the 10.0.0-pre1 nightly of September 4 or 29. Restore/update its adapter separately first.')
+            raise ValueError('Existing OptiScaler must be a supported pinned build. Restore/update its adapter separately first.')
         owner_module=matches[0]
     parsed=read_ini(original_ini)
     # A configured external FFX library would bypass the file being installed.
@@ -1023,7 +1023,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
             key=tuple(item['key'].split('.',1))
             if parsed.get((key[0].lower(),key[1].lower()),'auto').strip().lower() in ['','auto']:
                 changes.pop(key,None);notes.append('Left '+item['key']+' to OptiScaler’s own setting for this game ('+item['quirk']+').')
-        changes.update(rm.ini_changes(verified,backports,parsed,fg_input,recipe_input,route))
+        changes.update(rm.ini_changes(verified,backports,parsed,fg_input,recipe_input,route,upscaler))
         user=rm.prefix_user(exe,recipe[5],launcher_home)
         # Recipe values a previous installation's Restore could not put back keep their true originals.
         earlier=previous_settings(state,record,rm) if archive_state else {}
@@ -1177,6 +1177,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         entry=recipe[1] or community
         record['recipe']=dict(title=(entry or {}).get('title'),status='verified-bc250' if recipe[1] else 'community-bc250' if entry else None,
                               wiki=[w['title'] for w in recipe[2]],launch_args=launch_args)
+        if (recipe[1] or {}).get('upscaler_ini'):record['recipe']['upscaler_ini']=recipe[1]['upscaler_ini']
         record['game_settings']=[settings_record(item) for item in settings_plan]
     staging=Path(tempfile.mkdtemp(prefix=STATE+'-preparing-',dir=root))
     try:
@@ -1454,6 +1455,34 @@ def switch_upscaler(package,root,record,upscaler,helixsr_dir=None,dependency_dir
     messages.append('Upscaler switched. '+upscaler_line(new_record,digest(new)))
     return messages
 
+def upscaler_recipe_changes(package,exe,record,upscaler):
+    """Apply a verified upscaler-specific workaround, or return its owned value to the original on a switch.
+    Explicit settings before installation and edits since installation remain the user's choice."""
+    recipe=recipe_for(package,exe)
+    rules=((recipe[1] or {}).get('upscaler_ini', {}) if recipe else {})
+    if not recipe or recipe[1] is None:rules=record.get('recipe',{}).get('upscaler_ini',{})
+    if not rules:return {}
+    root=exe.parent.resolve()
+    item_index,item=next((i,item) for i,item in enumerate(record['files']) if item['path']=='OptiScaler.ini')
+    original={}
+    if item['before'] is not None:
+        data=safe(root,STATE+'/backups/'+str(item_index)).read_bytes()
+        if digest(data)!=item['before']:raise ValueError('Backup checksum mismatch: OptiScaler.ini')
+        original=read_ini(data)
+    parsed=read_ini(safe(root,'OptiScaler.ini').read_bytes())
+    owned={(c['section'].lower(),c['key'].lower()):str(c['value']) for c in record['ini_changes']}
+    normalize=lambda value:str(value).strip().lower()
+    out={}
+    for name in sorted({key for values in rules.values() for key in values}):
+        section,key=name.split('.',1);pair=(section.lower(),key.lower())
+        before=original.get(pair,'auto');now=parsed.get(pair,'auto')
+        if normalize(before) not in ('','auto'):continue
+        previous=owned.get(pair)
+        if normalize(now) not in ('','auto') and (previous is None or normalize(now)!=normalize(previous)):continue
+        want=str(rules.get(upscaler,{}).get(name,before))
+        if normalize(now)!=normalize(want):out[(section,key)]=want
+    return out
+
 @locked
 def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=None,upscale=None,upscaler=None,helixsr_dir=None,package=None,dependency_dir=None):
     """Change user settings for an installed package. Runtime files stay as they are, except the upscaler DLL (and HelixSR's
@@ -1475,15 +1504,16 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     if factor is not None and factor>record.get('max_factor',4):
         raise ValueError('This build generates 2× only (one generated frame per real frame: the most Intel’s runtime generates on GPUs other than Intel’s)')
     switched=[]
+    upscaler_changes=upscaler_recipe_changes(Path(package or Path(__file__).resolve().parent),exe,record,upscaler) if upscaler is not None else {}
     if upscaler is not None:switched=switch_upscaler(Path(package or Path(__file__).resolve().parent),root,record,upscaler,helixsr_dir,dependency_dir)
     for line in switched:print(line)
     done,waiting=apply_pending_settings(exe,root,record)
     for item in done:print(('Game setting applied: ' if item['status']=='applied' else 'Game setting already set: ')+setting_line(item))
     for line in waiting:print('Game setting pending: '+line)
     managed={item['path'] for item in record['files']}
-    changes={}
+    changes={'OptiScaler.ini':upscaler_changes} if upscaler_changes else {}
     repair=xess_library_repair(safe(root,'OptiScaler.ini').read_bytes())
-    if repair:changes['OptiScaler.ini']=repair
+    if repair:changes.setdefault('OptiScaler.ini',{}).update(repair)
     if factor is not None and not proxy:
         changes['XeSSMFG/settings.ini']={('XeSSMFG','Multiplier'):str(factor if record['route']=='native' else 0)}
     if factor is not None and record['route']=='opti':changes.setdefault('OptiScaler.ini',{})[('XeFG','InterpolationCount')]=str(factor-1)

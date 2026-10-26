@@ -3,20 +3,72 @@
 The numbers describe FreeFG on this hardware; they are not a prediction for other games, settings, displays or GPUs.
 
 
+## Cyberpunk 2.5 with HelixSR
+
+25 October 2026. FreeFG 1.1.3.1, full GOG Cyberpunk 2077 `2.5_RedModFix` (build `60152385347545148`),
+Phantom Liberty installed. High graphics, ray tracing off, 80-degree field of view, HelixSR 2.0.0 Quality:
+1706×960 input and 2560×1440 output. Choosing the upscaler makes the game's preset label Custom; the advanced
+graphics settings remain the validated High settings. This is a new baseline, with a different game version,
+upscaler and settings from the older FSR 4 measurements below.
+
+![Cyberpunk 2077 2.5, High settings, HelixSR 2.0.0 Quality at 1440p on AMD BC-250. SDR: no FG 71.9, Intel XeFG 2× 86.4, FreeFG 2× 108.4 output FPS; HDR10: no FG 72.0, Intel XeFG 2× 84.9, FreeFG 2× 106.4 output FPS. Game-rendered FPS is shown separately. Four runs per condition; 95% confidence intervals; reactive mask off in every condition.](../../docs/assets/cyberpunk-helixsr-fps.svg)
+
+| Range | Mode | Game FPS | Output FPS | Output FPS, 95% CI |
+| --- | --- | ---: | ---: | --- |
+| SDR | No FG | 71.92 | 71.92 | 71.62–72.22 |
+| SDR | Intel XeFG 2× | 43.20 | 86.40 | 86.27–86.52 |
+| SDR | FreeFG 2× | 54.18 | 108.36 | 108.22–108.50 |
+| HDR10 | No FG | 72.03 | 72.03 | 71.74–72.31 |
+| HDR10 | Intel XeFG 2× | 42.44 | 84.87 | 84.79–84.96 |
+| HDR10 | FreeFG 2× | 53.18 | 106.37 | 106.18–106.55 |
+
+Compared with Intel's XeFG 2× shaders, FreeFG increases output FPS by 25.4% in SDR and 25.3%
+in HDR10. Compared with no FG, its output increases by 50.7% and 47.7%, respectively.
+The game itself renders fewer frames with FG enabled, as the separate Game FPS column shows.
+
+Each of the six conditions has one full unscored warm-up and four measured starts. All 30 starts completed and passed
+the technical checks. The four six-condition blocks balance average run position and reverse Intel/FreeFG order.
+Whiskers and table intervals are Student-t 95% confidence intervals across the four run means (three degrees of freedom).
+They describe repeatability on this machine, not variation across other games or systems. No run was discarded for its
+frame rate. Earlier exploratory series stopped on technical failures and are excluded in full from these means.
+
+Both 2× conditions use OptiScaler's DLSS FG input → XeFG, with the same proxy, layer, HelixSR and game settings.
+The Intel control sets `BC250_XEFG_DISABLE=1` and uses an empty wave table, disabling FreeFG's shader replacements
+and wave overrides. No FG disables generation in both the game and OptiScaler. All six conditions use
+`[InitFlags] DisableReactiveMask=true`, the Cyberpunk/HelixSR workaround described below. It removes an auxiliary
+temporal-reconstruction input; image-quality equivalence to mask-on is not claimed.
+
+Game FPS is the number of rows in the benchmark's per-game-frame CSV divided by elapsed benchmark time. Output FPS
+comes from the benchmark summary. Its output-frame count divided by the CSV row count was approximately two with FG
+and one without. OptiScaler/HelixSR logs confirm sustained 1706×960 input; the game's DLSS-route summary itself reports
+the 2560×1440 output dimensions. FG logs verify factor two; FreeFG runs report all 13 accelerated programs and seven
+FP16 pipelines without fallback, and Intel controls report no acceleration.
+
+Headless gamescope runs at 240 Hz. VSync, game/XeLL/OptiScaler frame caps and FreeFG's output/frame-start pacing are
+off in every condition. Reflex is enabled, XeLL's cap is zero and native Anti-Lag 2 is disabled. Condition-specific
+Mesa and vkd3d caches start empty, are filled by that condition's warm-up, then remain warm for its four measurements.
+The test uses the installed MastaG Mesa `3:26.2.5-1.331`, GE-Proton11-11 and the existing BC-250 driver flags;
+`RADV_DIRECTMESH=1` is fixed throughout. The newer staged Mesa 346 was used only for excluded compatibility diagnostics.
+No screenshot or GPU readback ran during measured samples. These are throughput measurements, with no new display-pacing
+or end-to-end latency claim.
+
+[Run means, confidence intervals, hashes and driver settings](../../docs/data/cyberpunk-helixsr/data.json) ·
+[Figure script](../../docs/data/cyberpunk-helixsr/plot.py) ·
+[Compact chart](../../docs/assets/cyberpunk-helixsr-fps-narrow.svg).
+
 ## Checks of 1.1.3.1
 
 25 October 2026. One profile entry changes: `graph-prepare224.dxil` (`835dc58bffaad6d9`) uses wave64 instead of
 wave32. The shader bytes are identical. The rebuilt proxy is
 `f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805`; the wave table is
-`076fc0f41dd87e26b695b0384d5f46476d218e2c5e1703159ab7a75f9bcb078e`. The other 141 wave choices, OptiScaler,
-the presentation layer and game recipes remain 1.1.3's. This setting applies wherever the shader is created, without
-an executable-name check.
+`076fc0f41dd87e26b695b0384d5f46476d218e2c5e1703159ab7a75f9bcb078e`. The other 141 wave choices and the presentation
+layer remain 1.1.3's. This setting applies wherever the shader is created, without an executable-name check.
+The replacement 1.1.3.1 also updates OptiScaler and the Cyberpunk 2.5 recipe, described below.
 
-A wave-table bisection in Cyberpunk 2077 2.5 isolated the wave32 selection for this module as a trigger for an early
-GPU fault. Keeping the complete table and changing only that entry to 64 completed full SDR and HDR10 benchmarks:
+A wave-table bisection in Cyberpunk 2077 2.5 associated early GPU faults with this module's wave32 selection. Keeping the complete table and changing only that entry to 64 completed full SDR and HDR10 benchmarks:
 HelixSR 2.0.0 Quality, High preset, 2560×1440 output, GE-Proton 11-11, Mesa 26.2.5, BC-250. Those diagnostic runs used
-a newer OptiScaler fork and a DLSSG-to-XeFG recipe under separate qualification; they do not qualify 1.1.3.1's bundled
-Cyberpunk recipe. Their frame rates are not a scored performance comparison.
+an earlier October 25 OptiScaler candidate and a DLSSG-to-XeFG recipe. Their frame rates are diagnostic and are
+excluded from the scored performance comparison.
 
 The rebuilt proxy passed nine same-day native 2× SDK comparisons against 1.1.3: 144 generated images were
 byte-identical. Cases cover 1920×1080, 2560×1440 and 3840×2160; SDR and HDR10; normalized and pixel motion; the
@@ -24,15 +76,33 @@ default forms and Exact mode. Both arms used the shipped presentation layer. The
 observed calls to the affected 48-column transform in the hotfix runs. No fault, failed program replacement or
 fallback was reported. This is an output comparison, not a timing result.
 
-The hotfix payload also passed Echo Point Nova menu starts at 2×, 3× and 4× with HelixSR and MFG Unlocker 1.6.0.
+The replacement package's OptiScaler (`b3602882…`) and hotfix payload passed Echo Point Nova menu starts at 2×, 3×
+and 4× with HelixSR and MFG Unlocker 1.6.0.
 Each start reported the requested SDK factor, all 13 accelerated programs and seven FP16 pipelines, with no fallback
 or GPU fault, and exited normally. The original files and settings were then restored byte-for-byte. These are
 compatibility checks; the menu runs do not establish display pacing or gameplay performance.
 
 The exact underlying cause is unresolved. This input-transform shader has no wave operations in its shipped form,
-and each thread owns its scratch addresses. The change does not alter its arithmetic. The earlier pacing checks
-below remain the evidence for the unchanged presentation layer and OptiScaler; this hotfix makes no new latency or
-performance claim.
+and each thread owns its scratch addresses. The change does not alter its arithmetic. The earlier TV pacing checks below remain the evidence for the unchanged
+presentation layer. The new headless comparison measures throughput; no end-to-end latency or new TV pacing claim
+is made.
+
+The bundled OptiScaler DLL is `b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656`, built from
+fork `03db4f8692878e65748769ebe583c053cae96360` (source tag `bc250-03db4f8`). It includes the actual October 25 nightly
+source `08e13adf`, including the FPS-overlay merge omitted from the nightly's change list. The fork retains separate
+XeSS/XeFG/XeLL paths, automatic settings saving and FreeFG's adaptive frame-start pacing. Its 27 path read/save/reload
+combinations pass. The public installer passed an upgrade/Restore on a copy of the full Cyberpunk install, restoring
+files, settings and Heroic configuration exactly, then installed the candidate in the full game.
+
+Cyberpunk's updated recipe uses DLSS upscaling input and DLSS FG input to XeFG, keeps the game's own XeSS library,
+and enables Reflex with native Anti-Lag 2 disabled. The user's obsolete controls/settings were migrated separately
+through the updated game; Setup does not perform a general settings-schema conversion.
+
+The Cyberpunk/HelixSR recipe also disables the auxiliary reactive/bias mask input. Before the new scored series,
+mask-off passed ten diagnostic starts (three short and seven full); a mask-on reversal faulted on its first start,
+then mask-off passed again. Three full no-FG runs passed on the installed driver, including SDR and HDR. The
+same fault reproduced without FreeFG code. These are compatibility diagnostics, excluded from frame-rate means.
+Removing the mask changes an upscaler input; equivalent temporal image quality is not claimed.
 
 ## Checks of 1.1.3
 
@@ -88,13 +158,15 @@ active throughout; its own frame generation stayed disabled.
 The path fix has a 27-case read/save/reload regression using OptiScaler's real config fragments. The preceding path-fix
 candidate also passed an Echo Point Nova HelixSR/2× start. CPU checks cover frame-start bunching and stall recovery,
 presentation jitter and swapchain limits, concurrent presents, and the proxy's loader/bookkeeping under Wine. The
-current native-route game check is still pending: the existing Cyberpunk benchmark exits with the released build and
-with the path-fix build, under either upscaler. These pacing results cover CONTROL Resonant, not library-wide gameplay,
+native-route game check was incomplete at the 1.1.3 release: the then-existing Cyberpunk benchmark exited with both
+the released build and the path-fix build, under either upscaler. The newer Cyberpunk comparison above uses OptiScaler's
+DLSS FG route. These pacing results cover CONTROL Resonant, not library-wide gameplay,
 SDR, other GPUs, or a different compositor.
 
 ## Scope
 
 - One AMD BC-250 ([test system](#test-system)).
+- 1.1.3.1 adds the updated [Cyberpunk 2.5 / HelixSR baseline](#cyberpunk-25-with-helixsr), including no FG, Intel XeFG 2× and FreeFG 2× in SDR/HDR10.
 - 1.1.2 adds the FP16 forms of seven kernels (the default; slightly different output), F4Q2, F4Q3 and three exact
   kernel changes, and installs FSR 4 RC12: its [checks](#checks-of-112), with test builds of the same kernels, with an
   earlier 1.1.2 candidate and with the release's proxy, and one block against 1.1.1 at 2× in SDR and HDR10.

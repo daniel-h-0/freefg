@@ -181,6 +181,14 @@ class MatchTests(unittest.TestCase):
             self.assertEqual(r.settings_plan(opti, user, 'opti', 'upscaler'), [])
             self.assertEqual(len(r.settings_plan(opti, user, 'opti', 'dlssg')), 1)
 
+    def test_upscaler_specific_ini_keeps_explicit_choices(self):
+        verified=dict(ini={},upscaler_ini={'helixsr':{'InitFlags.DisableReactiveMask':'true'}})
+        args=(verified,{}, {},'upscaler','upscaler','opti')
+        self.assertEqual(r.ini_changes(*args,upscaler='fsr4'),{})
+        self.assertEqual(r.ini_changes(*args,upscaler='helixsr'),{('InitFlags','DisableReactiveMask'):'true'})
+        self.assertEqual(r.ini_changes(verified,{}, {('initflags','disablereactivemask'):'false'},
+                                      'upscaler','upscaler','opti','helixsr'),{})
+
     def test_launch_args(self):
         self.assertEqual(r.launch_args(dict(launch_args=['-force-d3d12']), [dict(launch_args=['-dx12'])]), ['-force-d3d12'])
         self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12', '-d3d12'])]), ['-dx12'])
@@ -223,9 +231,10 @@ class BuildTests(unittest.TestCase):
         self.assertIn('-dx12', odd['other_launch_args'])
 
     def test_sources_and_backports_follow_the_shipped_build(self):
-        self.assertEqual(self.data['sources']['optiscaler_pinned'], 'f971ed143de0bdbbbac6d526c95a20227c22e1c6')
+        self.assertEqual(self.data['sources']['optiscaler_pinned'], '03db4f8692878e65748769ebe583c053cae96360')
         self.assertTrue(self.data['sources']['wiki'].startswith('9812e2d'))
-        self.assertEqual(list(self.data['backports']), ['beamng.drive.x64.exe'])
+        # The October 25 build includes the previous BeamNG backport.
+        self.assertEqual(self.data['backports'], {})
         self.assertEqual(sorted(self.data['leave_auto']), ['dcs.exe', 'endfield.exe', 'granblue_fantasy_relink.exe'])
         # Q2 answered: the shipped build itself keeps CONTROL Resonant's FG swap chain unpreserved (a runtime quirk).
         control = self.data['quirk_keys']['controlresonant.exe']
@@ -757,6 +766,8 @@ class CompactRecipeTests(unittest.TestCase):
                 plan = r.settings_plan(verified, user, route, fg_input if route == 'opti' else None)
                 out[route + '/' + fg_input] = dict(
                     ini=sorted(r.ini_changes(verified, backports, {}, fg_input, (verified or {}).get('fg_input'), route).items()),
+                    upscaler_ini={u:sorted(r.ini_changes(verified,backports,{},fg_input,(verified or {}).get('fg_input'),route,u).items())
+                                  for u in ('fsr4','helixsr')},
                     suggestions=r.suggestions(verified, wiki, fg_input, route),
                     settings=[(self.installer.settings_record(item), item['reason']) for item in plan])
         return out

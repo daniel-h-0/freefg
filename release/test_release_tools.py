@@ -1421,15 +1421,16 @@ class PublicArchiveGate(unittest.TestCase):
         cls.assemble = assemble
 
     def tree(self):
-        """A folder with what check_public_docs.py reads: packaging/public/, the figures its documents link to
-        (docs/assets/), packaging/dependencies.json, release/package.json and release/inputs.lock.json, copied from this
-        tree."""
+        """A folder with what check_public_docs.py reads: packaging/public/, the linked figures and their data
+        (docs/assets/ and docs/data/), packaging/dependencies.json, release/package.json and release/inputs.lock.json,
+        copied from this tree."""
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         root = Path(folder.name)
         shutil.copytree(TREE / 'packaging/public', root / 'packaging/public',
                         ignore=shutil.ignore_patterns('__pycache__'))
         shutil.copytree(TREE / 'docs/assets', root / 'docs/assets')
+        shutil.copytree(TREE / 'docs/data', root / 'docs/data', ignore=shutil.ignore_patterns('__pycache__'))
         for name in ('packaging/dependencies.json', 'release/package.json', 'release/inputs.lock.json'):
             (root / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(TREE / name, root / name)

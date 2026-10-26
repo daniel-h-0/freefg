@@ -425,14 +425,14 @@
    "env": "XEMFG_OPTISCALER",
    "description": "OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll: OptiScaler master of 19 October 2026 (c2e44a8b) with three commits. Its source is the commit below with the submodules that commit pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which ran it. Until the fork's release is public, release/assemble.py reads the DLL from XEMFG_OPTISCALER and the source companion reads the fork's git checkout from XEMFG_OPTISCALER_SOURCE; release_fetch is the fetch group prepared for that release.",
    "source": {
-    "commit": "be42012aff2dbe26e5565d076e50f227e428cad1",
-    "branch": "codex/freefg-frame-start-pacing",
+    "commit": "03db4f8692878e65748769ebe583c053cae96360",
+    "branch": "codex/freefg-nightly-20261025",
     "upstream": "https://github.com/optiscaler/OptiScaler",
-    "upstream_base": "c2e44a8bc911010d7ed3e4fa63843185fbb55d03",
+    "upstream_base": "08e13adf55b3fd71a67071eac2e95973ac598df3",
     "fixed_upstream": "f6db41dfa7bacb16ac50bd1e5787fdb44362da47",
-    "tree": "46047c8460883bb40b88b1eacf036efbad73a34e",
-    "tag": "bc250-be42012",
-    "tag_commit": "6333116cbf0b88d057be50c747739cf29fbc2456",
+    "tree": "65fb869215201128d9468bb3316bb3af7b9223dc",
+    "tag": "bc250-03db4f8",
+    "tag_commit": "d191284afa25968f8ae709e70ccd7a8701003ec8",
     "build_route": [
      "FORK.md",
      "tools/bc250-build.py"
@@ -440,17 +440,17 @@
     "build": "tools/bc250-build.py --jobs 8: clang-cl/lld-link 23.1.3, MSVC 14.44.35207, SDK 10.0.26100.0; compile/link settings from the vcxproj",
     "source_in_work": "OptiScaler",
     "archive": {
-     "name": "OptiScaler-bc250-be42012-source.tar.xz",
-     "sha256": "4cd30417a598ece1f46c42568396e8cf267fd0b115b23a418c79a3579bc7b1d1",
-     "bytes": 332292384,
-     "tar_sha256": "bd7f4438d6ceda77a90c4b21979c9cc0f423a124d6bfcd312fc46702aa1fb040",
-     "tar_bytes": 883148800,
-     "members": 7116,
-     "files": 6372,
-     "files_sha256": "81df2bbb39aa2b8ae115fbbca90413a5855fcf5316ac038bc9b97add464d80e0",
-     "tag": "bc250-be42012",
-     "tag_commit": "6333116cbf0b88d057be50c747739cf29fbc2456",
-     "commit": "be42012aff2dbe26e5565d076e50f227e428cad1",
+     "name": "OptiScaler-bc250-03db4f8-source.tar.xz",
+     "sha256": "94eba1f20ff40d983054fcda38ae974f8bc5f3ca3c8408519560c3cb5265d94b",
+     "bytes": 332634264,
+     "tar_sha256": "d93545fd96f73285f921c261bde9f5e12ccf87f22a0d869ccc4fc81a243d316b",
+     "tar_bytes": 892200960,
+     "members": 7135,
+     "files": 6387,
+     "files_sha256": "5b6676e3adfc0d7d61cda00c1aaa5f7eed4b5316664648058c5e8c193326c783",
+     "tag": "bc250-03db4f8",
+     "tag_commit": "d191284afa25968f8ae709e70ccd7a8701003ec8",
+     "commit": "03db4f8692878e65748769ebe583c053cae96360",
      "bundled": [
       "external/FidelityFX-SDK",
       "external/FidelityFX-SDK-v2",
@@ -469,18 +469,18 @@
    },
    "files": {
     "OptiScaler.dll": {
-     "sha256": "1e8025628911495a35d40764bef69157a3d80ce0c3b67b19b2cf7e090ea1dc20"
+     "sha256": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656"
     }
    },
    "release_fetch": {
     "enabled": false,
     "about": "Prepared, not used yet: the fetch group \"optiscaler-fork\" for when the fork's release is public. Then move it to \"fetch\" with the placeholders filled and \"enabled\" and \"about\" removed; the work group's \"source\" record (commit, tree, tag, tag_commit, build_route, archive, ...) moves with it, as the group's \"source\" (the source companion and release/fork_source_archive.py read it there; its work-checkout notes may go). Then drop this work group, the OMITTABLE entry of release/ci/assemble_ci.py and BUILDING.md's note that the release tooling does not download the built DLL, and list the group in BUILDING.md. Its \"commit\" is source.tag_commit: after the tag moves, both change together (release/fork_source_archive.py, \"Moving the tag\"). [OPTISCALER-FORK-SOURCE-URL] is the fork's repository URL (the one FORK.md clones) and [OPTISCALER-FORK-TAG] its tag. release/test_release_tools.py checks that it pins the same files as this group, at the tag commit.",
     "repository": "[OPTISCALER-FORK-SOURCE-URL]",
-    "commit": "6333116cbf0b88d057be50c747739cf29fbc2456",
+    "commit": "d191284afa25968f8ae709e70ccd7a8701003ec8",
     "url": "[OPTISCALER-FORK-SOURCE-URL]/releases/download/[OPTISCALER-FORK-TAG]/{path}",
     "files": {
      "OptiScaler.dll": {
-      "sha256": "1e8025628911495a35d40764bef69157a3d80ce0c3b67b19b2cf7e090ea1dc20"
+      "sha256": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656"
      }
     }
    }
