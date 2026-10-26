@@ -4,56 +4,88 @@ The numbers describe FreeFG on this hardware; they are not a prediction for othe
 
 ## Cyberpunk 2.5 with HelixSR
 
-25 October 2026. FreeFG 1.1.3.1, full GOG Cyberpunk 2077 `2.5_RedModFix` (build `60152385347545148`),
+26 October 2026. FreeFG 1.1.3.1, full GOG Cyberpunk 2077 `2.5_RedModFix` (build `60152385347545148`),
 Phantom Liberty installed. High graphics, ray tracing off, 80-degree field of view, HelixSR 2.0.0 Quality:
-1706×960 input and 2560×1440 output. Choosing the upscaler makes the game's preset label Custom; the advanced
-graphics settings remain the validated High settings. This is a new baseline, with a different game version,
-upscaler and settings from the older FSR 4 measurements below.
+1706×960 input and 2560×1440 output. The game labels this Custom after the upscaler selection; advanced graphics
+settings remain High. These conditions differ from the older FSR 4 measurements below.
 
-![Cyberpunk 2077 2.5, High settings, HelixSR 2.0.0 Quality at 1440p on AMD BC-250. SDR: no FG 71.9, Intel XeFG 2× 86.4, FreeFG 2× 108.4 output FPS; HDR10: no FG 72.0, Intel XeFG 2× 84.9, FreeFG 2× 106.4 output FPS. Game-rendered FPS is shown separately. Four runs per condition; 95% confidence intervals; reactive mask off in every condition.](../../docs/assets/cyberpunk-helixsr-fps.svg)
+![Cyberpunk 2077 2.5, High graphics, HelixSR Quality at 1440p on AMD BC-250. No FG and Intel/FreeFG at 2×, 3× and 4× in SDR and HDR10. 3×/4× are marked unofficial. Separate output FPS, game FPS and derived milliseconds per generated frame. Four runs per condition, 95% confidence intervals, reactive mask off.](../../docs/assets/cyberpunk-helixsr-fps.svg)
 
-| Range | Mode | Game FPS | Output FPS | Output FPS, 95% CI |
-| --- | --- | ---: | ---: | --- |
-| SDR | No FG | 71.92 | 71.92 | 71.62–72.22 |
-| SDR | Intel XeFG 2× | 43.20 | 86.40 | 86.27–86.52 |
-| SDR | FreeFG 2× | 54.18 | 108.36 | 108.22–108.50 |
-| HDR10 | No FG | 72.03 | 72.03 | 71.74–72.31 |
-| HDR10 | Intel XeFG 2× | 42.44 | 84.87 | 84.79–84.96 |
-| HDR10 | FreeFG 2× | 53.18 | 106.37 | 106.18–106.55 |
+| Range | Mode | Game FPS | Output FPS | Output FPS, 95% CI | Added ms / generated frame |
+| --- | --- | ---: | ---: | --- | ---: |
+| SDR | No FG | 71.95 | 71.95 | 71.58–72.32 | — |
+| SDR | Intel XeFG 2× | 43.17 | 86.34 | 86.09–86.59 | 9.27 |
+| SDR | FreeFG 2× | 54.18 | 108.36 | 108.00–108.73 | 4.56 |
+| SDR | Intel XeFG 3×<sup>(unofficial)</sup> | 31.30 | 93.89 | 93.82–93.96 | 9.03 |
+| SDR | FreeFG 3×<sup>(unofficial)</sup> | 43.89 | 131.67 | 130.62–132.72 | 4.44 |
+| SDR | Intel XeFG 4×<sup>(unofficial)</sup> | 24.49 | 97.95 | 97.63–98.26 | 8.98 |
+| SDR | FreeFG 4×<sup>(unofficial)</sup> | 37.77 | 151.06 | 150.77–151.35 | 4.19 |
+| HDR10 | No FG | 71.64 | 71.64 | 71.46–71.81 | — |
+| HDR10 | Intel XeFG 2× | 42.46 | 84.92 | 84.74–85.09 | 9.59 |
+| HDR10 | FreeFG 2× | 53.26 | 106.52 | 106.24–106.80 | 4.82 |
+| HDR10 | Intel XeFG 3×<sup>(unofficial)</sup> | 30.57 | 91.72 | 91.53–91.92 | 9.37 |
+| HDR10 | FreeFG 3×<sup>(unofficial)</sup> | 43.20 | 129.61 | 129.32–129.90 | 4.59 |
+| HDR10 | Intel XeFG 4×<sup>(unofficial)</sup> | 23.84 | 95.36 | 95.29–95.43 | 9.33 |
+| HDR10 | FreeFG 4×<sup>(unofficial)</sup> | 36.53 | 146.12 | 145.83–146.41 | 4.47 |
 
-Compared with Intel's XeFG 2× shaders, FreeFG increases output FPS by 25.4% in SDR and 25.3%
-in HDR10. Compared with no FG, its output increases by 50.7% and 47.7%, respectively.
-The game itself renders fewer frames with FG enabled, as the separate Game FPS column shows.
+Compared with Intel's shaders at the same factor, FreeFG increases output FPS by
+25.5% / 40.2% / 54.2% at 2× / 3× / 4× in SDR and
+25.4% / 41.3% / 53.2% in HDR10. Game FPS falls as more frames are generated.
+**(unofficial)** marks 3×/4×: Intel's runtime requires separately supplied MFG Unlocker 1.6.0 on this GPU,
+with `XeFGModel=default`. It is present in both the Intel and FreeFG higher-factor conditions, absent at 2×.
 
-Each of the six conditions has one full unscored warm-up and four measured starts. All 30 starts completed and passed
-the technical checks. The four six-condition blocks balance average run position and reverse Intel/FreeFG order.
-Whiskers and table intervals are Student-t 95% confidence intervals across the four run means (three degrees of freedom).
-They describe repeatability on this machine, not variation across other games or systems. No run was discarded for its
-frame rate. Earlier exploratory series stopped on technical failures and are excluded in full from these means.
+### Derived frame cost
 
-Both 2× conditions use OptiScaler's DLSS FG input → XeFG, with the same proxy, layer, HelixSR and game settings.
+For output factor `m`, let `G_m` be mean game-rendered FPS with FG and `G_0` the no-FG mean in the same dynamic range:
+
+```text
+Added ms per game frame       = 1000 / G_m − 1000 / G_0
+Added ms per generated frame  = (1000 / G_m − 1000 / G_0) / (m − 1)
+```
+
+At 2× there is one generated frame per game frame, so the two costs are equal. At 3× and 4×, divide by two and three.
+For example, FreeFG 2× HDR10 gives
+`(1000 / 53.2622) − (1000 / 71.6363) ≈ 4.82 ms` per generated frame. All published costs use unrounded means.
+This is a throughput-derived estimate of added frame time, including interactions with other rendering work;
+it is not isolated GPU execution time or input latency. The JSON also supplies total cost per game frame and the
+four paired-block cost estimates. Chart whiskers describe FPS uncertainty; no cost confidence interval is plotted.
+
+### Method
+
+Each of the 14 conditions has one full unscored warm-up and four measured starts: **70 completed starts, 56 scored**.
+All passed the technical checks. The four 14-condition blocks balance average run position and reverse pair order.
+Whiskers and table intervals are Student-t 95% confidence intervals across four run means (three degrees of freedom).
+They describe repeatability on this machine. No run was discarded for its frame rate. Preparation pilots are unscored;
+one interrupted pilot lost its parent harness and was retained separately, then repeated successfully before this series.
+
+All FG conditions use OptiScaler's DLSS FG input → XeFG, with the same proxy, layer, HelixSR and game settings.
 The Intel control sets `BC250_XEFG_DISABLE=1` and uses an empty wave table, disabling FreeFG's shader replacements
-and wave overrides. No FG disables generation in both the game and OptiScaler. All six conditions use
+and wave overrides. No FG disables generation in both the game and OptiScaler. Every condition uses
 `[InitFlags] DisableReactiveMask=true`, the Cyberpunk/HelixSR workaround described below. It removes an auxiliary
 temporal-reconstruction input; image-quality equivalence to mask-on is not claimed.
 
-Game FPS is the number of rows in the benchmark's per-game-frame CSV divided by elapsed benchmark time. Output FPS
-comes from the benchmark summary. Its output-frame count divided by the CSV row count was approximately two with FG
-and one without. OptiScaler/HelixSR logs confirm sustained 1706×960 input; the game's DLSS-route summary itself reports
-the 2560×1440 output dimensions. FG logs verify factor two; FreeFG runs report all 13 accelerated programs and seven
-FP16 pipelines without fallback, and Intel controls report no acceleration.
+Game FPS is the benchmark's per-game-frame CSV row count divided by elapsed benchmark time. Output FPS comes from
+the summary; its output-frame count divided by the CSV row count matches the requested factor in every run.
+OptiScaler/HelixSR logs confirm sustained 1706×960 input; the game's DLSS-route summary reports the 2560×1440 output.
+FG logs verify factors 2/3/4; FreeFG runs report all 13 accelerated programs and seven FP16 pipelines without fallback
+in the OptiScaler context. The game's additional native XeSS context is left unaccelerated beside MFG Unlocker.
+Intel controls report no acceleration.
 
 Headless gamescope runs at 240 Hz. VSync, game/XeLL/OptiScaler frame caps and FreeFG's output/frame-start pacing are
-off in every condition. Reflex is enabled, XeLL's cap is zero and native Anti-Lag 2 is disabled. Condition-specific
-Mesa and vkd3d caches start empty, are filled by that condition's warm-up, then remain warm for its four measurements.
-The test uses the installed MastaG Mesa `3:26.2.5-1.331`, GE-Proton11-11 and the existing BC-250 driver flags;
-`RADV_DIRECTMESH=1` is fixed throughout. The newer staged Mesa 346 was used only for excluded compatibility diagnostics.
-No screenshot or GPU readback ran during measured samples. These are throughput measurements, with no new display-pacing
-or end-to-end latency claim.
+off throughout. Reflex is enabled, XeLL's cap is zero and native Anti-Lag 2 is disabled. Condition-specific Mesa and
+vkd3d caches start empty, are filled by a warm-up, then remain warm for the four measurements.
+The test uses the installed MastaG Mesa `3:26.2.5-1.331`, GE-Proton11-11 and existing BC-250 driver flags;
+`RADV_DIRECTMESH=1` is fixed throughout. The loaded driver and all 57 RADV environment entries match the preceding
+2× campaign. No screenshots or GPU readback run during timing. These are throughput measurements, with no new
+display-pacing, image-quality or end-to-end latency claim.
 
-[Run means, confidence intervals, hashes and driver settings](../../docs/data/cyberpunk-helixsr/data.json) ·
+[Run means, intervals, costs, hashes and driver settings](../../docs/data/cyberpunk-helixsr/data.json) ·
 [Figure script](../../docs/data/cyberpunk-helixsr/plot.py) ·
 [Compact chart](../../docs/assets/cyberpunk-helixsr-fps-narrow.svg).
+
+The [25 October 2× dataset](../../docs/data/cyberpunk-helixsr/2x-2026-10-25.json) is preserved separately:
+six warm-ups and 24 scored starts, with FreeFG/Intel output gains of 25.4% SDR and 25.3% HDR10.
+None of those earlier runs is mixed into this 26 October comparison.
 
 ## Checks of 1.1.3.1
 

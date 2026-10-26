@@ -13,12 +13,14 @@ By default, seven shaders use faster FP16 arithmetic, so generated pixels can di
 `BC250_XEFG_EXACT=1` disables those forms. Exact mode matched Intel in the comparisons performed, but not every
 kernel is proven equivalent for every input. [Output differences and switches](packaging/public/ARCHITECTURE.md#fp16-forms-the-default-slightly-different).
 
-![Cyberpunk 2077 2.5, High graphics, HelixSR Quality at 1440p, AMD BC-250. Output FPS: no FG 71.9 SDR / 72.0 HDR10; Intel XeFG 2× 86.4 / 84.9; FreeFG 2× 108.4 / 106.4. Game FPS is shown separately. Four runs per condition, 95% confidence intervals, reactive mask off.](docs/assets/cyberpunk-helixsr-fps.svg)
+![Cyberpunk 2077 2.5, High graphics, HelixSR Quality at 1440p on AMD BC-250. No FG and Intel/FreeFG at 2×, 3× and 4× in SDR and HDR10. 3×/4× are marked unofficial. Separate output FPS, game FPS and derived milliseconds per generated frame. Four runs per condition, 95% confidence intervals, reactive mask off.](docs/assets/cyberpunk-helixsr-fps.svg)
 
-**25.4% more output FPS in SDR and 25.3% in HDR10** than Intel's shaders on the same XeFG 2× route.
+**25.5% more output FPS in SDR and 25.4% in HDR10** than Intel's shaders on the same XeFG 2× route.
+The chart also compares 3×/4×; their **(unofficial)** labels identify the separate MFG Unlocker 1.6.0 requirement.
+Cost is added milliseconds per generated frame, derived from game FPS rather than GPU timestamps.
 Cyberpunk 2.5, High graphics, HelixSR Quality (1706×960 → 2560×1440), reactive mask off in every condition.
 Four uncapped headless runs per condition after a warm-up; whiskers show 95% confidence intervals across runs.
-[Method and data](packaging/public/MEASUREMENTS.md#cyberpunk-25-with-helixsr) · [Compact chart](docs/assets/cyberpunk-helixsr-fps-narrow.svg).
+[Method, cost formula and data](packaging/public/MEASUREMENTS.md#cyberpunk-25-with-helixsr) · [Compact chart](docs/assets/cyberpunk-helixsr-fps-narrow.svg).
 
 ## Requirements
 
@@ -120,7 +122,7 @@ A game's native XeSS FG context is not accelerated while another mod hooks Intel
 | unset | MFG Unlocker's model. In the tested Cyberpunk route, FreeFG replaced 7 of 13 programs. |
 
 [Compatibility and mechanism](packaging/public/ARCHITECTURE.md#another-mod-on-intels-runtime) ·
-[Historical 3×/4× measurements](packaging/public/MEASUREMENTS.md#3-and-4-with-mfg-unlocker).
+[Current 2×/3×/4× measurements](packaging/public/MEASUREMENTS.md#cyberpunk-25-with-helixsr).
 
 To remove MFG Unlocker, delete its `.asi` and `RTXMFG-*` files; keep a copy of `RTXMFG-Universal.json` if you want its
 settings. Set 2× in OptiScaler. Leave `LoadAsiPlugins` enabled for OptiPatcher. Restore leaves third-party files it did

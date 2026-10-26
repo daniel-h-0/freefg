@@ -4,6 +4,8 @@ Release changes since 0.9.0. Measurements describe the named release and test co
 
 ## Unreleased
 
+- Extend the HelixSR charts to matched 2×/3×/4× SDR and HDR10 measurements, mark the MFG Unlocker
+  categories `(unofficial)`, and show derived milliseconds per generated frame. Preserve the prior 2× dataset.
 - Review all public documentation against 1.1.3.1: shorten explanations, correct shader counts and dependency
   provenance, distinguish curated recipes from gameplay validation, and date historical measurements.
 - Correct Check system's description of the multi-frame build, fallback pacing and current test environment.

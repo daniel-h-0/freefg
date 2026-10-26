@@ -1,7 +1,7 @@
 {
   "figure": "cyberpunk-helixsr-fps",
-  "date": "2026-10-25",
-  "date_label": "25 October 2026",
+  "date": "2026-10-26",
+  "date_label": "26 October 2026",
   "game": {
     "name": "Cyberpunk 2077",
     "version_label": "2.5",
@@ -13,7 +13,7 @@
   "freefg": {
     "version": "1.1.3.1",
     "release": "https://github.com/daniel-h-0/freefg/releases/tag/v1.1.3.1",
-    "commit": "ca4bc30c27ac093a895c98be1c9cedb8418c0883",
+    "commit": "c7b377a27aba6a428adaf0b011f59bf8f012ee75",
     "profile": "default (seven FP16 U-Net forms; generated images differ slightly from Intel)"
   },
   "upscaler": {
@@ -48,23 +48,27 @@
     "reactive_mask": "Disabled in all conditions through the Cyberpunk/HelixSR recipe; removes a temporal-reconstruction input. No image-quality equivalence to mask-on is claimed.",
     "runs_per_condition": 4,
     "warmups_per_condition": 1,
-    "comparison": "No FG; OptiScaler DLSS FG input \u2192 XeFG 2\u00d7 with Intel shaders; the same route with FreeFG default shaders. Same HelixSR, game settings, proxy and layer.",
-    "intel_control": "BC250_XEFG_DISABLE=1 and an empty XEFG_WAVE_CONFIG: no FreeFG shader replacements or wave overrides.",
+    "comparison": "Same full GOG 2.5_RedModFix install, High RT-off, 80-degree FOV, HelixSR 2.0.0 Quality 1706x960 to 2560x1440; reactive mask disabled. Same DLSS FG input to XeFG for 2x/3x/4x. Reflex Enabled, XeLL Disabled/cap zero, Anti-Lag2 Disabled. All caps, VSync, output/frame-start pacing off. Headless 240 Hz. Intel controls disable shader acceleration and use an empty wave table. Only 3x/4x load separately supplied MFG Unlocker 1.6.0, XeFGModel=default; both Intel and FreeFG at these factors carry an unofficial category label.",
+    "intel_control": "BC250_XEFG_DISABLE=1 and XEFG_WAVE_CONFIG pointing to an empty wave-table file: no FreeFG shader replacements or wave overrides.",
     "game_fps": "Number of frames.csv rows / benchmark elapsed seconds.",
-    "output_fps": "Cyberpunk benchmark summary averageFps, including generated frames on the verified DLSS FG input \u2192 XeFG route. Verified frameNumber / CSV row count is approximately 2 with FG and 1 without.",
+    "output_fps": "Cyberpunk summary averageFps, including generated frames on the DLSS FG input to XeFG route. Verified summary frameNumber / frames.csv row count matches requested factor in every run.",
     "interval": "Student-t 95% confidence interval over four run means (df=3); describes repeatability on this machine, not generalization to other systems.",
     "headless_refresh_hz": 240,
     "pacing": "VSync, game/XeLL/OptiScaler caps, BC250_XEFG_PACE and BC250_XELL_PACE disabled in every condition; this measures throughput, not VRR pacing or input latency.",
     "latency_settings": "Reflex enabled, XeLL frame cap zero, native Anti-Lag 2 disabled in every condition. DLSS FG also enables Reflex automatically. No input-latency measurement is claimed.",
-    "cache": "One full unscored warm-up per condition, then persistent condition-specific Mesa and vkd3d caches under a fresh c5/{os,is,fs,oh,ih,fh} root. No cache clearing between scored starts.",
-    "ordering": "Each condition has mean position 3.5 across the four six-condition blocks. Intel/FreeFG order reverses within each dynamic-range pair.",
-    "rejection": "Technical invalidity only: incomplete benchmark, wrong rendering dimensions or frame count, missing HelixSR/FG evidence, unexpected shader acceleration in Intel controls, missing acceleration/fallback in FreeFG, other game/GPU work, GPU reset, or output within 5% of the refresh ceiling. No rejection by FPS or statistical outlier status. Stop at the first invalid run, retain all logs.",
+    "cache": "Fresh per-condition Mesa and vkd3d cache folders under mfg26-cache/. One full unscored warm-up, reused for the four measured runs. Pilot caches separate.",
+    "ordering": "Four blocks, each containing all fourteen conditions. Blocks 2/4 reverse 1/3; every condition has the same average position. All fourteen full warm-ups finish before scoring.",
+    "rejection": "Stop on first technical invalidity. Retain every raw run. No FPS-based exclusion or replacement of failed runs; any changed protocol is a separate campaign.",
     "settings": "High graphics settings, ray tracing off, 80-degree field of view; DLSS Quality input selects HelixSR. The game labels this Custom after the upscaler selection. Full settings hash retained per run.",
     "gpu_clock_limit_mhz": 1850,
     "gpu_governor": "Dynamic, 500\u20131850 MHz; configured endpoint request 860 mV, not a fixed measured voltage. Throttling begins at 88 \u00b0C.",
-    "cpu_clock_request_mhz": 3800
+    "cpu_clock_request_mhz": 3800,
+    "derived_cost": "N_m = (1000 / mean_game_fps_m - 1000 / mean_game_fps_no_fg) / (m - 1), ms per generated frame; total added time per game frame is N_m*(m-1). Throughput-derived overhead, not an isolated GPU-stage or latency measurement.",
+    "derived_cost_repeatability": "Point estimate uses reciprocal unrounded means. JSON also gives the four paired-block estimates and their observed range; no cost confidence interval is plotted.",
+    "unofficial": "Intel XeFG at 3x/4x on this GPU requires separately supplied MFG Unlocker 1.6.0 with XeFGModel=default; these categories are marked unofficial."
   },
   "pins_sha256": {
+    "Cyberpunk2077.exe": "d36e74c47592e9c656ae250078cb40b2be63c782af5bfbeff2280d43e653fab4",
     "dxgi.dll": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656",
     "libxess_fg.dll": "f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805",
     "bc250_xefg_original.dll": "ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27",
@@ -77,301 +81,685 @@
     {
       "range": "sdr",
       "arm": "off",
+      "factor": 1,
+      "unofficial": false,
       "n": 4,
       "game_fps": {
-        "mean": 71.91865842835684,
-        "sd": 0.18903886396309627,
+        "mean": 71.94965588790785,
+        "sd": 0.2301986299214825,
         "ci95": [
-          71.61785541126959,
-          72.21946144544408
+          71.58335849827029,
+          72.31595327754542
         ],
         "runs": [
-          71.9021592606161,
-          72.05721705089015,
-          71.65727013912854,
-          72.05798726279255
+          72.13515224342035,
+          71.83991348318557,
+          72.14592908208387,
+          71.67762874294162
         ]
       },
       "output_fps": {
-        "mean": 71.91866111755371,
-        "sd": 0.18903956748880327,
+        "mean": 71.94965553283691,
+        "sd": 0.23019946089874643,
         "ci95": [
-          71.61785698100007,
-          72.21946525410735
+          71.5833568209291,
+          72.31595424474473
         ],
         "runs": [
-          71.90216064453125,
-          72.05722045898438,
-          71.65727233886719,
-          72.05799102783203
+          72.1351547241211,
+          71.83991241455078,
+          72.14592742919922,
+          71.67762756347656
         ]
       }
     },
     {
       "range": "sdr",
       "arm": "i2",
+      "factor": 2,
+      "unofficial": false,
       "n": 4,
       "game_fps": {
-        "mean": 43.19918908056687,
-        "sd": 0.039272435314290005,
+        "mean": 43.17080205262852,
+        "sd": 0.07796468137610976,
         "ci95": [
-          43.13669787223413,
-          43.261680288899605
+          43.046742846534485,
+          43.29486125872255
         ],
         "runs": [
-          43.1679448343683,
-          43.19048329511535,
-          43.181901673018764,
-          43.25642651976506
+          43.06577966164489,
+          43.21017655973929,
+          43.24546256875314,
+          43.16178942037675
         ]
       },
       "output_fps": {
-        "mean": 86.39837837219238,
-        "sd": 0.07854604915839909,
+        "mean": 86.34160614013672,
+        "sd": 0.15593025390779608,
         "ci95": [
-          86.27339408022297,
-          86.5233626641618
+          86.09348630992126,
+          86.58972597035218
         ],
         "runs": [
-          86.33589172363281,
-          86.38096618652344,
-          86.36380004882812,
-          86.51285552978516
+          86.13156127929688,
+          86.42035675048828,
+          86.49092864990234,
+          86.32357788085938
         ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 9.26519693775305,
+        "total_added_ms_per_game_frame": 9.26519693775305,
+        "paired_block_values": [
+          9.35742578785799,
+          9.22285786764545,
+          9.263017314505504,
+          9.217286523330662
+        ],
+        "paired_block_range": [
+          9.217286523330662,
+          9.35742578785799
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
       }
     },
     {
       "range": "sdr",
       "arm": "f2",
+      "factor": 2,
+      "unofficial": false,
       "n": 4,
       "game_fps": {
-        "mean": 54.178989230365666,
-        "sd": 0.04461534277004194,
+        "mean": 54.182071365430254,
+        "sd": 0.11496451045254089,
         "ci95": [
-          54.10799626398691,
-          54.24998219674442
+          53.999137174666004,
+          54.365005556194504
         ],
         "runs": [
-          54.116814929573685,
-          54.1795981452125,
-          54.19951464295024,
-          54.22002920372623
+          54.00965481403582,
+          54.241016653412906,
+          54.23650070026281,
+          54.24111329400949
         ]
       },
       "output_fps": {
-        "mean": 108.35797882080078,
-        "sd": 0.08923160218058636,
+        "mean": 108.3641414642334,
+        "sd": 0.2299279302078238,
         "ci95": [
-          108.21599142946368,
-          108.49996621213788
+          107.99827481824762,
+          108.73000811021917
         ],
         "runs": [
-          108.23362731933594,
-          108.35919952392578,
-          108.39903259277344,
-          108.44005584716797
+          108.0193099975586,
+          108.4820327758789,
+          108.4729995727539,
+          108.48222351074219
         ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 4.55768246993145,
+        "total_added_ms_per_game_frame": 4.55768246993145,
+        "paired_block_values": [
+          4.65234143073709,
+          4.516394019611999,
+          4.576971758352105,
+          4.484845377935899
+        ],
+        "paired_block_range": [
+          4.484845377935899,
+          4.65234143073709
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "sdr",
+      "arm": "i3",
+      "factor": 3,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 31.295628437190157,
+        "sd": 0.014280335875783333,
+        "ci95": [
+          31.272905236117104,
+          31.31835163826321
+        ],
+        "runs": [
+          31.30453627893703,
+          31.305726038040884,
+          31.297303134342915,
+          31.274948297439803
+        ]
+      },
+      "output_fps": {
+        "mean": 93.88688468933105,
+        "sd": 0.04284122916681979,
+        "ci95": [
+          93.81871473359317,
+          93.95505464506894
+        ],
+        "runs": [
+          93.91361236572266,
+          93.91717529296875,
+          93.89190673828125,
+          93.82484436035156
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 9.02736873842135,
+        "total_added_ms_per_game_frame": 18.0547374768427,
+        "paired_block_values": [
+          9.040692719225962,
+          9.011599761725577,
+          9.045419436720735,
+          9.011559469248095
+        ],
+        "paired_block_range": [
+          9.011559469248095,
+          9.045419436720735
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "sdr",
+      "arm": "f3",
+      "factor": 3,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 43.8909788232762,
+        "sd": 0.22009311163945655,
+        "ci95": [
+          43.54076156829845,
+          44.24119607825395
+        ],
+        "runs": [
+          44.20943218214105,
+          43.83371666444905,
+          43.703282368276895,
+          43.81748407823781
+        ]
+      },
+      "output_fps": {
+        "mean": 131.67293548583984,
+        "sd": 0.6602790923844892,
+        "ci95": [
+          130.62228410683213,
+          132.72358686484756
+        ],
+        "runs": [
+          132.6282958984375,
+          131.5011444091797,
+          131.10984802246094,
+          131.45245361328125
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 4.442559034197377,
+        "total_added_ms_per_game_frame": 8.885118068394753,
+        "paired_block_values": [
+          4.3783703570465695,
+          4.446825057280784,
+          4.510390299901154,
+          4.435292892601065
+        ],
+        "paired_block_range": [
+          4.3783703570465695,
+          4.510390299901154
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "sdr",
+      "arm": "i4",
+      "factor": 4,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 24.486473938196127,
+        "sd": 0.049836030438889733,
+        "ci95": [
+          24.407173692725987,
+          24.565774183666267
+        ],
+        "runs": [
+          24.492403314260393,
+          24.457797373624597,
+          24.554126612226742,
+          24.44156845267277
+        ]
+      },
+      "output_fps": {
+        "mean": 97.94589614868164,
+        "sd": 0.1993439171019674,
+        "ci95": [
+          97.62869549245062,
+          98.26309680491266
+        ],
+        "runs": [
+          97.96961212158203,
+          97.83119201660156,
+          98.21650695800781,
+          97.76627349853516
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 8.980088633280465,
+        "total_added_ms_per_game_frame": 26.940265899841396,
+        "paired_block_values": [
+          8.988706541578482,
+          8.988972558438673,
+          8.955185310530979,
+          8.98751673937783
+        ],
+        "paired_block_range": [
+          8.955185310530979,
+          8.988972558438673
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "sdr",
+      "arm": "f4",
+      "factor": 4,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 37.76531115595711,
+        "sd": 0.04612822264336751,
+        "ci95": [
+          37.69191086009675,
+          37.83871145181747
+        ],
+        "runs": [
+          37.72169718709264,
+          37.783723073707016,
+          37.82164254903615,
+          37.73418181399261
+        ]
+      },
+      "output_fps": {
+        "mean": 151.0612449645996,
+        "sd": 0.1845136061583438,
+        "ci95": [
+          150.76764264250295,
+          151.35484728669627
+        ],
+        "runs": [
+          150.8867950439453,
+          151.1348876953125,
+          151.2865753173828,
+          150.9367218017578
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 4.193573085359874,
+        "total_added_ms_per_game_frame": 12.580719256079622,
+        "paired_block_values": [
+          4.215691725969362,
+          4.182194826441227,
+          4.193030752799062,
+          4.18327216294037
+        ],
+        "paired_block_range": [
+          4.182194826441227,
+          4.215691725969362
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
       }
     },
     {
       "range": "hdr",
       "arm": "off",
+      "factor": 1,
+      "unofficial": false,
       "n": 4,
       "game_fps": {
-        "mean": 72.02601378968897,
-        "sd": 0.17955921357181592,
+        "mean": 71.63628240283481,
+        "sd": 0.11204440916670876,
         "ci95": [
-          71.74029501178329,
-          72.31173256759466
+          71.45799474484464,
+          71.81457006082498
         ],
         "runs": [
-          71.93500900369769,
-          72.27143979902567,
-          71.85856521678713,
-          72.0390411392454
+          71.59512263328668,
+          71.801736842049,
+          71.5533027813064,
+          71.59496735469716
         ]
       },
       "output_fps": {
-        "mean": 72.02601432800293,
-        "sd": 0.1795576536454752,
+        "mean": 71.63628387451172,
+        "sd": 0.11204203544175181,
         "ci95": [
-          71.74029803228815,
-          72.31173062371771
+          71.45799999364765,
+          71.81456775537579
         ],
         "runs": [
-          71.93501281738281,
-          72.27143859863281,
-          71.85856628417969,
-          72.0390396118164
+          71.59512329101562,
+          71.8017349243164,
+          71.55330657958984,
+          71.594970703125
         ]
       }
     },
     {
       "range": "hdr",
       "arm": "i2",
+      "factor": 2,
+      "unofficial": false,
       "n": 4,
       "game_fps": {
-        "mean": 42.436561572014746,
-        "sd": 0.027445422823309185,
+        "mean": 42.45800931198562,
+        "sd": 0.05491490072833441,
         "ci95": [
-          42.39288977978424,
-          42.48023336424525
+          42.37062745052165,
+          42.54539117344959
         ],
         "runs": [
-          42.44066504918833,
-          42.47202975333482,
-          42.426824752988146,
-          42.406726732547675
+          42.44269061774542,
+          42.536223286941976,
+          42.44549500897373,
+          42.40762833428136
         ]
       },
       "output_fps": {
-        "mean": 84.87312507629395,
-        "sd": 0.05489124026609695,
+        "mean": 84.91601943969727,
+        "sd": 0.10983126571197657,
         "ci95": [
-          84.78578086390529,
-          84.9604692886826
+          84.74125338681237,
+          85.09078549258216
         ],
         "runs": [
-          84.88133239746094,
-          84.94406127929688,
-          84.85365295410156,
-          84.8134536743164
+          84.88538360595703,
+          85.07244873046875,
+          84.8909912109375,
+          84.81525421142578
         ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 9.593275503499193,
+        "total_added_ms_per_game_frame": 9.593275503499193,
+        "paired_block_values": [
+          9.593751081062534,
+          9.58213472613183,
+          9.584031016163513,
+          9.613200982995885
+        ],
+        "paired_block_range": [
+          9.58213472613183,
+          9.613200982995885
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
       }
     },
     {
       "range": "hdr",
       "arm": "f2",
+      "factor": 2,
+      "unofficial": false,
       "n": 4,
       "game_fps": {
-        "mean": 53.18291356540185,
-        "sd": 0.05794502562566297,
+        "mean": 53.26223245965302,
+        "sd": 0.08808702196439684,
         "ci95": [
-          53.09071009904585,
-          53.275117031757844
+          53.122066350855974,
+          53.40239856845007
         ],
         "runs": [
-          53.128148877524396,
-          53.1390515195367,
-          53.24418961537767,
-          53.22026424916862
+          53.31913775142315,
+          53.13916144538928,
+          53.332087131541726,
+          53.258543510257915
         ]
       },
       "output_fps": {
-        "mean": 106.3658275604248,
-        "sd": 0.11589073754965543,
+        "mean": 106.52446556091309,
+        "sd": 0.1761758363972265,
         "ci95": [
-          106.18141953565902,
-          106.55023558519059
+          106.24413049110173,
+          106.80480063072444
         ],
         "runs": [
-          106.25629425048828,
-          106.27810668945312,
-          106.4883804321289,
-          106.4405288696289
+          106.63827514648438,
+          106.2783203125,
+          106.66417694091797,
+          106.51708984375
         ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 4.815623076623556,
+        "total_added_ms_per_game_frame": 4.815623076623556,
+        "paired_block_values": [
+          4.78756005950609,
+          4.891273289437745,
+          4.774842856703396,
+          4.80886802359446
+        ],
+        "paired_block_range": [
+          4.774842856703396,
+          4.891273289437745
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "hdr",
+      "arm": "i3",
+      "factor": 3,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 30.57494281823421,
+        "sd": 0.04078593584969753,
+        "ci95": [
+          30.510043292807993,
+          30.639842343660426
+        ],
+        "runs": [
+          30.60541950056254,
+          30.547619556965245,
+          30.61404851720239,
+          30.53268369820666
+        ]
+      },
+      "output_fps": {
+        "mean": 91.7248306274414,
+        "sd": 0.12235819011776906,
+        "ci95": [
+          91.53013144241062,
+          91.91952981247219
+        ],
+        "runs": [
+          91.8162612915039,
+          91.64286041259766,
+          91.84214782714844,
+          91.59805297851562
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 9.3735570007097,
+        "total_added_ms_per_game_frame": 18.7471140014194,
+        "paired_block_values": [
+          9.353259922457045,
+          9.404267639273048,
+          9.34457342328582,
+          9.39216317096107
+        ],
+        "paired_block_range": [
+          9.34457342328582,
+          9.404267639273048
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "hdr",
+      "arm": "f3",
+      "factor": 3,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 43.203919185190514,
+        "sd": 0.06052546238181819,
+        "ci95": [
+          43.1076096681242,
+          43.30022870225683
+        ],
+        "runs": [
+          43.14727980068646,
+          43.163614845804766,
+          43.27939560544016,
+          43.225386488830665
+        ]
+      },
+      "output_fps": {
+        "mean": 129.61175537109375,
+        "sd": 0.18157596402862466,
+        "ci95": [
+          129.3228274931681,
+          129.9006832490194
+        ],
+        "runs": [
+          129.44183349609375,
+          129.4908447265625,
+          129.8381805419922,
+          129.67616271972656
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 4.593320801322614,
+        "total_added_ms_per_game_frame": 9.186641602645228,
+        "paired_block_values": [
+          4.604500091315555,
+          4.620210692199979,
+          4.565043918727867,
+          4.58354546329303
+        ],
+        "paired_block_range": [
+          4.565043918727867,
+          4.620210692199979
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "hdr",
+      "arm": "i4",
+      "factor": 4,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 23.839708409915502,
+        "sd": 0.011421522807836672,
+        "ci95": [
+          23.821534218385242,
+          23.857882601445763
+        ],
+        "runs": [
+          23.85550644286114,
+          23.83536283588057,
+          23.828629037292135,
+          23.83933532362817
+        ]
+      },
+      "output_fps": {
+        "mean": 95.35883331298828,
+        "sd": 0.045687328210855395,
+        "ci95": [
+          95.28613457855681,
+          95.43153204741975
+        ],
+        "runs": [
+          95.42202758789062,
+          95.3414535522461,
+          95.31451416015625,
+          95.35733795166016
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 9.329138363088534,
+        "total_added_ms_per_game_frame": 27.9874150892656,
+        "paired_block_values": [
+          9.317203693746889,
+          9.342409889131481,
+          9.330243376007905,
+          9.326672018016742
+        ],
+        "paired_block_range": [
+          9.317203693746889,
+          9.342409889131481
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
+      }
+    },
+    {
+      "range": "hdr",
+      "arm": "f4",
+      "factor": 4,
+      "unofficial": true,
+      "n": 4,
+      "game_fps": {
+        "mean": 36.53004517401575,
+        "sd": 0.045935536877894693,
+        "ci95": [
+          36.45695148420659,
+          36.6031388638249
+        ],
+        "runs": [
+          36.52548101290933,
+          36.57330528044337,
+          36.55364638166103,
+          36.46774802104925
+        ]
+      },
+      "output_fps": {
+        "mean": 146.12018203735352,
+        "sd": 0.18374632411057706,
+        "ci95": [
+          145.82780063221588,
+          146.41256344249115
+        ],
+        "runs": [
+          146.1019287109375,
+          146.29322814941406,
+          146.21458435058594,
+          145.87098693847656
+        ]
+      },
+      "derived_cost_ms_per_generated_frame": {
+        "value": 4.4717733086652,
+        "total_added_ms_per_game_frame": 13.4153199259956,
+        "paired_block_values": [
+          4.470238471220472,
+          4.47170239707545,
+          4.460485531964233,
+          4.4846760470317895
+        ],
+        "paired_block_range": [
+          4.460485531964233,
+          4.4846760470317895
+        ],
+        "basis": "difference of reciprocal mean game FPS, divided by generated frames per game frame"
       }
     }
   ],
   "runs": [
     {
-      "label": "r5-m1-off_s",
+      "label": "m26-b1-off_s",
       "block": 1,
       "arm": "off",
       "range": "sdr",
-      "game_fps": 71.9021592606161,
-      "output_fps": 71.90216064453125,
-      "seconds": 64.22616577148438,
-      "game_frames": 4618,
-      "output_frames": 4618,
-      "sdk_factors": [],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 80.0,
-      "busy_gpu_mhz_mean": 1832.608695652174,
-      "sha256": {
-        "benchmark/summary.json": "f8c3a1d21ffe67191f87732d8b4f21a1d82ccf5a7c1dec0ae8823277e78f6cd9",
-        "benchmark/frames.csv": "72d4d18970b1d540eb51a01180020467881bbdf6faf79670abb7ee8e5be68e30",
-        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
-        "analysis.json": "29b801146685f0ea7c57cb868ed996dd29759f3cd07909818f263c89d1621104"
-      }
-    },
-    {
-      "label": "r5-m1-i2_s",
-      "block": 1,
-      "arm": "i2",
-      "range": "sdr",
-      "game_fps": 43.1679448343683,
-      "output_fps": 86.33589172363281,
-      "seconds": 64.23748016357422,
-      "game_frames": 2773,
-      "output_frames": 5546,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 81.0,
-      "busy_gpu_mhz_mean": 1835.6164383561643,
-      "sha256": {
-        "benchmark/summary.json": "d3ffe1586244d2c973f4b908e126f1916addbb08d9be5185125078ebf3f9ada4",
-        "benchmark/frames.csv": "a37f112574d116833f1a7eb0bcf600c1f54285932eae98ff2b1f79b012a3d2f9",
-        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "c06a4ace3f7814f5cea46e25dc215c6c8fc68b7582e1bf69adb03cc70e0a93bf"
-      }
-    },
-    {
-      "label": "r5-m1-f2_s",
-      "block": 1,
-      "arm": "f2",
-      "range": "sdr",
-      "game_fps": 54.116814929573685,
-      "output_fps": 108.23362731933594,
-      "seconds": 64.2314224243164,
-      "game_frames": 3476,
-      "output_frames": 6952,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 81.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "938b6190444e8be4ef5b4478ba53c46fbe40aa2fc8c8a777f383fb5e33134e2b",
-        "benchmark/frames.csv": "3704a50941c4a4a744b9104c4ca9289c950d7abc558b16c6f05d60440ba28b63",
-        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "5410511f368c8340d1faff230a90e9a9e7274df55fcae1dfafb46606df81ac9a"
-      }
-    },
-    {
-      "label": "r5-m1-off_h",
-      "block": 1,
-      "arm": "off",
-      "range": "hdr",
-      "game_fps": 71.93500900369769,
-      "output_fps": 71.93501281738281,
-      "seconds": 64.23854064941406,
-      "game_frames": 4621,
-      "output_frames": 4621,
+      "game_fps": 72.13515224342035,
+      "output_fps": 72.1351547241211,
+      "seconds": 64.24052429199219,
+      "game_frames": 4634,
+      "output_frames": 4634,
       "sdk_factors": [],
       "render_size": [
         1706,
@@ -384,170 +772,22 @@
       "gpu_max_c": 79.0,
       "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "c4a1c52eaaf4552eb96a681fa9a5f05c383460bccd9ae22dafd4d74df3f5c937",
-        "benchmark/frames.csv": "608c12eaed8052327ebaa33370c06a049411cc0463b4a1b648c344bd618d0add",
-        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
-        "analysis.json": "599e1c3d2f07cfde22d44831ec064dd8fe9aa9e5b0ef2ccbbb62b2c67bd58146"
+        "benchmark/summary.json": "5c07c55f006554a7b3e065e7715e96de159fa0ed3cc57d1f543ad728b23d662c",
+        "benchmark/frames.csv": "856798e5c8c5685c27ac64d11fdfef3ff446196389b5cb3d2464b04a18071682",
+        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
+        "analysis.json": "6333b87f8366310b5cd00739afc244e7e6c6cc7c8615502f8c7cc12686df8788"
       }
     },
     {
-      "label": "r5-m1-i2_h",
+      "label": "m26-b1-i2_s",
       "block": 1,
       "arm": "i2",
-      "range": "hdr",
-      "game_fps": 42.44066504918833,
-      "output_fps": 84.88133239746094,
-      "seconds": 64.23085021972656,
-      "game_frames": 2726,
-      "output_frames": 5452,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 82.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "a757756ab256aa3ada0f18258286679e70caf7c35e40ac5c0fdb91d94e24611d",
-        "benchmark/frames.csv": "17500e4e704411968d79852a2a6cfd2681e0f49f4d32023f8a58db84756a3482",
-        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "21f860b2de265b255447071c47a34dc3885d30c6386e984f34bef4f53d1aa2c2"
-      }
-    },
-    {
-      "label": "r5-m1-f2_h",
-      "block": 1,
-      "arm": "f2",
-      "range": "hdr",
-      "game_fps": 53.128148877524396,
-      "output_fps": 106.25629425048828,
-      "seconds": 64.24089813232422,
-      "game_frames": 3413,
-      "output_frames": 6826,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 81.0,
-      "busy_gpu_mhz_mean": 1837.5,
-      "sha256": {
-        "benchmark/summary.json": "0ea360fc863e7872da177733413631911c98dce594d3711ecfcc3b78c75ae986",
-        "benchmark/frames.csv": "73b2f90c4957f0309f625e1ac42b7215a7dfb28ff9e6cd76ca11390b37340fa2",
-        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "f58f23176428192c48cb3b4c1fe11cf1825617e020f9ba4924743e6ae11d335b"
-      }
-    },
-    {
-      "label": "r5-m2-f2_h",
-      "block": 2,
-      "arm": "f2",
-      "range": "hdr",
-      "game_fps": 53.1390515195367,
-      "output_fps": 106.27810668945312,
-      "seconds": 64.24653625488281,
-      "game_frames": 3414,
-      "output_frames": 6828,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 82.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "7e6f7d83856e8f0e55ca6ee8ed8a5f9823d008ba5ddfae15a51982f29fa11dcc",
-        "benchmark/frames.csv": "538e01413892c9f030b97774544b76a487e85ee07531783fa6781296cb854a81",
-        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "9b325f289192874a994cf9ad75f8e6d22f622495e98e43f57f5c9e1cadad4a82"
-      }
-    },
-    {
-      "label": "r5-m2-i2_h",
-      "block": 2,
-      "arm": "i2",
-      "range": "hdr",
-      "game_fps": 42.47202975333482,
-      "output_fps": 84.94406127929688,
-      "seconds": 64.23050689697266,
-      "game_frames": 2728,
-      "output_frames": 5456,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 81.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "c2f2f15713061c6db1c71351db5b35e516d5adfdb4da06dc558eb2921978e8ef",
-        "benchmark/frames.csv": "dbdde7b7adfc2e5aabe100476b9c06b2a16e9a5d468d5154f59d335c4b75c30a",
-        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "3fc595f47dbc73a55f71d0c544f8968647dbba225d551227c6c9a6ccd30dab49"
-      }
-    },
-    {
-      "label": "r5-m2-off_h",
-      "block": 2,
-      "arm": "off",
-      "range": "hdr",
-      "game_fps": 72.27143979902567,
-      "output_fps": 72.27143859863281,
-      "seconds": 64.24391174316406,
-      "game_frames": 4643,
-      "output_frames": 4643,
-      "sdk_factors": [],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 80.0,
-      "busy_gpu_mhz_mean": 1848.5507246376812,
-      "sha256": {
-        "benchmark/summary.json": "526d50f45d3deb23be650889556e22a5866b33886d18ea803103aac3daab798d",
-        "benchmark/frames.csv": "11b38e86c8eb2eefee40a7de98d76755d3ff1f4947a241c8d95b6ecbe72a1df1",
-        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
-        "analysis.json": "55cffa941aee2953d223b0af40240f72792d3e979db1a5ec397a6c3494c4deb8"
-      }
-    },
-    {
-      "label": "r5-m2-f2_s",
-      "block": 2,
-      "arm": "f2",
       "range": "sdr",
-      "game_fps": 54.1795981452125,
-      "output_fps": 108.35919952392578,
-      "seconds": 64.23081970214844,
-      "game_frames": 3480,
-      "output_frames": 6960,
+      "game_fps": 43.06577966164489,
+      "output_fps": 86.13156127929688,
+      "seconds": 64.25054931640625,
+      "game_frames": 2767,
+      "output_frames": 5534,
       "sdk_factors": [
         2
       ],
@@ -560,26 +800,86 @@
         1440
       ],
       "gpu_max_c": 81.0,
-      "busy_gpu_mhz_mean": 1850.0,
+      "busy_gpu_mhz_mean": 1836.111111111111,
       "sha256": {
-        "benchmark/summary.json": "2489986ca8c996db69fa13abcbeda2c63e740f30b92ca8c29a23520e9048226d",
-        "benchmark/frames.csv": "60368530b359a1e84ef9d1e7cf7fd54c2e659bd585260aed93d8b54edbbe341e",
+        "benchmark/summary.json": "481a8f6587ac0c6e89304f40ed655789d4da49d9faab15b1e8f4e22c10716a4f",
+        "benchmark/frames.csv": "3f0c58dd4371b73928c11e46f6366ad58e7359ff6365117d0f0025b9355128a0",
         "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "a5c8058053877cbe86a1a3dca9b908bc59abe062847d742f080da1e40a5d83e5"
+        "analysis.json": "d6d80ffeb606a7623fab71317c0367cbd275f43352a86dfabbb90938efffa6fd"
       }
     },
     {
-      "label": "r5-m2-i2_s",
-      "block": 2,
-      "arm": "i2",
+      "label": "m26-b1-f2_s",
+      "block": 1,
+      "arm": "f2",
       "range": "sdr",
-      "game_fps": 43.19048329511535,
-      "output_fps": 86.38096618652344,
-      "seconds": 64.22711181640625,
-      "game_frames": 2774,
-      "output_frames": 5548,
+      "game_fps": 54.00965481403582,
+      "output_fps": 108.0193099975586,
+      "seconds": 64.24777221679688,
+      "game_frames": 3470,
+      "output_frames": 6940,
       "sdk_factors": [
         2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "421837309d0202af4d10cbe415b26be27ffb648510d95ca54b75b13f72cf8bf4",
+        "benchmark/frames.csv": "d4b057842e68935b6d87daf14f0921fb4b8e2030d666e81766ff142554541ebf",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "0f3e9abc1521a755f99862fba3ccb66a49cf0601d3f9dc5b3ef2389f60c38ae1"
+      }
+    },
+    {
+      "label": "m26-b1-i3_s",
+      "block": 1,
+      "arm": "i3",
+      "range": "sdr",
+      "game_fps": 31.30453627893703,
+      "output_fps": 93.91361236572266,
+      "seconds": 64.2398910522461,
+      "game_frames": 2011,
+      "output_frames": 6033,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "afb8702b25d2cfa10fa0f94dfdbd55751c6e0e5372414945428d699cba4dcef8",
+        "benchmark/frames.csv": "b696e0faa46cce18b0e54d5ea295aa4e97f1a5d78939c01f5e22b7b31bdfae9d",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "3028afd94f9d15930edb29aef0e4d05e13f7fc32400bbf0bf2b78deca683ec7b"
+      }
+    },
+    {
+      "label": "m26-b1-f3_s",
+      "block": 1,
+      "arm": "f3",
+      "range": "sdr",
+      "game_fps": 44.20943218214105,
+      "output_fps": 132.6282958984375,
+      "seconds": 64.23968505859375,
+      "game_frames": 2840,
+      "output_frames": 8520,
+      "sdk_factors": [
+        3
       ],
       "render_size": [
         1706,
@@ -592,23 +892,25 @@
       "gpu_max_c": 83.0,
       "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "bbcef8385594c9100f1acddf6946e800ef8bc3f85dabcd00bf6dd61e02c96c74",
-        "benchmark/frames.csv": "5154f2a9f76d00a5c9a37ef5a8cbec5b7e93e5920af90ed48499be094bfac7d1",
-        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "54c3b007dd3f858cb5cc84fb8cf90dda90c49686856a711859b10e418657c2dd"
+        "benchmark/summary.json": "c2be7e8f1c690595f9e04b8f09be0bc21022b86749ffc4ba3c82a7e7bcc39c5b",
+        "benchmark/frames.csv": "814d478cd4458788fed5570adb86da8b79abf97a3985c828506d4f8f26b626db",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "66aff714e1258236bb64c16293c826a5ce8be23e4b5734128ef5f04cd9fe754a"
       }
     },
     {
-      "label": "r5-m2-off_s",
-      "block": 2,
-      "arm": "off",
+      "label": "m26-b1-i4_s",
+      "block": 1,
+      "arm": "i4",
       "range": "sdr",
-      "game_fps": 72.05721705089015,
-      "output_fps": 72.05722045898438,
-      "seconds": 64.2544937133789,
-      "game_frames": 4630,
-      "output_frames": 4630,
-      "sdk_factors": [],
+      "game_fps": 24.492403314260393,
+      "output_fps": 97.96961212158203,
+      "seconds": 64.18316650390625,
+      "game_frames": 1572,
+      "output_frames": 6288,
+      "sdk_factors": [
+        4
+      ],
       "render_size": [
         1706,
         960
@@ -618,22 +920,80 @@
         1440
       ],
       "gpu_max_c": 82.0,
-      "busy_gpu_mhz_mean": 1842.4242424242425,
+      "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "43111ce05a2b83b0cfdabdbbb0d7924b463722b7b87562ebaa47774b167fb21f",
-        "benchmark/frames.csv": "21ed969223b4525d21c3f750b84da985a230123abc170cd36a8b45e6caf3bdc0",
-        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
-        "analysis.json": "1858728b6a7ac6c212f83fad00a6f3be0be887f5db4234cfba7cd18a2834653f"
+        "benchmark/summary.json": "11622b33c11e922f98ea3156797df5280118babc43fb2402587c49a64f5191c6",
+        "benchmark/frames.csv": "916724e50f19460b8bf77adeb7f725102bd3f8b8df9bcf5eb5b111bb5c99fb02",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "d00283c9ccb431e33854c7f21569519a37a1163b554e639a757f6363f8e4265a"
       }
     },
     {
-      "label": "r5-m3-i2_h",
-      "block": 3,
+      "label": "m26-b1-f4_s",
+      "block": 1,
+      "arm": "f4",
+      "range": "sdr",
+      "game_fps": 37.72169718709264,
+      "output_fps": 150.8867950439453,
+      "seconds": 64.23358917236328,
+      "game_frames": 2423,
+      "output_frames": 9692,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 84.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "4a9126c0498563edc86295cbdef939d1e4243872a1381bc93861d699312c0017",
+        "benchmark/frames.csv": "d4749d0a81557eca9b179031ccf24e26a44f21ef742e391eb7c3fe00f565a88c",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "0faeee4df0afab0762a2df37b4db8eedbea8827418da51f8aa6f49620ed78f13"
+      }
+    },
+    {
+      "label": "m26-b1-off_h",
+      "block": 1,
+      "arm": "off",
+      "range": "hdr",
+      "game_fps": 71.59512263328668,
+      "output_fps": 71.59512329101562,
+      "seconds": 64.22225189208984,
+      "game_frames": 4598,
+      "output_frames": 4598,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 80.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "7b2db3cd9d61841efaac0bc6a872363c2da10f54b1a133ac92f1ad2f45972fcf",
+        "benchmark/frames.csv": "4d4fba9724b9f00d7c398a02ba8a3780304be2b4181bfb2161323adc12c8e78d",
+        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
+        "analysis.json": "1d6e0df0a82595b1d7f16dbfd9207e2f43c6e852cf86dfa956bffc2368696c60"
+      }
+    },
+    {
+      "label": "m26-b1-i2_h",
+      "block": 1,
       "arm": "i2",
       "range": "hdr",
-      "game_fps": 42.426824752988146,
-      "output_fps": 84.85365295410156,
-      "seconds": 64.22823333740234,
+      "game_fps": 42.44269061774542,
+      "output_fps": 84.88538360595703,
+      "seconds": 64.2042236328125,
       "game_frames": 2725,
       "output_frames": 5450,
       "sdk_factors": [
@@ -650,196 +1010,22 @@
       "gpu_max_c": 81.0,
       "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "1b4da2498f36a999cf579171bbc48ecdbb005222b5c5d1b351a49b010800191d",
-        "benchmark/frames.csv": "48015784fb2baa5a9811fb3bdbd78815c1373b7c47a97078206f6504b51453c9",
+        "benchmark/summary.json": "27b8a6c87807e2198e47e27ccf3d01338f6c19aaa3908fff82fb68cd4b8911dd",
+        "benchmark/frames.csv": "fafee4ca1cc9fedbf766bd51b6868f46e127651bd400ff650777d3b98ba66634",
         "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "f3708730505006be1ad93d80b0550a83ff39429c3ec5e0091a343a76308d8833"
+        "analysis.json": "3c1eeea0a421bae0463fd31f3a348769331a6ce19ef148435885b5481e298623"
       }
     },
     {
-      "label": "r5-m3-f2_h",
-      "block": 3,
+      "label": "m26-b1-f2_h",
+      "block": 1,
       "arm": "f2",
       "range": "hdr",
-      "game_fps": 53.24418961537767,
-      "output_fps": 106.4883804321289,
-      "seconds": 64.23236083984375,
-      "game_frames": 3420,
-      "output_frames": 6840,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 82.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "122d6244b8727c7a10223cd41617065cd9abfaf53f977ae1352a7c0fe82b5c57",
-        "benchmark/frames.csv": "6a6102ef89ce4feba6b3a6a61e420c28467ed630584294f4d8354c1cf71063a1",
-        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "13bd2991de2bb14947ea06b76ad831ca46ccc290d4470f4954735165d088c586"
-      }
-    },
-    {
-      "label": "r5-m3-off_h",
-      "block": 3,
-      "arm": "off",
-      "range": "hdr",
-      "game_fps": 71.85856521678713,
-      "output_fps": 71.85856628417969,
-      "seconds": 64.23729705810547,
-      "game_frames": 4616,
-      "output_frames": 4616,
-      "sdk_factors": [],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 79.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "b480aebd7d9f847a4e41735177226900491dba0ed2d0386e532b0a44cf3a6fc6",
-        "benchmark/frames.csv": "75b1fe2f79f7ac840db567b49fd5189ff28edb8c875666862a904dda621feae7",
-        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
-        "analysis.json": "7e05513d8148877eaf51e23b6424a2209d3d0ff8d6147c7b70d87afee830447c"
-      }
-    },
-    {
-      "label": "r5-m3-i2_s",
-      "block": 3,
-      "arm": "i2",
-      "range": "sdr",
-      "game_fps": 43.181901673018764,
-      "output_fps": 86.36380004882812,
-      "seconds": 64.23987579345703,
-      "game_frames": 2774,
-      "output_frames": 5548,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 82.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "b64b1a8f8fbd7b618f7db49817e14a421c24f198a2f1a9a7274af249c7cd997b",
-        "benchmark/frames.csv": "ad22fe62864fe1ad749f670cc05b538ee9ad55172bc52e6ca33050e367c72bb4",
-        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "efb5b41ddaf4054e4cc7ab5656e525ce4c9b4eca6da5e2d694fd6696ac535aa1"
-      }
-    },
-    {
-      "label": "r5-m3-f2_s",
-      "block": 3,
-      "arm": "f2",
-      "range": "sdr",
-      "game_fps": 54.19951464295024,
-      "output_fps": 108.39903259277344,
-      "seconds": 64.2441177368164,
-      "game_frames": 3482,
-      "output_frames": 6964,
-      "sdk_factors": [
-        2
-      ],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 82.0,
-      "busy_gpu_mhz_mean": 1850.0,
-      "sha256": {
-        "benchmark/summary.json": "b517f3095255748575948fb2ca7ee32730c5b5634f96d7200ef5618002c5a956",
-        "benchmark/frames.csv": "fd18bec8be77765723a97eec787de52b63b48a2334926a6999a37c9d3fd86e19",
-        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "0a49a41ff4afa828d48cb44400d3736c1d4028f7a811ea4d770c103bed277847"
-      }
-    },
-    {
-      "label": "r5-m3-off_s",
-      "block": 3,
-      "arm": "off",
-      "range": "sdr",
-      "game_fps": 71.65727013912854,
-      "output_fps": 71.65727233886719,
-      "seconds": 64.22237396240234,
-      "game_frames": 4602,
-      "output_frames": 4602,
-      "sdk_factors": [],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 80.0,
-      "busy_gpu_mhz_mean": 1848.5074626865671,
-      "sha256": {
-        "benchmark/summary.json": "4cf227f8e455e4d47530a04cfe54e19919e7238f09de7ce34718eeda1634dcdc",
-        "benchmark/frames.csv": "21eba8a7de00ad7c94efdf80d7201969119f5a543a166aea17c6bcc04a0c113e",
-        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
-        "analysis.json": "b4b9a00a942cf91482b3be4a3418a2784c3cc6c54d3dcb5e38678cb02dc27c80"
-      }
-    },
-    {
-      "label": "r5-m4-off_s",
-      "block": 4,
-      "arm": "off",
-      "range": "sdr",
-      "game_fps": 72.05798726279255,
-      "output_fps": 72.05799102783203,
-      "seconds": 64.23992919921875,
-      "game_frames": 4629,
-      "output_frames": 4629,
-      "sdk_factors": [],
-      "render_size": [
-        1706,
-        960
-      ],
-      "summary_dimensions": [
-        2560,
-        1440
-      ],
-      "gpu_max_c": 80.0,
-      "busy_gpu_mhz_mean": 1837.5,
-      "sha256": {
-        "benchmark/summary.json": "2ae3b17b9b603a801508631be3d8e760d3046aa40cd2e94062e53743c7fba2f4",
-        "benchmark/frames.csv": "0423ddb783e40a98ff275e5c41a7bc4573221f5f406bf3022f2c5cbde67946c1",
-        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
-        "analysis.json": "4c088c5a30b0063683749e3d2bacc284ecb836612b284000a9d317e02e234faf"
-      }
-    },
-    {
-      "label": "r5-m4-f2_s",
-      "block": 4,
-      "arm": "f2",
-      "range": "sdr",
-      "game_fps": 54.22002920372623,
-      "output_fps": 108.44005584716797,
-      "seconds": 64.21981048583984,
-      "game_frames": 3482,
-      "output_frames": 6964,
+      "game_fps": 53.31913775142315,
+      "output_fps": 106.63827514648438,
+      "seconds": 64.23584747314453,
+      "game_frames": 3425,
+      "output_frames": 6850,
       "sdk_factors": [
         2
       ],
@@ -854,24 +1040,24 @@
       "gpu_max_c": 81.0,
       "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "509c0f31f27bf765cec7e7607c7152917587067f43ea4d9f8a50f5e7dc475b7b",
-        "benchmark/frames.csv": "a1298d11547ae49dbf2811b7abfae66aad3f2e23e235a55fffc0a36ba944a1c6",
-        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "844a2e95de93edc57b106ed7005cebe9c558ce6b634dc588d22a6c6c0f87a0cb"
+        "benchmark/summary.json": "ef6d15c340954c28a4454fa59c2b5e8e0fc04b078de75cebae4f0c7bed6a59c5",
+        "benchmark/frames.csv": "dec2487dd60058260589f4401b20ab9692b28c0fc068d94a28ef4cea314e8c81",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "4a4e308033e13473e3cc5239c40dd26b57b9f40364da4917d9ff311a1b00244d"
       }
     },
     {
-      "label": "r5-m4-i2_s",
-      "block": 4,
-      "arm": "i2",
-      "range": "sdr",
-      "game_fps": 43.25642651976506,
-      "output_fps": 86.51285552978516,
-      "seconds": 64.24478912353516,
-      "game_frames": 2779,
-      "output_frames": 5558,
+      "label": "m26-b1-i3_h",
+      "block": 1,
+      "arm": "i3",
+      "range": "hdr",
+      "game_fps": 30.60541950056254,
+      "output_fps": 91.8162612915039,
+      "seconds": 64.20431518554688,
+      "game_frames": 1965,
+      "output_frames": 5895,
       "sdk_factors": [
-        2
+        3
       ],
       "render_size": [
         1706,
@@ -884,23 +1070,55 @@
       "gpu_max_c": 83.0,
       "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "2b1a551b1f5a99d1d4d160b57e93f3ecd2ed4993f18bbfc915fd73fbfde2ef73",
-        "benchmark/frames.csv": "7eaab292ae371e388f460e033645fdf95bf1bbb5024543b824d2331ed638126b",
-        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
-        "analysis.json": "9fc03b655780d076b0d59a29b4b0d01d34efce710f48c7ba52b90a689b66b195"
+        "benchmark/summary.json": "76c9b19c7eeb7bc9f7718bb84dd9e486161fc62a43aaddf1fb91830c45e863fa",
+        "benchmark/frames.csv": "b96c7762a3754dcafeb6b9f940e8c6bfe9ea4627cdf6352a6b54ac5524788fb0",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "a683c848d6674f0a5094ca1821af1d86349cf6a0b5d87f8b94abc8735108ed28"
       }
     },
     {
-      "label": "r5-m4-off_h",
-      "block": 4,
-      "arm": "off",
+      "label": "m26-b1-f3_h",
+      "block": 1,
+      "arm": "f3",
       "range": "hdr",
-      "game_fps": 72.0390411392454,
-      "output_fps": 72.0390396118164,
-      "seconds": 64.2429428100586,
-      "game_frames": 4628,
-      "output_frames": 4628,
-      "sdk_factors": [],
+      "game_fps": 43.14727980068646,
+      "output_fps": 129.44183349609375,
+      "seconds": 64.22189331054688,
+      "game_frames": 2771,
+      "output_frames": 8313,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "a4feea432e83df2cb8ae8e04e9fccc7bac702f2614ac1229b523d91dde89f71d",
+        "benchmark/frames.csv": "8ec04a13f200595b354f370fa40975120ead777fd5a5d98bee14e29c93c4053e",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "fdc10af8c84ad97c44640be19bdef4b83e6bd3b0233cff350b966d8c6b4c2f52"
+      }
+    },
+    {
+      "label": "m26-b1-i4_h",
+      "block": 1,
+      "arm": "i4",
+      "range": "hdr",
+      "game_fps": 23.85550644286114,
+      "output_fps": 95.42202758789062,
+      "seconds": 64.17805480957031,
+      "game_frames": 1531,
+      "output_frames": 6124,
+      "sdk_factors": [
+        4
+      ],
       "render_size": [
         1706,
         960
@@ -910,24 +1128,174 @@
         1440
       ],
       "gpu_max_c": 82.0,
-      "busy_gpu_mhz_mean": 1850.0,
+      "busy_gpu_mhz_mean": 1837.5,
       "sha256": {
-        "benchmark/summary.json": "a2120ec73fa367de3b023cf311daa006704521b382a75520f83b52deb25b72e8",
-        "benchmark/frames.csv": "b091ff6616318299967e2f006bd0a2e58c6bb25f4e9bf9227971e1d0af01aa8e",
-        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
-        "analysis.json": "fefdd7a44417dc88a4e19148c9eb91d64a3d0ef9befa6778b7062c7ae7d2bf1b"
+        "benchmark/summary.json": "ed73163d162e57cab083125e1d3fc2c96c3bf05faab7532fa73010f7b91e85a1",
+        "benchmark/frames.csv": "49a48eb4656fa1e8f77e028b4705bcb2d8aeddfa9f3d9e98884e2526e6c21055",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "3e02c91eac20a6e8da58d58c3d89ba006241240fc877acdb52a2879dc6558187"
       }
     },
     {
-      "label": "r5-m4-f2_h",
-      "block": 4,
+      "label": "m26-b1-f4_h",
+      "block": 1,
+      "arm": "f4",
+      "range": "hdr",
+      "game_fps": 36.52548101290933,
+      "output_fps": 146.1019287109375,
+      "seconds": 64.22913360595703,
+      "game_frames": 2346,
+      "output_frames": 9384,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 84.0,
+      "busy_gpu_mhz_mean": 1836.8055555555557,
+      "sha256": {
+        "benchmark/summary.json": "8b064ee81322dc311776729321ae50b56bca7348d25590921db77adeacaa5897",
+        "benchmark/frames.csv": "1b33787196319870f2f7a6ee73dd95c6ab27ad0b7beb4a78f261cd902f0944b4",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "6c8e42a4d41171b0bc537c3c1b3bd8adcab31242852242c2f07f6103a076d50e"
+      }
+    },
+    {
+      "label": "m26-b2-f4_h",
+      "block": 2,
+      "arm": "f4",
+      "range": "hdr",
+      "game_fps": 36.57330528044337,
+      "output_fps": 146.29322814941406,
+      "seconds": 64.2271728515625,
+      "game_frames": 2349,
+      "output_frames": 9396,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 84.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "b42d6ba80333039ced905da7f88fc4bb237a10d50218ed28e9bce5dbb8fb494b",
+        "benchmark/frames.csv": "c860f7612b964abed755917d49afc6c4127506394570eb9835f83a3f0f8b7cdb",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "9c33497188fe3be5b7ffddd47b7070239fb273ff76d39943e1937a7bec41e100"
+      }
+    },
+    {
+      "label": "m26-b2-i4_h",
+      "block": 2,
+      "arm": "i4",
+      "range": "hdr",
+      "game_fps": 23.83536283588057,
+      "output_fps": 95.3414535522461,
+      "seconds": 64.19033813476562,
+      "game_frames": 1530,
+      "output_frames": 6120,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1818.6666666666667,
+      "sha256": {
+        "benchmark/summary.json": "a0b54ea6a0162cc4ac72fb3418f4ac999a1fac9fcb203c237014799c29e03445",
+        "benchmark/frames.csv": "854f16b68c071b32d77c27717f06224e22ef051a609d0050a7d4c5ef5020c9dc",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "1750939167283ae40d3f3541f288e3535e4dbacf54fcd4f7a176f8bdcdbe588e"
+      }
+    },
+    {
+      "label": "m26-b2-f3_h",
+      "block": 2,
+      "arm": "f3",
+      "range": "hdr",
+      "game_fps": 43.163614845804766,
+      "output_fps": 129.4908447265625,
+      "seconds": 64.22075653076172,
+      "game_frames": 2772,
+      "output_frames": 8316,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "4ffaf20b37c6d9596225e0c14026474d8e5a7174378c15b2031a46b712afa082",
+        "benchmark/frames.csv": "c17dc9d724b5063cf9471d8022d9f0ed45ae12fce950a071207bb29338009811",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "e61c2d5b4ee9ec1e5bb33397c1382601f08e2a0010031b83d8d32792c95edf20"
+      }
+    },
+    {
+      "label": "m26-b2-i3_h",
+      "block": 2,
+      "arm": "i3",
+      "range": "hdr",
+      "game_fps": 30.547619556965245,
+      "output_fps": 91.64286041259766,
+      "seconds": 64.19485473632812,
+      "game_frames": 1961,
+      "output_frames": 5883,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "87357fac5e3f414258b2f05c240a50c654dd069490f2d8ca481290130cbb9eec",
+        "benchmark/frames.csv": "3167b5f37c54a129849139a60d7b01f6c2e0a012139c9c8b6dbfc852fc4cbb13",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "9f41e0a4fad84db57906b680eb7b3a308ff8751d1adc958d2cd1b1aa8657d4f9"
+      }
+    },
+    {
+      "label": "m26-b2-f2_h",
+      "block": 2,
       "arm": "f2",
       "range": "hdr",
-      "game_fps": 53.22026424916862,
-      "output_fps": 106.4405288696289,
-      "seconds": 64.24244689941406,
-      "game_frames": 3419,
-      "output_frames": 6838,
+      "game_fps": 53.13916144538928,
+      "output_fps": 106.2783203125,
+      "seconds": 64.22758483886719,
+      "game_frames": 3413,
+      "output_frames": 6826,
       "sdk_factors": [
         2
       ],
@@ -942,20 +1310,910 @@
       "gpu_max_c": 82.0,
       "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "200d1a019171d20107f41dce74f2fa44d8e9549be9bf5183260d3ac0b5d36cef",
-        "benchmark/frames.csv": "c0d4e3fd8563ff5126000b98cbf2f80b38e9a3d8ddf579834491e4d992427b99",
+        "benchmark/summary.json": "b4b6a47ba31f362531c5ed615256433b4f4b444ff2f2ec812dfc638a8b29fd7f",
+        "benchmark/frames.csv": "4b78f891ab5cecd66f1e294b300b2b4841cfbffdfc4119ca540475c5c53bf11d",
         "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "2bdc437b4180ae83f5310d93a80997153c8b14058fb5d6b2db3a3e6bbdf65566"
+        "analysis.json": "8c0ac714c491b7de0369d1cd82ff7eb3fc926a72b531a9576dc6bff6097921cc"
       }
     },
     {
-      "label": "r5-m4-i2_h",
+      "label": "m26-b2-i2_h",
+      "block": 2,
+      "arm": "i2",
+      "range": "hdr",
+      "game_fps": 42.536223286941976,
+      "output_fps": 85.07244873046875,
+      "seconds": 64.2041015625,
+      "game_frames": 2731,
+      "output_frames": 5462,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "e522d4a6a16cdcc1609184de9547f4be4438d787e6e7e38a45b02093ddf36bad",
+        "benchmark/frames.csv": "eee2939b26379a2c35ebee562fb3105f663828fa197a76260b0f98275bd57509",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "fc4c504499fd85448a13f6b92041c5280b42fab586bf16ead8a6c4b761fd8221"
+      }
+    },
+    {
+      "label": "m26-b2-off_h",
+      "block": 2,
+      "arm": "off",
+      "range": "hdr",
+      "game_fps": 71.801736842049,
+      "output_fps": 71.8017349243164,
+      "seconds": 64.23242950439453,
+      "game_frames": 4612,
+      "output_frames": 4612,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1836.923076923077,
+      "sha256": {
+        "benchmark/summary.json": "4fa8cf86b3f5b11200ae403ede15dea5c3cb588c2ac97df09e66b3ad8087216b",
+        "benchmark/frames.csv": "6f0da78a5f58504630c76a8e9a55494bedc4c266acc2b33448332896b3fe75c6",
+        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
+        "analysis.json": "fab55695e75430e67e634fe210d1cdc1bcaa59161d08aaee979d90677d108026"
+      }
+    },
+    {
+      "label": "m26-b2-f4_s",
+      "block": 2,
+      "arm": "f4",
+      "range": "sdr",
+      "game_fps": 37.783723073707016,
+      "output_fps": 151.1348876953125,
+      "seconds": 64.2340087890625,
+      "game_frames": 2427,
+      "output_frames": 9708,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "457e2bb7d62266186774ba94f2a1a24c956e3e1ac6a150c53c3ce4b6bab670fb",
+        "benchmark/frames.csv": "c4fe81e9f8a39ccc551fbcc5d3113d68e898bf6b5d1ed3b4a2acae2ae22129e0",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "2ff52ae6baac91fa6a77d0c057591901b5cd7a2723024114b7543950bd7f34a7"
+      }
+    },
+    {
+      "label": "m26-b2-i4_s",
+      "block": 2,
+      "arm": "i4",
+      "range": "sdr",
+      "game_fps": 24.457797373624597,
+      "output_fps": 97.83119201660156,
+      "seconds": 64.19220733642578,
+      "game_frames": 1570,
+      "output_frames": 6280,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1832.0,
+      "sha256": {
+        "benchmark/summary.json": "222b50d8ad9b2dfc96d29f33d1c19c43e37f0fdd0968c83f45a3b58d17defe68",
+        "benchmark/frames.csv": "0745b6bc11bdab57a61429fff6a025603b595d2c4adfbf16b4916d07449eaa56",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "40677d9f194eb6ee06606174180536da54a0eb04996d6b74ad5e17353bb4c129"
+      }
+    },
+    {
+      "label": "m26-b2-f3_s",
+      "block": 2,
+      "arm": "f3",
+      "range": "sdr",
+      "game_fps": 43.83371666444905,
+      "output_fps": 131.5011444091797,
+      "seconds": 64.219970703125,
+      "game_frames": 2815,
+      "output_frames": 8445,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1829.5454545454545,
+      "sha256": {
+        "benchmark/summary.json": "95c8bcfdb2ad657b50e029b21e4041df8ba84eae3d77111a65447f7c2622bd84",
+        "benchmark/frames.csv": "89d6182626ef64e586355b94e550acc95ee06e002e2990d542f4b5bef8c6c9ee",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "3d7f97408605ccd106370c5cbca628af7be45faf5fa5d9885dcbd6e2a45a6cb0"
+      }
+    },
+    {
+      "label": "m26-b2-i3_s",
+      "block": 2,
+      "arm": "i3",
+      "range": "sdr",
+      "game_fps": 31.305726038040884,
+      "output_fps": 93.91717529296875,
+      "seconds": 64.2374496459961,
+      "game_frames": 2011,
+      "output_frames": 6033,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1838.5135135135135,
+      "sha256": {
+        "benchmark/summary.json": "f33f20bf19871be5be90d474d9194de031e3900815cd43a3428011c793bd59ac",
+        "benchmark/frames.csv": "a4d42190baffc7cc42553e3d7370182237c21f1f4b70b0279c5f4ebd0465e0eb",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "add2395b3ffd3d13dd00ede965cf04bfbd1f7016aad84857f17bb46ed7c75e25"
+      }
+    },
+    {
+      "label": "m26-b2-f2_s",
+      "block": 2,
+      "arm": "f2",
+      "range": "sdr",
+      "game_fps": 54.241016653412906,
+      "output_fps": 108.4820327758789,
+      "seconds": 64.2318344116211,
+      "game_frames": 3484,
+      "output_frames": 6968,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "aa58048dffb0e0dd6818d7c2a90fa1707fdd468b9efd203e4499c13691bd91ab",
+        "benchmark/frames.csv": "6338d6184779d86882634db3e5ccee3936ae49ede73177114360325ea39771e0",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "3f1efb925925ca02955a859b32f2109e1cf853555a4458144140f6709bcb4050"
+      }
+    },
+    {
+      "label": "m26-b2-i2_s",
+      "block": 2,
+      "arm": "i2",
+      "range": "sdr",
+      "game_fps": 43.21017655973929,
+      "output_fps": 86.42035675048828,
+      "seconds": 64.24412536621094,
+      "game_frames": 2776,
+      "output_frames": 5552,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "15dc60854505fa519001253283a382a5e417bbb70b016262e08288f59c9f6bfd",
+        "benchmark/frames.csv": "ce692d8ab9ef1e5bb701daeefec8b3818acfbebbaca7de40adf81d1da8da0fac",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "83d217240c63f351c2f7d77c1f3e41cb4dfde7baab06c2c70425910e9996ccf5"
+      }
+    },
+    {
+      "label": "m26-b2-off_s",
+      "block": 2,
+      "arm": "off",
+      "range": "sdr",
+      "game_fps": 71.83991348318557,
+      "output_fps": 71.83991241455078,
+      "seconds": 64.22613525390625,
+      "game_frames": 4614,
+      "output_frames": 4614,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "a6fc90689be06ab13ac49076024730ef071dc27011fae072f79007f559b18176",
+        "benchmark/frames.csv": "54bd9895cf8f8e9b110e62324512390473cc985cfd1124043d2339786e0e5392",
+        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
+        "analysis.json": "7f5012d36bb7730e0eb3f7b71aeb6e76796916ef4e29a77d9c7497948ecd3ef5"
+      }
+    },
+    {
+      "label": "m26-b3-f4_h",
+      "block": 3,
+      "arm": "f4",
+      "range": "hdr",
+      "game_fps": 36.55364638166103,
+      "output_fps": 146.21458435058594,
+      "seconds": 64.20700073242188,
+      "game_frames": 2347,
+      "output_frames": 9388,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "1448a1c118829b85276a8db89047b2c3ab48f2e9cf097413e16975c7bbb4650e",
+        "benchmark/frames.csv": "dd7a73dbc378e3face1b18d55d0fac9dcb9dc5bb4fb7c0274b9970e0dcb54804",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "c635390cb5ed4cc65cad5d6bb0a0f7b7c06184806c1cc52c1c42528ec3cc1ba8"
+      }
+    },
+    {
+      "label": "m26-b3-i4_h",
+      "block": 3,
+      "arm": "i4",
+      "range": "hdr",
+      "game_fps": 23.828629037292135,
+      "output_fps": 95.31451416015625,
+      "seconds": 64.16651153564453,
+      "game_frames": 1529,
+      "output_frames": 6116,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "1bf18e9ad98e6b7e12fce2e4a19119495659ccb5932e2c2683a82548b1b7d73f",
+        "benchmark/frames.csv": "6f37a772887340f60446b7c321b71ec9f82196293e2835d41f098b8266538d80",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "0dd8d04f60a139487c03cd65af317a51764b7e080ce1b2a3febe15e2a628ddaa"
+      }
+    },
+    {
+      "label": "m26-b3-off_h",
+      "block": 3,
+      "arm": "off",
+      "range": "hdr",
+      "game_fps": 71.5533027813064,
+      "output_fps": 71.55330657958984,
+      "seconds": 64.24581146240234,
+      "game_frames": 4597,
+      "output_frames": 4597,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "0b2ebdfba4d679ca8f76efe3386a0749b693a2708afb1e7b10e2384bbb5281ca",
+        "benchmark/frames.csv": "e8865ab50c1a9584746a2d95479638dde1b4bce0866d2f99308f66900cf897cf",
+        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
+        "analysis.json": "4ed6698f9f6cbc1334c4a370ac393bbc9ecf58c757655728d81c3cb6282fce52"
+      }
+    },
+    {
+      "label": "m26-b3-f3_h",
+      "block": 3,
+      "arm": "f3",
+      "range": "hdr",
+      "game_fps": 43.27939560544016,
+      "output_fps": 129.8381805419922,
+      "seconds": 64.210693359375,
+      "game_frames": 2779,
+      "output_frames": 8337,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "f37f0f87a9adadc0f50cc85c24d2294ab383580679382ef38190c29b0156f727",
+        "benchmark/frames.csv": "5c9f349ee78e66dad56a3e9cd6a0f7646e561c350e789ea66cbc85bd4628e39b",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "55a47b3f257c4233df68be4a336e39f4339f8910113e51ef3664f29986db042c"
+      }
+    },
+    {
+      "label": "m26-b3-i3_h",
+      "block": 3,
+      "arm": "i3",
+      "range": "hdr",
+      "game_fps": 30.61404851720239,
+      "output_fps": 91.84214782714844,
+      "seconds": 64.18621826171875,
+      "game_frames": 1965,
+      "output_frames": 5895,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "534902b0c7e4d218702877e0bdc4709622ba445ff602c6e02d6fbb0ee7abf4fa",
+        "benchmark/frames.csv": "2a62d0560d1b478bfc719b5ddeae61ea4663d39bad9152b3eeb18b661c09b347",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "89338a201f8b72a371c4c22f99424d96cec09d324553d650185a27d9a8894d2e"
+      }
+    },
+    {
+      "label": "m26-b3-f2_h",
+      "block": 3,
+      "arm": "f2",
+      "range": "hdr",
+      "game_fps": 53.332087131541726,
+      "output_fps": 106.66417694091797,
+      "seconds": 64.25775146484375,
+      "game_frames": 3427,
+      "output_frames": 6854,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "3770d1fa25c9327c88e1dfe283f7e7307ee5c0c637ffccdfccaa7c6db6d609ad",
+        "benchmark/frames.csv": "77795471c4ef0f149612eb8b546567e4801ae38dd7f81b713251fb52391b3330",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "8995125d57930f20140efbbd85b0e8f996ae53b8bf38adab17c2a61fbeeee964"
+      }
+    },
+    {
+      "label": "m26-b3-i2_h",
+      "block": 3,
+      "arm": "i2",
+      "range": "hdr",
+      "game_fps": 42.44549500897373,
+      "output_fps": 84.8909912109375,
+      "seconds": 64.22354125976562,
+      "game_frames": 2726,
+      "output_frames": 5452,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "2f39acce0adc923ef5f8266ecd847492912eb928d6e69faf2a674273c58cdd8c",
+        "benchmark/frames.csv": "298391c00a0ed705a46897edfa6944e78c31032f27de7c228b94bfbfc3591985",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "1e0f160e895c582db472f8de9bdb401a98a72f8baff59b9524cc31a518ce0e65"
+      }
+    },
+    {
+      "label": "m26-b3-f4_s",
+      "block": 3,
+      "arm": "f4",
+      "range": "sdr",
+      "game_fps": 37.82164254903615,
+      "output_fps": 151.2865753173828,
+      "seconds": 64.22248840332031,
+      "game_frames": 2429,
+      "output_frames": 9716,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 84.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "cdca9e34b9f132cd9146e5fb5fe16ac2adfb0accef43ea8b89a92da4385d5902",
+        "benchmark/frames.csv": "aa1a10e4f1e16775add0fd84e28f1e91a9e027a6437d6956e0a842b1e3d59b74",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "b46b40b3d18459d17c9ce1386bd9bb14010502f38a7a866f1bc2d81ef65332b1"
+      }
+    },
+    {
+      "label": "m26-b3-i4_s",
+      "block": 3,
+      "arm": "i4",
+      "range": "sdr",
+      "game_fps": 24.554126612226742,
+      "output_fps": 98.21650695800781,
+      "seconds": 64.18473052978516,
+      "game_frames": 1576,
+      "output_frames": 6304,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "9fb32a64549cb8f03366fc9b89561c7d7e1a9147625a8803edbfc77d52896a50",
+        "benchmark/frames.csv": "be8540fff2bea98b19c2cdb44a5db6f60f5762cbc5faca649bed8e9bba1cca54",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "9e27bf4c8f855d94f2e0e2272f783e6ecb5ba655cfe8c88c922651003f1cd2c7"
+      }
+    },
+    {
+      "label": "m26-b3-off_s",
+      "block": 3,
+      "arm": "off",
+      "range": "sdr",
+      "game_fps": 72.14592908208387,
+      "output_fps": 72.14592742919922,
+      "seconds": 64.24478912353516,
+      "game_frames": 4635,
+      "output_frames": 4635,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "ffbe6cf4c71666af51cf064f65ae1b053fd9e79252be0692025bc40dc54e8d86",
+        "benchmark/frames.csv": "71b9a62409a1efb66492814ce3aeeea12103c074db931b34a2fb490413b37972",
+        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
+        "analysis.json": "a101accd6cfd763c5b41ee3e18ae7a1c862474a06499c32fe92e67373be32649"
+      }
+    },
+    {
+      "label": "m26-b3-f3_s",
+      "block": 3,
+      "arm": "f3",
+      "range": "sdr",
+      "game_fps": 43.703282368276895,
+      "output_fps": 131.10984802246094,
+      "seconds": 64.20570373535156,
+      "game_frames": 2806,
+      "output_frames": 8418,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "b5f6910586c9e0ba147468fda37e2d95bf252423acd9a9243ee7f9d9e06f76d4",
+        "benchmark/frames.csv": "6ef7920f87bb3bec94773d23f55212667e651c7ca018ae9f691e19c4e06d641b",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "f9b189c96a9c9ca14c2b7aa264923dc6570f6854e8d1d62b7904bb4c6ec3c488"
+      }
+    },
+    {
+      "label": "m26-b3-i3_s",
+      "block": 3,
+      "arm": "i3",
+      "range": "sdr",
+      "game_fps": 31.297303134342915,
+      "output_fps": 93.89190673828125,
+      "seconds": 64.22278594970703,
+      "game_frames": 2010,
+      "output_frames": 6030,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "964b15767b7b08b760f84ed39287cb502ed3fc42a7132039cd38e53c85b6434c",
+        "benchmark/frames.csv": "e19fd4887e15d1515c2ed08feaf79a1f91bf49a852418535f09ccb73eebc54d4",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "4f1183876fb876ddf96fdcef3dcaab743f0c69e09bfd99644e1ab36164ef4a09"
+      }
+    },
+    {
+      "label": "m26-b3-f2_s",
+      "block": 3,
+      "arm": "f2",
+      "range": "sdr",
+      "game_fps": 54.23650070026281,
+      "output_fps": 108.4729995727539,
+      "seconds": 64.2371826171875,
+      "game_frames": 3484,
+      "output_frames": 6968,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "2af9295245f8f893d1971a84d3ae8a5f12e8f56715c8553d24d91223e5266711",
+        "benchmark/frames.csv": "b18513216911549b02208e66713b22bebb6dc599990597464fbbd874db7e4208",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "f42e0e2c4adcd39f8ae040b6a5a50fc5ec797fdbf82992dbbe4c12f77802de2a"
+      }
+    },
+    {
+      "label": "m26-b3-i2_s",
+      "block": 3,
+      "arm": "i2",
+      "range": "sdr",
+      "game_fps": 43.24546256875314,
+      "output_fps": 86.49092864990234,
+      "seconds": 64.23795318603516,
+      "game_frames": 2778,
+      "output_frames": 5556,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1832.142857142857,
+      "sha256": {
+        "benchmark/summary.json": "48949d37e93fa13e65518f9e76b0c4067efa32311ccad87b9fe6d214f4597118",
+        "benchmark/frames.csv": "10042683b12606d564aa0b6086fc3dec283ec50278b5b0f03859f3b86f20637c",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "7ffcb995c8e05d5d88e482f1cf3d1db2581e0cfe22e77d476f79ee5afb309203"
+      }
+    },
+    {
+      "label": "m26-b4-i2_s",
+      "block": 4,
+      "arm": "i2",
+      "range": "sdr",
+      "game_fps": 43.16178942037675,
+      "output_fps": 86.32357788085938,
+      "seconds": 64.22347259521484,
+      "game_frames": 2772,
+      "output_frames": 5544,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1837.162162162162,
+      "sha256": {
+        "benchmark/summary.json": "1ddac27e762028ab07497115932acaaf71dda88c3229a0c40acf2be89c269fcb",
+        "benchmark/frames.csv": "17def8572ff75e97210592a7a0cd0171e6a02c3782eb5b08a2705d5f3ca78515",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "49c704dcbee19d2104981d21a5b539756ac92a96d0eaf08e705492e3a6b8fb83"
+      }
+    },
+    {
+      "label": "m26-b4-f2_s",
+      "block": 4,
+      "arm": "f2",
+      "range": "sdr",
+      "game_fps": 54.24111329400949,
+      "output_fps": 108.48222351074219,
+      "seconds": 64.23171997070312,
+      "game_frames": 3484,
+      "output_frames": 6968,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "62077691cb7b9322dca33a5558fa93cdc4d8cc5d16c457224d7fb662f3afaff1",
+        "benchmark/frames.csv": "746a6561eec906bc08648f9d75b902f7286102c80e330d144d265c5530a5bf68",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "fc6ed8b84c94976e082b1c3d30069bb1d4c26e4309866adbb14714cab5d041ad"
+      }
+    },
+    {
+      "label": "m26-b4-i3_s",
+      "block": 4,
+      "arm": "i3",
+      "range": "sdr",
+      "game_fps": 31.274948297439803,
+      "output_fps": 93.82484436035156,
+      "seconds": 64.20474243164062,
+      "game_frames": 2008,
+      "output_frames": 6024,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "561bc9405f588dfeccfe7f09e2f8999887f781ca53498dc929f51e7b786544dd",
+        "benchmark/frames.csv": "1c75461a4684f9d361fe25e1359b57155e3f289530afddb5459be15fa7019bcb",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "670e42124522bc4cfb4553555a2297178eb63764acf6e7e7f3087356c8110eea"
+      }
+    },
+    {
+      "label": "m26-b4-f3_s",
+      "block": 4,
+      "arm": "f3",
+      "range": "sdr",
+      "game_fps": 43.81748407823781,
+      "output_fps": 131.45245361328125,
+      "seconds": 64.22093963623047,
+      "game_frames": 2814,
+      "output_frames": 8442,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "b67e02fce5dcfb7b95745a54083a743d72faab8aba6164cb6fa63a364fd7bbb9",
+        "benchmark/frames.csv": "b189a5c467a09559a6c04522ec7848b2ee59ed64707367d04c4c2fe91ff2e784",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "e19a5bae6d1e888e90194645c6b327b5ccd89dd709b73f4d7323b18545c6e85b"
+      }
+    },
+    {
+      "label": "m26-b4-off_s",
+      "block": 4,
+      "arm": "off",
+      "range": "sdr",
+      "game_fps": 71.67762874294162,
+      "output_fps": 71.67762756347656,
+      "seconds": 64.24598693847656,
+      "game_frames": 4605,
+      "output_frames": 4605,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1848.5294117647059,
+      "sha256": {
+        "benchmark/summary.json": "af97aac843f917c503fdc752c06d9bae8abbaa6e37e0abb3296605f684b68550",
+        "benchmark/frames.csv": "35776c92b140392dd192bccdd92cfe9862e8068ba8333407ebe0be48bad75d37",
+        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
+        "analysis.json": "364d0e371c304db400088b341785c95b337046df56fc216230e5db977d5ca084"
+      }
+    },
+    {
+      "label": "m26-b4-i4_s",
+      "block": 4,
+      "arm": "i4",
+      "range": "sdr",
+      "game_fps": 24.44156845267277,
+      "output_fps": 97.76627349853516,
+      "seconds": 64.19391632080078,
+      "game_frames": 1569,
+      "output_frames": 6276,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "33612bc8be973a43813d4e2619598a95897f86254b8da887c587266f2885b597",
+        "benchmark/frames.csv": "58d6c474289d9cd399a81660e57768c2dfe514808d153372f76e171bd6245046",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "201b5e327ce6dcbd4720f735cb9575dddf27b08747d4e560468d3676eac94d9c"
+      }
+    },
+    {
+      "label": "m26-b4-f4_s",
+      "block": 4,
+      "arm": "f4",
+      "range": "sdr",
+      "game_fps": 37.73418181399261,
+      "output_fps": 150.9367218017578,
+      "seconds": 64.23883819580078,
+      "game_frames": 2424,
+      "output_frames": 9696,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 83.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "2953a08ee0e9feaef6290d8cf20a2e3fa2fbab19fb6f8dd04c28915d82463d15",
+        "benchmark/frames.csv": "5d353ad278665228af5036e04e7107637d4277d538d45409349b5f1a607b58fd",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "d302e53cd0e1f53301b440d1ca1a5819fb85c728242ac622840ff8b50b2baacd"
+      }
+    },
+    {
+      "label": "m26-b4-i2_h",
       "block": 4,
       "arm": "i2",
       "range": "hdr",
-      "game_fps": 42.406726732547675,
-      "output_fps": 84.8134536743164,
-      "seconds": 64.23509216308594,
+      "game_fps": 42.40762833428136,
+      "output_fps": 84.81525421142578,
+      "seconds": 64.23372650146484,
       "game_frames": 2724,
       "output_frames": 5448,
       "sdk_factors": [
@@ -969,17 +2227,195 @@
         2560,
         1440
       ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "c27308cdf83eead3ad16d04e8a6b62f3acccdd64486b64ae2985773638c377d3",
+        "benchmark/frames.csv": "ef948fa46bd3fc85309662daf2c06a76b852deebbb89b4997c0ccd92a8919caf",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "d32e3821fd1bf92c2d687772aa03ae7470eb9b215713810cd37bebd498e64efc"
+      }
+    },
+    {
+      "label": "m26-b4-f2_h",
+      "block": 4,
+      "arm": "f2",
+      "range": "hdr",
+      "game_fps": 53.258543510257915,
+      "output_fps": 106.51708984375,
+      "seconds": 64.23382568359375,
+      "game_frames": 3421,
+      "output_frames": 6842,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1831.5068493150684,
+      "sha256": {
+        "benchmark/summary.json": "f1dfde114b022ed6194b188076820fb8d4ff7a541ce2c0d049f7e80501b5b978",
+        "benchmark/frames.csv": "bfe623c01eb838e07f24dadbe0cabe1681d415f2cb7d30318f3b6d33cc4851fb",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "17c942eec2a4b38689e35034acb1b5020d4dd53ef1fcf774e89665037c1ad5bb"
+      }
+    },
+    {
+      "label": "m26-b4-i3_h",
+      "block": 4,
+      "arm": "i3",
+      "range": "hdr",
+      "game_fps": 30.53268369820666,
+      "output_fps": 91.59805297851562,
+      "seconds": 64.22625732421875,
+      "game_frames": 1961,
+      "output_frames": 5883,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 82.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "f36255753646009fc1bb61f0d4b3766193b079cf524d10068855a1a2a02996bb",
+        "benchmark/frames.csv": "4ff47c8bb0c4dd878cbd0783c1fc9593c75f10c028aaa429515b6a61d052592d",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "5cbdccfbd65d658eba476d241e0f749ba3c594b171654c1f6060e56872a85637"
+      }
+    },
+    {
+      "label": "m26-b4-f3_h",
+      "block": 4,
+      "arm": "f3",
+      "range": "hdr",
+      "game_fps": 43.225386488830665,
+      "output_fps": 129.67616271972656,
+      "seconds": 64.22151947021484,
+      "game_frames": 2776,
+      "output_frames": 8328,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 84.0,
+      "busy_gpu_mhz_mean": 1835.0,
+      "sha256": {
+        "benchmark/summary.json": "0f5bbf356338276377cdfb991288d6f9198a03ec44c815bb2baecdc2784b5019",
+        "benchmark/frames.csv": "9d18f365c9266a74c6a7fac5324371f0677f48425a0deb28e9c5767fbdb1c609",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "17b51015675fa129c9317378a6b50fd96ee20c930f39272e99eeee2666484c1e"
+      }
+    },
+    {
+      "label": "m26-b4-off_h",
+      "block": 4,
+      "arm": "off",
+      "range": "hdr",
+      "game_fps": 71.59496735469716,
+      "output_fps": 71.594970703125,
+      "seconds": 64.23635864257812,
+      "game_frames": 4599,
+      "output_frames": 4599,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "1e9e6ec80d40a633608ee7379a9cb6f300c31c33ac93acd57547477c6ce28e1f",
+        "benchmark/frames.csv": "a034abd27c9d0645f11f3dcfc2f3bc456fe32ff1d1bbb6b920ebaceba77481e5",
+        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
+        "analysis.json": "89abf9ef6b6ab1aaef9c030ef190e4a651c5f140de2683c0e0d4b4ea72f2fc3e"
+      }
+    },
+    {
+      "label": "m26-b4-i4_h",
+      "block": 4,
+      "arm": "i4",
+      "range": "hdr",
+      "game_fps": 23.83933532362817,
+      "output_fps": 95.35733795166016,
+      "seconds": 64.17964172363281,
+      "game_frames": 1530,
+      "output_frames": 6120,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "208ac8859c71c8162c04fc98e47f5729e3234350021914c2909ce5acdaf92edb",
+        "benchmark/frames.csv": "7b6f1bf48e2cf74b7e788912f7782b42f388463c54a0e985d972c92efeb50c39",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "3eb37a74e0efdbd7c7e362deebab14d9a39a020afecfb93cd76f9405ca26bb53"
+      }
+    },
+    {
+      "label": "m26-b4-f4_h",
+      "block": 4,
+      "arm": "f4",
+      "range": "hdr",
+      "game_fps": 36.46774802104925,
+      "output_fps": 145.87098693847656,
+      "seconds": 64.22113037109375,
+      "game_frames": 2342,
+      "output_frames": 9368,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
       "gpu_max_c": 83.0,
       "busy_gpu_mhz_mean": 1850.0,
       "sha256": {
-        "benchmark/summary.json": "fe3138efa1c9d795a8e01bff65a58f13ff4f7d218253b8ca05b34abb0085c70d",
-        "benchmark/frames.csv": "a560683c37029b36e87a63c9230bec72acccb726682c47e54e7ebfb8fd7beac7",
-        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
-        "analysis.json": "6b89c229750e637155ad668a83848be368ca4bedfef01e0a1b8e65f5d422411f"
+        "benchmark/summary.json": "5ab659f03e8a57c7248137f403ebcca031053bb6ab0e8fd9d9d9d7f555d252f6",
+        "benchmark/frames.csv": "dfae2d0b52c72eefab419a7ca2dde217256e557aebb7e539db7dbed398a817a0",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "cda008ea8a8f2d07fb03fa5b81eabc42b7efb4a7e01475dcd9a5e0cf1c0c05fa"
       }
     }
   ],
-  "protocol_sha256": "7c571e66ba5c21e7ab37080abf69c3b8339cd21ba28ee714a7b679eaf4958727",
+  "protocol_sha256": "a9726ace1968683fff01f119abe53e47714094f8246a70b09f0a09292323d9f8",
   "driver": {
     "packages": [
       "vulkan-radeon 3:26.2.5-1.331",
@@ -1050,6 +2486,492 @@
       "RADV_BC250_MESH_SAFE_BARY_TINY": "1"
     },
     "environment_observation": "Read from the running no-FG HDR warm-up process; matches the prequalification installed-driver control. Proton startup supplies these host defaults after the launch-environment snapshot. RADV_DIRECTMESH=1 is also explicitly fixed and checked for every run.",
-    "environment_observation_sha256": "c4d6e30b0475fd20ca8d0c53aca033496c4ca22885e963345bf02aa8a0651e5e"
-  }
+    "environment_observation_sha256": "c4d6e30b0475fd20ca8d0c53aca033496c4ca22885e963345bf02aa8a0651e5e",
+    "current_process_proof_sha256": "7e87a68b998bb4e6a137d30267ac64e1c5e76f91c8b36b997be3b2f63bc858f3",
+    "current_radv_environment": {
+      "RADV_BC250_TASK_MULTIVIEW": "1",
+      "RADV_BC250_KEEP_IB_KB": "640",
+      "RADV_BC250_LOCAL_BOS": "1",
+      "RADV_BC250_MESH_NESTED_SLICE": "1",
+      "RADV_BC250_EXPOSE_FAST_BINDING": "1",
+      "RADV_BC250_SUBMIT_KNOWN_SIGNALS": "1",
+      "RADV_BC250_MESH_PIECES_65": "1",
+      "RADV_BC250_MESH_ONCE": "false",
+      "RADV_BC250_MESH_SAFE_BARY": "1",
+      "RADV_BC250_MESH_SAFE_FAST": "1",
+      "RADV_BC250_MESH_SPLIT_ANY": "1",
+      "RADV_BC250_BARY_IO16": "1",
+      "RADV_BC250_EXPOSE_DGC": "1",
+      "RADV_BC250_MESH_SAFE_OWNED": "1",
+      "RADV_BC250_SCRATCH_REUSE": "1",
+      "RADV_BC250_MESH_MERGED_CHECK": "1",
+      "RADV_BC250_MESH_SAFE_AUTOCULL": "1",
+      "RADV_BC250_EXPOSE_MULTIVIEW_MESH": "1",
+      "RADV_BC250_MESH_SAFE_CORNERS": "1",
+      "RADV_BC250_TASK_GRID_FOLD": "1",
+      "RADV_BC250_HYBRID_TASK": "1",
+      "RADV_BC250_MESH_SAFE_SPLIT_PIECES": "1",
+      "RADV_BC250_MESH_ALLOW_POS1": "1",
+      "RADV_BC250_MESH_SAFE_PIECES_EXT": "1",
+      "RADV_BC250_DCC_32B": "1",
+      "RADV_BC250_MESH_DEAD_PAYLOAD": "1",
+      "RADV_BC250_PERF_PIECE_PRIMS": "64",
+      "RADV_BC250_EXPAND_PRIMITIVES": "true",
+      "RADV_BC250_MESH_SAFE_CHECK": "1",
+      "RADV_BC250_BARY_CORNER_ID": "1",
+      "RADV_BC250_MESH_LEAN_CHECK": "1",
+      "RADV_BC250_TASK_TAIL": "1",
+      "RADV_BC250_MESH_AUTOCULL": "1",
+      "RADV_BC250_NATIVE_TASK": "0",
+      "RADV_BC250_MESH_IDXPASS": "1",
+      "RADV_BC250_MESH_AUTOCULL_WIDE": "1",
+      "RADV_BC250_MESH_SAFE_BARY_AFFINE": "1",
+      "RADV_BC250_MESH_SAFE_BARY_LAST": "1",
+      "RADV_BC250_MESH_PP_DIRECT": "1",
+      "RADV_BC250_MESH_SAFE_PARALLEL": "1",
+      "RADV_BC250_MESH_SPLIT_STORES": "1",
+      "RADV_BC250_MESH_LDS_PLAN": "1",
+      "RADV_BC250_MESH_SAFE_ADAPTIVE": "1",
+      "RADV_BC250_MESH_FAIL_CLOSED": "1",
+      "RADV_BC250_MESH_PP_SHARE": "1",
+      "RADV_PERFTEST": "mesh,nircache",
+      "RADV_BC250_MESH_DIRECT_READ": "full",
+      "RADV_BC250_MESH_LDS_COVER": "1",
+      "RADV_BC250_MESH_SAFE_COMPACT": "1",
+      "RADV_BC250_MESH_SAFE_LOCAL": "1",
+      "RADV_BC250_MESH_SAFE_PIECES": "1",
+      "RADV_BC250_SPLIT_MESH": "true",
+      "RADV_DIRECTMESH": "1",
+      "RADV_BC250_MESH_PIECE_PRIMID": "1",
+      "RADV_BC250_MESH_MULTIVIEW_VTX": "1",
+      "RADV_BC250_NGGC_WIDE": "1",
+      "RADV_BC250_MESH_SAFE_BARY_TINY": "1"
+    }
+  },
+  "warmups": [
+    {
+      "label": "m26-warm-off_s",
+      "block": 0,
+      "arm": "off",
+      "range": "sdr",
+      "game_fps": 70.752649681043,
+      "output_fps": 70.75264739990234,
+      "seconds": 64.23787689208984,
+      "game_frames": 4545,
+      "output_frames": 4545,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 78.0,
+      "busy_gpu_mhz_mean": 1815.2173913043478,
+      "sha256": {
+        "benchmark/summary.json": "8cb8e2be24365e842304446264b8e0314ea16683c233568a8969ce3a30ecb320",
+        "benchmark/frames.csv": "eb4a6b3901a7605944f98a033b487dfa3f57501e9e193cc62686ebda55f351e8",
+        "settings-after.json": "5fae6668783522713d17c1a9344fd394d8c8a026a797ba95b6d94a486635e212",
+        "analysis.json": "8ba7e30bcec2798ccf394f09b50291656601eb827951dc0192ef8faf3c2c8556"
+      }
+    },
+    {
+      "label": "m26-warm-i2_s",
+      "block": 0,
+      "arm": "i2",
+      "range": "sdr",
+      "game_fps": 43.17388271200703,
+      "output_fps": 86.34776306152344,
+      "seconds": 64.22864532470703,
+      "game_frames": 2773,
+      "output_frames": 5546,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 79.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "ef4b83e9041bd1acb35006d578bec45d1dfeb7a5c2dd07d194e896ba9938215b",
+        "benchmark/frames.csv": "2679713d64842a7f0dc86c0a7e5946b08fc43b33e526db315efc07243dbc7072",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "e11a69414d92909bece05f74ae1128ec7c27a15de9b15049e9aab0852bea737a"
+      }
+    },
+    {
+      "label": "m26-warm-f2_s",
+      "block": 0,
+      "arm": "f2",
+      "range": "sdr",
+      "game_fps": 53.92284427937283,
+      "output_fps": 107.84568786621094,
+      "seconds": 64.22138977050781,
+      "game_frames": 3463,
+      "output_frames": 6926,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 79.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "30888c08c0fea4cb03552190fe708fe7989e08ee2c45bc1e537167d7dc7f5c42",
+        "benchmark/frames.csv": "c12b34fc8674c2a55e7a02fafc85af1c17a41aa3f03162fe87b1fc52a8c69bbe",
+        "settings-after.json": "b958c89bd2a89e2c96481561cbb3924b0ffe470286959acf43cb502352bcad77",
+        "analysis.json": "69654dee48cec4b727b3ccdfb3e2b21fc421b3cd78e348ac8e24386efcdd4a2a"
+      }
+    },
+    {
+      "label": "m26-warm-i3_s",
+      "block": 0,
+      "arm": "i3",
+      "range": "sdr",
+      "game_fps": 31.30792361215041,
+      "output_fps": 93.92376708984375,
+      "seconds": 64.23294067382812,
+      "game_frames": 2011,
+      "output_frames": 6033,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 80.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "e73f50119911301248a962c23126e1d403c180a53c1377e1b5424b1d086e8148",
+        "benchmark/frames.csv": "b6051f98b123bb962ab4193edaa9f997f8e0f71cbe03d975f953789bf0483b90",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "75e1f0229cae9972f9c9f36aab4625a6cefe5124d852a3bd9b18e92175cc8cb8"
+      }
+    },
+    {
+      "label": "m26-warm-f3_s",
+      "block": 0,
+      "arm": "f3",
+      "range": "sdr",
+      "game_fps": 44.23761339751139,
+      "output_fps": 132.7128448486328,
+      "seconds": 64.22136688232422,
+      "game_frames": 2841,
+      "output_frames": 8523,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 80.0,
+      "busy_gpu_mhz_mean": 1830.4347826086957,
+      "sha256": {
+        "benchmark/summary.json": "2444b7dde4cb10264931272df00d6b7367e497b4433933e1e0d5d7a6b606870c",
+        "benchmark/frames.csv": "c971170055f6e8072e4413613740b43ea977e4a02fb7e5bcd807cb418f5aff42",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "6ed66eb6f16c7a927757e5fd9f1b62d619b8af82f64ed7757e973dab2ed7e182"
+      }
+    },
+    {
+      "label": "m26-warm-i4_s",
+      "block": 0,
+      "arm": "i4",
+      "range": "sdr",
+      "game_fps": 24.44910021559278,
+      "output_fps": 97.79640197753906,
+      "seconds": 64.21504211425781,
+      "game_frames": 1570,
+      "output_frames": 6280,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "8dc108156d2d7055bc770c2fea54a2fe2e7d1d58a336b310a916f68dbd815bad",
+        "benchmark/frames.csv": "ace543f8ddf6ab51e807f679b0fb367c07672376ab76dd6089f7c10f7df49ca7",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "66c8a2a24286101728dbb115670c22306c3188d3c0b6d6606ae9ef4204806f1c"
+      }
+    },
+    {
+      "label": "m26-warm-f4_s",
+      "block": 0,
+      "arm": "f4",
+      "range": "sdr",
+      "game_fps": 37.647728731929824,
+      "output_fps": 150.59091186523438,
+      "seconds": 64.22698211669922,
+      "game_frames": 2418,
+      "output_frames": 9672,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "96482b098cd53e5c550067d42c139d4f8cc049f800da869de8596167173abbab",
+        "benchmark/frames.csv": "3a2985c937665b8ddac784c0f5cd069c076b1ce46ae7d72334d8c3a7e61b9754",
+        "settings-after.json": "f0e272a2a5f42d3aafa2fd886869b9f493fcd0ce090fc088f1bb2d268b79761b",
+        "analysis.json": "49c87474e1449499ed341c18d42d8fc024ef01a92f5c664c830faae308f33903"
+      }
+    },
+    {
+      "label": "m26-warm-off_h",
+      "block": 0,
+      "arm": "off",
+      "range": "hdr",
+      "game_fps": 70.24120343207368,
+      "output_fps": 70.24120330810547,
+      "seconds": 64.25003814697266,
+      "game_frames": 4513,
+      "output_frames": 4513,
+      "sdk_factors": [],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 79.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "0019d892b6f6748ec649ceeba69bc04a955c4a33c6283a066ef304fa9559dccb",
+        "benchmark/frames.csv": "09c3dae75740d9ac1cafcfc18989654d346f06638474c8332be1c5fc84b5e796",
+        "settings-after.json": "ccfd9090daa68aa9e77d528d22643987d8b89e206b020d131cddb5cbfa2db339",
+        "analysis.json": "24e21c5f46d5b62d3b81d349da73f27e887fcdc07f887edad989f87a52f52818"
+      }
+    },
+    {
+      "label": "m26-warm-i2_h",
+      "block": 0,
+      "arm": "i2",
+      "range": "hdr",
+      "game_fps": 42.37114233140696,
+      "output_fps": 84.7422866821289,
+      "seconds": 64.24183654785156,
+      "game_frames": 2722,
+      "output_frames": 5444,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 80.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "383703b75cb65e3113fff078e915a354d184dc43f59829f7d15c8d11747d878d",
+        "benchmark/frames.csv": "ce3c50efc7532bdf8cc022ac047c743338f5744a022df8656bc7a2a8bd7b8917",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "7612439f85da3ae1a97724cb2de007edd0007dcf8abaf56e6e80ea64ea2459a3"
+      }
+    },
+    {
+      "label": "m26-warm-f2_h",
+      "block": 0,
+      "arm": "f2",
+      "range": "hdr",
+      "game_fps": 53.05100358975467,
+      "output_fps": 106.10200500488281,
+      "seconds": 64.24006652832031,
+      "game_frames": 3408,
+      "output_frames": 6816,
+      "sdk_factors": [
+        2
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 80.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "d10072bf13c21d6db4b3ae1f8c2721347f49c521ffcc6df14b8eabdf9f44bc84",
+        "benchmark/frames.csv": "4dd085b42e73858253eb4030668e03c59fcb15ed83156a0e27c5b8db72c15bb0",
+        "settings-after.json": "48cfae8755881d2ee9eba25885a6f920739f351efa4b15d25873675e5c13927a",
+        "analysis.json": "24b7a6a8547698f782ada69931ac698f8b895f7734f1630af77dfc29ec3b9141"
+      }
+    },
+    {
+      "label": "m26-warm-i3_h",
+      "block": 0,
+      "arm": "i3",
+      "range": "hdr",
+      "game_fps": 30.51847379372002,
+      "output_fps": 91.555419921875,
+      "seconds": 64.19062805175781,
+      "game_frames": 1959,
+      "output_frames": 5877,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 80.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "a506599af8baf770efe87b4f9062fe0e2005b87a1dbb35682831f5520a2b52a4",
+        "benchmark/frames.csv": "75243f7f3ed1830cecdc7cdb6c1819d55802e31859d99ede4bb28413b0e1c0f4",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "2ae7580c56df903eb9ec5b41c8824f0c4bbd9608b6433cc66ffd6a65cd4c3b78"
+      }
+    },
+    {
+      "label": "m26-warm-f3_h",
+      "block": 0,
+      "arm": "f3",
+      "range": "hdr",
+      "game_fps": 43.075176485237215,
+      "output_fps": 129.22552490234375,
+      "seconds": 64.21331787109375,
+      "game_frames": 2766,
+      "output_frames": 8298,
+      "sdk_factors": [
+        3
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 80.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "b597230ea9d210a4c7203a371f7dc66d2bc1ffb2529bd36b5df9f3f7e9d625b8",
+        "benchmark/frames.csv": "7ec40455370c66aa5d835c78c8efb03a3209da6516658161fea244595cda7944",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "0b016c856ea7488e5515af30d76458576ea7839f4e0acdf5f80fb4387d151d17"
+      }
+    },
+    {
+      "label": "m26-warm-i4_h",
+      "block": 0,
+      "arm": "i4",
+      "range": "hdr",
+      "game_fps": 23.758497369369437,
+      "output_fps": 95.03398895263672,
+      "seconds": 64.18756103515625,
+      "game_frames": 1525,
+      "output_frames": 6100,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "6783e0d8a84efb15c70bd4b72b3ce389d61757089f12f007a8d0f20e7c92f139",
+        "benchmark/frames.csv": "e83e1f276cbfa0498af0504a520fe24ea6886e01af0841627b19681b0bb91db0",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "0437c12e8a63048199cbf55eacfe4efc23252ef9e6af06d1d9a6553a73ced76a"
+      }
+    },
+    {
+      "label": "m26-warm-f4_h",
+      "block": 0,
+      "arm": "f4",
+      "range": "hdr",
+      "game_fps": 36.41224453728575,
+      "output_fps": 145.6489715576172,
+      "seconds": 64.23663330078125,
+      "game_frames": 2339,
+      "output_frames": 9356,
+      "sdk_factors": [
+        4
+      ],
+      "render_size": [
+        1706,
+        960
+      ],
+      "summary_dimensions": [
+        2560,
+        1440
+      ],
+      "gpu_max_c": 81.0,
+      "busy_gpu_mhz_mean": 1850.0,
+      "sha256": {
+        "benchmark/summary.json": "3fa7499ecb2137f324882ca8f6267fd7b5d581ca8c3ff5718e56ea7cffbb737b",
+        "benchmark/frames.csv": "00a7b8d59c0c9a7873f86de43367be005324e323723f80e56a859d23f93176f1",
+        "settings-after.json": "d202b557cbca3de95e80e7db3825f892c03464f9447b1342ba77c2efffef08bc",
+        "analysis.json": "90ae486a53c12b2c6c2395123c94a1e32370acfd026bfb1b9c60e160287cf09d"
+      }
+    }
+  ],
+  "mfg_unlocker": {
+    "version": "1.6.0",
+    "sha256": "161b9e1245a3736dc462ee83f4ad51e6125d8e7e73ce3eedde89d2eed60c69fa",
+    "route": "OptiScaler ASI, XeFGModel=default",
+    "temporary": true
+  },
+  "previous_2x_data": "2x-2026-10-25.json",
+  "previous_2x_data_sha256": "64088894a9b2c065a2bf0349421a033dbfab52538aaabdf543950b68c49857f4"
 }
