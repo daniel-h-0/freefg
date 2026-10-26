@@ -187,15 +187,13 @@ Echo Point Nova passed 2×/3×/4× starts. Installer/Restore and pinned builds p
 ## Known limitations
 
 - Qualified on one BC-250 under Proton. Flatpak launchers and other GPUs are not qualified.
-- Default FP16 output differs from Intel's. Exact mode matched in the tested scenes; F4Q-family arithmetic is not proven
+- Default FP16 output differs very slightly from Intel's. Exact mode matched in the tested scenes; F4Q-family arithmetic is not proven
   equivalent for every input. [Details](packaging/public/ARCHITECTURE.md#f4q-rounding-and-tested-equivalence).
 - Only the first eligible XeFG context is accelerated. Unsupported runtime layouts can trigger a fallback or close the
   game. [Fallback behavior](packaging/public/ARCHITECTURE.md#stepping-aside).
-- Generated frames use full output resolution; there is no generated-frame downscaling option.
+- Generated frames use full output resolution; there is no generated-frame downscaling option (TODO: reimplement subnative generated frame option).
 - Frame pacing cannot remove every game/CPU stall. Higher-factor image quality and end-to-end latency remain incompletely
   measured; throughput gains alone do not establish either.
-- The Cyberpunk startup-fault cause remains unresolved, including failures reproduced without FreeFG. Its recipe
-  contains the tested mask-off workaround.
 
 ## Troubleshooting
 
