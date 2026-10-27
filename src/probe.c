@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "frame_scale_api.h"
 #include <xefg_swapchain_d3d12.h>
 #include <xefg_swapchain_debug.h>
 /* XeLL public header uses its enum tag as a typedef in a C size check. */
@@ -115,6 +116,7 @@ static void STDMETHODCALLTYPE set_hook(ID3D12GraphicsCommandList*l,ID3D12Pipelin
 static void(STDMETHODCALLTYPE *dispatch_original)(ID3D12GraphicsCommandList*,UINT,UINT,UINT);
 static int graph_dispatch(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT);
 static void dispatch_selected(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UINT y,UINT z){
+ if(scale_dispatch_unet(l,shader,x,y,z))return;
  if(flow_dispatch_pso(l,shader,x,y,z))return;
  if(frame_dispatch_pso(l,shader,x,y,z))return;
  if(warp_split_requested&&shader==0x3a7d9dfa831ba4f3ULL){
@@ -183,4 +185,5 @@ static UINT env_uint(const char*k,UINT v){char b[32];if(GetEnvironmentVariableA(
 #include "mfg_heap_lifetime.h"
 /* Game builds compile the core above: they slice this file at the next line (release/build_addon.py PROBE_SPLIT). Only
  * the standalone probe, which is not part of the public tree, reads on. */
+#include "frame_scale_views.h"
 #include "scene_motion.h"

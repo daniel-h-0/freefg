@@ -119,8 +119,8 @@ PUBLIC_MANIFEST = {
     'status': "{product} {version}: frame generation through Intel's unmodified XeFG runtime (downloaded by the "
               "installer) behind a libxess_fg.dll proxy that runs part of the runtime's GPU work with this project's "
               "own shaders at the frame count the runtime runs (2x on its own; 3x and 4x only beside a separate tool "
-              "the user adds that lifts Intel's limit) and paces presents evenly for VRR displays; no generated-frame "
-              'scaling. See README.md and ARCHITECTURE.md',
+              "the user adds that lifts Intel's limit), paces presents for VRR displays and optionally generates at a smaller "
+              'resolution before enlarging generated frames. Match output is the default. See README.md and ARCHITECTURE.md',
     'profile.research': "this project's own shaders only, built from its HLSL sources (src/kernels), for the "
                         'one-frame and multi-frame networks',
 }
@@ -823,6 +823,8 @@ def assemble(config, spec, receipt_path=None, companion=True, archive_requested=
         builds=dict(addon_matches_reference=addon_record['matches_reference'],
                     layer_matches_reference=layer_record['matches_reference']),
     )
+    if any(name.endswith('/freefg-scaling.required') for name in files):
+        manifest['generated_frame_scaling'] = dict(modes=['output','scale','limit'],percent=[50,100],limits=[720,1080,1440,2160],downscale=['bilinear','area'],upscale=['bilinear','bicubic','lanczos2','fsr1'],default='output',apply='restart')
     if variant:
         manifest['variant'] = variant
     manifest = {k: v for k, v in manifest.items() if v is not None or k == 'git_dirty'}

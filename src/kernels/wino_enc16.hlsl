@@ -17,6 +17,7 @@ StructuredBuffer<float4> model : register(t1);
 StructuredBuffer<float4> scale : register(t2);
 StructuredBuffer<float4> bias : register(t3);
 RWTexture2DArray<uint4> dst : register(u0);
+#include "virtual_bounds.hlsli"
 
 #ifndef WHALF
 #define WHALF 0 // coefficients as FP16 pairs from a segment at WINO16_BASE (float4 index)
@@ -57,7 +58,7 @@ float16_t2 code_pair(uint raw, uint sel) {
     return sel ? L4.zw : L4.xy;
 }
 #endif
-uint4 load_patch(int x, int y) { uint4 w = src.Load(int4(x, y, 0, 0)); return uint4(decode_word(w.x), decode_word(w.y), decode_word(w.z), decode_word(w.w)); }
+uint4 load_patch(int x, int y) { uint4 w = FG_LOAD(src,int4(x, y, 0, 0),1); return uint4(decode_word(w.x), decode_word(w.y), decode_word(w.z), decode_word(w.w)); }
 
 #ifndef WINO_ZERO
 #define WINO_ZERO (WINO_BASE + 1024 * SLICES * CIN_SLICES) // one zero float4 after the transformed weights
@@ -174,9 +175,9 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
         int xz = x0 + zero * int(q);
         [unroll] for (uint j = 0; j < 4; j++) [unroll] for (uint i = 0; i < 4; i++)
 #if CIN_SLICES > 1
-            patch[j][i] = decode_raw(src.Load(int4(xz + int(i), y0 + int(j), int(is), 0))[q]);
+            patch[j][i] = decode_raw(FG_LOAD(src,int4(xz + int(i), y0 + int(j), int(is), 0),1)[q]);
 #else
-            patch[j][i] = decode_raw(src.Load(int4(xz + int(i), y0 + int(j), 0, 0))[q]);
+            patch[j][i] = decode_raw(FG_LOAD(src,int4(xz + int(i), y0 + int(j), 0, 0),1)[q]);
 #endif
         float16_t2 vh[2][16]; // [sel][position]: sel 0 = channels (4q, 4q + 1), sel 1 = (4q + 2, 4q + 3)
         [unroll] for (uint sel = 0; sel < 2; sel++) {
@@ -245,9 +246,9 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
             int xz = x0 + zero * int(c >> 2);
             [unroll] for (uint j = 0; j < 4; j++) [unroll] for (uint i = 0; i < 4; i++)
 #if CIN_SLICES > 1
-                patch[j][i] = decode_word(src.Load(int4(xz + int(i), y0 + int(j), int(is), 0))[c >> 2]);
+                patch[j][i] = decode_word(FG_LOAD(src,int4(xz + int(i), y0 + int(j), int(is), 0),1)[c >> 2]);
 #else
-                patch[j][i] = decode_word(src.Load(int4(xz + int(i), y0 + int(j), 0, 0))[c >> 2]);
+                patch[j][i] = decode_word(FG_LOAD(src,int4(xz + int(i), y0 + int(j), 0, 0),1)[c >> 2]);
 #endif
         }
         [unroll] for (uint j = 0; j < 4; j++) [unroll] for (uint i = 0; i < 4; i++)
@@ -407,8 +408,8 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
     GroupMemoryBarrierWithGroupSync();
 #endif
     uint ox = id.x * 2, oy = id.y * 2;
-    if (h == 0) { uint4 o = swap4[slot + 1]; dst[uint3(ox, oy, slice)] = uint4(pw[0], o.xy); dst[uint3(ox + 1, oy, slice)] = uint4(pw[1], o.zw); }
-    else        { uint4 o = swap4[slot];     dst[uint3(ox, oy + 1, slice)] = uint4(o.xy, pw[2]); dst[uint3(ox + 1, oy + 1, slice)] = uint4(o.zw, pw[3]); }
+    if (h == 0) { uint4 o = swap4[slot + 1]; FG_STORE(dst,uint3(ox, oy, slice),(NOPOOL?1:2),uint4(pw[0], o.xy)); FG_STORE(dst,uint3(ox + 1, oy, slice),(NOPOOL?1:2),uint4(pw[1], o.zw)); }
+    else        { uint4 o = swap4[slot];     FG_STORE(dst,uint3(ox, oy + 1, slice),(NOPOOL?1:2),uint4(o.xy, pw[2])); FG_STORE(dst,uint3(ox + 1, oy + 1, slice),(NOPOOL?1:2),uint4(o.zw, pw[3])); }
 }
 #else
     uint2 words;
@@ -421,6 +422,6 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
     uint slot = gt.y * GX + gt.x;
     if (h == 1) upper[slot] = words;
     GroupMemoryBarrierWithGroupSync();
-    if (h == 0) dst[uint3(id.xy, slice)] = uint4(words, upper[slot]);
+    if (h == 0) FG_STORE(dst,uint3(id.xy, slice),(NOPOOL?1:2),uint4(words, upper[slot]));
 }
 #endif

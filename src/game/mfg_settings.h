@@ -9,14 +9,12 @@ static struct bc250_fg_settings mfg_settings_applied;
 static struct bc250_fg_status mfg_settings_status;
 static wchar_t mfg_settings_path[32768];
 static LONG mfg_settings_loaded;
+static UINT mfg_scaling_suppressed;
 static int mfg_settings_available(void){return InterlockedCompareExchange(&mfg_settings_loaded,0,0)!=0;}
 static SRWLOCK mfg_settings_lock=SRWLOCK_INIT;
 /* Extend these masks only alongside qualified shader implementations. */
-/* The Intel-free add-on has no scaled warps: generated frames always match the output and no filter is offered (no mask
- * bit is set). Saving accepts only the native choice (BC250MFGSaveFrameSettings). The status interface still reports
- * the context's size. */
-#define MFG_SETTINGS_DOWNSCALE_MASK 0u
-#define MFG_SETTINGS_UPSCALE_MASK 0u
+#define MFG_SETTINGS_DOWNSCALE_MASK ((1u<<BC250_FG_BILINEAR)|(1u<<BC250_FG_AREA))
+#define MFG_SETTINGS_UPSCALE_MASK ((1u<<BC250_FG_BILINEAR)|(1u<<BC250_FG_BICUBIC)|(1u<<BC250_FG_LANCZOS2)|(1u<<BC250_FG_FSR1))
 static const wchar_t*mfg_settings_keys[]={L"ResolutionMode",L"ResolutionPercent",L"ResolutionLimit",L"DownscaleFilter",L"UpscaleFilter"};
 static UINT mfg_settings_read_uint(const wchar_t*key,UINT fallback) {
  wchar_t value[64],*end=NULL;
@@ -47,7 +45,6 @@ static struct bc250_fg_settings mfg_settings_read_saved(void) {
  if(bad)proxy_log("MFG_SETTINGS invalid INI value; that key uses its default\n");
  if(!(MFG_SETTINGS_DOWNSCALE_MASK&(1u<<s.downscale)))s.downscale=BC250_FG_BILINEAR;
  if(!(MFG_SETTINGS_UPSCALE_MASK&(1u<<s.upscale)))s.upscale=BC250_FG_BILINEAR;
- s.resolution=BC250_FG_OUTPUT;  /* a saved Scale/Limit choice of another build does not apply here */
  return s;
 }
 static void mfg_settings_init(void) {
@@ -56,6 +53,11 @@ static void mfg_settings_init(void) {
  wchar_t*slash=wcsrchr(mfg_settings_path,L'\\');if(!slash){mfg_settings_path[0]=0;return;}
  wcscpy(slash+1,L"BC250-XeFG\\settings.ini");
  mfg_settings_applied=mfg_settings_read_saved();
+ wchar_t override[16];DWORD length=GetEnvironmentVariableW(L"BC250_XEFG_FRAME_CAP",override,16);
+ if(length==1&&(override[0]==L'0'||override[0]==L'1')) {
+  mfg_settings_applied.resolution=override[0]==L'0'?BC250_FG_OUTPUT:BC250_FG_LIMIT;
+  mfg_settings_applied.height_limit=1080;mfg_settings_status.launch_override=1;
+ }
  mfg_settings_status.size=sizeof(mfg_settings_status);
  mfg_settings_status.version=BC250_FG_SETTINGS_VERSION;
  mfg_settings_status.applied=mfg_settings_applied;
@@ -63,17 +65,22 @@ static void mfg_settings_init(void) {
  mfg_settings_status.upscale_mask=MFG_SETTINGS_UPSCALE_MASK;
  InterlockedExchange(&mfg_settings_loaded,1);
  char line[192];snprintf(line,sizeof(line),"MFG_SETTINGS mode=%u percent=%u limit=%u down=%u up=%u override=%u\n",mfg_settings_applied.resolution,mfg_settings_applied.percent,mfg_settings_applied.height_limit,mfg_settings_applied.downscale,mfg_settings_applied.upscale,mfg_settings_status.launch_override);proxy_log(line);
- proxy_log("MFG_SETTINGS Intel-free build: no scaling; generated frames match the output\n");
 }
 static UINT mfg_settings_cap_requested(void) {
- return 0;
+ if(mfg_scaling_suppressed)return 0;
+ return mfg_settings_available()&&mfg_settings_applied.resolution!=BC250_FG_OUTPUT&&
+  !(mfg_settings_applied.resolution==BC250_FG_SCALE&&mfg_settings_applied.percent==100);
 }
 static void mfg_settings_note_size(UINT w,UINT h) {
  UINT tw,th;if(!mfg_settings_available()||!bc250_fg_dimensions(&mfg_settings_applied,w,h,&tw,&th))return;
  AcquireSRWLockExclusive(&mfg_settings_lock);
  mfg_settings_status.output_width=w;mfg_settings_status.output_height=h;
- mfg_settings_status.generated_width=tw;mfg_settings_status.generated_height=th;mfg_settings_status.ready=1;
+ mfg_settings_status.generated_width=w;mfg_settings_status.generated_height=h;
+ mfg_settings_status.ready=1;
  ReleaseSRWLockExclusive(&mfg_settings_lock);
+}
+static void mfg_settings_note_generated(UINT w,UINT h){
+ AcquireSRWLockExclusive(&mfg_settings_lock);mfg_settings_status.generated_width=w;mfg_settings_status.generated_height=h;ReleaseSRWLockExclusive(&mfg_settings_lock);
 }
 __declspec(dllexport) BOOL WINAPI BC250MFGGetFrameSettings(struct bc250_fg_status*out) {
  if(!out||out->size!=sizeof(*out)||out->version!=BC250_FG_SETTINGS_VERSION||!mfg_settings_available())return FALSE;
@@ -84,11 +91,18 @@ __declspec(dllexport) BOOL WINAPI BC250MFGReadFrameSettings(struct bc250_fg_sett
  *out=mfg_settings_read_saved();return TRUE;
 }
 __declspec(dllexport) BOOL WINAPI BC250MFGSaveFrameSettings(const struct bc250_fg_settings*s) {
- /* Nothing to save: generated frames always match the output here. Accept the native choice (Match output, or Scale at
-  * 100%, with the default filters) without writing, so OptiScaler's menu clears its error; refuse Scale and Limit. The
-  * file keeps whatever another build saved. */
- return mfg_settings_available()&&bc250_fg_settings_valid(s)&&s->downscale==BC250_FG_BILINEAR&&s->upscale==BC250_FG_BILINEAR&&
-  (s->resolution==BC250_FG_OUTPUT||(s->resolution==BC250_FG_SCALE&&s->percent==100));
+ if(!mfg_settings_available()||!bc250_fg_settings_valid(s)||!(MFG_SETTINGS_DOWNSCALE_MASK&(1u<<s->downscale))||!(MFG_SETTINGS_UPSCALE_MASK&(1u<<s->upscale)))return FALSE;
+ wchar_t*folder=malloc((wcslen(mfg_settings_path)+1)*sizeof(wchar_t));if(!folder)return FALSE;
+ wcscpy(folder,mfg_settings_path);*wcsrchr(folder,L'\\')=0;
+ DWORD attributes=GetFileAttributesW(folder);
+ BOOL directory_ok=attributes==INVALID_FILE_ATTRIBUTES?CreateDirectoryW(folder,NULL):(attributes&FILE_ATTRIBUTE_DIRECTORY)!=0;
+ free(folder);if(!directory_ok)return FALSE;
+ const UINT values[]={s->resolution,s->percent,s->height_limit,s->downscale,s->upscale};
+ for(UINT i=0;i<5;i++) {
+  wchar_t value[32];swprintf(value,32,L"%u",values[i]);
+  if(!WritePrivateProfileStringW(L"BC250",mfg_settings_keys[i],value,mfg_settings_path))return FALSE;
+ }
+ return TRUE;
 }
 
 static void mfg_settings_note_context(xefg_swapchain_handle_t context) {

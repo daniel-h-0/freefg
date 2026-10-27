@@ -6,6 +6,10 @@
  * protect asynchronously consumed resources. Tester builds add input fallback.
  */
 #include "frame_cap_contract.h"
+#include <math.h>
+#define A_CPU 1
+#include "../vendor/fsr1/ffx_a.h"
+#include "../vendor/fsr1/ffx_fsr1.h"
 static struct{ID3D12GraphicsCommandList*l;UINT64 table[9];UINT table_mask,heap_count;ID3D12DescriptorHeap*heaps[2];} frame_lists[128];static UINT frame_list_count;
 static struct{SIZE_T cpu;ID3D12Resource*r;D3D12_UNORDERED_ACCESS_VIEW_DESC desc;UINT valid;} frame_descs[8192];static UINT frame_desc_count;
 static struct{uint64_t shader;ID3D12PipelineState*original,*scaled;
@@ -15,6 +19,7 @@ static struct{ID3D12Resource*r;ID3D12DescriptorHeap*heap;UINT temp;} frame_outpu
  * change or an HDR toggle brings outputs of another size or format within one context; frame_temp is the one in use. */
 static struct{ID3D12Resource*r;DXGI_FORMAT format;UINT w,h;} frame_temps[4];static UINT frame_temp_index;
 static UINT frame_temp_w,frame_temp_h;
+static unsigned char frame_format_support[256];
 static ID3D12Device*frame_device;static ID3D12Resource*frame_temp,*frame_readback;static D3D12_PLACED_SUBRESOURCE_FOOTPRINT frame_footprint;static UINT64 frame_readback_size,frame_completed;
 static ID3D12RootSignature*frame_root;static ID3D12PipelineState*frame_upscale;static DXGI_FORMAT frame_format;static SRWLOCK frame_lock=SRWLOCK_INIT;
 static __typeof__(uav_original) frame_uav_original;static __typeof__(simple_original) frame_simple_original;static __typeof__(descs_original) frame_descs_original;static __typeof__(table_original) frame_table_original;
@@ -65,6 +70,7 @@ static void install_frame_cap(ID3D12Device*d,ID3D12GraphicsCommandList*l){
 }
 static int frame_warp_shader(uint64_t shader){
  return shader==0x3a7d9dfa831ba4f3ULL||shader==0x8809b169edee2ba8ULL
+ ||shader==0xd8e6c564b3ae9acfULL /* SDK SDR warp with a one-pixel input axis; same checked root/geometry layout. */
  ||shader==0xe3914510b21e5419ULL||shader==0x72d9e71a91664cccULL||shader==0x44a0f8def607bdf5ULL
  ||shader==0xf440a4f4a7311d91ULL||shader==0xf9c944580da4662dULL
  /* HDR10 warps: 2x 276a73a0/0044a8b4, 3x/4x fda36bb6/c3824a65 (mfg_geometry_shader). */
@@ -78,11 +84,14 @@ static int frame_scatter_shader(uint64_t shader){
  ;
 }
 static void frame_capture_pso(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,uint64_t shader,ID3D12PipelineState*original){
+ if(env_uint("XEFG_FLOW_CAP",0)&&(frame_warp_shader(shader)||frame_final_shader(shader)))scale_invalidate();
+ return; /* Colour views are resampled; shader bytecode stays original. */
  if(!env_uint("XEFG_FLOW_CAP",0)||(!frame_warp_shader(shader)&&!frame_final_shader(shader)))return;
  if(frame_final_shader(shader)&&env_uint("XEFG_FRAME_OUTPUT_ORACLE",0))return;
  if(frame_pso_count==sizeof(frame_psos)/sizeof(*frame_psos))model_fail("frame PSO capacity");char name[80];snprintf(name,sizeof(name),"frame-warp-%016llx.dxil",(unsigned long long)shader);UINT size;void*bytes=shader==0x44a0f8def607bdf5ULL?graph_blob(name,&size):frame_color_blob(name,&size);D3D12_COMPUTE_PIPELINE_STATE_DESC copy=*desc;copy.CS.pShaderBytecode=bytes;copy.CS.BytecodeLength=size;copy.CachedPSO=(D3D12_CACHED_PIPELINE_STATE){0};ID3D12PipelineState*p;HR(compute_original(d,&copy,&IID_ID3D12PipelineState,(void**)&p));free(bytes);frame_psos[frame_pso_count].shader=shader;frame_psos[frame_pso_count].original=original;frame_psos[frame_pso_count++].scaled=p;
 }
 static int frame_dispatch_pso(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UINT y,UINT z){
+ if(frame_warp_shader(shader)||frame_final_shader(shader))return scale_dispatch(l,shader,x,y,z);
  if(frame_final_shader(shader)&&env_uint("XEFG_FRAME_OUTPUT_ORACLE",0))return 0;
  if(!flow_cap_enabled||(!frame_warp_shader(shader)&&!frame_final_shader(shader)))return 0;AcquireSRWLockExclusive(&flow_lock);UINT active=flow_lists[flow_slot(l)].active;
  ReleaseSRWLockExclusive(&flow_lock);if(!active)return 0;
@@ -146,10 +155,12 @@ static void frame_prepare_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,U
 /* Use the device's actual typed-texture capabilities, not an SDR/HDR list.
  * The SDK's final synthesis shader already writes float4 to this UAV. */
 static int frame_format_supported(DXGI_FORMAT format){
+ if((UINT)format<256&&frame_format_support[(UINT)format])return frame_format_support[(UINT)format]==2;
  D3D12_FEATURE_DATA_FORMAT_SUPPORT support={.Format=format};
- return SUCCEEDED(ID3D12Device_CheckFeatureSupport(frame_device,D3D12_FEATURE_FORMAT_SUPPORT,&support,sizeof(support)))&&
+ int ok=SUCCEEDED(ID3D12Device_CheckFeatureSupport(frame_device,D3D12_FEATURE_FORMAT_SUPPORT,&support,sizeof(support)))&&
   (support.Support1&D3D12_FORMAT_SUPPORT1_TEXTURE2D)&&(support.Support1&D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE)&&
   (support.Support2&D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE);
+ if((UINT)format<256)frame_format_support[(UINT)format]=ok?2:1;return ok;
 }
 /* Outputs XeFG has released (this reference is the last) and intermediates no output uses any more. XeFG releases a
  * buffer only after its command lists, which carry the copies and enlargements recorded here, have completed. */
@@ -173,9 +184,12 @@ static void frame_initialize_output(DXGI_FORMAT format,UINT width,UINT height){
  }
  if(!frame_format_supported(format))model_fail("generated texture lacks sampling or typed-store support");
  if(!frame_upscale){
-  const char*root_name="frame-upsample.rs";
-  UINT size;void*blob=graph_blob(root_name,&size);HR(model_create_root_original(frame_device,0,blob,size,&IID_ID3D12RootSignature,(void**)&frame_root));free(blob);
-  const char*upscale_name="frame-upsample.dxil";
+  UINT size;void*blob;const char*upscale_name;
+  frame_root=scale_create_filter_root(mfg_settings_applied.upscale==BC250_FG_FSR1);
+  upscale_name="freefg-up-bilinear.dxil";
+  if(mfg_settings_applied.upscale==BC250_FG_BICUBIC)upscale_name="freefg-up-bicubic.dxil";
+  else if(mfg_settings_applied.upscale==BC250_FG_LANCZOS2)upscale_name="freefg-up-lanczos2.dxil";
+  else if(mfg_settings_applied.upscale==BC250_FG_FSR1)upscale_name="freefg-up-fsr1.dxil";
   blob=graph_blob(upscale_name,&size);D3D12_COMPUTE_PIPELINE_STATE_DESC pd={.pRootSignature=frame_root,.CS={blob,size}};HR(compute_original(frame_device,&pd,&IID_ID3D12PipelineState,(void**)&frame_upscale));free(blob);
  }
  if(frame_temp){
@@ -192,6 +206,7 @@ static void frame_initialize_output(DXGI_FORMAT format,UINT width,UINT height){
 }
 static void frame_finish_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader){
  if(!flow_cap_enabled||!frame_final_shader(shader))return;
+ if(!mfg_scale_actual[flow_slot(l)])return;
  AcquireSRWLockExclusive(&flow_lock);UINT fl=flow_slot(l),active=flow_lists[fl].active;UINT c[18];ID3D12RootSignature*root=flow_lists[fl].root;memcpy(c,flow_lists[fl].values[8],sizeof(c));if(active&&flow_lists[fl].step!=
  44&&flow_lists[fl].step!=60&&flow_lists[fl].step!=FLOW_END
  ){model_fail("incomplete full-frame synthesis");}
@@ -213,6 +228,7 @@ static void frame_finish_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader){
  D3D12_GPU_DESCRIPTOR_HANDLE h;
  transition(l,out,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_COPY_SOURCE);D3D12_BOX region={0,0,0,cap_w,cap_h,1};ID3D12GraphicsCommandList_CopyTextureRegion(l,&dst,0,0,0,&src,&region);transition(l,out,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);transition(l,frame_temp,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
  ID3D12DescriptorHeap*heap=frame_outputs[oi].heap;frame_heaps_original(l,1,&heap);flow_root_original(l,frame_root);h=ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(heap);frame_table_original(l,0,h);h.ptr+=stride;frame_table_original(l,1,h);set_original(l,frame_upscale);
+ if(mfg_settings_applied.upscale==BC250_FG_FSR1){AU1 constants[16];FsrEasuCon(constants,constants+4,constants+8,constants+12,(float)cap_w,(float)cap_h,(float)cap_w,(float)cap_h,(float)output_w,(float)output_h);flow_constants_original(l,2,16,constants,0);}
  dispatch_original(l,(output_w+7)/8,(output_h+7)/8,1);
  transition(l,frame_temp,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COPY_DEST);
  if(env_uint("XEFG_FRAME_DUMP",0)){
@@ -233,6 +249,9 @@ static void frame_release_output_views(void){
  memset(frame_outputs,0,sizeof(frame_outputs));frame_output_count=0;
 }
 static void frame_release(void){
+ memset(frame_format_support,0,sizeof(frame_format_support));
+ scale_release();
+ memset(mfg_scale_actual,0,sizeof(mfg_scale_actual));mfg_scale_frame_actual=0;
  mfg_profile_checked=mfg_profile_general=0;mfg_second_phase_pending=0;mfg_output_w=mfg_output_h=mfg_cap_w=mfg_cap_h=0;
  for(UINT i=0;i<frame_pso_count;i++)ID3D12PipelineState_Release(frame_psos[i].scaled);
  frame_release_output_views();

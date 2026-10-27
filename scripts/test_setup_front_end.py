@@ -61,6 +61,16 @@ class SetupFrontEnd(unittest.TestCase):
         for word in ('Private', 'private', 'tester', 'Xe' + 'MFG'):  # the internal name in pieces (rename scan)
             self.assertNotIn(word, text)
 
+    def test_two_times_package_exposes_scaling_when_capable(self):
+        (self.dir / 'manifest.json').write_text(json.dumps({'runtime':'xemfg', 'addon_entry':'libxess_fg-proxy',
+            'max_factor':2, 'files':{'payload/BC250-XeFG/shaders/freefg-scaling.required':{}}}))
+        spec=importlib.util.spec_from_file_location('bc250_setup_test_scaling', self.dir / 'setup.py')
+        setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(setup)
+        self.assertEqual(setup.FACTORS,['2×']);self.assertTrue(setup.SCALING)
+        rows=self.menu(setup)
+        self.assertIn('Settings',rows)
+        self.assertIn('Choose 2× and generated-frame resolution',rows)
+
     def test_blockers_names_running_games_and_uses_launcher_lookup(self):
         class Installer:
             def idle(self, root):

@@ -12,6 +12,7 @@ static struct mfg_heap_note**mfg_live_heaps;
 static UINT mfg_live_heap_count,mfg_live_heap_capacity;
 static UINT64 mfg_retired_heaps;
 static void mfg_purge_heap_locked(struct mfg_heap_note*note){
+ scale_purge_descriptors(note->cpu,note->bytes);
  for(UINT i=0;i<frame_desc_count;)if(frame_descs[i].cpu>=note->cpu&&frame_descs[i].cpu-note->cpu<note->bytes){frame_descs[i]=frame_descs[--frame_desc_count];memset(&frame_descs[frame_desc_count],0,sizeof(*frame_descs));}else i++;
  for(UINT i=0;i<model_descriptor_count;)if(model_descriptors[i].cpu>=note->cpu&&model_descriptors[i].cpu-note->cpu<note->bytes){model_descriptors[i]=model_descriptors[--model_descriptor_count];memset(&model_descriptors[model_descriptor_count],0,sizeof(*model_descriptors));}else i++;
  for(UINT i=0;i<model_heap_count;)if(model_heaps[i].h==note->heap){model_heaps[i]=model_heaps[--model_heap_count];memset(&model_heaps[model_heap_count],0,sizeof(*model_heaps));}else i++;

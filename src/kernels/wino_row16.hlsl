@@ -17,6 +17,7 @@ StructuredBuffer<float4> model : register(t1);
 StructuredBuffer<float4> scale : register(t2);
 StructuredBuffer<float4> bias : register(t3);
 RWTexture2DArray<uint4> dst : register(u0);
+#include "virtual_bounds.hlsli"
 
 #ifndef WHALF
 #define WHALF 0
@@ -65,7 +66,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
             // exact; `precise` keeps the compiler from regrouping sums of two biased values.
             uint wr[3][4];
             [unroll] for (uint r = 0; r < 3; r++) [unroll] for (uint i = 0; i < 4; i++)
-                wr[r][i] = src.Load(int4(x0 + int(i), y0 + int(r), int(is), 0))[q];
+                wr[r][i] = FG_LOAD(src,int4(x0 + int(i), y0 + int(r), int(is), 0),1)[q];
             [unroll] for (uint r = 0; r < 3; r++) {
                 float16_t2 vh[2][4]; // [sel][j]: sel 0 = channels (4q, 4q + 1), sel 1 = (4q + 2, 4q + 3)
                 [unroll] for (uint sel = 0; sel < 2; sel++) {
@@ -111,7 +112,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
 #else
             uint wd[3][4];
             [unroll] for (uint r = 0; r < 3; r++) [unroll] for (uint i = 0; i < 4; i++)
-                wd[r][i] = src.Load(int4(x0 + int(i), y0 + int(r), int(is), 0))[q] ^ 0x80808080u;
+                wd[r][i] = FG_LOAD(src,int4(x0 + int(i), y0 + int(r), int(is), 0),1)[q] ^ 0x80808080u;
             [unroll] for (uint b = 0; b < 4; b++) {
                 uint c = q * 4 + b;
                 [unroll] for (uint r = 0; r < 3; r++) {
@@ -157,6 +158,6 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         o0[o] = pack_u8(min(max(int4(float4(ya) * s + b), CLAMP_LO), 127));
         o1[o] = pack_u8(min(max(int4(float4(yb) * s + b), CLAMP_LO), 127));
     }
-    dst[uint3(id.x * 2, id.y, 0)] = o0;
-    dst[uint3(id.x * 2 + 1, id.y, 0)] = o1;
+    FG_STORE(dst,uint3(id.x * 2, id.y, 0),1,o0);
+    FG_STORE(dst,uint3(id.x * 2 + 1, id.y, 0),1,o1);
 }

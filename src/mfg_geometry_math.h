@@ -5,6 +5,29 @@
 static unsigned mg_ceil(unsigned v,unsigned d){return (v+d-1)/d;}
 static unsigned mg_align(unsigned v,unsigned d){return mg_ceil(v,d)*d;}
 static void mg_float(unsigned*p,float v){memcpy(p,&v,4);}
+enum { MG_UNET_CANONICAL=2 };
+/* Native reconstruction skips duplicate one-pixel levels independently on
+ * each axis. Decoder stages select the next distinct extent, then the full
+ * output when no smaller level remains. Reduced geometry uses the canonical
+ * five levels instead, so reducing an output never enlarges a middle layer. */
+static void mg_unet_dimensions(unsigned w,unsigned h,unsigned k,unsigned multi,unsigned*out){
+ unsigned levels[5][2];
+ for(unsigned j=0;j<5;j++){
+  levels[j][0]=(multi&1)?mg_align(mg_ceil(w,2),256)/(1u<<j):mg_ceil(w,2u<<j);
+  levels[j][1]=(multi&1)?mg_align(mg_ceil(h,2),32)/(1u<<j):mg_ceil(h,2u<<j);
+ }
+ if(k<5){out[0]=levels[k][0];out[1]=levels[k][1];return;}
+ if(multi){static const unsigned divs[7]={16,16,8,8,4,4,2};out[0]=mg_ceil(w,divs[k-5]);out[1]=mg_ceil(h,divs[k-5]);return;}
+ unsigned steps=(k-5)/2+1;if(k==11)steps=4;
+ for(unsigned axis=0;axis<2;axis++){
+  int cursor=4;
+  for(unsigned j=0;j<steps&&cursor>=0;j++){
+   while(cursor>0&&levels[cursor][axis]==levels[cursor-1][axis])cursor--;
+   cursor--;
+  }
+  out[axis]=cursor<0?(axis?h:w):levels[cursor][axis];
+ }
+}
 static void mg_cap(unsigned w,unsigned h,unsigned*tw,unsigned*th){
  *tw=w;*th=h;if(w<=1920&&h<=1080)return;
  if((uint64_t)w*1080>=(uint64_t)h*1920){*tw=1920;*th=(unsigned)((uint64_t)h*1920/w);}
@@ -16,6 +39,7 @@ static void mg_cap(unsigned w,unsigned h,unsigned*tw,unsigned*th){
  * Return the geometry words rewritten, for validation against original input.
  */
 static uint64_t mg_geometry(unsigned w,unsigned h,unsigned s,unsigned multi,unsigned*c,unsigned*g){
+ unsigned canonical=multi&MG_UNET_CANONICAL;multi&=1;
  unsigned f[2]={mg_ceil(w,16)*4,mg_ceil(h,16)*4};
  unsigned a[2]={f[0]/4,f[1]/4},b[2]={mg_ceil(a[0],4)*2,mg_ceil(a[1],4)*2},d[2]={b[0]/2,b[1]/2};
  uint64_t mask=0;
@@ -45,13 +69,11 @@ static uint64_t mg_geometry(unsigned w,unsigned h,unsigned s,unsigned multi,unsi
    MG(28,mg_ceil(w,2));MG(29,mg_ceil(h,2));MG(30,multi?mg_align(mg_ceil(w,2),256)+2:mg_ceil(w,2));MG(31,multi?mg_align(mg_ceil(h,2),32)+2:mg_ceil(h,2));MG(36,f[0]);MG(37,f[1]);MG(38,w);MG(39,h);
    for(unsigned j=40;j<46;j+=2){MF(j,1.f/w);MF(j+1,1.f/h);}MG(46,mg_align(f[0],8));GROUP(mg_ceil(w,16),mg_ceil(h,32),1);
   }else if(phase<=14){
-   unsigned k=phase-3,cw,ch;
-   static const unsigned divs[12]={2,4,8,16,32,16,16,8,8,4,4,2};
+   unsigned k=phase-3,extent[2];
    static const unsigned gx[12]={32,8,8,16,16,8,16,32,8,16,8,16},gy[12]={32,32,16,8,16,16,8,8,8,32,8,32};
-   if(multi&&k<5){cw=mg_align(mg_ceil(w,2),256)/(1u<<k);ch=mg_align(mg_ceil(h,2),32)/(1u<<k);}
-   else {cw=mg_ceil(w,divs[k]);ch=mg_ceil(h,divs[k]);}
+   mg_unet_dimensions(w,h,k,multi|canonical,extent);unsigned cw=extent[0],ch=extent[1];
    MG(0,cw);MG(1,ch);GROUP(mg_ceil(cw,gx[k]),mg_ceil(ch,gy[k]),1);
-  }else{MG(10,mg_ceil(w,2));MG(11,mg_ceil(h,2));MG(12,w);MG(13,h);MG(17,mg_ceil(w,2));GROUP(mg_ceil(w,8),mg_ceil(h,8),1);}
+  }else{unsigned extent[2];mg_unet_dimensions(w,h,11,multi|canonical,extent);MG(10,extent[0]);MG(11,extent[1]);MG(12,w);MG(13,h);MG(17,extent[0]);GROUP(mg_ceil(w,8),mg_ceil(h,8),1);}
  }
 #undef MG
 #undef MF

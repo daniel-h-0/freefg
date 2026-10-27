@@ -7,12 +7,14 @@ static void mfg_retire_scoped(struct scoped_com*p){
  if(p->kind==SCOPED_QUEUE){mfg_retired_queues++;return;}
  if(p->kind!=SCOPED_LIST)model_fail("unexpected scoped retirement kind");
  ID3D12GraphicsCommandList*l=(void*)p;
+ scale_reset_list(l);
  AcquireSRWLockExclusive(&model_lock);
  for(UINT i=0;i<model_list_count;)if(model_lists[i].l==l){model_lists[i]=model_lists[--model_list_count];memset(&model_lists[model_list_count],0,sizeof(*model_lists));}else i++;
  ReleaseSRWLockExclusive(&model_lock);
  AcquireSRWLockExclusive(&flow_lock);
  for(UINT i=0;i<flow_list_count;)if(flow_lists[i].l==l){
   UINT last=--flow_list_count;flow_lists[i]=flow_lists[last];mfg_native_graph[i]=mfg_native_graph[last];mfg_graph_factor[i]=mfg_graph_factor[last];
+  mfg_scale_actual[i]=mfg_scale_actual[last];mfg_scale_actual[last]=0;
   memset(&flow_lists[last],0,sizeof(*flow_lists));mfg_native_graph[last]=mfg_graph_factor[last]=0;
  }else i++;
  ReleaseSRWLockExclusive(&flow_lock);

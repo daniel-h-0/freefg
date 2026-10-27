@@ -792,6 +792,29 @@ def decoded(contents, root=TREE):
     return out
 
 
+class PublicIncludeClosure(unittest.TestCase):
+    def test_parent_relative_vendor_header(self):
+        """Vendored code stays verbatim but must still be present in the export."""
+        from unittest.mock import patch
+        import export_tree
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'src').mkdir()
+            (root / 'vendor').mkdir()
+            source = '#include "../vendor/filter.h"\nint use_filter(void) { return FILTER; }\n'
+            (root / 'src/scaler.c').write_text(source)
+            (root / 'vendor/filter.h').write_text('#define FILTER 1\n')
+            with patch.object(export_tree, 'REPO', root), \
+                    patch.object(export_tree, 'proxy_definitions', return_value={}), \
+                    patch.object(export_tree, 'layer_files', return_value=[]):
+                self.assertEqual(export_tree.quoted_includes('src/scaler.c', source), ['vendor/filter.h'])
+                changed, report, omitted = export_tree.public_sources(['src/scaler.c', 'vendor/filter.h'])
+                self.assertNotIn('vendor/filter.h', changed)
+                self.assertFalse(omitted)
+                with self.assertRaisesRegex(export_tree.ReleaseError, 'lacks headers.*vendor/filter.h'):
+                    export_tree.public_sources(['src/scaler.c'])
+
+
 class ExportRename(unittest.TestCase):
     """export_tree.public_rename: names.json "chosen" applied to the copies a public export writes."""
 
@@ -2125,14 +2148,18 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         self.assertNotIn('documents_base', package)
         self.assertEqual(package['documents_version'], 'public')
         profile = package['components']['profile-intel-free-mfg']['files']
-        self.assertEqual(len(profile), 61)
+        self.assertEqual(len(profile), 93)
         self.assertEqual(sum(1 for path in profile if '/mfg-finish' in path), 5)
-        self.assertEqual(sorted(path.rsplit('/', 1)[1] for path in profile if '/f4q' in path or '.f4q.' in path),
+        self.assertEqual(sorted(path.rsplit('/', 1)[1] for path in profile if ('/f4q' in path or '.f4q.' in path) and '.scale.' not in path),
                          ['1a3b0782583fef19.f4q.dxil', '60edebbbd2f9fb69.f4q.dxil', '9e0080eee00255f2.f4q.dxil',
                           'b3941ac8ff95efe7.f4q.dxil', 'b3ddf030f661d487.f4q.dxil', 'e83e868f8d5d2c0f.f4q.dxil',
                           'f030948d38e74671.f4q.dxil', 'f4q-check-aux.dxil', 'f4q-check-uav-float.dxil',
                           'f4q-check-uav-raw.dxil', 'f4q-check-uav-sint.dxil', 'f4q-check-uav-uint.dxil'])
         self.assertEqual(sum(1 for path in profile if path.endswith('.fp16.dxil')), 7)   # the FP16 forms (1.1.2)
+        self.assertEqual(sum(path.endswith('.scale.dxil') for path in profile),25)
+        self.assertEqual(sum('/freefg-' in path and path.endswith('.dxil') for path in profile),6)
+        self.assertIn('payload/BC250-XeFG/shaders/freefg-scaling.required',profile)
+        self.assertIn('licenses/AMD-FSR1.txt',package['components']['licenses-2x']['files'])
         self.assertEqual(package['components']['addon-intel-free-mfg']['files']['payload/libxess_fg.dll'], 'build:addon-intel-free-mfg')
         self.assertEqual(package['manifest']['addon_entry'], 'libxess_fg-proxy')
         self.assertEqual(package['manifest']['max_factor'], 2)  # Setup offers 2x; 3x/4x come from OptiScaler's menu
@@ -2379,7 +2406,7 @@ class F4QRelease(unittest.TestCase):
         import build_proxy
         _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
         _group, _replaced, added = build_proxy.own_files(definition)
-        waves = {name: entry['wave'] for name, entry in added.items()}
+        waves = {name: entry['wave'] for name, entry in added.items() if 'wave' in entry and '.scale.' not in name and not name.startswith('freefg-')}
         fp16 = [f'{h}.fp16.dxil' for h in ('1a3b0782583fef19', 'e83e868f8d5d2c0f', '9e0080eee00255f2', '1f27b449fb99a587',
                                            'f2e2e13fea432d20', '5654aa3800432b13', '4bb52a635e6d221a')]
         self.assertEqual(waves, {'b3941ac8ff95efe7.f4q.dxil': 32, 'f030948d38e74671.f4q.dxil': 32,
@@ -2456,7 +2483,9 @@ class VariantOwnFiles(unittest.TestCase):
             self.assertEqual(origin['files'][name]['replaces']['sha256'], sha256(PROFILE / name))
             self.assertNotEqual(sha256(folder / name), sha256(PROFILE / name))
         work = lock['work']['profile-cl-wino-q33']['files']
-        self.assertFalse({e['sha256'] for e in tree['files'].values()} & {e['sha256'] for e in work.values()})
+        # Capability markers can share the literal "1\n". Shader payloads must be distinct.
+        self.assertFalse({e['sha256'] for n,e in tree['files'].items() if n.endswith('.dxil')} &
+                         {e['sha256'] for n,e in work.items() if n.endswith('.dxil')})
 
     @unittest.skipUnless(TWO_DEFINITION.is_file(), '0.9.0\'s 2x proxy is not part of this tree (public export)')
     def test_other_builds_have_none(self):

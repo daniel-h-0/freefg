@@ -31,7 +31,15 @@ StructuredBuffer<float4> scale : register(t2);  // [output channel / 4]
 StructuredBuffer<float4> bias : register(t3);
 Texture2DArray<uint4> skip : register(t4);
 RWTexture2DArray<uint4> dst : register(u0);
-cbuffer Dims : register(b0) { int W; int H; };
+cbuffer Dims : register(b0) { int W; int H;
+#if FREEFG_VIRTUAL_BOUNDS
+ uint FreeFGDeltaW; uint FreeFGDeltaH;
+#endif
+};
+#define FREEFG_DIMS_DEFINED 1
+#define FreeFGW W
+#define FreeFGH H
+#include "virtual_bounds.hlsli"
 
 #ifndef ZROUNDS
 #define ZROUNDS 4
@@ -135,6 +143,7 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
     [branch] if (gid.y > 0) {
         uint dw, dh, dl;
         dst.GetDimensions(dw, dh, dl);
+        dh=FG_BOUNDS(uint2(dw,dh),1).y;
         if (gid.y * (4 * TGY) >= dh) return;
     }
 #endif
@@ -153,11 +162,11 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
             int p = int(lin % (SX / 2)), r = int(lin / (SX / 2));
 #endif
             int lx = p + int(gid.x) * (2 * TGX), ly = r + int(gid.y) * (2 * TGY);
-            uint4 L00 = low.Load(int4(lx - 1, ly - 1, 0, 0)), L10 = low.Load(int4(lx, ly - 1, 0, 0));
-            uint4 L01 = low.Load(int4(lx - 1, ly, 0, 0)), L11 = low.Load(int4(lx, ly, 0, 0));
+            uint4 L00 = FG_LOAD(low,int4(lx - 1, ly - 1, 0, 0),2), L10 = FG_LOAD(low,int4(lx, ly - 1, 0, 0),2);
+            uint4 L01 = FG_LOAD(low,int4(lx - 1, ly, 0, 0),2), L11 = FG_LOAD(low,int4(lx, ly, 0, 0),2);
             int Xm = 2 * lx - 1, Xp = 2 * lx, Ym = 2 * ly - 1, Yp = 2 * ly;
-            uint4 Smm = skip.Load(int4(Xm, Ym, 0, 0)), Spm = skip.Load(int4(Xp, Ym, 0, 0));
-            uint4 Smp = skip.Load(int4(Xm, Yp, 0, 0)), Spp = skip.Load(int4(Xp, Yp, 0, 0));
+            uint4 Smm = FG_LOAD(skip,int4(Xm, Ym, 0, 0),1), Spm = FG_LOAD(skip,int4(Xp, Ym, 0, 0),1);
+            uint4 Smp = FG_LOAD(skip,int4(Xm, Yp, 0, 0),1), Spp = FG_LOAD(skip,int4(Xp, Yp, 0, 0),1);
             bool xm = Xm < 0 || Xm > W - 1, xp = Xp < 0 || Xp > W - 1, ym = Ym < 0 || Ym > H - 1, yp = Yp < 0 || Yp > H - 1;
             uint sx = uint(2 * p), sy = uint(2 * r);
 #if XU2D
@@ -345,7 +354,7 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
             uint tile = (yy >> 2) * TGX + (x >> 2), px = (yy & 3) * 4 + (x & 3);
             uint4 o = uint4(L[(0 * NPX + px) * PADW + tile], L[(1 * NPX + px) * PADW + tile],
                             L[(2 * NPX + px) * PADW + tile], L[(3 * NPX + px) * PADW + tile]);
-            dst[uint3(gid.x * 32 + x, gid.y * 16 + yy, 0)] = o;
+            FG_STORE(dst,uint3(gid.x * 32 + x, gid.y * 16 + yy, 0),1,o);
         }
     }
 }

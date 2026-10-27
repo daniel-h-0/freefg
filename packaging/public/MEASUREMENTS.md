@@ -2,6 +2,53 @@
 
 The numbers describe FreeFG on this hardware; they are not a prediction for other games, settings, displays or GPUs.
 
+## Generated-frame scaling in 1.1.4
+
+27 October 2026, FreeFG 1.1.4. Full-output generation remains the default. The optional reduction changes only
+generated frames; their pixels deliberately differ from full-resolution generation, including in Exact mode.
+
+A small matched Cyberpunk 2.5 check used the full GOG install, High graphics, ray tracing off, HelixSR 2.0.0 Quality
+(1706×960 → 2560×1440), and the accepted reactive-mask workaround. Both conditions used the same 1.1.4 proxy.
+Scaled generation used 75% per axis (1920×1080), Area colour reduction and FSR 1 EASU enlargement without RCAS.
+
+| SDR, 2× | Generated dimensions | Game FPS | Output FPS | Individual output FPS |
+| --- | --- | ---: | ---: | --- |
+| Full output | 2560×1440 | 53.96 | 107.93 | 107.85, 108.01 |
+| Scaled | 1920×1080 | 55.25 | 110.50 | 110.40, 110.60 |
+
+Each condition had one full warm-up, followed by four scored starts in full/scaled/scaled/full order. All passed;
+mean output gain was **2.38%**. Two scores per condition establish a limited repeatability check, not a broad
+performance estimate. Gains depend on the game, scale and filters. These were headless 360 Hz throughput runs with
+pacing disabled, on the BC-250 with Mesa 26.2.5-1.346, kernel 7.3.0-4.341 and GE-Proton11-11. They do not measure
+TV presentation, end-to-end latency or visual equivalence. The older 1.1.3.1 charts below remain separate datasets.
+
+All nine Cyberpunk starts passed, including three additional functional starts at scaled 2× HDR10, 3× HDR10 and
+4× SDR. The maximum recorded GPU temperature was 82 °C. Echo Point Nova passed a normal Steam menu start and
+clean exit at 2×, using 73% generation (1868×1050 → 2560×1440), Area/FSR1, all 13 ordinary replacements,
+seven FP16 alternatives and all 11 bounded network programs without fallback or GPU faults. Its 3× start showed the
+same acceleration and the requested factor, but Steam then reported the account playing elsewhere and took focus.
+The watchdog stopped that test after the directed close failed; 4× was not launched. This is not a clean-exit pass
+for Echo at 3×/4×; those factors passed in Cyberpunk and the SDK. Higher factors used
+separately supplied MFG Unlocker 1.6.0 with `XeFGModel=default`. All temporary game files and settings were restored exactly;
+no gameplay save was loaded. These starts establish integration behavior, not full-game visual qualification.
+
+### Scaling bounds and acceleration
+
+- 181,920 output/scale geometry pairs checked 24 layer extents and 76 dispatch stages per pair.
+- All 25 bounded convolution forms passed three sizes under two poisoned backgrounds: 150 exact comparisons with
+  no stores outside the active region. Twenty independent filter checks covered alpha and float32 extremes.
+- 31 final SDK checks covered tiny, odd, portrait, ultrawide and odd 4K images, 16,383×31 HDR, pixel motion,
+  filter/limit choices, factor changes and eight-size SDR/HDR cycles at 2× and 4×. All 425,945,146 sentinel pixels
+  were written. All reduced matrix rows used the 11 bounded network programs, without Winograd/F4Q/FP16 fallback.
+- Native Exact mode matched Intel in all 25 generated images from five paired cases. All 190 images across the final
+  SDK suite also matched the earlier candidate before redundant colour reductions were removed.
+- Pinned local CI, the standalone public build, 170 release-tool tests, 403 installer tests and 28 CPU-only Wine
+  loader checks passed. All 33 base shaders and 62 variant forms rebuilt byte-for-byte. Copy Install/Restore covered
+  every filter combination and limit, both upscaler switches, and exact file bytes and modification times.
+
+The geometry checks establish bounds across their domain; they do not GPU-test every possible resolution.
+Unsupported observed SDK layouts keep full output. Scaling is not supported for arbitrary modified SDK graphs.
+
 ## Cyberpunk 2.5 with HelixSR
 
 26 October 2026. FreeFG 1.1.3.1, full GOG Cyberpunk 2077 `2.5_RedModFix` (build `60152385347545148`),
@@ -218,6 +265,7 @@ All results come from one AMD BC-250. They do not predict performance on other G
 | `libxess_fg.dll` | 1.1.0 and 1.1.1 | `830be46e9c515b63dfe637f5b601eba7e81676b2d51f01a6aebfdf66bcdf186a` |
 | `libxess_fg.dll` | 1.1.2 | `b0b71d6575ad8c27072741545459364a880ccb6f0f369a23de58558f02505ec3` |
 | `libxess_fg.dll` | 1.1.3 | `a3d9f72fee97a789f1f9f822f293bcfc1563eed9302c991bfa084e47eff47623` |
+| `libxess_fg.dll` | 1.1.4 | `f78d4840ac6984a5e078e7422982da2abe287fbd05ac33458c13e8682dd96a26` |
 | `libxess_fg.dll` | 1.1.3.1 | `f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805` |
 | Pacing layer `libxefg_wave.so` | 1.1.3 / 1.1.3.1 | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 | `OptiScaler.dll` | replacement 1.1.3.1 | `b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656` |
@@ -585,7 +633,7 @@ control was run. Saved time per generated frame versus Intel is 8.97 ms at 2× a
 1440p saving for 2.25 times the pixels. The 2× output gain is +23.7% (SE 0.06).
 
 At full size, FreeFG matches private v30 within 0.4%. v30's 1080p limit is faster by 15.6% at 2× and about 22% at
-3×, but the latter compares single starts on different routes/enablers. FreeFG has no generated-frame scaling.
+3×, but the latter compares single starts on different routes/enablers. Those releases had no generated-frame scaling.
 The unlocker's own model accelerates only seven programs; native XeSS FG beside it is not accelerated.
 
 Not covered: gameplay, a display/VRR, other games, HDR10 without FG, 4× Intel/v30 controls, or paced OptiFG.

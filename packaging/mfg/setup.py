@@ -9,6 +9,7 @@ ROOT=Path(__file__).resolve().parent
 # 'xefg' packages are Intel's 2x frame generation only.
 MANIFEST=json.loads((ROOT/'manifest.json').read_text())
 MFG=MANIFEST.get('runtime')=='xemfg'
+SCALING=bool(MANIFEST.get('generated_frame_scaling')) or any(name.endswith('/freefg-scaling.required') or name.endswith('/mfg-frame-settings.required') for name in MANIFEST.get('files',{}))
 # A package without the XeSSMFG enabler (its add-on a libxess_fg.dll proxy) generates 2x only: max_factor 2.
 FACTORS=[f'{n}×' for n in range(2,int(MANIFEST.get('max_factor',4))+1)]
 NAME='FreeFG'
@@ -231,7 +232,7 @@ def main():
             'Add games','Choose actual game .exe files; repeat to add another folder',
             'Install','Install '+NAME+' into selected games',
             # A 2×-only package (no 3×/4×, no generated-frame scaling) has nothing for Settings to change.
-            *(['Settings','Choose '+'/'.join(FACTORS)+' and generated-frame resolution'] if MFG and len(FACTORS)>1 else []),
+            *(['Settings','Choose '+'/'.join(FACTORS)+(' and generated-frame resolution' if SCALING else ' frame generation')] if MFG and (len(FACTORS)>1 or SCALING) else []),
             'Upscaler','Switch installed games between FSR 4 and HelixSR (by lonewolf0622)',
             'Restore','Restore original files in selected games',
             'Status','Check installed files and the last acceleration log',
@@ -260,12 +261,13 @@ def main():
             if not extra:continue
         if action=='Settings':
             selected_settings=dialog('--forms','--width=620','--separator=|',
-                '--text=Close the selected games first; the settings apply when a game starts.\nOptiScaler also has these controls under Frame Generation → XeFG scaling.',
+                '--text=Close the selected games first; the settings apply when a game starts.'+('\nOnly generated frames are scaled. Match output keeps full resolution. OptiScaler also offers these controls under Frame Generation → XeFG scaling.' if SCALING else ''),
                 '--add-combo=Frame generation','--combo-values=Keep current|'+'|'.join(FACTORS),
-                '--add-combo=Generated frames','--combo-values=Keep current|Match output|Scale|720p limit|1080p limit|1440p limit|2160p limit',
+                *(['--add-combo=Generated frames','--combo-values=Keep current|Match output|Scale|720p limit|1080p limit|1440p limit|2160p limit',
                 '--add-combo=Downscale','--combo-values=Keep current|Bilinear|Area',
-                '--add-combo=Upscale','--combo-values=Keep current|Bilinear|Bicubic|Lanczos2|FSR1 (EASU)')
+                '--add-combo=Upscale','--combo-values=Keep current|Bilinear|Bicubic|Lanczos2|FSR1 (EASU)'] if SCALING else []))
             selected_settings=selected_settings.split('|') if selected_settings is not None else []
+            if not SCALING and len(selected_settings)==1:selected_settings+=['Keep current']*3
             if len(selected_settings)!=4:continue
             factor,resolution,down,up=selected_settings
             if factor in ['2×','3×','4×']:extra+=['--factor',factor[0]]

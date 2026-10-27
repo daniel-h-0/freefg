@@ -248,6 +248,7 @@ static HRESULT f4q_compute(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DES
   if((replacement=f4q_file(h,"",&loaded))){copy.CS.pShaderBytecode=replacement;copy.CS.BytecodeLength=loaded;}else copy.CS=desc->CS;
   hr=compute_original(d,&copy,iid,out);
  }
+ if(SUCCEEDED(hr)&&replacement)scale_capture_unet(d,desc,h,*out,f4q?form:pk?".fp16":"");
  free(replacement);
  if(SUCCEEDED(hr)&&f4q)f4q_note_pipeline(*out,h,loaded,form);
  if(SUCCEEDED(hr)&&pk)fp16_line("FP16_REPLACE",h,loaded,"");

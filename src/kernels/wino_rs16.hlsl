@@ -5,6 +5,7 @@ StructuredBuffer<float4> model : register(t1);
 StructuredBuffer<float4> scale : register(t2);
 StructuredBuffer<float4> bias : register(t3);
 RWTexture2DArray<uint4> dst : register(u0);
+#include "virtual_bounds.hlsli"
 
 #ifndef WHALF
 #define WHALF 0 // coefficients as FP16 pairs from a segment at WINO16_BASE (float4 index)
@@ -94,7 +95,7 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 g
         int xz = x0 + zero * int(q);
         uint pw[3][4];
         [unroll] for (uint j = 0; j < 3; j++) [unroll] for (uint i = 0; i < 4; i++)
-            pw[j][i] = decode_raw(src.Load(int4(xz + int(i), y0 + rowoff[j], 0, 0))[q]);
+            pw[j][i] = decode_raw(FG_LOAD(src,int4(xz + int(i), y0 + rowoff[j], 0, 0),1)[q]);
         float16_t2 vh[2][8]; // [sel][local position]: sel 0 = channels (4q, 4q + 1), sel 1 = (4q + 2, 4q + 3)
         [unroll] for (uint sel = 0; sel < 2; sel++) {
             precise float16_t2 t[2][4];
@@ -169,7 +170,7 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 g
         if ((c & 3) == 0) {
             int xz = x0 + zero * int(c >> 2);
             [unroll] for (uint j = 0; j < 3; j++) [unroll] for (uint i = 0; i < 4; i++)
-                patch[j][i] = decode_word(src.Load(int4(xz + int(i), y0 + rowoff[j], 0, 0))[c >> 2]);
+                patch[j][i] = decode_word(FG_LOAD(src,int4(xz + int(i), y0 + rowoff[j], 0, 0),1)[c >> 2]);
         }
         float d[3][4], t[2][4], v[2][4];
         [unroll] for (uint j = 0; j < 3; j++) [unroll] for (uint i = 0; i < 4; i++)
@@ -242,8 +243,8 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 g
     if (h == 0) swap4[slot] = uint4(pw[2], pw[3]); else swap4[slot + 1] = uint4(pw[0], pw[1]);
     GroupMemoryBarrierWithGroupSync();
     uint ox = id.x * 2, oy = id.y * 2;
-    if (h == 0) { uint4 o = swap4[slot + 1]; dst[uint3(ox, oy, slice)] = uint4(pw[0], o.xy); dst[uint3(ox + 1, oy, slice)] = uint4(pw[1], o.zw); }
-    else        { uint4 o = swap4[slot];     dst[uint3(ox, oy + 1, slice)] = uint4(o.xy, pw[2]); dst[uint3(ox + 1, oy + 1, slice)] = uint4(o.zw, pw[3]); }
+    if (h == 0) { uint4 o = swap4[slot + 1]; FG_STORE(dst,uint3(ox, oy, slice),(NOPOOL?1:2),uint4(pw[0], o.xy)); FG_STORE(dst,uint3(ox + 1, oy, slice),(NOPOOL?1:2),uint4(pw[1], o.zw)); }
+    else        { uint4 o = swap4[slot];     FG_STORE(dst,uint3(ox, oy + 1, slice),(NOPOOL?1:2),uint4(o.xy, pw[2])); FG_STORE(dst,uint3(ox + 1, oy + 1, slice),(NOPOOL?1:2),uint4(o.zw, pw[3])); }
 #else
     int q8[8];
     [unroll] for (uint k = 0; k < 8; k++) q8[k] = max(max(yv[0][k], yv[1][k]), max(yv[2][k], yv[3][k])) >> 2;
@@ -256,6 +257,6 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 g
     }
     if (h == 1) upper[tile] = words;
     GroupMemoryBarrierWithGroupSync();
-    if (h == 0) dst[uint3(id.xy, slice)] = uint4(words, upper[tile]);
+    if (h == 0) FG_STORE(dst,uint3(id.xy, slice),(NOPOOL?1:2),uint4(words, upper[tile]));
 #endif
 }

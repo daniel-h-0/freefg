@@ -646,6 +646,165 @@
      "sha256": "b804f8f2aee6395a372a32445d9d21c81cfafb09fb4e82ec42fbf638b06f3efe",
      "shader_model": "6.6",
      "origin": "own"
+    },
+    "freefg-down-area.dxil": {
+     "sha256": "c74ab0d75bd9baf57de89dd24e8a6f0bc034a599fef6fe15f00dd7113548ce38",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "freefg-down-bilinear.dxil": {
+     "sha256": "f4aac9ea1df8046ec16c20e01715124f5260f505ecb8477b72fe313845c9177e",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "freefg-scaling.required": {
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "origin": "own"
+    },
+    "freefg-up-bilinear.dxil": {
+     "sha256": "da58d6575dc013469b2f4ccef6c7d333ecfc808f1d4a7c78cef07aa525830f0b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "freefg-up-bicubic.dxil": {
+     "sha256": "61ee4e5df6e0234a4ee28fd1b21889e1927d7c97a015788d8d7417a1fc9ee378",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "freefg-up-lanczos2.dxil": {
+     "sha256": "148b5c966537f5b5e396b0a01909db74e864bc20888386ea17ce309d1d5c044b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "freefg-up-fsr1.dxil": {
+     "sha256": "ed630fbf8df8fe1f628c9a1ffc984dff79e01b78f0fceb06a488df3e1476127f",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1a3b0782583fef19.scale.dxil": {
+     "sha256": "e3e47751bd9894d60033d135af41a7a8d4a553a9442c753f839d331f383fc12c",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1f27b449fb99a587.scale.dxil": {
+     "sha256": "c7b99f6a490014a8c274ec4a87e501c83ca27d64f56d213decf20c1c499d74a5",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "4bb52a635e6d221a.scale.dxil": {
+     "sha256": "4958c801b8e5537b841649d1fc5658f0ba670e0a99224693cf8039af1dd4d4b4",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "5654aa3800432b13.scale.dxil": {
+     "sha256": "b68d765c6911345686625e3d034e33e9f900247f64bbc54c65490335f6d3fb22",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "60edebbbd2f9fb69.scale.dxil": {
+     "sha256": "c1168f6b635ff792f0a3dd29360b567e1a0abf133c5012668a1f0c22eaf7bd62",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "9e0080eee00255f2.scale.dxil": {
+     "sha256": "abf9321ea7cf5a0b0229b48ca6a936736234dbed6459895e82be3d790b6ae61f",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3941ac8ff95efe7.scale.dxil": {
+     "sha256": "bca8cd0ab6528a721d7e367d0ad1c04bbaae6222c18ab5baf36dd1aac16ec443",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3ddf030f661d487.scale.dxil": {
+     "sha256": "9f8e6aa75a1cdee88cffb7a239d4ec4f154c1ca47db150cbfadc063c89dcf3b6",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "e83e868f8d5d2c0f.scale.dxil": {
+     "sha256": "41d07db63774d3fd1891efbd6fcc0e961cffc33c9e8a8aca6638cc2415b9f437",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f030948d38e74671.scale.dxil": {
+     "sha256": "8c20f61d1135005f84e97154cf5a242daf72b975674f63d93dbbb6fb4216ed2e",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f2e2e13fea432d20.scale.dxil": {
+     "sha256": "4568b9039283460ffabbe98eaff4a2ce57d7017c23227a1c4467b2e7fb522584",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1a3b0782583fef19.f4q.scale.dxil": {
+     "sha256": "2aabad70be5f89fb3449f8bb7b73350dd9fbca83f73c5726fd562bb66e7b5d1f",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1a3b0782583fef19.fp16.scale.dxil": {
+     "sha256": "2f0545ba6b18fb62dd75a3e7d066fd6ca2831ee2581914762e50dc50c9008fa5",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "1f27b449fb99a587.fp16.scale.dxil": {
+     "sha256": "0d1b31e421f174f72756cec74e5117fc08751a5d1ad3cc99e376a779292739e9",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "4bb52a635e6d221a.fp16.scale.dxil": {
+     "sha256": "6fc5a273794fa2069f19ac805c8977e188fe707c2083b041d7078dd22f4c367b",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "5654aa3800432b13.fp16.scale.dxil": {
+     "sha256": "e8cfbad74f1b53630fd8607c053b4c119cd10fd3104a152b6be2dde9de92d06f",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "60edebbbd2f9fb69.f4q.scale.dxil": {
+     "sha256": "529e6b20312d2e9bc5a0e551146f59ce7952d764edf1bf4899fb89e637d8b2ec",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "9e0080eee00255f2.f4q.scale.dxil": {
+     "sha256": "195f2326fd969720c77a3e302aa5e0a97d2062ff6aa646dc927426face826911",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "9e0080eee00255f2.fp16.scale.dxil": {
+     "sha256": "7527a0e083a2d62dcd0f830f51fdaf1e500ec7b035b19434b9287809bb5e5a23",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3941ac8ff95efe7.f4q.scale.dxil": {
+     "sha256": "ab1470169cddbd0ba8dc53b5833ac3a17f9a931b570408ef4d874229dc1230ca",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "b3ddf030f661d487.f4q.scale.dxil": {
+     "sha256": "b2b0e4c98c20eb7293516a2d35f0b9745ba7378935ce575ef7b4065b134d7e1d",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "e83e868f8d5d2c0f.f4q.scale.dxil": {
+     "sha256": "90360fe84a25e8b3f1d864b7b696583c76f7eea37ca57790978b81a03d998007",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "e83e868f8d5d2c0f.fp16.scale.dxil": {
+     "sha256": "405e940a21270377d49cc8c15440a21658d0cc4d223bd24efbb23cea27546eda",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f030948d38e74671.f4q.scale.dxil": {
+     "sha256": "8e6dd92ddf3e5789221ed604fdab23bcb6acff6a06040c9e37a8c20cd0d27cb1",
+     "shader_model": "6.6",
+     "origin": "own"
+    },
+    "f2e2e13fea432d20.fp16.scale.dxil": {
+     "sha256": "db1247d8102a93bb6d07d25579768a0cdcd8afc9ae0a9d8cdf03f067479d8a47",
+     "shader_model": "6.6",
+     "origin": "own"
     }
    }
   }
@@ -710,10 +869,10 @@
   },
   "addon (intel-free-mfg)": {
    "system_headers": {
-    "count": 124,
-    "sha256": "51783ee776c97ea34d0fa798503e3fa783157ae66cbf6076c3f0b4cb5f37a571"
+    "count": 126,
+    "sha256": "2c10b850d7d598ac106cc60a662f986ea586dc388b42611fdeb943d0b06b7df0"
    },
-   "note": "The multi-frame enabler-free proxy (release/build_proxy.py --variant intel-free-mfg) includes the same Wine headers as \"addon (intel-free-2x)\"; compiler, linker and import libraries are those of \"addon\"."
+   "note": "The multi-frame proxy includes the pinned Wine headers plus the math headers used by AMD FSR 1 EASU constants. Compiler, linker and import libraries are those of addon."
   },
   "layer": {
    "gcc": "gcc (GCC) 16.2.1 20260810",
@@ -729,6 +888,6 @@
   "libxefg_wave.so": "5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687",
   "BC250-MFG.asi (intel-free)": "28246c08a28876197a85f4888eae43339837b1b2fa22ae344fcfa4db7cfe9b4c",
   "libxess_fg.dll (intel-free-2x)": "3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410",
-  "libxess_fg.dll (intel-free-mfg)": "f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805"
+  "libxess_fg.dll (intel-free-mfg)": "f78d4840ac6984a5e078e7422982da2abe287fbd05ac33458c13e8682dd96a26"
  }
 }

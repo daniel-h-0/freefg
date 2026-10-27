@@ -376,3 +376,38 @@ class ProxyInstallTests(ProxyFixture):
         self.assertFalse((self.game/m.STATE).exists());self.assertOriginal()
 
 if __name__=='__main__':unittest.main()
+
+class ScalingControls(ProxyFixture):
+    def scaling_package(self):
+        set_package_file(self.package,'payload/BC250-XeFG/shaders/freefg-scaling.required',b'1\n')
+        set_package_file(self.package,'payload/BC250-XeFG/settings.ini',b'; retain comment\n[BC250]\nResolutionMode=0\nResolutionPercent=75\nResolutionLimit=1080\nDownscaleFilter=0\nUpscaleFilter=0\nExact=1\n')
+
+    def test_scaling_settings_on_both_proxy_routes_and_restore(self):
+        self.scaling_package()
+        for route in ['native','opti']:
+            with self.subTest(route=route):
+                m.install(self.package,self.exe,route=route)
+                m.configure(self.exe,percent=67,downscale='area',upscale='fsr1')
+                path=self.game/'BC250-XeFG/settings.ini';data=path.read_bytes();values=m.read_ini(data)
+                self.assertEqual([values[('bc250',key)] for key in ['resolutionmode','resolutionpercent','downscalefilter','upscalefilter','exact']],['1','67','1','4','1'])
+                self.assertIn(b'; retain comment',data)
+                for filter in ['bilinear','bicubic','lanczos2','fsr1']:m.configure(self.exe,upscale=filter)
+                m.configure(self.exe,limit=720)
+                self.assertEqual(m.read_ini(path.read_bytes())[('bc250','resolutionmode')],'2')
+                m.configure(self.exe,resolution='output')
+                self.assertEqual(m.read_ini(path.read_bytes())[('bc250','resolutionmode')],'0')
+                m.restore(self.exe);self.assertOriginal()
+
+    def test_unmanaged_marker_does_not_enable_old_runtime(self):
+        m.install(self.package,self.exe,route='native')
+        path=self.game/'BC250-XeFG/settings.ini';before=path.read_bytes()
+        m.write(self.game/'BC250-XeFG/shaders/freefg-scaling.required',b'1\n')
+        with self.assertRaisesRegex(ValueError,'scaling-controls'):m.configure(self.exe,percent=73)
+        self.assertEqual(path.read_bytes(),before)
+
+    def test_invalid_scaling_request_leaves_every_managed_file_unchanged(self):
+        self.scaling_package();m.install(self.package,self.exe,route='opti')
+        before={p:p.read_bytes() for p in self.game.rglob('*') if p.is_file()}
+        for args in [dict(percent=49),dict(percent=101),dict(limit=1000),dict(percent=67,limit=720),dict(upscale='area'),dict(downscale='bicubic')]:
+            with self.subTest(args=args),self.assertRaises(ValueError):m.configure(self.exe,**args)
+        self.assertEqual({p:p.read_bytes() for p in before},before)

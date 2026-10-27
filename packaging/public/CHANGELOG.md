@@ -2,7 +2,17 @@
 
 Release changes since 0.9.0. Measurements describe the named release and test conditions, not every later build.
 
-## Unreleased
+## 1.1.4 – 2026-10-27
+
+- Restore optional generated-frame scaling: 50–100%, or aspect-preserving 720p/1080p/1440p/2160p limits. Match output
+  remains the default. Real frames, depth and motion-vector inputs retain their original sizes.
+- Add owned colour resampling, bounded convolution variants and Bilinear/Area reduction with Bilinear, Bicubic,
+  Lanczos2 or AMD FSR 1 EASU enlargement. Intel's original preprocessing, warp and final pipelines remain unchanged.
+- Expose scaling in Setup and retain OptiScaler's settings interface. Saved choices apply after restart; Status shows
+  the last actual decision. Support default-model MFG phases and re-observation after size/format changes.
+- Preserve odd output dimensions and bound every reduced pyramid/network level, including tiny, portrait and
+  ultrawide inputs. Share read-only colour reductions within one frame and command list; source copies and list resets
+  invalidate reuse. [Scaling checks and measurements](MEASUREMENTS.md#generated-frame-scaling-in-114).
 
 - Clarify the measurement campaigns, cache exceptions, troubleshooting, download checks and community recipe selection.
 - Extend the HelixSR charts to matched 2×/3×/4× SDR and HDR10 measurements, mark the MFG Unlocker

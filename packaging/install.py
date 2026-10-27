@@ -1503,21 +1503,9 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     proxy=record.get('addon_entry')==PROXY_ENTRY
     if factor is not None and factor>record.get('max_factor',4):
         raise ValueError('This build generates 2× only (one generated frame per real frame: the most Intel’s runtime generates on GPUs other than Intel’s)')
-    switched=[]
-    upscaler_changes=upscaler_recipe_changes(Path(package or Path(__file__).resolve().parent),exe,record,upscaler) if upscaler is not None else {}
-    if upscaler is not None:switched=switch_upscaler(Path(package or Path(__file__).resolve().parent),root,record,upscaler,helixsr_dir,dependency_dir)
-    for line in switched:print(line)
-    done,waiting=apply_pending_settings(exe,root,record)
-    for item in done:print(('Game setting applied: ' if item['status']=='applied' else 'Game setting already set: ')+setting_line(item))
-    for line in waiting:print('Game setting pending: '+line)
     managed={item['path'] for item in record['files']}
-    changes={'OptiScaler.ini':upscaler_changes} if upscaler_changes else {}
-    repair=xess_library_repair(safe(root,'OptiScaler.ini').read_bytes())
-    if repair:changes.setdefault('OptiScaler.ini',{}).update(repair)
-    if factor is not None and not proxy:
-        changes['XeSSMFG/settings.ini']={('XeSSMFG','Multiplier'):str(factor if record['route']=='native' else 0)}
-    if factor is not None and record['route']=='opti':changes.setdefault('OptiScaler.ini',{})[('XeFG','InterpolationCount')]=str(factor-1)
-    modern='OptiScaler/plugins/BC250-XeFG/shaders/mfg-frame-settings.required' in managed
+    own='BC250-XeFG/shaders/freefg-scaling.required' in managed
+    modern=own or 'OptiScaler/plugins/BC250-XeFG/shaders/mfg-frame-settings.required' in managed
     setting_values={}
     if any(v is not None for v in [resolution,percent,limit,downscale,upscale]):
         if not modern:raise ValueError('These controls require the new scaling-controls build')
@@ -1526,11 +1514,24 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
         if percent is not None:setting_values[('BC250','ResolutionPercent')]=str(percent)
         if limit is not None:setting_values[('BC250','ResolutionLimit')]=str(limit)
         if downscale is not None:
-            if downscale=='area' and 'OptiScaler/plugins/BC250-XeFG/shaders/mfg-downscale-filters.required' not in managed:raise ValueError('This build does not include that downscale filter')
+            if downscale=='area' and not own and 'OptiScaler/plugins/BC250-XeFG/shaders/mfg-downscale-filters.required' not in managed:raise ValueError('This build does not include that downscale filter')
             setting_values[('BC250','DownscaleFilter')]=str(down_filters[downscale])
         if upscale is not None:
-            if upscale!='bilinear' and 'OptiScaler/plugins/BC250-XeFG/shaders/mfg-upscale-filters.required' not in managed:raise ValueError('This build does not include enlargement filters')
+            if upscale!='bilinear' and not own and 'OptiScaler/plugins/BC250-XeFG/shaders/mfg-upscale-filters.required' not in managed:raise ValueError('This build does not include enlargement filters')
             setting_values[('BC250','UpscaleFilter')]=str(up_filters[upscale])
+    switched=[]
+    upscaler_changes=upscaler_recipe_changes(Path(package or Path(__file__).resolve().parent),exe,record,upscaler) if upscaler is not None else {}
+    if upscaler is not None:switched=switch_upscaler(Path(package or Path(__file__).resolve().parent),root,record,upscaler,helixsr_dir,dependency_dir)
+    for line in switched:print(line)
+    done,waiting=apply_pending_settings(exe,root,record)
+    for item in done:print(('Game setting applied: ' if item['status']=='applied' else 'Game setting already set: ')+setting_line(item))
+    for line in waiting:print('Game setting pending: '+line)
+    changes={'OptiScaler.ini':upscaler_changes} if upscaler_changes else {}
+    repair=xess_library_repair(safe(root,'OptiScaler.ini').read_bytes())
+    if repair:changes.setdefault('OptiScaler.ini',{}).update(repair)
+    if factor is not None and not proxy:
+        changes['XeSSMFG/settings.ini']={('XeSSMFG','Multiplier'):str(factor if record['route']=='native' else 0)}
+    if factor is not None and record['route']=='opti':changes.setdefault('OptiScaler.ini',{})[('XeFG','InterpolationCount')]=str(factor-1)
     if setting_values:changes['BC250-XeFG/settings.ini']=setting_values
     plan=[]
     for name,values in changes.items():
@@ -1614,9 +1615,9 @@ def status(exe):
         text=log.read_text(errors='replace')
         # How much of the session ran on this build's shaders is the Last run's Acceleration line (compat.last_run).
         print('Last log: '+str(log)+' ('+('FAIL marker present' if 'FAIL' in text else 'no FAIL marker')+')')
-        decision=next((line for line in reversed(text.splitlines()) if line.startswith(('FRAME_CAP qualified','FRAME_CAP fallback:'))),None)
-        if decision and decision.startswith('FRAME_CAP qualified'):print('Last scaling decision: '+decision)
-        elif decision:print('Last scaling decision: '+decision.removeprefix('FRAME_CAP fallback: '))
+        decision=next((line for line in reversed(text.splitlines()) if line.startswith(('FRAME_CAP qualified','FRAME_CAP fallback:','FREEFG_SCALE active ','FREEFG_SCALE full ','FREEFG_SCALE fallback:'))),None)
+        if decision and decision.startswith(('FRAME_CAP qualified','FREEFG_SCALE active ','FREEFG_SCALE full ')):print('Last scaling decision: '+decision)
+        elif decision:print('Last scaling decision: '+decision.removeprefix('FRAME_CAP fallback: ').removeprefix('FREEFG_SCALE fallback: '))
         else:print('No generated-frame scaling recorded in this log.')
         print('Logs describe the last recorded session; they do not prove current frame generation or visual correctness.')
     else:print('No acceleration log yet. Launch normally with FG active.' if record.get('launchers') else 'No acceleration log yet. Launch through the installed wrapper with FG active.')

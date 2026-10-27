@@ -957,6 +957,922 @@
     ]
    },
    "rebuild": "byte-identical"
+  },
+  "freefg-down-bilinear.dxil": {
+   "sha256": "f4aac9ea1df8046ec16c20e01715124f5260f505ecb8477b72fe313845c9177e",
+   "bytes": 4164,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 64,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Owned colour resampling for generated-frame scaling.",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/frame_resample.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [],
+    "defines": [
+     "FREEFG_AREA=0",
+     "main=main"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "freefg-down-area.dxil": {
+   "sha256": "c74ab0d75bd9baf57de89dd24e8a6f0bc034a599fef6fe15f00dd7113548ce38",
+   "bytes": 4760,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 64,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Owned colour resampling for generated-frame scaling.",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/frame_resample.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [],
+    "defines": [
+     "FREEFG_AREA=1",
+     "main=main"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "freefg-up-bilinear.dxil": {
+   "sha256": "da58d6575dc013469b2f4ccef6c7d333ecfc808f1d4a7c78cef07aa525830f0b",
+   "bytes": 4208,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 64,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Owned colour resampling for generated-frame scaling.",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/frame_resample.hlsl",
+    "target": "cs_6_6",
+    "entry": "freefg_upscale",
+    "options": [],
+    "defines": [
+     "FREEFG_AREA=0",
+     "main=freefg_upscale"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "freefg-up-bicubic.dxil": {
+   "sha256": "61ee4e5df6e0234a4ee28fd1b21889e1927d7c97a015788d8d7417a1fc9ee378",
+   "bytes": 6548,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 64,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Owned colour resampling for generated-frame scaling.",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/frame_upscale_filters.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-HV",
+     "2018"
+    ],
+    "defines": [
+     "BC250_UP_FILTER=2"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "freefg-up-lanczos2.dxil": {
+   "sha256": "148b5c966537f5b5e396b0a01909db74e864bc20888386ea17ce309d1d5c044b",
+   "bytes": 6852,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 64,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Owned colour resampling for generated-frame scaling.",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/frame_upscale_filters.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-HV",
+     "2018"
+    ],
+    "defines": [
+     "BC250_UP_FILTER=3"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "freefg-up-fsr1.dxil": {
+   "sha256": "ed630fbf8df8fe1f628c9a1ffc984dff79e01b78f0fceb06a488df3e1476127f",
+   "bytes": 8276,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 64,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Owned colour resampling for generated-frame scaling.",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/frame_upscale_filters.hlsl",
+    "target": "cs_6_6",
+    "entry": "main",
+    "options": [
+     "-HV",
+     "2018"
+    ],
+    "defines": [
+     "BC250_UP_FILTER=4"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "freefg-scaling.required": {
+   "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+   "bytes": 2,
+   "kind": "marker",
+   "description": "Owned colour resampling and geometry capability, version 1.",
+   "rebuild": "literal: 1 newline"
+  },
+  "1a3b0782583fef19.scale.dxil": {
+   "sha256": "e3e47751bd9894d60033d135af41a7a8d4a553a9442c753f839d331f383fc12c",
+   "bytes": 92376,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) 3x3 convolution 16->16 int8 channels with 2x2 max-pool, offset input decode, transform rows split across two waves; FP16-pair input transform and wave-uniform epilogue (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_rs16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "GX=8",
+     "GY=4",
+     "WHALF=1",
+     "WINO16_BASE=2513",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1f27b449fb99a587.scale.dxil": {
+   "sha256": "c7b99f6a490014a8c274ec4a87e501c83ca27d64f56d213decf20c1c499d74a5",
+   "bytes": 100196,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) 3x3 convolution 128->64, no pooling, split over four waves per channel half; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=8",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "NOPOOL=1",
+     "FLOAT_ALL=1",
+     "KSPLIT=4",
+     "WHALF=1",
+     "WINO16_BASE=55809",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "4bb52a635e6d221a.scale.dxil": {
+   "sha256": "4958c801b8e5537b841649d1fc5658f0ba670e0a99224693cf8039af1dd4d4b4",
+   "bytes": 102104,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) decoder 3x3 convolution 64->64 over skip + 2x-upsampled input, 8x16 output tiles, whole-sum FP32; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=8",
+     "TILE_H=16",
+     "SLICES=4",
+     "CIN_SLICES=4",
+     "WINO_BASE=36864",
+     "WINO16_BASE=69634",
+     "FLOAT_ALL=1",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "5654aa3800432b13.scale.dxil": {
+   "sha256": "b68d765c6911345686625e3d034e33e9f900247f64bbc54c65490335f6d3fb22",
+   "bytes": 102096,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) decoder 3x3 convolution 32->32 over skip + 2x-upsampled input, whole-sum FP32; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=16",
+     "TILE_H=8",
+     "SLICES=2",
+     "CIN_SLICES=2",
+     "WINO_BASE=2880",
+     "WINO16_BASE=6977",
+     "FLOAT_ALL=1",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "60edebbbd2f9fb69.scale.dxil": {
+   "sha256": "c1168f6b635ff792f0a3dd29360b567e1a0abf133c5012668a1f0c22eaf7bd62",
+   "bytes": 90868,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; 1D Winograd F(2,3) 3x3 convolution 16->16, signed output",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_row16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "9e0080eee00255f2.scale.dxil": {
+   "sha256": "abf9321ea7cf5a0b0229b48ca6a936736234dbed6459895e82be3d790b6ae61f",
+   "bytes": 93684,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) 3x3 convolution 64->128 with 2x2 max-pool, whole-sum FP32 accumulation; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=8",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "FLOAT_ALL=1",
+     "WHALF=1",
+     "WINO16_BASE=55809",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3941ac8ff95efe7.scale.dxil": {
+   "sha256": "bca8cd0ab6528a721d7e367d0ad1c04bbaae6222c18ab5baf36dd1aac16ec443",
+   "bytes": 97952,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) decoder 3x3 convolution 16->16 over skip + 2x-upsampled input, 16x8 output tiles; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TILE_H=8",
+     "WHALF=1",
+     "WINO16_BASE=2513",
+     "UP_SHIFT=1",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3ddf030f661d487.scale.dxil": {
+   "sha256": "9f8e6aa75a1cdee88cffb7a239d4ec4f154c1ca47db150cbfadc063c89dcf3b6",
+   "bytes": 174240,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; 1D Winograd F(2,3) 3x3 convolution 32->16, signed output",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_row16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "CIN_SLICES=2",
+     "ROW_BASE=3489",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "e83e868f8d5d2c0f.scale.dxil": {
+   "sha256": "41d07db63774d3fd1891efbd6fcc0e961cffc33c9e8a8aca6638cc2415b9f437",
+   "bytes": 93684,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) 3x3 convolution 32->64 with 2x2 max-pool, whole-sum FP32 accumulation; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=2",
+     "GX=4",
+     "GY=8",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "FLOAT_ALL=1",
+     "WHALF=1",
+     "WINO16_BASE=13953",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f030948d38e74671.scale.dxil": {
+   "sha256": "8c20f61d1135005f84e97154cf5a242daf72b975674f63d93dbbb6fb4216ed2e",
+   "bytes": 92260,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) 3x3 convolution 16->32 with 2x2 max-pool, transform rows split across two waves; FP16-pair input transform and wave-uniform epilogue (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_rs16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "GX=4",
+     "GY=8",
+     "WINO_BASE=1440",
+     "WHALF=1",
+     "WINO16_BASE=5025",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f2e2e13fea432d20.scale.dxil": {
+   "sha256": "4568b9039283460ffabbe98eaff4a2ce57d7017c23227a1c4467b2e7fb522584",
+   "bytes": 98676,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; Winograd F(2x2,3x3) 3x3 convolution 64->32, no pooling, signed output, split over two waves per channel half; FP16-pair input transform (XU1=1): the same results as the release recipe",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "NOPOOL=1",
+     "CLAMP_LO=-128",
+     "FLOAT_ALL=1",
+     "KSPLIT=2",
+     "WHALF=1",
+     "WINO16_BASE=13953",
+     "XU1=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1a3b0782583fef19.f4q.scale.dxil": {
+   "sha256": "2aabad70be5f89fb3449f8bb7b73350dd9fbca83f73c5726fd562bb66e7b5d1f",
+   "bytes": 73852,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; F4Q2: Winograd F(4x4,3x3) 3x3 convolution 16->16 with 2x2 max-pool (offset decode), FP32, 32x16 input tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; replaces 1a3b0782583fef19.dxil while F4Q and F4Q2 are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=1",
+     "TBASE=3025",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1a3b0782583fef19.fp16.scale.dxil": {
+   "sha256": "2f0545ba6b18fb62dd75a3e7d066fd6ca2831ee2581914762e50dc50c9008fa5",
+   "bytes": 90424,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; FP16 form (bit 1): 1a3b0782's F4Q2 encoder reading FP16 U'/2 coefficient pairs (HALF_TABLE=1) from the FP16 copy at float4 5713 of 2304-byte models; the outputs can differ from the F4Q2 form's; replaces 1a3b0782583fef19.dxil while F4Q, F4Q2 and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "DECODE_OFFSET=1",
+     "TBASE=5713",
+     "HALF_TABLE=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "1f27b449fb99a587.fp16.scale.dxil": {
+   "sha256": "0d1b31e421f174f72756cec74e5117fc08751a5d1ad3cc99e376a779292739e9",
+   "bytes": 83004,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; FP16 form (bit 2): 1f27b449's F(2x2) kernel (128->64, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy (U' x 2^-8) at float4 145921 of 73728-byte models; the outputs can differ from the exact form's; replaces 1f27b449fb99a587.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=4",
+     "CIN_SLICES=8",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=23040",
+     "PHASED=1",
+     "NOPOOL=1",
+     "FLOAT_ALL=1",
+     "KSPLIT=4",
+     "WHALF=1",
+     "WINO16_BASE=145921",
+     "XU1=1",
+     "PK16=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "4bb52a635e6d221a.fp16.scale.dxil": {
+   "sha256": "6fc5a273794fa2069f19ac805c8977e188fe707c2083b041d7078dd22f4c367b",
+   "bytes": 83952,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; FP16 form (bit 2): 4bb52a63's F(2x2) decoder kernel (64->64, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy at float4 86018 of 36864-byte models; the outputs can differ from the exact form's; replaces 4bb52a635e6d221a.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=8",
+     "TILE_H=16",
+     "SLICES=4",
+     "CIN_SLICES=4",
+     "WINO_BASE=36864",
+     "WINO16_BASE=86018",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1",
+     "PK16=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "5654aa3800432b13.fp16.scale.dxil": {
+   "sha256": "e8cfbad74f1b53630fd8607c053b4c119cd10fd3104a152b6be2dde9de92d06f",
+   "bytes": 83956,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; FP16 form (bit 2): 5654aa38's F(2x2) decoder kernel (32->32, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy at float4 9025 of 9216-byte models; the outputs can differ from the exact form's; replaces 5654aa3800432b13.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TW=16",
+     "TILE_H=8",
+     "SLICES=2",
+     "CIN_SLICES=2",
+     "WINO_BASE=2880",
+     "WINO16_BASE=9025",
+     "FILL_BY_WORD=1",
+     "WHALF=1",
+     "UP_SHIFT=1",
+     "XU1=1",
+     "PK16=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "60edebbbd2f9fb69.f4q.scale.dxil": {
+   "sha256": "529e6b20312d2e9bc5a0e551146f59ce7952d764edf1bf4899fb89e637d8b2ec",
+   "bytes": 85068,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; F4Q3: Winograd F(4x4,3x3) 3x3 convolution 16->16, signed unpooled outputs, FP32, 32x16 output tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; replaces 60edebbbd2f9fb69.dxil (1D F(2,3)) while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "POOL=0",
+     "ZROUNDS=4",
+     "CLAMP_LO=-128",
+     "DECODE_OFFSET=0",
+     "TBASE=3025",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "9e0080eee00255f2.f4q.scale.dxil": {
+   "sha256": "195f2326fd969720c77a3e302aa5e0a97d2062ff6aa646dc927426face826911",
+   "bytes": 75752,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; F4Q2: Winograd F(4x4,3x3) 3x3 convolution 64->128 with 2x2 max-pool, FP32, one channel chain over all four input slices, coefficient segment at float4 72193 of 73728-byte models; replaces 9e0080eee00255f2.dxil while F4Q and F4Q2 are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=8",
+     "CIN_SLICES=4",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=72193",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "9e0080eee00255f2.fp16.scale.dxil": {
+   "sha256": "7527a0e083a2d62dcd0f830f51fdaf1e500ec7b035b19434b9287809bb5e5a23",
+   "bytes": 92312,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; FP16 form (bit 1): 9e0080ee's F4Q2 encoder reading FP16 U'/2 coefficient pairs (HALF_TABLE=1) from its segment at float4 72193 of 73728-byte models, written in place as FP16; the outputs can differ from the F4Q2 form's; replaces 9e0080eee00255f2.dxil while F4Q, F4Q2 and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=8",
+     "CIN_SLICES=4",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=72193",
+     "HALF_TABLE=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3941ac8ff95efe7.f4q.scale.dxil": {
+   "sha256": "ab1470169cddbd0ba8dc53b5833ac3a17f9a931b570408ef4d874229dc1230ca",
+   "bytes": 89200,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; F4Q: Winograd F(4x4,3x3) decoder 3x3 convolution 16->16 over skip + 2x-upsampled input, FP32, 32x16 output tiles over six waves (transform rows), coefficient segment at float4 3025 of 2304-byte models; since 1.1.2 the fill in packed 16-bit integers and the column pass in packed FP16 (XU2D=1, every operation exact) and an early return of groups wholly below the output (TRIM=1): the same outputs as the 1.1.0 form for every input; replaces b3941ac8ff95efe7.dxil while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_dec16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "TBASE=3025",
+     "XU2D=1",
+     "TRIM=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "b3ddf030f661d487.f4q.scale.dxil": {
+   "sha256": "b2b0e4c98c20eb7293516a2d35f0b9745ba7378935ce575ef7b4065b134d7e1d",
+   "bytes": 86980,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; F4Q3: Winograd F(4x4,3x3) 3x3 convolution 32->16, signed unpooled outputs, FP32, one channel chain over both input slices, coefficient segment at float4 6049 of 4608-byte models; replaces b3ddf030f661d487.dxil (1D F(2,3)) while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "POOL=0",
+     "ZROUNDS=4",
+     "CLAMP_LO=-128",
+     "DECODE_OFFSET=0",
+     "CIN_SLICES=2",
+     "LOOPCIN=1",
+     "TBASE=6049",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "e83e868f8d5d2c0f.f4q.scale.dxil": {
+   "sha256": "90360fe84a25e8b3f1d864b7b696583c76f7eea37ca57790978b81a03d998007",
+   "bytes": 75760,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; F4Q2: Winograd F(4x4,3x3) 3x3 convolution 32->64 with 2x2 max-pool, FP32, one channel chain over both input slices, coefficient segment at float4 18049 of 18432-byte models; replaces e83e868f8d5d2c0f.dxil while F4Q and F4Q2 are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=4",
+     "CIN_SLICES=2",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=18049",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "e83e868f8d5d2c0f.fp16.scale.dxil": {
+   "sha256": "405e940a21270377d49cc8c15440a21658d0cc4d223bd24efbb23cea27546eda",
+   "bytes": 92320,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; FP16 form (bit 1): e83e868f's F4Q2 encoder reading FP16 U'/2 coefficient pairs (HALF_TABLE=1) from its segment at float4 18049 of 18432-byte models, written in place as FP16; the outputs can differ from the F4Q2 form's; replaces e83e868f8d5d2c0f.dxil while F4Q, F4Q2 and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=4",
+     "CIN_SLICES=2",
+     "LOOPCIN=1",
+     "DECODE_OFFSET=0",
+     "TBASE=18049",
+     "HALF_TABLE=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f030948d38e74671.f4q.scale.dxil": {
+   "sha256": "8e6dd92ddf3e5789221ed604fdab23bcb6acff6a06040c9e37a8c20cd0d27cb1",
+   "bytes": 73984,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; F4Q: Winograd F(4x4,3x3) encoder 3x3 convolution 16->32 with 2x2 max-pool, FP32, two output slices, coefficient segment at float4 6049 of 4608-byte models; since 1.1.2 an early return of groups wholly below the output (TRIM=1): the same outputs as the 1.1.0 form for every input; replaces f030948d38e74671.dxil while F4Q is on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/f4q_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [],
+    "defines": [
+     "SLICES=2",
+     "DECODE_OFFSET=0",
+     "TBASE=6049",
+     "TRIM=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
+  },
+  "f2e2e13fea432d20.fp16.scale.dxil": {
+   "sha256": "db1247d8102a93bb6d07d25579768a0cdcd8afc9ae0a9d8cdf03f067479d8a47",
+   "bytes": 79440,
+   "kind": "shader",
+   "shader_model": "6.6",
+   "wave": 32,
+   "variants": [
+    "intel-free-mfg"
+   ],
+   "description": "Logical texture bounds for scaled generation; FP16 form (bit 2): f2e2e13f's F(2x2) kernel (64->32, XU1) with packed-FP16 MACs (PK16=1) reading the FP16 copy at float4 36481 of 18432-byte models; the outputs can differ from the exact form's; replaces f2e2e13fea432d20.dxil while F4Q and the FP16 forms are on",
+   "build": {
+    "pipeline": "dxc",
+    "source": "src/kernels/wino_enc16.hlsl",
+    "target": "cs_6_6",
+    "entry": "CSMain",
+    "options": [
+     "-enable-16bit-types"
+    ],
+    "defines": [
+     "DECODE_OFFSET=0",
+     "SLICES=2",
+     "CIN_SLICES=4",
+     "GX=8",
+     "GY=4",
+     "WINO_BASE=5760",
+     "PHASED=1",
+     "NOPOOL=1",
+     "CLAMP_LO=-128",
+     "KSPLIT=2",
+     "WHALF=1",
+     "WINO16_BASE=36481",
+     "XU1=1",
+     "PK16=1",
+     "FREEFG_VIRTUAL_BOUNDS=1"
+    ]
+   },
+   "rebuild": "byte-identical"
   }
  }
 }

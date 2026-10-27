@@ -18,7 +18,15 @@ StructuredBuffer<float4> scale : register(t2);
 StructuredBuffer<float4> bias : register(t3);
 Texture2DArray<uint4> skip : register(t4);
 RWTexture2DArray<uint4> dst : register(u0);
-cbuffer Dims : register(b0) { int W; int H; };
+cbuffer Dims : register(b0) { int W; int H;
+#if FREEFG_VIRTUAL_BOUNDS
+ uint FreeFGDeltaW; uint FreeFGDeltaH;
+#endif
+};
+#define FREEFG_DIMS_DEFINED 1
+#define FreeFGW W
+#define FreeFGH H
+#include "virtual_bounds.hlsli"
 
 #ifndef WHALF
 #define WHALF 0 // coefficients as FP16 pairs from a segment at WINO16_BASE (float4 index)
@@ -117,23 +125,23 @@ void CSMain(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID) {
         bool xm = Xm < 0 || Xm > W - 1, xp = Xp < 0 || Xp > W - 1, ym = Ym < 0 || Ym > H - 1, yp = Yp < 0 || Yp > H - 1;
         [unroll] for (uint q = 0; q < 4; q++) {
             int zq = fz * int(q);
-            int4 a = unpack_s8s32(low.Load(int4(lx - 1 + zq, ly - 1, SLICE_ARG, 0))[q]), b = unpack_s8s32(low.Load(int4(lx + zq, ly - 1, SLICE_ARG, 0))[q]);
-            int4 c = unpack_s8s32(low.Load(int4(lx - 1 + zq, ly, SLICE_ARG, 0))[q]), d = unpack_s8s32(low.Load(int4(lx + zq, ly, SLICE_ARG, 0))[q]);
-            uint wtl = fill_word(unpack_s8s32(skip.Load(int4(Xm + zq, Ym, SLICE_ARG, 0))[q]), up(a, b, c, d));
-            uint wtr = fill_word(unpack_s8s32(skip.Load(int4(Xp + zq, Ym, SLICE_ARG, 0))[q]), up(b, d, a, c));
-            uint wbl = fill_word(unpack_s8s32(skip.Load(int4(Xm + zq, Yp, SLICE_ARG, 0))[q]), up(c, a, d, b));
-            uint wbr = fill_word(unpack_s8s32(skip.Load(int4(Xp + zq, Yp, SLICE_ARG, 0))[q]), up(d, c, b, a));
+            int4 a = unpack_s8s32(FG_LOAD(low,int4(lx - 1 + zq, ly - 1, SLICE_ARG, 0),2)[q]), b = unpack_s8s32(FG_LOAD(low,int4(lx + zq, ly - 1, SLICE_ARG, 0),2)[q]);
+            int4 c = unpack_s8s32(FG_LOAD(low,int4(lx - 1 + zq, ly, SLICE_ARG, 0),2)[q]), d = unpack_s8s32(FG_LOAD(low,int4(lx + zq, ly, SLICE_ARG, 0),2)[q]);
+            uint wtl = fill_word(unpack_s8s32(FG_LOAD(skip,int4(Xm + zq, Ym, SLICE_ARG, 0),1)[q]), up(a, b, c, d));
+            uint wtr = fill_word(unpack_s8s32(FG_LOAD(skip,int4(Xp + zq, Ym, SLICE_ARG, 0),1)[q]), up(b, d, a, c));
+            uint wbl = fill_word(unpack_s8s32(FG_LOAD(skip,int4(Xm + zq, Yp, SLICE_ARG, 0),1)[q]), up(c, a, d, b));
+            uint wbr = fill_word(unpack_s8s32(FG_LOAD(skip,int4(Xp + zq, Yp, SLICE_ARG, 0),1)[q]), up(d, c, b, a));
             tile[(2 * j) * LW + 2 * i][q] = (xm || ym) ? 0 : wtl;
             tile[(2 * j) * LW + 2 * i + 1][q] = (xp || ym) ? 0 : wtr;
             tile[(2 * j + 1) * LW + 2 * i][q] = (xm || yp) ? 0 : wbl;
             tile[(2 * j + 1) * LW + 2 * i + 1][q] = (xp || yp) ? 0 : wbr;
         }
 #else
-        uint4 L00 = low.Load(int4(lx - 1, ly - 1, SLICE_ARG, 0)), L10 = low.Load(int4(lx, ly - 1, SLICE_ARG, 0));
-        uint4 L01 = low.Load(int4(lx - 1, ly, SLICE_ARG, 0)), L11 = low.Load(int4(lx, ly, SLICE_ARG, 0));
+        uint4 L00 = FG_LOAD(low,int4(lx - 1, ly - 1, SLICE_ARG, 0),2), L10 = FG_LOAD(low,int4(lx, ly - 1, SLICE_ARG, 0),2);
+        uint4 L01 = FG_LOAD(low,int4(lx - 1, ly, SLICE_ARG, 0),2), L11 = FG_LOAD(low,int4(lx, ly, SLICE_ARG, 0),2);
         int Xm = 2 * lx - 1, Xp = 2 * lx, Ym = 2 * ly - 1, Yp = 2 * ly;
-        uint4 Smm = skip.Load(int4(Xm, Ym, SLICE_ARG, 0)), Spm = skip.Load(int4(Xp, Ym, SLICE_ARG, 0));
-        uint4 Smp = skip.Load(int4(Xm, Yp, SLICE_ARG, 0)), Spp = skip.Load(int4(Xp, Yp, SLICE_ARG, 0));
+        uint4 Smm = FG_LOAD(skip,int4(Xm, Ym, SLICE_ARG, 0),1), Spm = FG_LOAD(skip,int4(Xp, Ym, SLICE_ARG, 0),1);
+        uint4 Smp = FG_LOAD(skip,int4(Xm, Yp, SLICE_ARG, 0),1), Spp = FG_LOAD(skip,int4(Xp, Yp, SLICE_ARG, 0),1);
         uint4 tl, tr, bl, br;
         [unroll] for (uint q = 0; q < 4; q++) {
             int4 a = unpack_s8s32(L00[q]), b = unpack_s8s32(L10[q]), c = unpack_s8s32(L01[q]), d = unpack_s8s32(L11[q]);
@@ -346,11 +354,11 @@ void CSMain(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID) {
     int ox = x0 + int(c0), oy = y0 + int(r0);
     if (h == 0) {
         uint4 o = swap[slot + 1];
-        dst[uint3(ox, oy, slice)] = uint4(words[0], o.xy);
-        dst[uint3(ox + 1, oy, slice)] = uint4(words[1], o.zw);
+        FG_STORE(dst,uint3(ox, oy, slice),1,uint4(words[0], o.xy));
+        FG_STORE(dst,uint3(ox + 1, oy, slice),1,uint4(words[1], o.zw));
     } else {
         uint4 o = swap[slot];
-        dst[uint3(ox, oy + 1, slice)] = uint4(o.xy, words[2]);
-        dst[uint3(ox + 1, oy + 1, slice)] = uint4(o.zw, words[3]);
+        FG_STORE(dst,uint3(ox, oy + 1, slice),1,uint4(o.xy, words[2]));
+        FG_STORE(dst,uint3(ox + 1, oy + 1, slice),1,uint4(o.zw, words[3]));
     }
 }

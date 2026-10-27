@@ -179,6 +179,7 @@ def compile_f4q(config, xess, output):
     wine = config.wine_include
     subprocess.run([config.clang, '--target=x86_64-w64-windows-gnu', '-fms-extensions', '-D__WINE_USE_MSVCRT',
                     '-DXEFG_PROXY_MFG=1', '-DXEFG_INTEL_FREE=1', '-DXEFG_MFG_SETTINGS=1', '-DXEFG_F4Q=1',
+                    '-DXEFG_OWN_FRAME_SCALING=1', '-DXEFG_MFG_UP_FILTERS=1',
                     '-isystem', str(wine / 'msvcrt'), '-isystem', str(wine / 'windows'), '-I', str(xess / 'inc/xess_fg'),
                     '-I', str(REPO / 'src'), '-I', str(REPO / 'src/game'), '-O2', '-Wall', '-Wextra', '-Werror',
                     '-Wno-unused-function', '-nostdlib', '-fuse-ld=lld', '-Wl,--entry,mainCRTStartup',
@@ -556,7 +557,8 @@ def compile_unit(config, xess, folder, output):
     resource.write_bytes(version_resource('OptiScaler'))
     wine = config.wine_include
     subprocess.run([config.clang, '--target=x86_64-w64-windows-gnu', '-fms-extensions', '-D__WINE_USE_MSVCRT',
-                    '-DXEFG_PROXY_MFG=1', '-DXEFG_MFG_RETIRE=1', '-isystem', str(wine / 'msvcrt'), '-isystem', str(wine / 'windows'),
+                    '-DXEFG_PROXY_MFG=1', '-DXEFG_MFG_RETIRE=1', '-DXEFG_OWN_FRAME_SCALING=1',
+                    '-isystem', str(wine / 'msvcrt'), '-isystem', str(wine / 'windows'),
                     '-I', str(xess / 'inc/xess_fg'), '-I', str(REPO / 'src'), '-I', str(REPO / 'src/game'),
                     '-I', str(build_proxy.common.COM_THUNKS), '-O2', '-Wall', '-Wextra', '-Wno-unused-function',
                     '-nostdlib', '-fuse-ld=lld', '-Wl,--entry,mainCRTStartup', '-Wl,--subsystem,console',
@@ -678,7 +680,8 @@ def main():
                 problems.append(f'pinned: the forwarded entry did not reach {original}: {forwarded}')
             if int(wrapped[0]) == CANT_LOAD_LIBRARY or wrapped[2] != '1':
                 problems.append(f'pinned: the wrapped entry did not reach Intel\'s runtime: {wrapped}')
-            if not settings or settings[0] != '1' or settings[3:] != ('0', '0'):
+            masks = ('3', '29') if 'XEFG_OWN_FRAME_SCALING=1' in defines else ('0', '0')
+            if not settings or settings[0] != '1' or settings[3:] != masks:
                 problems.append(f'pinned: settings interface {settings}')
             if 'MFG proxy ready' not in log:
                 problems.append('pinned: BC250-MFG.log lacks the ready line')

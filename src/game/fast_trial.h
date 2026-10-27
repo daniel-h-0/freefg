@@ -134,6 +134,12 @@ static __attribute__((noinline)) int fast_prepare(ID3D12Device*d){
  replace((void*)&d->lpVtbl->CreateComputePipelineState,fast_compute);
  install_model_owner(d,l);
  f4q_configure();  /* F4Q's switch and layout check, before the runtime creates a model or pipeline (src/model_f4q.h) */
+ mfg_scaling_suppressed=0;
+ if(f4q_mode==F4Q_SHADOW&&env_uint("XEFG_FLOW_CAP",0)){
+  mfg_scaling_suppressed=1;
+  logline("FREEFG_SCALE fallback: F4Q shadow diagnostic requires full output; full output retained\n");
+ }
+ scale_install(env_uint("XEFG_FLOW_CAP",0));
  set_original=l->lpVtbl->SetPipelineState;dispatch_original=l->lpVtbl->Dispatch;
  replace((void*)&l->lpVtbl->SetPipelineState,fast_set);replace((void*)&l->lpVtbl->Dispatch,fast_dispatch);
  install_graph(d,q);
@@ -142,7 +148,7 @@ static __attribute__((noinline)) int fast_prepare(ID3D12Device*d){
  ID3D12CommandQueue_Release(q);ID3D12GraphicsCommandList_Release(l);ID3D12CommandAllocator_Release(a);
  fast_scope=((struct scoped_com*)d)->scope;
  logline("PRIVATE GAME TRIAL scoped prepared-model and Winograd path installed\n");
- logline("INTEL_FREE own shaders only; Intel's original pipelines elsewhere; no scaling, dispatch guard or literal warps\n");
+ logline("INTEL_FREE own shaders only; Intel's original pipelines elsewhere\n");
  return 1;
 }
 static UINT fast_context_scope(xefg_swapchain_handle_t handle){

@@ -487,6 +487,7 @@ static void proxy_frames_changed(xefg_swapchain_handle_t handle,UINT frames){
  AcquireSRWLockExclusive(&fast_lifecycle_lock);
  if(!fast_scope||fast_context_scope(handle)!=fast_scope||proxy_aside_active()){ReleaseSRWLockExclusive(&fast_lifecycle_lock);return;}
  AcquireSRWLockExclusive(&fast_record_lock);
+ scale_invalidate();
  if(frame_output_count&&graph_queue){
   ID3D12Fence*fence=NULL;HANDLE event=CreateEventA(NULL,FALSE,FALSE,NULL);int idle=0;
   if(event&&SUCCEEDED(ID3D12Device_CreateFence(model_device,0,0,&IID_ID3D12Fence,(void**)&fence))&&SUCCEEDED(ID3D12CommandQueue_Signal(graph_queue,fence,1))&&SUCCEEDED(ID3D12Fence_SetEventOnCompletion(fence,1,event)))idle=WaitForSingleObject(event,10000)==WAIT_OBJECT_0;

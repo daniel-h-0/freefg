@@ -14,9 +14,13 @@ static void frame_prepare_dispatch(ID3D12GraphicsCommandList*,uint64_t,UINT*,UIN
 static void*frame_color_blob(const char*name,UINT*size){
  return graph_blob(name,size);
 }
+static int scale_dispatch(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT);
+static void scale_release(void);
 static UINT flow_cap_enabled;
 static struct{ID3D12PipelineState*original,*capped;} flow_psos[16];static UINT flow_pso_count;static UINT64 flow_frames;
-static struct {ID3D12GraphicsCommandList*l;UINT values[FLOW_ROOTS][64];UINT64 mask[FLOW_ROOTS];UINT step,active;ID3D12RootSignature*root;
+static struct {ID3D12GraphicsCommandList*l;
+ UINT scaled[FLOW_ROOTS][64];
+ UINT values[FLOW_ROOTS][64];UINT64 mask[FLOW_ROOTS];UINT step,active;ID3D12RootSignature*root;
 } flow_lists[128];
 static UINT flow_list_count;
 static SRWLOCK flow_lock=SRWLOCK_INIT;
@@ -31,18 +35,22 @@ static UINT flow_slot(ID3D12GraphicsCommandList*l){
 static void STDMETHODCALLTYPE flow_constants_hook(ID3D12GraphicsCommandList*l,UINT index,UINT n,const void*v,UINT offset){
  AcquireSRWLockExclusive(&flow_lock);
  if(index<FLOW_ROOTS&&offset<=64&&n<=64-offset){UINT i=flow_slot(l);memcpy(flow_lists[i].values[index]+offset,v,n*4);
+ memcpy(flow_lists[i].scaled[index]+offset,v,n*4);
  for(UINT k=offset;k<offset+n;k++)flow_lists[i].mask[index]|=1ULL<<k;
  }
  ReleaseSRWLockExclusive(&flow_lock);
  flow_constants_original(l,index,n,v,offset);
 }
 static void STDMETHODCALLTYPE flow_constant_hook(ID3D12GraphicsCommandList*l,UINT index,UINT value,UINT offset){
- AcquireSRWLockExclusive(&flow_lock);if(index<FLOW_ROOTS&&offset<64){UINT i=flow_slot(l);flow_lists[i].values[index][offset]=value;flow_lists[i].mask[index]|=1ULL<<offset;}ReleaseSRWLockExclusive(&flow_lock);
+ AcquireSRWLockExclusive(&flow_lock);if(index<FLOW_ROOTS&&offset<64){UINT i=flow_slot(l);flow_lists[i].values[index][offset]=value;
+ flow_lists[i].scaled[index][offset]=value;
+flow_lists[i].mask[index]|=1ULL<<offset;}ReleaseSRWLockExclusive(&flow_lock);
  flow_constant_original(l,index,value,offset);
 }
 static HRESULT STDMETHODCALLTYPE flow_reset_hook(ID3D12GraphicsCommandList*l,ID3D12CommandAllocator*a,ID3D12PipelineState*p){
  HRESULT hr=flow_reset_original(l,a,p);if(SUCCEEDED(hr)){AcquireSRWLockExclusive(&flow_lock);UINT i=flow_slot(l);memset(flow_lists[i].mask,0,sizeof(flow_lists[i].mask));flow_lists[i].root=NULL;flow_lists[i].active=0;flow_lists[i].step=FLOW_END;
  frame_reset_list(l);
+ scale_reset_list(l);
  ReleaseSRWLockExclusive(&flow_lock);}return hr;
 }
 static void STDMETHODCALLTYPE flow_root_hook(ID3D12GraphicsCommandList*l,ID3D12RootSignature*r){
@@ -51,6 +59,8 @@ static void STDMETHODCALLTYPE flow_root_hook(ID3D12GraphicsCommandList*l,ID3D12R
  }ReleaseSRWLockExclusive(&flow_lock);flow_root_original(l,r);
 }
 static void flow_capture_pso(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,uint64_t shader,ID3D12PipelineState*original){
+ if(env_uint("XEFG_FLOW_CAP",0)&&shader==0xbc7a0d422d51c159ULL)scale_invalidate();
+ return; /* Keep Intel's original preprocessing PSO. */
  if(shader!=0xbc7a0d422d51c159ULL||!env_uint("XEFG_FLOW_CAP",0))return;
  if(flow_pso_count==16)model_fail("flow PSO capacity");
  UINT size;void*bytes=frame_color_blob("flow-preprocess.dxil",&size);D3D12_COMPUTE_PIPELINE_STATE_DESC copy=*desc;
@@ -59,6 +69,7 @@ static void flow_capture_pso(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_D
  flow_psos[flow_pso_count].original=original;flow_psos[flow_pso_count++].capped=p;
 }
 static int flow_dispatch_pso(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UINT y,UINT z){
+ return shader==0xbc7a0d422d51c159ULL?scale_dispatch(l,shader,x,y,z):0;
  if(!flow_cap_enabled||shader!=0xbc7a0d422d51c159ULL)return 0;
  AcquireSRWLockExclusive(&flow_lock);UINT active=flow_lists[flow_slot(l)].active;ReleaseSRWLockExclusive(&flow_lock);if(!active)return 0;
  ID3D12PipelineState*original=NULL;for(UINT i=0;i<nbinding;i++)if(bindings[i].l==l)original=bindings[i].p;
@@ -76,7 +87,7 @@ static void install_flow_cap(ID3D12GraphicsCommandList*l,UINT w,UINT h){
  flow_cap_enabled=1;
  flow_constants_original=l->lpVtbl->SetComputeRoot32BitConstants;replace((void*)&l->lpVtbl->SetComputeRoot32BitConstants,flow_constants_hook);
  install_frame_cap(graph_device,l);
- logline("FLOW_CAP armed; <=1920x1080 bypass\n");
+ logline("FLOW_CAP armed; generated-frame dimensions follow configured percentage or limit\n");
 }
 #include "mfg_frame_geometry.h"
 static void flow_cap_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT*x,UINT*y,UINT*z){

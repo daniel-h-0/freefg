@@ -30,6 +30,7 @@ release is taken down.
 | FreeFG | every file not named in another row: the installer and Setup (the package's top-level `.py` files and `Start-freefg.sh`), `dependencies.json`, `extras/`, the proxy `payload/libxess_fg.dll`, the pacing layer `payload/BC250-XeFG/layer/`, the shader profile `payload/BC250-XeFG/shaders/`, `payload/BC250-XeFG/settings.ini`, `manifest.json`, `qualification/`, the documents | this project | MIT (`licenses/freefg.txt`) |
 | Per-game recipes | `recipes/recipes.json` | this project and the sources in [Per-game recipes](#per-game-recipes) | MIT for this project's part |
 | PyYAML 6.0.3 (pure Python), unmodified; reads and writes Lutris settings | `vendor/yaml/` | Kirill Simonov and the PyYAML contributors | MIT (`vendor/PyYAML-LICENSE.txt`, `licenses/PyYAML.txt`) |
+| FidelityFX Super Resolution 1 EASU | compiled into `payload/BC250-XeFG/shaders/freefg-up-fsr1.dxil`; CPU constant setup in the proxy | AMD, [FidelityFX-FSR](https://github.com/GPUOpen-Effects/FidelityFX-FSR) commit `a21ffb8f6c13233ba336352bdff293894c706575`; source headers and provenance under `vendor/fsr1/` | MIT (`licenses/AMD-FSR1.txt`) |
 | OptiScaler, modified build | `opti/OptiScaler.dll` | the [OptiScaler](https://github.com/optiscaler/OptiScaler) contributors and this project | GNU GPL version 3 (`licenses/OptiScaler.txt`); the code of other projects inside it: `licenses/OptiScaler-third-party/`. See [OptiScaler source](#optiscaler-source). |
 | Licence texts of the downloaded components | `licenses/Intel-XeSS.txt`, `licenses/Intel-third-party-programs.txt`, `licenses/fsr4/` | as named | as named |
 
@@ -49,8 +50,8 @@ release is taken down.
 
 ### The shader profile
 
-`payload/BC250-XeFG/shaders/` contains **52 shaders and 9 tables/markers**. The shaders are compiled from this
-project's HLSL and contain no model weights; coefficients are read from runtime buffers. Tables identify pipelines
+`payload/BC250-XeFG/shaders/` contains **83 shaders and 10 tables/markers**. The shaders are compiled from the supplied
+HLSL, including AMD's EASU implementation, and contain no model weights; coefficients are read from runtime buffers. Tables identify pipelines
 by hash. [Mechanism](packaging/public/ARCHITECTURE.md#the-shader-profile) · [Build recipes](packaging/public/BUILDING.md#the-shader-profile).
 
 The release passes `release/check_intel_free.py` with no allowance. That check rejects known Intel files and shader

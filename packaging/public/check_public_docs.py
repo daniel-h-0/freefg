@@ -42,9 +42,9 @@ PLACEHOLDER = re.compile(r'\[(PRODUCT|VERSION|REPO-URL|RELEASE-DATE|SECURITY-CON
 LICENSE = HERE / 'LICENSE'
 RENAME = re.compile(r'BC250-XeFG|BC250_XEFG_\w*|bc250_xefg_original|bc250-xefg[\w-]*|bc250-xe' + r'mfg[\w-]*|BC250-MFG\.log|'
                     r'Start-BC250-XeFG\.sh')
-# Licence texts that only code outside this build needs: the proxy links no MinHook and compiles no FSR1 filter.
-NOT_COMPILED = {'licenses/MinHook.txt': 'MinHook (the proxy installs no hooks)',
-                'licenses/AMD-FSR1.txt': 'FSR1 EASU (the Intel-free builds have no generated-frame scaling)'}
+# The proxy uses scoped forwarding and links no MinHook. FSR1 EASU is included
+# in the optional generated-frame enlargement path since 1.1.4.
+NOT_COMPILED = {'licenses/MinHook.txt': 'MinHook (the proxy installs no hooks)'}
 
 
 def slug(heading):

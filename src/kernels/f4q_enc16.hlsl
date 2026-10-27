@@ -24,6 +24,7 @@
 //          returns at entry; the same outputs for every input).
 //          HALF_TABLE (0 | 1): as f4q_dec16.hlsl (FP16 U'/2 coefficient pairs at TBASE, scale 1/288; the outputs can differ).
 #include "f4q_common.hlsli"
+#include "virtual_bounds.hlsli"
 
 #ifndef ZROUNDS
 #define ZROUNDS 2
@@ -101,6 +102,7 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
     [branch] if (gid.y > 0) {
         uint dw, dh, dl;
         dst.GetDimensions(dw, dh, dl);
+        dh=FG_BOUNDS(uint2(dw,dh),(POOL?2:1)).y;
 #if POOL
         if (gid.y * (2 * TGY) >= dh) return;
 #else
@@ -143,9 +145,9 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
             if (idx < SX * SY) {
                 uint sy = idx / SX, sx = idx - sy * SX;
 #if CIN_SLICES > 1
-                uint4 w = src.Load(int4(gx0 + int(sx), gy0 + int(sy), int(cs), 0));
+                uint4 w = FG_LOAD(src,int4(gx0 + int(sx), gy0 + int(sy), int(cs), 0),1);
 #else
-                uint4 w = src.Load(int4(gx0 + int(sx), gy0 + int(sy), 0, 0));
+                uint4 w = FG_LOAD(src,int4(gx0 + int(sx), gy0 + int(sy), 0, 0),1);
 #endif
                 uint a = sy * PITCH + sx + (sy >> 2);
                 uint dw[4] = { decode_word(w.x), decode_word(w.y), decode_word(w.z), decode_word(w.w) };
@@ -290,7 +292,7 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
         uint tile = (y >> 1) * TGX + (x >> 1), px = (y & 1) * 2 + (x & 1);
         uint4 o = uint4(L[OUTBASE + (0 * NPX + px) * PADW + tile], L[OUTBASE + (1 * NPX + px) * PADW + tile],
                         L[OUTBASE + (2 * NPX + px) * PADW + tile], L[OUTBASE + (3 * NPX + px) * PADW + tile]);
-        dst[uint3(gid.x * 16 + x, gid.y * 8 + y, slice)] = o;
+        FG_STORE(dst,uint3(gid.x * 16 + x, gid.y * 8 + y, slice),(POOL?2:1),o);
     }
 #else
     // 32 x 16 output texels: waves 0..3 store rows 4i .. 4i + 3, 32 contiguous texels each
@@ -300,7 +302,7 @@ void CSMain(uint3 gt : SV_GroupThreadID, uint3 gid : SV_GroupID) {
             uint tile = (y >> 2) * TGX + (x >> 2), px = (y & 3) * 4 + (x & 3);
             uint4 o = uint4(L[OUTBASE + (0 * NPX + px) * PADW + tile], L[OUTBASE + (1 * NPX + px) * PADW + tile],
                             L[OUTBASE + (2 * NPX + px) * PADW + tile], L[OUTBASE + (3 * NPX + px) * PADW + tile]);
-            dst[uint3(gid.x * 32 + x, gid.y * 16 + y, slice)] = o;
+            FG_STORE(dst,uint3(gid.x * 32 + x, gid.y * 16 + y, slice),(POOL?2:1),o);
         }
     }
 #endif

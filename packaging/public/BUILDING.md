@@ -7,7 +7,7 @@ has its own pinned source and build route.
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `f52f24ec6df082a1784638746da867b1fe557c9c0a20d487820213cfb2e06805` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `f78d4840ac6984a5e078e7422982da2abe287fbd05ac33458c13e8682dd96a26` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 
 The proxy and layer scripts build twice and require identical outputs. They also compare against
@@ -113,9 +113,11 @@ installer's `~/.cache/bc250-xefg-testers/payload` after preparation.
 
 ## The shader profile
 
-The shipped profile has **52 shaders and 9 tables/markers**. `release/profile/` supplies 33 base shaders;
-`release/profile-mfg/` replaces 12 and adds 19. The latter comprise seven F(4×4) alternatives, seven FP16 alternatives
-and five comparison kernels. HLSL and compile recipes are in `src/kernels/` and the two `origin.json` files.
+The shipped profile has **83 shaders and 10 tables/markers**. `release/profile/` supplies 33 base shaders;
+`release/profile-mfg/` replaces 12 and adds 50 shaders plus the scaling capability marker. Additions comprise seven
+F(4×4) alternatives, seven FP16 alternatives, five comparison kernels, 25 bounded convolution forms and six scaling
+filters. HLSL is under `src/kernels/`, `src/frame_resample.hlsl` and `src/frame_upscale_filters.hlsl`; compile recipes
+are in the two `origin.json` files. The EASU filter uses the pinned MIT headers under `vendor/fsr1/`.
 
 Extract Microsoft's Linux DXC v1.9.2607 archive, `linux_dxc_2026_07_29.x86_x64.tar.gz`, SHA-256
 `55665c87824051ed4774ff3280a79ccbbb7d39243b9736ca5e98222134112d54`, then run:
@@ -124,7 +126,7 @@ Extract Microsoft's Linux DXC v1.9.2607 archive, `linux_dxc_2026_07_29.x86_x64.t
 XEMFG_DXC=/path/to/linux_dxc_2026_07_29.x86_x64 python3 release/build_profile.py check
 ```
 
-Expected: 33 byte-identical base shaders and 31 in `variant_profiles`. `--no-rebuild` checks stored files, not compiler
+Expected: 33 byte-identical base shaders and 62 in `variant_profiles`. `--no-rebuild` checks stored files, not compiler
 reproducibility. [Profile provenance and composition](../../release/profile/ORIGIN.md).
 
 ## CI

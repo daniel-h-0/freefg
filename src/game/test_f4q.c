@@ -78,6 +78,11 @@ static HRESULT(STDMETHODCALLTYPE*compute_original)(ID3D12Device*,const D3D12_COM
 static void(STDMETHODCALLTYPE*set_original)(ID3D12GraphicsCommandList*,ID3D12PipelineState*);
 static void(STDMETHODCALLTYPE*dispatch_original)(ID3D12GraphicsCommandList*,UINT,UINT,UINT);
 static int profile_lists_replacement(uint64_t s){(void)s;return 1;}   /* every profile file is listed here */
+/* This fixture checks ordinary pipeline selection; bounded execution is covered
+ * by the SDK image and poison-padding checks. */
+static void scale_capture_unet(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,uint64_t h,ID3D12PipelineState*p,const char*suffix){
+ (void)d;(void)desc;(void)h;(void)p;(void)suffix;
+}
 #include "model_f4q.h"
 #include "f4q.h"
 /* src/model_wino_enc16.h's FP16 of an integer |v| < 2048 (the FP16 forms' copies) */

@@ -350,9 +350,9 @@ def quoted_includes(name, text):
         match = None if start else re.match(r'^[ \t]*#[ \t]*include[ \t]*"([^"]+)"', line)
         if match:
             for folder in (Path(name).parent, Path('src'), Path('src/game')):
-                candidate = folder / match.group(1)
-                if (REPO / candidate).is_file():
-                    found.append(str(candidate))
+                candidate = (REPO / folder / match.group(1)).resolve()
+                if candidate.is_relative_to(REPO.resolve()) and candidate.is_file():
+                    found.append(str(candidate.relative_to(REPO.resolve())))
                     break
     return found
 
@@ -397,7 +397,9 @@ def public_sources(names):
     for name, text in texts.items():
         resolve(name, text)
     included = {i for name in listed for i in quoted_includes(name, out[name])}
-    candidates = sorted(included - set(listed))
+    # Listed vendor headers are shipped verbatim; only this project's src/
+    # files undergo conditional removal. They still satisfy include closure.
+    candidates = sorted(included - set(names))
     for name in candidates:
         text = source_text(name)
         # its own project macros, beyond those of the listed files, are undefined too
@@ -405,7 +407,7 @@ def public_sources(names):
             defined_in_sources - unifdef.defined_macros(text)
         resolve(name, text, frozenset(extra))
     left_out = [n for n in candidates if not unifdef.has_code(out[n])]
-    lacking = sorted(set(n for n in included if n not in listed) - set(left_out))
+    lacking = sorted(set(n for n in included if n not in names) - set(left_out))
     if lacking:
         raise ReleaseError('keep-public.txt lacks headers the public C sources include: ' + ', '.join(lacking))
     emptied_listed = [n for n in listed if not unifdef.has_code(out[n])]

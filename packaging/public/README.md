@@ -8,6 +8,9 @@ The default is **2× output: one generated frame per game-rendered frame**. An o
 [MFG Unlocker](#3-and-4-with-mfg-unlocker) enables 3×/4×. Generated frames improve motion smoothness; they do not
 increase the game's simulation rate.
 
+Generated frames match the output size by default. Optional [generated-frame scaling](#generated-frame-scaling)
+reduces their generation cost, at the expense of generated-frame detail. Game-rendered frames keep their output size.
+
 By default, seven shaders use faster FP16 arithmetic, so generated pixels can differ from Intel's.
 `BC250_XEFG_EXACT=1` disables those forms. Exact mode matched Intel in the comparisons performed, but not every
 kernel is proven equivalent for every input. [Output differences and switches](ARCHITECTURE.md#fp16-forms-approximate-output-by-default).
@@ -99,6 +102,36 @@ Cyberpunk 2.5's HelixSR recipe disables the reactive/bias mask input to avoid ob
 a temporal-reconstruction input; equivalent image quality with the mask enabled has not been established.
 [Details](TROUBLESHOOTING.md#cyberpunk-25-with-helixsr-stops-at-the-first-rendered-frames).
 
+## Generated-frame scaling
+
+Close the game, open **Settings**, and choose **Generated frames**:
+
+| Choice | Result |
+| --- | --- |
+| Match output | Full output size; the default. |
+| Scale | 50–100% of output width and height. At 75%, 2560×1440 generates at 1920×1080. |
+| 720p / 1080p / 1440p / 2160p limit | Fit inside that height's 16:9 box, preserving aspect ratio and never enlarging. An ultrawide or portrait output is fitted to both bounds. |
+
+Reduced dimensions round down to even pixels, with a minimum of one. Match output, 100%, and an output already
+inside its selected limit preserve odd dimensions. The game's output resolution, real frames, depth and motion-vector
+resources stay unchanged. The reduced result is enlarged only after generation.
+
+**Downscale** selects Bilinear or Area colour reduction. **Upscale** selects Bilinear, Bicubic (Catmull–Rom),
+Lanczos2 or FSR1 (EASU, without RCAS sharpening). Bilinear is the default in both directions. These filters affect
+generated frames; they are separate from the game's FSR 4 or HelixSR upscaler. Scaling deliberately changes the image,
+including in Exact mode.
+
+```sh
+python3 install.py configure GAME.exe --percent 75 --downscale area --upscale fsr1
+python3 install.py configure GAME.exe --limit 1080
+python3 install.py configure GAME.exe --resolution output
+```
+
+Restart the game after changes. OptiScaler also exposes these settings under **Frame Generation → XeFG scaling**.
+**Status** reports the last recorded scaling decision and actual generated dimensions. With MFG Unlocker, use
+`XeFGModel=default` for scaling at 3×/4×. Unsupported observed layouts retain full output.
+[Mechanism and limits](ARCHITECTURE.md#generated-frame-scaling).
+
 ## 3× and 4× with MFG Unlocker
 
 [MFG Unlocker](https://github.com/dashdogy/MFG-Unlocker), by dashdogy, lifts Intel's non-Intel frame-count limit.
@@ -179,11 +212,11 @@ Optional helpers in the release's `extras/` folder each include installation and
 
 ## Status
 
-**1.1.3.1, 25 October 2026.** Includes the October 25 OptiScaler fork, Cyberpunk 2.5 recipe, one global wave64
-workaround, and 1.1.3's 3×/4× pacing changes. The October 25 HelixSR 2× comparison passed six warm-ups and
-24 measurements. The expanded October 26 chart above covers 2×/3×/4×: all 14 warm-ups and 56 measurements passed.
-Echo Point Nova passed 2×/3×/4× starts. Installer/Restore and pinned builds passed.
-[Release checks](MEASUREMENTS.md#checks-of-1131) · [TV pacing checks](MEASUREMENTS.md#checks-of-113) ·
+**1.1.4 (27 October 2026).** Optional generated-frame scaling passed 31 SDK checks,
+nine Cyberpunk starts and a normal Steam Echo Point Nova start at 2×. Geometry bounds, active acceleration,
+Install/Restore, standalone builds and pinned local CI passed. [Scaling checks](MEASUREMENTS.md#generated-frame-scaling-in-114).
+The charts above describe the October 26 campaign with 1.1.3.1; the scaling check is a separate dataset.
+[1.1.3.1 release checks](MEASUREMENTS.md#checks-of-1131) · [TV pacing checks](MEASUREMENTS.md#checks-of-113) ·
 [Changelog](CHANGELOG.md).
 
 ## Known limitations
@@ -193,7 +226,8 @@ Echo Point Nova passed 2×/3×/4× starts. Installer/Restore and pinned builds p
   Exact mode matched in the tested scenes; F4Q-family arithmetic is not proven equivalent for every input. [Details](ARCHITECTURE.md#f4q-rounding-and-tested-equivalence).
 - Only the first eligible XeFG context is accelerated. Unsupported runtime layouts can trigger a fallback or close the
   game. [Fallback behavior](ARCHITECTURE.md#stepping-aside).
-- Generated frames use full output resolution; a subnative generated-frame option is a future goal.
+- Generated-frame scaling trades image detail for lower generation cost. Gains and visual quality vary by game,
+  scale and filter; Exact mode does not make a scaled frame equal to a full-resolution frame.
 - Frame pacing cannot remove every game/CPU stall. Higher-factor image quality and end-to-end latency remain incompletely
   measured; throughput gains alone do not establish either.
 

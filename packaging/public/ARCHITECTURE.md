@@ -115,9 +115,36 @@ For a hooked context, an unsupported model census, missing coefficient set or pr
 originals, and network checks stop for that context. Resources remain alive until destruction because previously
 recorded GPU work may still use them. Other runtime consistency checks can still terminate the process.
 
+## Generated-frame scaling
+
+Match output leaves the scaling hooks inactive. When scaling is requested, the proxy first observes a complete
+unmodified graph and checks its geometry, root layouts and resource formats. An unsupported observed layout keeps
+full output. A new output size, input format, relevant pipeline or frame count requires another observation.
+
+The active path resamples scene/UI colour into private float textures, binds those views to Intel's original
+preprocessing, warp and final pipelines, and reduces the flow and reconstruction geometry. The U-Net uses bounded
+forms of the selected ordinary, F4Q or FP16 kernels, preserving each SDK allocation's padding while excluding stale
+pixels outside the reduced region. At tiny sizes the virtual network keeps all five levels, including one-pixel
+levels. Engine depth and motion-vector resources and their coordinate conventions are retained.
+
+The final pass writes a smaller region of the generated buffer. Owned copy/filter work enlarges it back to the output
+size. Bilinear and Area are reduction choices; Bilinear, Catmull–Rom, Lanczos2 and AMD FSR 1 EASU are enlargement
+choices. EASU uses AMD's CPU constants and keeps bilinear alpha. No RCAS sharpening or transfer-function conversion
+is added. Colour intermediates use RGBA16 float, or RGBA32 float for a 32-bit float source.
+
+Immutable descriptor batches keep their resources until recorded lists release them and a queue fence confirms GPU
+completion. Read-only colour views share their reduction within one frame and command list; a new frame, list reset
+or copy into the source invalidates that reuse. Resolution/HDR changes recycle completed batches. MFG Unlocker's default model repeats the native
+network; each generated phase receives the same scaling treatment. Its alternate model can retain full output while
+ordinary FreeFG acceleration continues. The F4Q shadow diagnostic also retains full output.
+
+Settings apply at process startup. Logs distinguish requested settings from actual scaling decisions. Layout changes
+after a scaled graph has begun remain consistency errors; the observation gate is not a guarantee for an arbitrary
+modified runtime. [Controls](README.md#generated-frame-scaling).
+
 ## The shader profile
 
-The installed `BC250-XeFG/shaders/` directory has **61 files**:
+The installed `BC250-XeFG/shaders/` directory has **93 files**:
 
 | Files | Count |
 | --- | ---: |
@@ -126,11 +153,13 @@ The installed `BC250-XeFG/shaders/` directory has **61 files**:
 | FP16 alternatives | 7 |
 | Helper kernels: 15 for 2×, five for the multi-frame network | 20 |
 | Diagnostic comparison kernels | 5 |
+| Bounded convolution forms for scaling | 25 |
+| Colour reduction/enlargement filters | 6 |
 | Tables: `waves.txt`, `dispatch-scale.txt` | 2 |
-| Feature markers (`*.required`) | 7 |
+| Feature markers (`*.required`) | 8 |
 
-The 52 shaders are compiled from this project's HLSL: 50 use shader model 6.6 and two use 6.9. The shipped wave table
-has 142 entries; the dispatch-scale table has 11. [Rebuild instructions](BUILDING.md#the-shader-profile) and
+The 83 shaders are compiled from the supplied HLSL, including AMD's MIT-licensed EASU implementation: 81 use shader
+model 6.6 and two use 6.9. The shipped wave table has 173 entries; the dispatch-scale table has 11. [Rebuild instructions](BUILDING.md#the-shader-profile) and
 [per-file recipes](../../release/profile/ORIGIN.md).
 
 ### Exact arithmetic

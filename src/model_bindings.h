@@ -1,3 +1,4 @@
+static void scale_capture_root(ID3D12RootSignature*,const D3D12_ROOT_SIGNATURE_DESC*);
 /* Probe-only descriptor provenance for model_owner.h. */
 static struct {SIZE_T cpu;struct model_record*m;} model_descriptors[8192];static UINT model_descriptor_count;
 static struct {ID3D12DescriptorHeap*h;SIZE_T cpu;UINT64 gpu;UINT count,stride;} model_heaps[128];static UINT model_heap_count;
@@ -51,6 +52,7 @@ static HRESULT STDMETHODCALLTYPE model_create_root_hook(ID3D12Device*d,UINT node
  HRESULT hr=
  mfg_cached_root(d,node,data,size,iid,out);
  if(blob)ID3D10Blob_Release(blob);
+ if(SUCCEEDED(hr))scale_capture_root(*out,s);
  if(SUCCEEDED(hr)&&match){AcquireSRWLockExclusive(&model_lock);if(!model_known_root(*out)){if(model_root_count==MODEL_ROOT_CAPACITY)model_fail("root tracking capacity");UINT index=model_root_count++;model_roots[index]=*out;model_graph_roots[index]=expanded;ID3D12RootSignature_AddRef((ID3D12RootSignature*)*out);}ReleaseSRWLockExclusive(&model_lock);}
  if(SUCCEEDED(hr)&&expanded)logline("WINOGRAD_ROOT preserved three parameters; appended u1/u2 roots\n");
  ID3D12VersionedRootSignatureDeserializer_Release(reader);return hr;

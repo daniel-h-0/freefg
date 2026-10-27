@@ -37,6 +37,8 @@ static UINT env_uint(const char*k,UINT v){(void)k;return v;}
 static void mfg_tag_capture(xefg_swapchain_handle_t h){(void)h;}
 static void mfg_settings_note_context(xefg_swapchain_handle_t h){(void)h;}
 static void mfg_settings_clear_context(void){}
+static UINT scale_invalidations;
+static void scale_invalidate(void){scale_invalidations++;}
 static int init_answer,init_calls,resolves;
 static UINT init_max=5;
 static xefg_swapchain_result_t intel_init_parameters(xefg_swapchain_handle_t h,xefg_swapchain_d3d12_init_params_t*p){
@@ -122,8 +124,9 @@ void mainCRTStartup(void){
  proxy_ready_first(H(1));proxy_frame_tick(H(1));CHECK(readies==1);CHECK(init_calls==1);
  CHECK(logged("MFG_FACTOR the runtime's maximum for this context is 6x"));
  /* A frame-count change after it retires (the first SetNumInterpolatedFrames is a change from the maximum). */
- proxy_frames_changed(H(1),2);CHECK(logged("MFG_FACTOR 3x"));CHECK(count_logged("MFG_RETIRED")==1);
- proxy_frames_changed(H(1),2);CHECK(count_logged("MFG_RETIRED")==1);
+ UINT scale_before=scale_invalidations;
+ proxy_frames_changed(H(1),2);CHECK(logged("MFG_FACTOR 3x"));CHECK(count_logged("MFG_RETIRED")==1);CHECK(scale_invalidations==scale_before+1);
+ proxy_frames_changed(H(1),2);CHECK(count_logged("MFG_RETIRED")==1);CHECK(scale_invalidations==scale_before+1);
  /* No status read for a NULL handle. */
  int before=resolves;proxy_status_poll(NULL);CHECK(resolves==before);
  /* The layer follows the actual SDK output count, including a decrease; an empty status is not generation. */

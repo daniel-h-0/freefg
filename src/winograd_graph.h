@@ -35,7 +35,9 @@ static void STDMETHODCALLTYPE graph_execute_hook(ID3D12CommandQueue*q,UINT count
   if(graph_queue&&graph_queue!=q)model_fail("Winograd scratch submitted on multiple queues");
   if(!graph_queue){graph_queue=q;ID3D12CommandQueue_AddRef(q);logline("WINOGRAD_QUEUE single submission owner established\n");}
  }
- ReleaseSRWLockExclusive(&graph_lock);graph_execute_original(q,count,lists);
+ ReleaseSRWLockExclusive(&graph_lock);
+ if(scale_queue_execute(q,count,lists,graph_execute_original))return;
+ graph_execute_original(q,count,lists);
 }
 static void*graph_blob(const char*name,UINT*size){
  char path[1400];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=fopen(path,"rb");if(!f)model_fail("missing Winograd helper");
