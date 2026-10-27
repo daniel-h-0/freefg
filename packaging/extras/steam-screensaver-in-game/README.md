@@ -9,7 +9,9 @@ runs and restore your timeout afterwards.
 
 - `./install.sh` installs and starts a user service under `~/.local/bin` and `~/.config/systemd/user`.
 - `bc250-steam-screensaver-in-game status` reports its state.
-- `./uninstall.sh` removes it and restores any timeout it changed.
+- `./uninstall.sh` stops the service and restores any timeout it changed before removing the helper. If Steam is
+  unreachable, it keeps the helper and saved timeout; open Steam, run `bc250-steam-screensaver-in-game restore`, then
+  run the uninstaller again.
 
 The helper reads game-running state and writes Steam's AC/battery screensaver timeouts through the local DevTools
 endpoint at `127.0.0.1:8080`. Decky commonly enables it. Otherwise, create

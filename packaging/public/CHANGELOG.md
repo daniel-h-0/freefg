@@ -4,6 +4,7 @@ Release changes since 0.9.0. Measurements describe the named release and test co
 
 ## Unreleased
 
+- Clarify the measurement campaigns, cache exceptions, troubleshooting, download checks and community recipe selection.
 - Extend the HelixSR charts to matched 2×/3×/4× SDR and HDR10 measurements, mark the MFG Unlocker
   categories `(unofficial)`, and show derived milliseconds per generated frame. Preserve the prior 2× dataset.
 - Review all public documentation against 1.1.3.1: shorten explanations, correct shader counts and dependency
@@ -45,7 +46,7 @@ stalls. These checks do not establish library-wide pacing or end-to-end latency.
 
 ## 1.1.2 – 2026-10-24
 
-- Enable seven faster FP16 U-Net forms by default. Generated images differ slightly from Intel's. In 19 synthetic
+- Enable seven faster FP16 U-Net forms by default. Generated images differ numerically from Intel's. In 19 synthetic
   configurations, 0.12–16.2% of pixels differ; error against analytic truth is 0.985–1.007× Intel's. The image-quality
   gate did not pass overall. `BC250_XEFG_EXACT=1` or `Exact=1` in `settings.ini` disables these forms.
 - Extend Winograd F(4×4) to three encoders (F4Q2) and two row layers (F4Q3). These non-FP16 forms matched Intel's in

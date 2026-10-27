@@ -36,7 +36,7 @@ it is not a tested recipe.
 | `ini` | OptiScaler keys the shipped build reads; never an installer key, HUDFix, `Spoofing.Dxgi`, Reflex, quality/colour keys, and never a key OptiScaler's own fix for the exe sets |
 | `game_settings` | `file` relative to the prefix's `drive_c/users/steamuser`, `format` (`json`, `json-options`, `xml-option`, `ini-replace`, `ini`), `values`; Restore reverts them key by key. `EngineDilateMotionVectors` tweaks are rejected by the community validator; a maintainer must investigate them separately |
 | `launch_args` | DX12 switches only (`-dx12`, `-d3d12`, `-force-d3d12`); use the one the game needs |
-| `known_problems` | inputs that failed on a BC-250: they leave the automatic choice like a wiki veto |
+| `known_problems` | failed inputs on a BC-250; entries with an `input` exclude it from detection-based candidates, as wiki vetoes do. Explicit user choices and applicable recipe routes take precedence |
 | `reports` | at least one, each with observed presents per game frame (`ratio` ≥ 1.95) over ≥ 10 minutes of gameplay, 3 starts without a hang, Restore checked |
 
 Each report needs `issue`, `freefg`, `proton`, `ratio`, `minutes`, `starts`, `restore_checked` and `date`. The other

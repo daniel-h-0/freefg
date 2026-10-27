@@ -243,7 +243,7 @@ before the fix to Status and Check named there. 1.1.1 shipped the file above.
 
 | Campaign | Configuration |
 | --- | --- |
-| Current Cyberpunk 2.5 / HelixSR, 25 October | BC-250, GPU governor capped at 1850 MHz; CachyOS, kernel `7.3.0-2.326-cachyos-bc250`, Mesa/RADV `3:26.2.5-1.331`, GE-Proton11-11, gamescope 3.16.30. Headless 2560×1440 at 240 Hz. Exact driver flags and hashes are in the chart data. |
+| Current Cyberpunk 2.5 / HelixSR, 25–26 October | BC-250, GPU governor capped at 1850 MHz; CachyOS, kernel `7.3.0-2.326-cachyos-bc250`, Mesa/RADV `3:26.2.5-1.331`, GE-Proton11-11, gamescope 3.16.30. Headless 2560×1440 at 240 Hz. Exact driver flags and hashes are in the chart data. |
 | CONTROL Resonant pacing, 25 October | BC-250, GE-Proton11-11, HelixSR 2.0.0, gamescope 3.16.30; physical LG G5 at 2560×1440, 120 Hz, HDR/VRR. |
 | 1.1.2 checks, 23–24 October | Kernel 7.3.0, Mesa 26.2.5 BC-250 build; GE-Proton11-11 for the release comparisons/live start, 11-7 for earlier test builds. FSR 4 RC12 for the release; earlier candidates used RC11. |
 | Earlier campaigns | Kernel 7.2.8, Mesa 26.2.2 BC-250 build with compute queue, GE-Proton11-7, gamescope 3.16.28. GPU limit 1850 MHz; 6 GiB GTT. |
@@ -256,14 +256,15 @@ not make different game versions, upscaler modes or campaign conditions intercha
 
 ## Checks of 1.1.2
 
-1.1.2 changes the U-Net and refinement kernels ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-the-default-slightly-different))
+1.1.2 changes the U-Net and refinement kernels ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-approximate-output-by-default))
 and installs FSR 4 RC12. Each new kernel is byte-identical to one that a test build ran first. An earlier 1.1.2 candidate
 (proxy `f9f8c020`) had the same kernels plus four more FP16 forms, which it ran by default; 1.1.2 turns those four
 off and drops their files. The release's proxy had its own checks. All ran on the [test system](#test-system) with
 kernel `linux-cachyos-bc250` 7.3.0 and Mesa 26.2.5 RADV (a BC-250 build), 2026-10-23 and 2026-10-24.
 
-**Output.** By default (the FP16 forms on) the generated images differ slightly from Intel's. With the exact switch
-(`BC250_XEFG_EXACT=1`) they were identical to Intel's in every test below.
+**Output.** With the default FP16 forms, generated images differ from Intel's; the tests below quantify the numerical
+differences but do not establish perceptual equivalence. With the exact switch (`BC250_XEFG_EXACT=1`), generated
+images were identical to Intel's in every comparison reported below.
 
 | Check | Build | Result |
 | --- | --- | --- |
@@ -276,7 +277,7 @@ kernel `linux-cachyos-bc250` 7.3.0 and Mesa 26.2.5 RADV (a BC-250 build), 2026-1
 | Software rasteriser, no GPU | test builds | F4Q2's, F4Q3's and the exact changes' kernels gave the exact outputs on test inputs; the FP16 forms gave the outputs of their FP16 arithmetic (the rasteriser rounds their multiply-adds unfused). 1.1.2's kernels and coefficient buffers equal the test builds' byte for byte (rows above), so these results hold for it unchanged; not re-run. |
 | SDK GPU time, 2560×1440 2× engine motion vectors, scene 3, 3 runs per arm and row | test builds | ms per generated frame, SDR / HDR10, Mesa's shader cache warm: F4Q2 against 1.1.1 0.097 / 0.142–0.146 (−2.3% / −2.5 to −2.6%, 2026-10-23 morning; 4 configurations); F4Q3 and the exact changes against F4Q2 0.117 / 0.169 (−2.8%); the FP16 forms against that 0.125 / 0.185 (−3.2% / −2.9%) (both 2026-10-23 evening, one run series). The HDR10 rows ran at 1,220–1,490 MHz, below game clocks, so they overstate the saving in a game. |
 | Synthetic scenes (SDK), 20 configurations | test build, exact | 704 of 704 generated images identical to Intel's shaders' with F4Q2, F4Q3 and the exact changes. |
-| Synthetic scenes (SDK), 19 configurations | test build, default | Against Intel's: 0.12–16.2% of pixels differ; error against the scenes' analytic truth 0.985–1.007× Intel's. No quality gate has passed these images ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-the-default-slightly-different)). |
+| Synthetic scenes (SDK), 19 configurations | test build, default | Against Intel's: 0.12–16.2% of pixels differ; error against the scenes' analytic truth 0.985–1.007× Intel's. No quality gate has passed these images ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-approximate-output-by-default)). |
 | Cyberpunk 2077, the diagnostic (`BC250_XEFG_F4Q_SHADOW=1`), headless | test builds | F4Q2: 162,992 comparisons at F4Q's and F4Q2's six points; F4Q3 and the exact decoder: 241,376 comparisons at eight points, 30,172 at each row layer; native 2× and 3× with MFG Unlocker (`XeFGModel=default`), SDR; none differing. |
 | Synthetic scenes (SDK), 19 configurations, GE-Proton 11-11 | 1.1.2 default | 640 of 640 generated images identical to the test build's above (rendered with GE-Proton 11-7), so the comparisons with Intel's above hold for this release; the seven FP16 forms and the four other F(4×4) kernels ran, no F(2×2) or 1D U-Net kernel. |
 | Synthetic scenes (SDK), 20 configurations, GE-Proton 11-11 | 1.1.2 exact (`Exact=1` in `settings.ini`) | 704 of 704 generated images identical to Intel's shaders'; the seven F(4×4) kernels ran, no FP16 form. With `F4Q=0`: 80 of 80 on 2 configurations identical to Intel's shaders'. |

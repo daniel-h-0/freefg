@@ -4,7 +4,7 @@ FreeFG needs a 64-bit DirectX 12 game with a supported upscaler or frame-generat
 depth come through OptiScaler's hooked inputs or the game's native XeSS FG. Detection alone does not prove that a
 game will generate correctly; use Check before installation and Status after a run.
 
-## Supported games
+## Recipe observations
 
 The package contains **19 curated BC-250 recipes**. The UI calls these **Verified on BC-250**, but their evidence
 varies: some were played, some reached a menu, some were only installed, and two record generation failures.

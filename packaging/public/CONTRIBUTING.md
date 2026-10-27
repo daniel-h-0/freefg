@@ -44,8 +44,9 @@ readable OptiScaler keys and specific game-setting edits. They reject installer-
 spoofing/Reflex/quality overrides and conflicts with OptiScaler's own game fix. Game FG inputs need an enabling setting
 or a clear manual step.
 
-A recipe must identify the game reliably and cite reports, not quote other sources. Failed inputs belong in
-`known_problems`; review determines whether they should be excluded from automatic selection.
+A recipe must identify the game reliably and cite reports, not quote other sources. Record failed inputs in
+`known_problems`. Entries with an `input` exclude that input from detection-based candidates, as wiki vetoes do;
+explicit user choices and applicable recipe routes take precedence. This is not a general installation block.
 
 ## Clean-room rules
 

@@ -21,9 +21,10 @@ respond and take a release down on a credible request.
 The installer runs as your user, without root. It edits selected game files, launcher entries and recipe settings;
 [PRIVACY.md](../packaging/public/PRIVACY.md) lists its reads, writes and downloads.
 
-Downloads use pinned HTTPS URLs, sizes and SHA-256 hashes. Archive members are extracted by expected names and checked
-individually. HelixSR's complete archive is restricted to regular files/directories beneath its release folder, with
-an extraction-size limit. The installer does not run downloaded setup scripts; game DLLs execute when the game runs.
+Downloads use pinned HTTPS URLs, sizes and SHA-256 hashes. Pinned dependency members are extracted by expected name and
+checked individually. The optional HelixSR download is verified as a complete archive; its extraction is restricted to
+regular files and directories beneath its release folder, with an extraction-size limit. The installer does not run
+downloaded setup scripts; game DLLs execute when the game runs.
 
 ### The proxy
 
@@ -51,7 +52,8 @@ through Steam's local DevTools endpoint, `127.0.0.1:8080`.
 
 That endpoint is unauthenticated. Any local program or user able to reach it can control Steam. Decky commonly enables
 it; the helper's README describes manual setup. Enable it only where you trust local programs. The helper restores
-your timeout after the game exits or on removal.
+your timeout after the game exits or on removal when Steam is reachable. If removal cannot restore it, the helper
+and saved value remain in place for a retry.
 
 ## Supply chain
 

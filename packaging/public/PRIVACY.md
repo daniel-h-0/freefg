@@ -6,9 +6,11 @@ also use local interfaces described below.
 
 ## What the installer downloads
 
-Downloads come from public GitHub locations and are verified by size and SHA-256. Expected archive members are
-extracted and checked individually. Preview downloads the same dependencies as Install. The installer does not execute
-downloaded setup scripts; installed DLLs run later in the game.
+Downloads come from public GitHub locations and are verified by size and SHA-256. Pinned dependency members are
+extracted by name and checked individually. The optional HelixSR download is instead verified as a complete archive
+and safely extracted as described in [SECURITY.md](SECURITY.md#the-installer). Preview downloads the dependencies it
+needs for the proposed installation. The installer does not execute downloaded setup scripts; installed DLLs run later
+in the game.
 
 Files are cached under `$XDG_CACHE_HOME/bc250-xefg-testers` (normally `~/.cache/bc250-xefg-testers`). Reused files are
 verified before use. The table mirrors `dependencies.json`; automated checks detect URL/hash/size drift.

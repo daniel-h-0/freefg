@@ -38,13 +38,20 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | Only real frames are shown; the frame rate does not go up | Turn the game's frame generation on (DLSS FG and FSR FG inputs); make sure the game is not in exclusive fullscreen; check `BC250-MFG.log` and `BC250-XeFG-fast.log`. |
 | Uneven pacing or VRR flicker | Give gamescope realtime priority ([Extras](README.md#extras)); rule out Steam's screensaver (below); stay below the refresh rate; check the `BC250_PACE` lines. |
 | Bursts of VRR flicker after some idle minutes, in long cutscenes or with a game left running | Check Steam's screensaver. On the tested client it rendered behind games and periodically consumed GPU time. Set its timeout to **Never** or use the `steam-screensaver-in-game` extra. |
-| The first start after installing (or reinstalling) loads for longer | Expected once: vkd3d-proton fills the game's new shader cache in `.bc250-xefg-experimental/vkd3d-cache` ([MEASUREMENTS.md](MEASUREMENTS.md#shader-caches)). `install.py status` shows its size; Restore deletes it. |
-| A game installed despite its anti-cheat does not start, or reports tampering | Restore the game; anti-cheat may be refusing the injected DLLs. See ([COMPATIBILITY.md](COMPATIBILITY.md#anti-cheat)). |
+| The first start after installing (or reinstalling) loads for longer | Setup normally creates a private vkd3d-proton cache; the first start fills it. See [shader-cache behavior](#shader-cache-behavior). |
+| A game installed despite its anti-cheat does not start, or reports tampering | Restore the game; anti-cheat may be refusing the injected DLLs. See [anti-cheat risks](COMPATIBILITY.md#anti-cheat). |
 | `Existing OptiScaler must be a supported pinned build …` | Restore or update the game's OptiScaler first. |
 | `Cannot download …` | The first installation needs internet access, or the file already in `~/.cache/bc250-xefg-testers`. |
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |
 | Setup does not find HelixSR | Run `install.py helixsr` for missing prerequisites. Discovery searches `HelixSR…` folders in home, Downloads and Applications. Elsewhere, pass `--helixsr /path/to/HelixSR-2.0.0` to `helixsr`, `install` or `configure`; the path is remembered. Only pinned 2.0.0 is supported. |
 | Cyberpunk 2.5 resets DLSS, HDR or graphics settings | Check the legacy settings entries [below](#cyberpunk-25-resets-settings). |
+
+## Shader-cache behavior
+
+Setup normally uses `.bc250-xefg-experimental/vkd3d-cache`. Status shows its size; Restore deletes this private cache.
+An explicit `VKD3D_SHADER_CACHE_PATH` (including `0`, which disables caching) is preserved. If the private path is too
+long for vkd3d-proton, Setup leaves the game's cache settings in place and reports that exception.
+[Why a new cache is used](MEASUREMENTS.md#shader-caches).
 
 ## Cyberpunk 2.5 with HelixSR stops at the first rendered frames
 
@@ -79,7 +86,7 @@ session's logs; a fast log can remain from an earlier run.
 | any | `FAST_OWNER` | 13 lines that start with `REPLACE` | All 13 replacement programs are active. | If gains remain small, check the factor, frame caps and refresh limit. |
 | OptiScaler | `FAST_OWNER` | 7 lines that start with `REPLACE` | MFG Unlocker's own model: FreeFG's shaders run on part of the network, at every frame count. | Set `XeFGModel=default` under `[XeFG]` in `OptiScaler.ini` ([README](README.md#3-and-4-with-mfg-unlocker)). |
 | native XeSS FG (or the game's XeSS FG chosen in the game) | `FAST_SKIP beside another module …`, no `FAST_OWNER` or `CONTEXT_CALLER` | none or earlier | The game's own XeSS frame generation beside MFG Unlocker: FreeFG does not accelerate it. | Use OptiScaler's frame generation (install with an OptiScaler input), or remove MFG Unlocker for 2×. |
-| any | `FAST_ASIDE …` | any | FreeFG stepped aside during the session ([Logs](#logs)). | Use MFG Unlocker 1.6.0 with `XeFGModel=default`, or remove the other mod. |
+| any | `FAST_ASIDE …` | `FAST_ASIDE …` | FreeFG stepped aside during the session ([Logs](#logs)). | Use MFG Unlocker 1.6.0 with `XeFGModel=default`, or remove the other mod. |
 | any other case | no `FAST_OWNER` | none or earlier | `BC250_XEFG_DISABLE=1`, or the reason in a `FAST_FALLBACK` or `FAST_SKIP` line ([Logs](#logs)). | Remove `BC250_XEFG_DISABLE` from the launch options, or act on that line. |
 
 `BC250-XeFG-fast.log` is written only in a session with `FAST_OWNER`; "earlier" is a log left by an earlier session,
@@ -105,8 +112,8 @@ For troubleshooting, as launch options before `%command%`. Setup keeps them on r
 | `BC250_XEFG_ANY_GPU=1` | The accelerated path on a GPU other than the BC-250 (untested; [below](#other-gpus)). |
 | `BC250_XEFG_STATUS_POLL=0` | No status read per frame for the pacing signal; only the caller's own status queries count. |
 | `BC250_XEFG_F4Q=0` | F4Q, F4Q2, F4Q3 and the FP16 forms off: the F(2×2) and 1D kernels of the U-Net layers run, as in 1.0.x ([ARCHITECTURE.md](ARCHITECTURE.md#f4q-rounding-and-tested-equivalence)). `F4Q=0` under `[BC250]` in `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_F4Q=1` wins over the file. |
-| `BC250_XEFG_EXACT=1` | Disable approximate FP16 forms. Tested images match Intel's; F4Q equivalence is not proven for all inputs ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-the-default-slightly-different)). `Exact=1` under `[BC250]` in `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_EXACT=0` wins over the file. |
-| `BC250_XEFG_F4Q2=0` | F4Q2 off, F4Q on: the three encoder layers F4Q2 replaces run their F(2×2) kernels, as in 1.1.1, also by default (without their FP16 form). `F4Q2=0` under `[BC250]` in `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_F4Q2=1` turns it on whatever that file says. |
+| `BC250_XEFG_EXACT=1` | Disable approximate FP16 forms. Tested images match Intel's; F4Q equivalence is not proven for all inputs ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-approximate-output-by-default)). `Exact=1` under `[BC250]` in `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_EXACT=0` wins over the file. |
+| `BC250_XEFG_F4Q2=0` | With F4Q on, disables F4Q2 for three encoder layers: they use F(2×2) kernels, as in 1.1.1, without their FP16 forms. F4Q2 is enabled by default. `F4Q2=0` under `[BC250]` in `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_F4Q2=1` turns it on whatever that file says. |
 | `BC250_XEFG_F4Q_SHADOW=1` | Diagnostic: the F4Q kernels (F4Q2's while it is on, and F4Q3's) run beside the F(2×2) and 1D ones, which keep the output, and `BC250-XeFG-fast.log` gets `F4Q_COUNT` lines with equal and differing outputs per layer. Costs GPU time; for checks and bug reports only. The FP16 forms are off while it runs. |
 | `BC250_CAPTURE_TAG_FRAMES=1` | For latency measurements: turns on the debug marker that Intel's XeFG API draws on generated frames, so capture tools can tell them apart. Leave unset for play. |
 

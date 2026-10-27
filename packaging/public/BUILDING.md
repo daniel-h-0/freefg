@@ -42,9 +42,10 @@ python3 release/toolchain.py prepare
 export XEMFG_TOOLCHAIN=pinned
 ```
 
-Builds then require the pinned compiler versions and header digests. Without that variable they use host tools and
-warn on mismatches. Host Python, the Wine used to run tests, and some compiler support libraries remain host-provided;
-the pinned CI container is the reference environment.
+`XEMFG_TOOLCHAIN=pinned` also prepares the toolchain on first use if needed. Builds then require the pinned compiler
+versions and header digests. Without that variable they use host tools and warn on mismatches. Host Python, the Wine
+used to run tests, and some compiler support libraries remain host-provided; the pinned CI container is the reference
+environment.
 
 ## Downloaded inputs
 
@@ -67,6 +68,7 @@ Installer downloads use the separate `packaging/dependencies.json` pins ([PRIVAC
 From a checkout of <https://github.com/daniel-h-0/freefg>:
 
 ```sh
+python3 release/toolchain.py prepare
 python3 release/ci/toolchain.py dxc --dest build/dxc
 export XEMFG_DXC=build/dxc
 export XEMFG_TOOLCHAIN=pinned

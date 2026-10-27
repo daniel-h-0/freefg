@@ -7,9 +7,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        Play the game first, then run `python3 install.py check '/path/to/Game.exe' --report` (or Setup's Check) and
-        paste its output below. The report replaces your home folder, user name and library folders; read it before
-        you post anyway. Never attach game files, saves or anything from your launcher accounts.
+        If you can, try the game first. Then run `python3 install.py check '/path/to/Game.exe' --report` (or Setup's
+        Check) and paste its output below. Reports of installation or startup failures are welcome too. The report
+        replaces known home, user and library paths; review it before posting. Never attach game files, saves or
+        anything from your launcher accounts.
   - type: textarea
     id: report
     attributes:

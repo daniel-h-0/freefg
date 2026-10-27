@@ -60,7 +60,7 @@ that context's work; the game retains its own objects.
 
 | Mechanism | Effect |
 | --- | --- |
-| Pipeline replacement | Recognises 13 compute programs by bytecode hash and builds their replacements with the runtime's pipeline description/root signature. Optional F4Q/FP16 forms select alternatives within this set. |
+| Pipeline replacement | Recognises 13 compute programs by bytecode hash and builds their replacements with the runtime's pipeline description/root signature. F4Q/FP16 forms, enabled by default, select alternatives within this set. |
 | Helper dispatches | Replaces selected convolutions with Winograd transform/multiply/inverse-transform passes or a fused refinement pass. Original bindings are restored afterwards. |
 | Coefficient preparation | Gives uploaded coefficient buffers their own allocations, preserving Intel's bytes and offsets, then appends layouts used by the replacement kernels. Coefficients remain in memory and are not shipped or saved. |
 | Root-signature extension | Appends two scratch-buffer bindings to one root signature; its first three parameters remain unchanged. |
@@ -140,7 +140,7 @@ and packed 16-bit paths require partial sums within their signed range. The mode
 conditions required by those paths. Exact input transforms, omitted out-of-image work and an exact divide-by-four
 shift further reduce work without changing the bounded results.
 
-F(4×4) transforms have separate rounding considerations. The optional FP16 forms deliberately trade exact output for
+F(4×4) transforms have separate rounding considerations. The default FP16 forms deliberately trade exact output for
 speed. Neither should be described as universally bit-identical.
 
 ### F4Q: rounding and tested equivalence
@@ -164,7 +164,9 @@ File settings belong under `[BC250]` in `BC250-XeFG/settings.ini`; environment v
 records effective choices as `F4Q_CONFIG`, `F4Q2_CONFIG`, `F4Q3_CONFIG` and `FP16_CONFIG`. Diagnostic `F4Q_COUNT` lines
 contain comparison counts, not tensor contents.
 
-### FP16 forms: the default, slightly different
+<a id="fp16-forms-the-default-slightly-different"></a>
+
+### FP16 forms: approximate output by default
 
 Seven alternatives are enabled by default:
 

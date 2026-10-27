@@ -11,7 +11,7 @@ increase the game's simulation rate.
 
 By default, seven shaders use faster FP16 arithmetic, so generated pixels can differ from Intel's.
 `BC250_XEFG_EXACT=1` disables those forms. Exact mode matched Intel in the comparisons performed, but not every
-kernel is proven equivalent for every input. [Output differences and switches](packaging/public/ARCHITECTURE.md#fp16-forms-the-default-slightly-different).
+kernel is proven equivalent for every input. [Output differences and switches](packaging/public/ARCHITECTURE.md#fp16-forms-approximate-output-by-default).
 
 ![Cyberpunk 2077 2.5, High graphics, HelixSR Quality at 1440p on AMD BC-250. No FG and Intel/FreeFG at 2×, 3× and 4× in SDR and HDR10. 3×/4× are marked unofficial. Separate output FPS, game FPS and derived milliseconds per generated frame. Four runs per condition, 95% confidence intervals, reactive mask off.](docs/assets/cyberpunk-helixsr-fps.svg)
 
@@ -181,7 +181,8 @@ Optional helpers in the release's `extras/` folder each include installation and
 ## Status
 
 **1.1.3.1, 25 October 2026.** Includes the October 25 OptiScaler fork, Cyberpunk 2.5 recipe, one global wave64
-workaround, and 1.1.3's 3×/4× pacing changes. The current HelixSR comparison passed six warm-ups and 24 measurements;
+workaround, and 1.1.3's 3×/4× pacing changes. The October 25 HelixSR 2× comparison passed six warm-ups and
+24 measurements. The expanded October 26 chart above covers 2×/3×/4×: all 14 warm-ups and 56 measurements passed.
 Echo Point Nova passed 2×/3×/4× starts. Installer/Restore and pinned builds passed.
 [Release checks](packaging/public/MEASUREMENTS.md#checks-of-1131) · [TV pacing checks](packaging/public/MEASUREMENTS.md#checks-of-113) ·
 [Changelog](packaging/public/CHANGELOG.md).
@@ -189,11 +190,11 @@ Echo Point Nova passed 2×/3×/4× starts. Installer/Restore and pinned builds p
 ## Known limitations
 
 - Qualified on one BC-250 under Proton. Flatpak launchers and other GPUs are not qualified.
-- Default FP16 output differs very slightly from Intel's. Exact mode matched in the tested scenes; F4Q-family arithmetic is not proven
-  equivalent for every input. [Details](packaging/public/ARCHITECTURE.md#f4q-rounding-and-tested-equivalence).
+- Default FP16 output can differ numerically from Intel's; perceptual equivalence has not been established.
+  Exact mode matched in the tested scenes; F4Q-family arithmetic is not proven equivalent for every input. [Details](packaging/public/ARCHITECTURE.md#f4q-rounding-and-tested-equivalence).
 - Only the first eligible XeFG context is accelerated. Unsupported runtime layouts can trigger a fallback or close the
   game. [Fallback behavior](packaging/public/ARCHITECTURE.md#stepping-aside).
-- Generated frames use full output resolution; there is no generated-frame downscaling option (TODO: reimplement subnative generated frame option).
+- Generated frames use full output resolution; a subnative generated-frame option is a future goal.
 - Frame pacing cannot remove every game/CPU stall. Higher-factor image quality and end-to-end latency remain incompletely
   measured; throughput gains alone do not establish either.
 
