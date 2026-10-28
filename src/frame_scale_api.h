@@ -16,6 +16,7 @@ static int scale_dispatch(ID3D12GraphicsCommandList*,uint64_t,UINT,UINT,UINT);
 static void scale_release(void);
 static void scale_reset_list(ID3D12GraphicsCommandList*);
 static void scale_source_written(ID3D12Resource*);
+static void scale_source_copied(ID3D12Resource*);
 static void scale_purge_descriptors(SIZE_T,SIZE_T);
 static int scale_queue_execute(ID3D12CommandQueue*,UINT,ID3D12CommandList*const*,
  void(STDMETHODCALLTYPE*)(ID3D12CommandQueue*,UINT,ID3D12CommandList*const*));

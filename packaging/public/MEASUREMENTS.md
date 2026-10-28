@@ -2,6 +2,51 @@
 
 The numbers describe FreeFG on this hardware; they are not a prediction for other games, settings, displays or GPUs.
 
+## Scaling overhead in 1.1.5
+
+28 October 2026. Version 1.1.5 combines direct reduced synthesis, cached reductions of copied histories,
+compression-eligible intermediate allocations and simplified boundary reads. Scaling filters and storage precision
+retain 1.1.4's behavior. Scaled generation still deliberately differs from full-output generation.
+
+The final reviewed build was compared directly with public 1.1.4 in Cyberpunk 2.5, High/RT-off, SDR, HelixSR 2.0.0
+Performance (1080p → 4K), 2× FG at 1440p with Area reduction and FSR 1 EASU enlargement. Two warm-ups preceded eight
+scores: four per build, in four neighboring balanced pairs. The order was fixed before testing; no run was excluded.
+
+| Build | Mean displayed FPS | Run-level 95% interval | Individual scored displayed FPS |
+| --- | ---: | --- | --- |
+| 1.1.4 | 75.934 | 75.724–76.143 | 75.766, 76.060, 75.893, 76.014 |
+| 1.1.5 | 77.087 | 76.792–77.383 | 77.108, 76.887, 77.330, 77.025 |
+
+Displayed FPS improves **1.52%**. The mean paired frame-time saving is
+**0.394 ms per generated frame**, with a 95% interval of **0.240–0.548 ms**.
+Each pair uses `1000 / game_FPS(1.1.4) − 1000 / game_FPS(1.1.5)`; at 2× there is one generated frame per real frame.
+The intervals use Student-t with three degrees of freedom. This is derived frame time from **headless throughput**,
+not a direct GPU-duration or latency measurement. Pacing was disabled. The platform was the BC-250 with Mesa
+26.2.5-1.346, kernel 7.3.0-4.341 and GE-Proton11-11; the accepted Cyberpunk/HelixSR reactive-mask workaround remained.
+
+All **13 Cyberpunk starts passed**: the two warm-ups, eight scores, and additional 2× HDR10, 3× HDR10 and 4× SDR
+functional starts. Maximum sampled game temperature was **85 °C**.  Echo Point Nova could not start: both normal Steam launch attempts stopped at a Cloud synchronization failure and were cancelled. No fresh Echo runtime or 2×/3×/4× menu qualification is claimed.
+Higher factors used separately supplied MFG Unlocker 1.6.0 with `XeFGModel=default`. All game files/settings were
+restored. These are integration starts, not full-game visual or new TV-pacing qualification.
+
+The **43 fresh SDK starts** cover SDR/HDR, tiny/odd/portrait/ultrawide images, a 16,383-pixel-wide case, all filters,
+full-output fallback, factor changes and eight-size SDR/HDR cycles at 2× and 4×. All pass; maximum sampled SDK
+temperature was **67 °C**. All **165 candidate output images** from the lifecycle/geometry suites match
+retained 1.1.4 captures made with the same fixture binaries. Another **60 reduced/enlarged readbacks** match the
+selected research prototype, including valid-only-now depth/motion inputs and a separate HUD-less colour fixture.
+Twenty-five of the full-output Exact-mode images also match fresh Intel-path controls.
+
+The selected 25 bounded shader forms previously passed 250 software/native comparisons with independently poisoned
+allocation margins, including one-pixel logical images. All 33 base and 62 variant shader files rebuild exactly from
+the final recipes. The 1.1.5 review adds wildcard-alias cache invalidation and restoration of file timestamps when
+original bytes have already returned. All 404 installer tests, 29 CPU loader/cache cases, Install/Restore copy checks,
+strict public builds and pinned local CI pass. The standalone public build reproduces the reviewed proxy:
+`5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f`.
+
+Earlier prototype comparisons measured successive gains of 1.08% and 0.45%; those were separate campaigns and are not
+added together. The table above is the direct final-build comparison. Other games, settings, GPUs and latency may
+behave differently; the older charts below retain their own versions and conditions.
+
 ## Generated-frame scaling in 1.1.4
 
 27 October 2026, FreeFG 1.1.4. Full-output generation remains the default. The optional reduction changes only

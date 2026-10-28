@@ -6,10 +6,7 @@
  * references; only completed, unreferenced cache entries can be recycled.
  */
 #define SCALE_VIEWS 64
-struct scale_view {
- UINT kind;ID3D12Resource*r,*counter;
- union {D3D12_SHADER_RESOURCE_VIEW_DESC srv;D3D12_UNORDERED_ACCESS_VIEW_DESC uav;D3D12_CONSTANT_BUFFER_VIEW_DESC cbv;} d;
-};
+#include "frame_scale_history.h"
 static struct {SIZE_T cpu;struct scale_view v;} scale_descriptors[8192];
 static UINT scale_descriptor_count,scale_enabled;
 static struct {ID3D12RootSignature*r;UINT count[9],constants[9],mask,valid;} scale_roots[256];
@@ -22,16 +19,17 @@ static __typeof__(model_simple_original) scale_simple_raw;
 static __typeof__(model_descs_original) scale_descs_raw;
 static ID3D12RootSignature*scale_filter_root;
 static ID3D12PipelineState*scale_filter_pso;
-struct scale_image {
- struct scale_view source;ID3D12Resource*low;UINT w,h,refs;
- ID3D12GraphicsCommandList*sampled_list;UINT64 sampled_graph;
- struct scale_image*next;
-};
 static struct scale_image*scale_images;
 static void scale_source_written(ID3D12Resource*r){
  if(!scale_enabled)return;
  AcquireSRWLockExclusive(&scale_lock);
- for(struct scale_image*i=scale_images;i;i=i->next)if(i->source.r==r)i->sampled_graph=0;
+ scale_history_written(scale_images,r);
+ ReleaseSRWLockExclusive(&scale_lock);
+}
+static void scale_source_copied(ID3D12Resource*r){
+ if(!scale_enabled)return;
+ AcquireSRWLockExclusive(&scale_lock);
+ scale_history_copied(scale_images,r);
  ReleaseSRWLockExclusive(&scale_lock);
 }
 struct scale_batch {
@@ -40,6 +38,7 @@ struct scale_batch {
  struct scale_image*images[SCALE_VIEWS];
  UINT recorded;UINT64 fence;
  ID3D12DescriptorHeap*heap;UINT filters[SCALE_VIEWS];
+ ID3D12Resource*direct_output;
  struct scale_batch*next;
 };
 static struct scale_batch*scale_batches;
@@ -49,6 +48,7 @@ struct scale_use {struct scale_batch*b;struct scale_use*next;};
 static struct {ID3D12GraphicsCommandList*l;struct scale_use*uses;} scale_lists[128];
 static UINT scale_list_count;
 static UINT64 scale_dispatches,scale_resamples,scale_recycled;
+static UINT64 scale_history_hits;
 static UINT64 scale_graph;
 static UINT scale_last_w,scale_last_h,scale_last_format;
 static UINT scale_last_mode,scale_last_output_w,scale_last_output_h;static UINT64 scale_last_epoch;
@@ -61,6 +61,8 @@ static struct scale_image*scale_image_get(const struct scale_view*v,UINT w,UINT 
  D3D12_HEAP_PROPERTIES hp={.Type=D3D12_HEAP_TYPE_DEFAULT};
  DXGI_FORMAT format=v->d.srv.Format==DXGI_FORMAT_R32G32B32A32_FLOAT?DXGI_FORMAT_R32G32B32A32_FLOAT:DXGI_FORMAT_R16G16B16A16_FLOAT;
  D3D12_RESOURCE_DESC rd={.Dimension=D3D12_RESOURCE_DIMENSION_TEXTURE2D,.Width=w,.Height=h,.DepthOrArraySize=1,.MipLevels=1,.Format=format,.SampleDesc={1,0},.Flags=D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS};
+ D3D12_FEATURE_DATA_FORMAT_SUPPORT support={.Format=format};
+ if(SUCCEEDED(ID3D12Device_CheckFeatureSupport(frame_device,D3D12_FEATURE_FORMAT_SUPPORT,&support,sizeof(support)))&&(support.Support1&D3D12_FORMAT_SUPPORT1_RENDER_TARGET))rd.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
  HR(model_committed_original(frame_device,&hp,0,&rd,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,NULL,&IID_ID3D12Resource,(void**)&i->low));
  i->next=scale_images;scale_images=i;return i;
 }
@@ -71,6 +73,7 @@ static void scale_image_drop(struct scale_image*i){
  ID3D12Resource_Release(i->low);ID3D12Resource_Release(i->source.r);free(i);
 }
 static void scale_free_batch(struct scale_batch*b){
+ if(b->direct_output)ID3D12Resource_Release(b->direct_output);
  for(UINT j=0;j<b->n;j++){
   scale_image_drop(b->images[j]);
   if(b->views[j].r)ID3D12Resource_Release(b->views[j].r);
@@ -98,7 +101,7 @@ static void scale_note_batch(ID3D12GraphicsCommandList*l,struct scale_batch*b){
 static void scale_reset_list(ID3D12GraphicsCommandList*l){
  if(!scale_enabled)return;
  AcquireSRWLockExclusive(&scale_lock);
- for(struct scale_image*i=scale_images;i;i=i->next)if(i->sampled_list==l)i->sampled_graph=0;
+ scale_history_reset(scale_images,l);
  for(UINT i=0;i<scale_list_count;i++)if(scale_lists[i].l==l){
   struct scale_use*u=scale_lists[i].uses;
   while(u){struct scale_use*n=u->next;if(!u->b->recorded)model_fail("scaling recorded reference underflow");u->b->recorded--;free(u);u=n;}
@@ -116,6 +119,7 @@ static int scale_queue_execute(ID3D12CommandQueue*q,UINT n,ID3D12CommandList*con
  if(!scale_fence)HR(ID3D12Device_CreateFence(frame_device,0,0,&IID_ID3D12Fence,(void**)&scale_fence));
  if(scale_serial==UINT64_MAX-1)model_fail("scaling fence overflow");UINT64 serial=++scale_serial;
  execute(q,n,lists);HR(ID3D12CommandQueue_Signal(q,scale_fence,serial));
+ for(UINT j=0;j<n;j++)scale_history_submitted(scale_images,lists[j]);
  for(UINT j=0;j<n;j++)for(UINT i=0;i<scale_list_count;i++)if(lists[j]==(ID3D12CommandList*)scale_lists[i].l)
   for(struct scale_use*u=scale_lists[i].uses;u;u=u->next)u->b->fence=serial;
  scale_collect_locked(0);ReleaseSRWLockExclusive(&scale_lock);return 1;
@@ -256,6 +260,11 @@ static void scale_filter_init(void){
  D3D12_COMPUTE_PIPELINE_STATE_DESC d={.pRootSignature=scale_filter_root,.CS={b,n}};
  HR(compute_original(frame_device,&d,&IID_ID3D12PipelineState,(void**)&scale_filter_pso));free(b);
 }
+static void scale_low_transition(ID3D12GraphicsCommandList*l,ID3D12Resource*r,D3D12_RESOURCE_STATES from,D3D12_RESOURCE_STATES to){
+ /* This is our reduction target, never an SDK history input. Bypass the
+  * invalidation wrapper while holding scale_lock. */
+ transition((ID3D12GraphicsCommandList*)scoped_raw((IUnknown*)l),r,from,to);
+}
 static int scale_snapshot_locked(ID3D12GraphicsCommandList*l,uint64_t shader,struct scale_view*views,UINT*out_n,UINT*offset,UINT*out_ri){
  ID3D12RootSignature*root=flow_lists[flow_slot(l)].root;UINT li=frame_list(l);
  UINT ri;for(ri=0;ri<scale_root_count;ri++)if(scale_roots[ri].r==root)break;
@@ -348,7 +357,14 @@ static int scale_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
  AcquireSRWLockExclusive(&frame_lock);AcquireSRWLockShared(&model_lock);AcquireSRWLockExclusive(&scale_lock);
  struct scale_view*views=calloc(SCALE_VIEWS,sizeof(*views));if(!views)model_fail("scaling view snapshot allocation");UINT n=0,offset[9]={0},ri=0;
  if(!scale_snapshot_locked(l,shader,views,&n,offset,&ri)||!scale_resources_valid(shader,views,n,offset))model_fail("scaling binding changed after observation");
- ReleaseSRWLockShared(&model_lock);ReleaseSRWLockExclusive(&frame_lock);
+ ReleaseSRWLockShared(&model_lock);
+ if(frame_final_shader(shader)){
+  /* Keep the SDK output identity in the snapshot. Only the private descriptor
+   * points at the enlargement input, whose format and shader arithmetic match. */
+  ReleaseSRWLockExclusive(&scale_lock);
+  frame_initialize_output(views[8].d.uav.Format,mfg_cap_w,mfg_cap_h);
+  ReleaseSRWLockExclusive(&frame_lock);AcquireSRWLockExclusive(&scale_lock);
+ }else ReleaseSRWLockExclusive(&frame_lock);
  if(shader==0xbc7a0d422d51c159ULL&&(scale_last_mode!=1||scale_last_epoch!=scale_epoch||scale_last_output_w!=mfg_output_w||scale_last_output_h!=mfg_output_h||scale_last_w!=mfg_cap_w||scale_last_h!=mfg_cap_h||scale_last_format!=(UINT)views[0].d.srv.Format)){
   scale_collect_locked(1);scale_last_w=mfg_cap_w;scale_last_h=mfg_cap_h;scale_last_format=(UINT)views[0].d.srv.Format;
   scale_last_mode=1;scale_last_epoch=scale_epoch;scale_last_output_w=mfg_output_w;scale_last_output_h=mfg_output_h;
@@ -363,6 +379,7 @@ static int scale_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
   b=calloc(1,sizeof(*b));if(!b)model_fail("scaling batch allocation");
   b->root=root;b->w=mfg_cap_w;b->h=mfg_cap_h;b->n=n;
   memcpy(b->views,views,n*sizeof(*views));memcpy(b->offset,offset,sizeof(offset));memcpy(b->count,scale_roots[ri].count,sizeof(b->count));
+  if(frame_final_shader(shader)){b->direct_output=frame_temp;ID3D12Resource_AddRef(b->direct_output);}
   D3D12_DESCRIPTOR_HEAP_DESC hd={.Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,.NumDescriptors=n*3,.Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE};
   HR(model_heap_original(frame_device,&hd,&IID_ID3D12DescriptorHeap,(void**)&b->heap));
   SIZE_T cpu=ID3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart(b->heap).ptr;UINT colors=0;
@@ -376,7 +393,9 @@ static int scale_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
     scale_srv_raw(frame_device,b->images[j]->low,&sd,dst);
     b->filters[j]=n+colors*2;D3D12_CPU_DESCRIPTOR_HANDLE src={cpu+(SIZE_T)b->filters[j]*stride};scale_srv_raw(frame_device,v->r,&v->d.srv,src);
     src.ptr+=stride;D3D12_UNORDERED_ACCESS_VIEW_DESC ud={.Format=rd.Format,.ViewDimension=D3D12_UAV_DIMENSION_TEXTURE2D};scale_uav_raw(frame_device,b->images[j]->low,NULL,&ud,src);colors++;
-   }else if(v->kind==1)scale_srv_raw(frame_device,v->r,&v->d.srv,dst);
+   }
+   else if(frame_final_shader(shader)&&j==8)scale_uav_raw(frame_device,b->direct_output,NULL,&v->d.uav,dst);
+   else if(v->kind==1)scale_srv_raw(frame_device,v->r,&v->d.srv,dst);
    else if(v->kind==2)scale_uav_raw(frame_device,v->r,v->counter,&v->d.uav,dst);
    else scale_cbv_raw(frame_device,&v->d.cbv,dst);
   }
@@ -387,6 +406,8 @@ static int scale_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
   b->next=scale_batches;scale_batches=b;scale_batch_count++;
   char line[160];snprintf(line,sizeof(line),"FREEFG_SCALE_BIND shader=%016llx views=%u colors=%u size=%ux%u batches=%u\n",(unsigned long long)shader,n,colors,b->w,b->h,scale_batch_count);logline(line);
  }
+ if(frame_final_shader(shader)&&b->direct_output!=frame_temp)model_fail("direct scaled output allocation changed");
+
  free(views);scale_note_batch(l,b);scale_filter_init();
  ID3D12PipelineState*original=NULL;for(UINT j=0;j<nbinding;j++)if(bindings[j].l==l)original=bindings[j].p;
  if(!original)model_fail("scaling missing pipeline");
@@ -398,11 +419,18 @@ static int scale_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
    * Preprocessing, warping and final composition can share their reduction on
    * one command list. A new frame/list or a texture copy invalidates reuse. */
   if(b->images[j]->sampled_graph==scale_graph&&b->images[j]->sampled_list==l)continue;
-  transition(l,b->images[j]->low,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  if(scale_history_reusable(b->images[j],l)){
+   scale_history_hits++;
+   b->images[j]->sampled_graph=scale_graph;b->images[j]->sampled_list=l;continue;
+  }
+
+  scale_low_transition(l,b->images[j]->low,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   D3D12_GPU_DESCRIPTOR_HANDLE h={gpu+(UINT64)b->filters[j]*stride};frame_table_original(l,0,h);h.ptr+=stride;frame_table_original(l,1,h);
   dispatch_original(l,(b->w+7)/8,(b->h+7)/8,1);scale_resamples++;
-  transition(l,b->images[j]->low,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  scale_low_transition(l,b->images[j]->low,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
   b->images[j]->sampled_graph=scale_graph;b->images[j]->sampled_list=l;
+  b->images[j]->low_valid=1;b->images[j]->low_pending=1;
  }
  flow_root_original(l,root);
  for(UINT j=0;j<9;j++){
@@ -421,6 +449,7 @@ static int scale_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader,UINT x,UIN
  return 1;
 }
 static void scale_release(void){
+ {char line[120];snprintf(line,sizeof(line),"SCALE_HISTORY reused_reductions=%llu\n",(unsigned long long)scale_history_hits);logline(line);scale_history_hits=0;}
  for(UINT i=0;i<scale_unet_count;i++){
   char row[140];snprintf(row,sizeof(row),"FREEFG_SCALE_UNET shader=%016llx dispatches=%llu\n",(unsigned long long)scale_unet[i].shader,(unsigned long long)scale_unet[i].calls);logline(row);
   ID3D12PipelineState_Release(scale_unet[i].bounded);ID3D12PipelineState_Release(scale_unet[i].original);

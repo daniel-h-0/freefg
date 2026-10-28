@@ -1247,13 +1247,18 @@ def restore(exe):
             target=safe(root,name);now=digest(target.read_bytes()) if target.exists() else None
             if now==change['after']:item['after']=change['after']
         record.pop('pending_update')
-    actions=[];preserve=[];kept=[]
+    actions=[];preserve=[];kept=[];timestamps=[]
     for i,item in enumerate(record['files']):
         target=safe(root,item['path']);current=target.read_bytes() if target.exists() else None
         original=safe(state,'backups/'+str(i)).read_bytes() if item['before'] is not None else None
         if original is not None and digest(original)!=item['before']:raise ValueError('Backup checksum mismatch: '+item['path'])
         backup=original;now=digest(current) if current is not None else None
-        if now==item['before']:continue # Also recovers an interrupted install.
+        if now==item['before']:
+            # A switch or interrupted Restore may already have put the original
+            # bytes back with a new timestamp. Restore metadata without rewriting.
+            if original is not None and isinstance(item.get('mtime_ns'),int):
+                timestamps.append((target,item['mtime_ns']))
+            continue
         if item['path']=='OptiScaler.ini' and current is not None and original is None and now!=item['after']:
             # Fresh setup owned the whole INI. Keep post-install preferences in
             # the backup tree before removing it, so a clean reinstall works.
@@ -1308,6 +1313,8 @@ def restore(exe):
             except (OSError,ValueError,KeyError,TypeError):pass
         launcher_notes=launcher_config.apply(record['launchers'],write,restore=True,originals=originals) or []
     left+=write_restored_settings(settings)
+    for target,mtime in timestamps:
+        if target.stat().st_mtime_ns!=mtime:os.utime(target,ns=(target.stat().st_atime_ns,mtime))
     for path,data in preserve:write(path,data)
     for target,data,mode,mtime in actions:
         if data is None:target.unlink(missing_ok=True)

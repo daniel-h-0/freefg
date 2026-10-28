@@ -117,7 +117,9 @@ static void STDMETHODCALLTYPE model_texture_hook(ID3D12GraphicsCommandList*l,con
  model_texture_original(l,dst,x,y,z,src,box);}
 static void STDMETHODCALLTYPE model_resource_hook(ID3D12GraphicsCommandList*l,ID3D12Resource*dst,ID3D12Resource*src){AcquireSRWLockShared(&model_lock);if(model_find(dst)||model_find(src))model_fail("whole-resource copy involving model");ReleaseSRWLockShared(&model_lock);
  scale_source_written(dst);
- model_resource_original(l,dst,src);}
+ model_resource_original(l,dst,src);
+ scale_source_copied(dst);
+}
 static void STDMETHODCALLTYPE model_write_hook(ID3D12GraphicsCommandList2*l,UINT count,const D3D12_WRITEBUFFERIMMEDIATE_PARAMETER*p,const D3D12_WRITEBUFFERIMMEDIATE_MODE*m){for(UINT j=0;j<count;j++)for(UINT i=0;i<model_count;i++)if(p[j].Dest>=models[i].va&&p[j].Dest<models[i].va+models[i].expanded)model_fail("immediate write into model");model_write_original(l,count,p,m);}
 static UINT model_shader_bytes(uint64_t shader){
  if(!model_owner_enabled)return 0;

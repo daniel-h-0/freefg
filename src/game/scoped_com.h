@@ -94,6 +94,17 @@ static HRESULT STDMETHODCALLTYPE scoped_placed(struct scoped_com*d,ID3D12Heap*he
  if(desc->Dimension==D3D12_RESOURCE_DIMENSION_BUFFER&&desc->Flags==0&&state==D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE){char line[160];snprintf(line,sizeof(line),"SCOPED buffer bytes=%llu\n",(unsigned long long)desc->Width);proxy_log(line);}
  return ID3D12Device_CreatePlacedResource((ID3D12Device*)d->real,heap,offset,desc,state,clear,iid,out);
 }
+static void scale_source_written(ID3D12Resource*);
+/* Only private SDK history copies qualify. Any transition back to a writable
+ * state revokes reuse before the original operation is forwarded. */
+static void STDMETHODCALLTYPE scale_history_barrier(struct scoped_com*l,UINT n,const D3D12_RESOURCE_BARRIER*b){
+ for(UINT i=0;i<n;i++){
+  if(b[i].Type==D3D12_RESOURCE_BARRIER_TYPE_TRANSITION&&
+    (b[i].Transition.StateAfter&(D3D12_RESOURCE_STATE_UNORDERED_ACCESS|D3D12_RESOURCE_STATE_RENDER_TARGET|D3D12_RESOURCE_STATE_COPY_DEST|D3D12_RESOURCE_STATE_RESOLVE_DEST)))scale_source_written(b[i].Transition.pResource);
+  if(b[i].Type==D3D12_RESOURCE_BARRIER_TYPE_ALIASING){scale_source_written(b[i].Aliasing.pResourceBefore);scale_source_written(b[i].Aliasing.pResourceAfter);}
+ }
+ ID3D12GraphicsCommandList_ResourceBarrier((ID3D12GraphicsCommandList*)l->real,n,b);
+}
 static BOOL CALLBACK scoped_initialize(PINIT_ONCE once,PVOID parameter,PVOID*context){
  (void)once;(void)parameter;(void)context;
  void**tables[]={scoped_device_vtable,scoped_list_vtable,scoped_queue_vtable};UINT counts[]={SCOPED_device_COUNT,SCOPED_list_COUNT,SCOPED_queue_COUNT};
@@ -102,6 +113,7 @@ static BOOL CALLBACK scoped_initialize(PINIT_ONCE once,PVOID parameter,PVOID*con
  scoped_device_vtable[SCOPED_device_CreateComputePipelineState]=scoped_compute;scoped_device_vtable[SCOPED_device_CreatePlacedResource]=scoped_placed;
  scoped_list_vtable[SCOPED_list_GetDevice]=scoped_get_device;scoped_queue_vtable[SCOPED_queue_GetDevice]=scoped_get_device;
  scoped_queue_vtable[SCOPED_queue_ExecuteCommandLists]=scoped_execute;scoped_list_vtable[SCOPED_list_ExecuteBundle]=scoped_bundle;
+ scoped_list_vtable[SCOPED_list_ResourceBarrier]=scale_history_barrier;
  return TRUE;
 }
 static ID3D12Device*scoped_begin(ID3D12Device*real){

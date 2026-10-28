@@ -2,6 +2,20 @@
 
 Release changes since 0.9.0. Measurements describe the named release and test conditions, not every later build.
 
+## 1.1.5 – 2026-10-28
+
+- Reduce scaling overhead: synthesis writes directly into the enlargement input, and unchanged SDK colour histories
+  keep their cached reductions across frames. Eligible colour intermediates allow lossless render-target compression.
+- Simplify zero-padded boundary reads in the 25 bounded convolution forms. Scaling filters, storage precision,
+  full-output shader forms and wave sizes retain their previous behavior.
+- Invalidate cached histories on later writes, abandoned command-list recordings and aliasing barriers, including
+  barriers with wildcard resource identities. Add CPU tests for those cache lifetimes.
+- Restore original modification times when an upscaler switch or interrupted Restore has already returned a file's
+  original bytes. Files changed by the game or user keep their current contents and timestamps.
+
+[Qualification and measurements](MEASUREMENTS.md#scaling-overhead-in-115). Update through Restore in the old release,
+then Install from this one so the proxy and its shader profile stay together. Match output remains the default.
+
 ## 1.1.4 – 2026-10-27
 
 - Restore optional generated-frame scaling: 50–100%, or aspect-preserving 720p/1080p/1440p/2160p limits. Match output

@@ -567,6 +567,17 @@ def compile_unit(config, xess, folder, output):
                     '-o', str(output)], check=True, capture_output=True)
 
 
+def compile_scale_history(config, output):
+    """Compile the real cache-state helpers with opaque resource/list identities; no GPU."""
+    wine = config.wine_include
+    subprocess.run([config.clang, '--target=x86_64-w64-windows-gnu', '-fms-extensions', '-D__WINE_USE_MSVCRT',
+                    '-DXEFG_SCALE_COPY_REUSE=1', '-isystem', str(wine / 'msvcrt'), '-isystem', str(wine / 'windows'),
+                    '-O2', '-Wall', '-Wextra', '-Werror', '-nostdlib', '-fuse-ld=lld',
+                    '-Wl,--entry,mainCRTStartup', '-Wl,--subsystem,console', '-Wl,--no-insert-timestamp',
+                    '-L' + str(config.wine_lib), str(REPO / 'src/game/test_scale_history.c'),
+                    '-lkernel32', '-lucrtbase', '-o', str(output)], check=True, capture_output=True)
+
+
 def run(folder, prefix, forwarders, hooks=False):
     env = {k: v for k, v in os.environ.items() if not k.startswith(('WINE', 'DISPLAY', 'WAYLAND', 'XEFG_', 'BC250_'))}
     env.update(WINEPREFIX=str(prefix), WINEDEBUG='-all', WINEDLLOVERRIDES='mscoree,mshtml=', PROXY_CHECK_FORWARDERS='1' if forwarders else '0',
@@ -594,6 +605,7 @@ def main():
     _base, definition, defines = build_proxy.definitions(args.variant)
     coexist = args.variant == 'intel-free-mfg'
     f4q = 'XEFG_F4Q=1' in defines
+    history = 'XEFG_SCALE_COPY_REUSE=1' in defines
     built = config.build / definition['addon']['output_dir']
     proxy, record = built / definition['addon']['output'], json.loads((built / 'build.json').read_text())
     if not proxy.is_file() or sha256(proxy) != record['sha256']:
@@ -602,7 +614,7 @@ def main():
     xess = config.check_group('intel-xess')
     work = config.build / ('proxy-wine-check' if args.variant == build_proxy.DEFAULT_VARIANT else f'proxy-wine-check-{args.variant}')
     cases = ('pinned', 'altered', 'missing') + (('hooked',) if coexist else ())
-    for name in cases + ('unit',) + tuple(f'f4q-{case}' for case in F4Q_CASES):
+    for name in cases + ('unit', 'history') + tuple(f'f4q-{case}' for case in F4Q_CASES):
         shutil.rmtree(work / name, ignore_errors=True)
     work.mkdir(exist_ok=True)
     program = work / 'test_proxy_load.exe'
@@ -617,6 +629,9 @@ def main():
     if f4q:
         f4q_program = work / 'test_f4q.exe'
         compile_f4q(config, xess, f4q_program)
+    if history:
+        history_program = work / 'test_scale_history.exe'
+        compile_scale_history(config, history_program)
     original = definition['addon']['original']
     results, problems = {}, []
     for case in cases:
@@ -705,13 +720,23 @@ def main():
         failed = [line for line in stdout.splitlines() if line.startswith('FAIL ')]
         if ran.returncode or 'COEXIST_UNIT failures=0' not in stdout or failed:
             problems.append(f'unit: exit {ran.returncode}; ' + ('; '.join(failed) or 'no COEXIST_UNIT failures=0 line'))
+    if history:
+        folder = work / 'history'
+        folder.mkdir()
+        env = {k: v for k, v in os.environ.items() if not k.startswith(('WINE', 'DISPLAY', 'WAYLAND', 'XEFG_', 'BC250_'))}
+        env.update(WINEPREFIX=str(work / 'prefix'), WINEDEBUG='-all', WINEDLLOVERRIDES='mscoree,mshtml=')
+        ran = subprocess.run(['wine', str(history_program)], cwd=folder, env=env, capture_output=True, text=True, timeout=600)
+        stdout = ran.stdout.replace('\r', '')
+        results['history'] = dict(returncode=ran.returncode, stdout=stdout, log=None)
+        if ran.returncode or 'SCALE_HISTORY_UNIT failures=0' not in stdout or any(x.startswith('FAIL ') for x in stdout.splitlines()):
+            problems.append(f'history: exit {ran.returncode}; cache lifecycle fixture did not pass')
     if f4q:
         f4q_results = {case: run_f4q(f4q_program, work, case) for case in F4Q_CASES}
         results.update({f'f4q-{case}': r for case, r in f4q_results.items()})
         problems += f4q_problems(f4q_results)
     report = dict(variant=args.variant, proxy_sha256=record['sha256'], runtime_sha256=sha256(runtime), program_sha256=sha256(program),
                   callers={name: sha256(path) for name, path in callers.items()},
-                  unit_sha256=sha256(unit) if coexist else None, f4q_sha256=sha256(f4q_program) if f4q else None,
+                  unit_sha256=sha256(unit) if coexist else None, history_sha256=sha256(history_program) if history else None, f4q_sha256=sha256(f4q_program) if f4q else None,
                   wine=subprocess.run(['wine', '--version'], capture_output=True, text=True).stdout.strip(),
                   cases=results, problems=problems, result='pass' if not problems else 'fail')
     (work / 'result.json').write_text(json.dumps(report, indent=2) + '\n')

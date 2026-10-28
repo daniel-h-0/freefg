@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT
- * Generated-frame cap. SDK allocations stay intact; synthesis writes a smaller
- * region, copied and enlarged AFTER generation. MFG uses an aspect-preserving
- * 1920x1080 bounding box; the archived non-MFG experiment remains fixed-size.
+ * Generated-frame scaling. SDK allocations stay intact; the current owned path
+ * writes a private reduced output and enlarges it into the SDK output. Saved
+ * percentage/limit settings preserve aspect ratio; historical paths copy first.
  * Immutable per-output descriptors and the existing single-queue fence owner
  * protect asynchronously consumed resources. Tester builds add input fallback.
  */
@@ -199,7 +199,10 @@ static void frame_initialize_output(DXGI_FORMAT format,UINT width,UINT height){
  UINT slot=4;for(UINT t=0;t<4&&slot==4;t++)if(!frame_temps[t].r)slot=t;
  if(slot==4)model_fail("too many generated-frame sizes and formats in one context");
  D3D12_HEAP_PROPERTIES hp={.Type=D3D12_HEAP_TYPE_DEFAULT};D3D12_RESOURCE_DESC rd={.Dimension=D3D12_RESOURCE_DIMENSION_TEXTURE2D,.Width=width,.Height=height,.DepthOrArraySize=1,.MipLevels=1,.Format=format,.SampleDesc={1,0}};
- D3D12_RESOURCE_STATES initial=D3D12_RESOURCE_STATE_COPY_DEST;
+ rd.Flags=D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+ D3D12_RESOURCE_STATES initial=D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+ D3D12_FEATURE_DATA_FORMAT_SUPPORT output_support={.Format=format};
+ if(SUCCEEDED(ID3D12Device_CheckFeatureSupport(frame_device,D3D12_FEATURE_FORMAT_SUPPORT,&output_support,sizeof(output_support)))&&(output_support.Support1&D3D12_FORMAT_SUPPORT1_RENDER_TARGET))rd.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
  HR(model_committed_original(frame_device,&hp,0,&rd,initial,NULL,&IID_ID3D12Resource,(void**)&frame_temps[slot].r));
  frame_temps[slot].format=format;frame_temps[slot].w=width;frame_temps[slot].h=height;
  frame_temp_index=slot;frame_temp=frame_temps[slot].r;frame_format=format;frame_temp_w=width;frame_temp_h=height;
@@ -226,11 +229,15 @@ static void frame_finish_dispatch(ID3D12GraphicsCommandList*l,uint64_t shader){
  AcquireSRWLockExclusive(&graph_lock);UINT known=0;for(UINT j=0;j<graph_list_count;j++)known|=graph_lists[j]==l;if(!known){if(graph_list_count==128)model_fail("frame queue ownership capacity");graph_lists[graph_list_count++]=l;}ReleaseSRWLockExclusive(&graph_lock);
  D3D12_TEXTURE_COPY_LOCATION src={.pResource=out,.Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX},dst={.pResource=frame_temp,.Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX};
  D3D12_GPU_DESCRIPTOR_HANDLE h;
- transition(l,out,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_COPY_SOURCE);D3D12_BOX region={0,0,0,cap_w,cap_h,1};ID3D12GraphicsCommandList_CopyTextureRegion(l,&dst,0,0,0,&src,&region);transition(l,out,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);transition(l,frame_temp,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+ transition(l,frame_temp,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
  ID3D12DescriptorHeap*heap=frame_outputs[oi].heap;frame_heaps_original(l,1,&heap);flow_root_original(l,frame_root);h=ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(heap);frame_table_original(l,0,h);h.ptr+=stride;frame_table_original(l,1,h);set_original(l,frame_upscale);
  if(mfg_settings_applied.upscale==BC250_FG_FSR1){AU1 constants[16];FsrEasuCon(constants,constants+4,constants+8,constants+12,(float)cap_w,(float)cap_h,(float)cap_w,(float)cap_h,(float)output_w,(float)output_h);flow_constants_original(l,2,16,constants,0);}
  dispatch_original(l,(output_w+7)/8,(output_h+7)/8,1);
- transition(l,frame_temp,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COPY_DEST);
+ transition(l,frame_temp,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+ D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+ );
  if(env_uint("XEFG_FRAME_DUMP",0)){
   if(rd.Format!=DXGI_FORMAT_R8G8B8A8_UNORM)model_fail("frame readback format");if(!frame_readback){ID3D12Device_GetCopyableFootprints(frame_device,&rd,0,1,0,&frame_footprint,NULL,NULL,&frame_readback_size);frame_readback=buffer(frame_device,frame_readback_size,D3D12_HEAP_TYPE_READBACK);}
   transition(l,out,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_COPY_SOURCE);src.pResource=out;dst.pResource=frame_readback;dst.Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;dst.PlacedFootprint=frame_footprint;ID3D12GraphicsCommandList_CopyTextureRegion(l,&dst,0,0,0,&src,NULL);transition(l,out,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

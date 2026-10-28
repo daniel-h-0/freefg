@@ -124,18 +124,23 @@ full output. A new output size, input format, relevant pipeline or frame count r
 The active path resamples scene/UI colour into private float textures, binds those views to Intel's original
 preprocessing, warp and final pipelines, and reduces the flow and reconstruction geometry. The U-Net uses bounded
 forms of the selected ordinary, F4Q or FP16 kernels, preserving each SDK allocation's padding while excluding stale
-pixels outside the reduced region. At tiny sizes the virtual network keeps all five levels, including one-pixel
+pixels outside the reduced region. Logically invalid reads redirect to a physical out-of-bounds load, whose
+zero result preserves the original padding behavior. At tiny sizes the virtual network keeps all five levels, including one-pixel
 levels. Engine depth and motion-vector resources and their coordinate conventions are retained.
 
-The final pass writes a smaller region of the generated buffer. Owned copy/filter work enlarges it back to the output
-size. Bilinear and Area are reduction choices; Bilinear, Catmull–Rom, Lanczos2 and AMD FSR 1 EASU are enlargement
+The final pass writes directly into a private reduced-size texture. Owned filter work enlarges it into the original
+SDK output, avoiding the former copy out of a larger generated buffer. Bilinear and Area are reduction choices; Bilinear, Catmull–Rom, Lanczos2 and AMD FSR 1 EASU are enlargement
 choices. EASU uses AMD's CPU constants and keeps bilinear alpha. No RCAS sharpening or transfer-function conversion
 is added. Colour intermediates use RGBA16 float, or RGBA32 float for a 32-bit float source.
 
 Immutable descriptor batches keep their resources until recorded lists release them and a queue fence confirms GPU
-completion. Read-only colour views share their reduction within one frame and command list; a new frame, list reset
-or copy into the source invalidates that reuse. Resolution/HDR changes recycle completed batches. MFG Unlocker's default model repeats the native
-network; each generated phase receives the same scaling treatment. Its alternate model can retain full output while
+completion. Read-only colour views share their reduction within one frame and command list. A history created by an
+SDK whole-resource copy can keep its reduced image across later frames on the same queue. Copies, transitions to
+writable states and aliasing barriers revoke that reuse; a wildcard aliasing barrier invalidates every cached history.
+Resetting an unsubmitted recording discards its pending reduction. Full-resolution history copies remain intact for
+fallback. Supported colour allocations also allow render-target compression without changing their format or precision.
+Resolution/HDR changes recycle completed batches. MFG Unlocker's default model repeats the native network; each
+generated phase receives the same scaling treatment. Its alternate model can retain full output while
 ordinary FreeFG acceleration continues. The F4Q shadow diagnostic also retains full output.
 
 Settings apply at process startup. Logs distinguish requested settings from actual scaling decisions. Layout changes

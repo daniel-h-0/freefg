@@ -39,6 +39,7 @@ static void mfg_settings_note_context(xefg_swapchain_handle_t h){(void)h;}
 static void mfg_settings_clear_context(void){}
 static UINT scale_invalidations;
 static void scale_invalidate(void){scale_invalidations++;}
+static void scale_source_written(ID3D12Resource*r){(void)r;}
 static int init_answer,init_calls,resolves;
 static UINT init_max=5;
 static xefg_swapchain_result_t intel_init_parameters(xefg_swapchain_handle_t h,xefg_swapchain_d3d12_init_params_t*p){

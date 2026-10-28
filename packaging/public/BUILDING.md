@@ -7,7 +7,7 @@ has its own pinned source and build route.
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `f78d4840ac6984a5e078e7422982da2abe287fbd05ac33458c13e8682dd96a26` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 
 The proxy and layer scripts build twice and require identical outputs. They also compare against
@@ -91,7 +91,7 @@ outputs. Neither route establishes GPU/game qualification.
 | --- | --- |
 | `build_layer.py` | Pacer, wave-layer and concurrent-present tests under ASan/UBSan and TSan; two matching builds; `build/layer/build.json`. |
 | `build_proxy.py` | Pinned inputs, profile manifest, two matching DLLs, 57 Intel exports (8 wrapped/49 forwarded) plus 4 own exports, and imports limited to `kernel32.dll`/`ucrtbase.dll`; `build/addon-intel-free-mfg/build.json`. |
-| `check_proxy_wine.py` | Forwarding to the pinned runtime; refusal of missing/altered runtimes; caller preservation with stand-in hooks; coexistence bookkeeping. Private Wine prefix, no GPU/display. |
+| `check_proxy_wine.py` | Forwarding to the pinned runtime; refusal of missing/altered runtimes; caller preservation with stand-in hooks; coexistence bookkeeping; copied-history invalidation and abandoned/submitted recordings. Private Wine prefix, no GPU/display. |
 | `assemble.py` | Installer tests, build freshness, allowed package contents, manifest hashes and static material scan. `--archive` also requires a passed qualification receipt and completed public documents. |
 | `check_intel_free.py check` | Known Intel files/shaders, unrecognised embedded DXIL, shader model 6.4 and known warp-weight constants. Pinned OptiScaler shaders are recognised separately. Synthetic detector controls are in `release/ci/check_controls.py`. |
 

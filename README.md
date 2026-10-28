@@ -213,10 +213,12 @@ Optional helpers in the release's `extras/` folder each include installation and
 
 ## Status
 
-**1.1.4 (27 October 2026).** Optional generated-frame scaling passed 31 SDK checks,
-nine Cyberpunk starts and a normal Steam Echo Point Nova start at 2×. Geometry bounds, active acceleration,
-Install/Restore, standalone builds and pinned local CI passed. [Scaling checks](packaging/public/MEASUREMENTS.md#generated-frame-scaling-in-114).
-The charts above describe the October 26 campaign with 1.1.3.1; the scaling check is a separate dataset.
+**1.1.5 (28 October 2026).** Reduces scaling overhead and fixes history invalidation and Restore
+metadata. All 43 SDK starts and 13 Cyberpunk starts pass, as do installer/Restore, reproducible public builds and
+pinned local CI. Echo's fresh checks were blocked before startup by Steam Cloud synchronization failure. The matched
+Cyberpunk 4K/1440p-generation comparison improves output FPS by 1.52% over 1.1.4.
+[Checks and limits](packaging/public/MEASUREMENTS.md#scaling-overhead-in-115).
+The charts above describe the October 26 campaign with 1.1.3.1; scaling measurements are separate datasets.
 [1.1.3.1 release checks](packaging/public/MEASUREMENTS.md#checks-of-1131) · [TV pacing checks](packaging/public/MEASUREMENTS.md#checks-of-113) ·
 [Changelog](packaging/public/CHANGELOG.md).
 

@@ -381,6 +381,8 @@ docs/assets/cyberpunk-helixsr-fps-narrow.png
 # Generated-frame scaling: owned filters and bounded convolution forms.
 src/frame_scale_api.h
 src/frame_scale_views.h
+src/frame_scale_history.h
+src/game/test_scale_history.c
 src/frame_resample.hlsl
 src/frame_upscale_filters.hlsl
 src/kernels/virtual_bounds.hlsli

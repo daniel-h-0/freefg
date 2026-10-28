@@ -387,6 +387,22 @@ class Switching(HelixFixture):
         self.assertEqual((self.game / 'OptiScaler' / m.DLL).read_bytes(), b'FSR')
         m.restore(self.exe); self.assertOriginal()
 
+    def test_restore_recovers_timestamp_after_switch_already_restored_ini_bytes(self):
+        user = b'[Log]\nEnabled = false\n'
+        ini = self.game / 'OptiScaler' / H.INI
+        m.write(ini, user); self.original['OptiScaler/' + H.INI] = user
+        old = 1759240000_123456789
+        os.utime(ini, ns=(old, old))
+        m.install(self.package, self.exe, route='opti', upscaler='helixsr')
+        m.configure(self.exe, upscaler='fsr4', package=self.package)
+        self.assertEqual(ini.read_bytes(), user)
+        # Same bytes can also result from an interrupted Restore. Repair only
+        # metadata; do not replace a file that is already back to its original.
+        inode = ini.stat().st_ino
+        m.restore(self.exe); self.assertOriginal()
+        self.assertEqual(ini.stat().st_mtime_ns, old)
+        self.assertEqual(ini.stat().st_ino, inode)
+
     def test_edited_ini_never_blocks_a_switch(self):
         m.install(self.package, self.exe, route='opti', upscaler='helixsr')
         edited = (self.game / 'OptiScaler' / H.INI).read_bytes() + b'\r\n[Upscaling]\r\nNetworkResolution = full\r\n'

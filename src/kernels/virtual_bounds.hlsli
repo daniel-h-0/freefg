@@ -17,7 +17,9 @@ uint2 freefg_bounds(uint2 physical, uint divisor) {
 }
 uint4 freefg_load(Texture2DArray<uint4> image, int4 p, uint divisor) {
     uint w,h,layers;image.GetDimensions(w,h,layers);
-    return all(uint2(p.xy) < freefg_bounds(uint2(w,h),divisor)) ? image.Load(p) : uint4(0,0,0,0);
+    // Physical out-of-bounds loads return zero. Redirect only logically invalid reads.
+    p.x = all(uint2(p.xy) < freefg_bounds(uint2(w,h),divisor)) ? p.x : -1;
+    return image.Load(p);
 }
 void freefg_store(RWTexture2DArray<uint4> image, uint3 p, uint divisor, uint4 value) {
     uint w,h,layers;image.GetDimensions(w,h,layers);
