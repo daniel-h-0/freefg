@@ -91,7 +91,8 @@
   },
   "Project": "https://github.com/lonewolf0622/HelixSR",
   "Author": "lonewolf0622",
-  "Provenance": "HelixSR is a separate, closed-source project by lonewolf0622 under its own licence (HelixSR Freeware License: free use; redistribution only of the complete, unmodified official release, free of charge; no modification, reverse engineering, decompilation or disassembly; the network files its setup builds from NVIDIA's DLSS DLL are NVIDIA's and must not be shared). It is optional and never part of this project's package. Input helixsr is the complete official release archive HelixSR-2.0.0.zip of github.com/lonewolf0622/HelixSR release v2.0.0 (published 2026-10-19; its SHA256SUMS.txt lists the same SHA-256, as does GitHub's asset digest; downloaded and hashed 2026-10-19). install.py helixsr (or Setup, on the user's choice of HelixSR) downloads it from the author's release page and unpacks it unchanged into the download cache as HelixSR-2.0.0/. Releases maps the SHA-256 of the official HelixSR-fsrfg/amd_fidelityfx_dx12.dll as shipped in that archive (7,997,952 bytes) to its version: a DLL is used only when its bytes before the network HelixSR's own setup appended (behind the HXSRNET1 footer) hash to one of these. Only HelixSR's own setup (helixsr-setup.sh --no-fg, run by the user) downloads NVIDIA's DLSS DLL, after asking, and builds the network; the installer never does. A newer HelixSR release needs a new pin here."
+  "Provenance": "HelixSR is a separate, closed-source project by lonewolf0622 under its own licence (HelixSR Freeware License: free use; redistribution only of the complete, unmodified official release, free of charge; no modification, reverse engineering, decompilation or disassembly; the network files its setup builds from NVIDIA's DLSS DLL are NVIDIA's and must not be shared). It is optional and never part of this project's package. Input helixsr is the complete official release archive HelixSR-2.0.0.zip of github.com/lonewolf0622/HelixSR release v2.0.0 (published 2026-10-19; its SHA256SUMS.txt lists the same SHA-256, as does GitHub's asset digest; downloaded and hashed 2026-10-19). install.py helixsr (or Setup, on the user's choice of HelixSR) downloads it from the author's release page and unpacks it unchanged into the download cache as HelixSR-2.0.0/. Releases maps the SHA-256 of the official HelixSR-fsrfg/amd_fidelityfx_dx12.dll as shipped in that archive (7,997,952 bytes) to its version: a DLL is used only when its bytes before the network HelixSR's own setup appended (behind the HXSRNET1 footer) hash to one of these. Only HelixSR's own setup (helixsr-setup.sh --no-fg, run by the user) downloads NVIDIA's DLSS DLL, after asking, and builds the network; the installer never does. A newer HelixSR release needs a new pin here.",
+  "PreferredBaseHash": "82b612a73759117d4203f0ca76f18b325e1c6f3c61c64481c94750abce392a09"
  },
  "sources": {
   "nvngx_dlss.dll": {"input": "dlss"},
@@ -176,6 +177,20 @@
    "fsr4/notices": "pinned and kept in the download cache beside the DLL, not placed in games: the installer places only the DLL, so the package must keep carrying the same notices (licenses/fsr4/*, byte-identical)",
    "ProxyPackage": "the layout for packages whose add-on is a libxess_fg.dll proxy (manifest addon_entry \"libxess_fg-proxy\", no XeSSMFG enabler): Intel's unmodified XeFG runtime goes beside the proxy as bc250_xefg_original.dll, the file the proxy verifies and loads. Package is the layout for packages with the enabler",
    "sources": "each pinned file names one upstream input and optional mirrors (dependencies.py tries an input already in the cache or needed anyway first, then the others in order; every candidate must yield the pinned sha256). Intel's three files: Intel's repository at de0fb9c1, then at the v3.0.2 tag commit (same host; for a rewritten main), the OptiScaler nightly archive, then the XeSS SDK 3.0.2 release asset (another host; 76.8 MB, used only when the others fail)"
+  }
+ },
+ "upscalers": {
+  "fsr4": {
+   "provider": "amd-fsr4-bc250",
+   "adapter": "fidelityfx-pinned-v1",
+   "version": "4.0.0-rc12",
+   "input": "fsr4"
+  },
+  "helixsr": {
+   "provider": "helixsr-ffx",
+   "adapter": "helixsr-ffx-network-v1",
+   "version": "2.0.0",
+   "input": "helixsr"
   }
  }
 }

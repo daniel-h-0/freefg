@@ -1,6 +1,6 @@
 {
  "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build (variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-mfg for tools that pass --variant intel-free-mfg, and that entry changes nothing.",
- "name": "freefg-1.1.5",
+ "name": "freefg-1.1.6",
  "variant": "intel-free-mfg",
  "documents_version": "public",
  "documents_component": "documents",
@@ -37,7 +37,12 @@
   },
   "runtime_downloads": "Intel XeSS runtime (libxess_fg.dll, placed beside the proxy as bc250_xefg_original.dll; libxell.dll), the FSR4 DLL and OptiScaler's nightly support files are pinned in dependencies.json and fetched by the installer; this package does not contain them",
   "addon_entry": "libxess_fg-proxy",
-  "max_factor": 2
+  "max_factor": 2,
+  "update_contract": {
+   "format": 1,
+   "layout": "game-local-xemfg-proxy",
+   "configuration": 1
+  }
  },
  "components": {
   "installer": {
@@ -55,7 +60,9 @@
     "dependencies.py": "repo:packaging/dependencies.py",
     "doctor.py": "repo:packaging/doctor.py",
     "helixsr.py": "repo:packaging/helixsr.py",
-    "Start-freefg.sh": "repo:packaging/Start-BC250-XeFG.sh"
+    "Start-freefg.sh": "repo:packaging/Start-BC250-XeFG.sh",
+    "freefg_library.py": "repo:packaging/freefg_library.py",
+    "upscaler_updates.py": "repo:packaging/upscaler_updates.py"
    }
   },
   "installer-vendor": {
@@ -331,12 +338,14 @@
   "test_gamescan",
   "test_compat",
   "test_compat_install",
-  "test_update"
+  "test_update",
+  "test_freefg_library",
+  "test_component_updates"
  ],
  "variants": {
   "intel-free-mfg": {
    "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-mfg builds exactly what release/assemble.py builds.",
-   "name": "freefg-1.1.5",
+   "name": "freefg-1.1.6",
    "package_dir": "package-intel-free-mfg",
    "documents_version": "public",
    "replace": {},

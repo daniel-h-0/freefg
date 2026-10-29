@@ -75,7 +75,8 @@ class GameFixture(unittest.TestCase):
         self.prepared=[]
         def prepare(package,groups):
             self.prepared.append(list(groups));return self.deps
-        for context in (patch.object(launcher_config.Path,'home',return_value=self.root),patch.object(launcher_config,'require_stopped'),
+        for context in (patch.dict(os.environ,{'XDG_DATA_HOME':str(self.root/'.local/share'),'FREEFG_LIBRARY':str(self.root/'.local/share/freefg/library.json')}),
+                        patch.object(launcher_config.Path,'home',return_value=self.root),patch.object(launcher_config,'require_stopped'),
                         patch.object(m,'prepare_dependencies',side_effect=prepare)):
             context.start();self.addCleanup(context.stop)
         self.silent=contextlib.redirect_stdout(io.StringIO());self.silent.__enter__();self.addCleanup(self.silent.__exit__,None,None,None)

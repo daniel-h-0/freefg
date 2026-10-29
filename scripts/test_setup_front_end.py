@@ -432,6 +432,15 @@ class SetupFrontEnd(unittest.TestCase):
         calls, runs = self.scripted([(0, 'Update all'), (0, ''), (1, '')], self.library_installer([]))
         self.assertEqual(runs, []); self.assertTrue(any('--info' in c and any('No game with' in a for a in c) for c in calls))
 
+    def test_update_upscalers_uses_the_same_scope_for_preview_and_apply(self):
+        game = self.dir / 'installed'; game.mkdir(); (game / 'A.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Update upscalers'), (0, ''), (0, ''), (0, ''), (1, '')],
+                                    self.library_installer([game / 'A.exe']))
+        self.assertEqual([r[3] for r in runs], ['plan', 'update'])
+        for run in runs:
+            self.assertEqual(run[run.index('--component')+1], 'upscaler')
+            self.assertIn(str(game / 'A.exe'), run)
+
     def test_rollback_runs_on_the_selected_games(self):
         game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
         calls, runs = self.scripted([(0, 'Rollback'), (0, ''), (0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Rollback'), (0, ''), (1, '')],

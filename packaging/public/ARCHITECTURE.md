@@ -295,15 +295,31 @@ Upscaler switches record a pending operation so Restore can recover from interru
 are retained for later use. Restore reverts owned files and settings while preserving subsequent user edits; changed
 binaries can require attention. [Installation and removal](README.md#restore-and-uninstall).
 
-In-place updates (`install.py update`, Setup's **Update all**) replace only FreeFG's own files: the proxy, its shader
-profile, wave table, layer and settings file, plus the pinned Intel runtime and FSR 4 DLL when their pins change. The
-proxy and profile are one set, so a game with any of them changed since installation is left as it is. The original
-files, their backups, OptiScaler, `OptiScaler.ini`, HelixSR, launch options and recipe settings are untouched; settings
-keep the user's values. Before writing, the update saves the bytes it replaces as a generation and records a pending
-operation. Rollback returns to that generation byte for byte; the next update or rollback undoes an interrupted update,
-and Restore resolves it like an upscaler switch. A release that would plan other launch options or OptiScaler files,
-or an installation from a release the installer does not list, needs Restore and Install instead. Update all finds
-installations through the layer path in Steam, Heroic and Lutris launch settings.
+In-place updates (`install.py update`, Setup's **Update all**) operate on a coherent FreeFG/Intel set and the
+selected compatible upscaler. `upscaler_updates.py` provides read-only adapters for pinned FidelityFX DLLs and the
+legacy HelixSR FidelityFX/network format. Adapters propose content and metadata; the shared transaction engine owns
+all writes and recovery. Unknown provider formats are deferred. Core-only and upscaler-only updates use the same
+engine. A future NGX or HLX provider needs an explicit adapter, package pins and runtime qualification.
+
+Update verifies current owned files, original backups, package hashes, integration compatibility and game idleness.
+It rechecks observed files after preparing dependencies. Changed core binaries block that game's update; a changed
+upscaler is deferred independently. The transaction saves old bytes, permissions, modification times and component
+metadata before recording a pending operation. Rollback restores that generation, preserves later settings edits and
+provider choices outside the update's scope, and refuses conflicting binary edits. Interrupted updates are undone;
+interrupted rollbacks finish before another update starts. Missing or damaged recovery data leaves the journal intact.
+One completed generation is retained per game. This is per-game recovery, not an atomic transaction across a library.
+
+`manifest.json.update_contract` and the game record agree on format, layout and configuration versions. Legacy
+1.1.3.1/1.1.4/1.1.5 records are explicitly imported. Core version downgrades are refused; Rollback uses saved bytes.
+The game record carries an installation ID and component identities. Integration changes that need new OptiScaler
+files or launcher planning still require Restore/Install; this contract does not claim to migrate arbitrary layouts.
+
+`freefg_library.py` maintains an optional, locked and atomically replaced index. Update all combines this index with
+Steam/Heroic/Lutris discovery; game records remain authoritative. Index failures do not invalidate a completed game
+transaction. Missing drives remain listed as unavailable. Registration can be rebuilt without reinstalling runtime
+files. Each game is self-contained; there are no shared runtime symlinks or resident update service. A user-managed
+deployment hook may invoke the batch CLI after extracting a verified package, using its exit status and per-game
+summary. Pins apply to both core and provider updates.
 
 ## The compatibility check
 

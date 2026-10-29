@@ -213,6 +213,8 @@ packaging/dependencies.json
 packaging/dependencies.py
 packaging/doctor.py
 packaging/helixsr.py
+packaging/freefg_library.py
+packaging/upscaler_updates.py
 packaging/Start-BC250-XeFG.sh
 # Read by the installer tests: the launch wrapper (test_mfg_install), the full recipe file and the builder of its
 # compact form (test_recipes)
@@ -362,6 +364,8 @@ scripts/test_gamescan.py
 scripts/test_compat.py
 scripts/test_compat_install.py
 scripts/test_update.py
+scripts/test_freefg_library.py
+scripts/test_component_updates.py
 # The synthetic library (made-up games, one or two per verdict group) that test_compat checks verdicts against; the
 # maintainers' own library scans and their test stay in the maintainers' tree (keep.txt)
 scripts/fixtures/compat/library-synthetic.json

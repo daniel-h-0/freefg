@@ -192,12 +192,32 @@ there so wave-size settings apply consistently. [Implementation](ARCHITECTURE.md
 
 ## Restore and uninstall
 
-**Update:** choose **Update all** in Setup from the new package, or run `install.py update --all`. It shows the plan,
-then replaces FreeFG's own files in each installed game. Settings, OptiScaler, launch options and saved originals
-remain unchanged. Close the games first; launchers can stay open. **Rollback** returns a game to its previous release.
-Pinned games stay as they are. A game is named and left unchanged when its FreeFG files changed since installation,
-the new release changes launch options or OptiScaler, or its release is too old. Update such games through Restore in
-the old package, then Install from the new one. In-place updates start with installations from 1.1.4.
+**Update:** extract the new package and choose **Update all** in Setup. Setup shows a plan, then updates every
+available, unpinned installation without a per-game Restore/Install cycle. The command-line equivalent is
+`python3 install.py plan --all`, followed by `python3 install.py update --all` (the latter applies immediately).
+Updates include FreeFG, its pinned Intel runtime and the selected compatible upscaler. Settings, provider selection,
+OptiScaler, launch options and saved originals are retained. Close the games first; launchers can stay open. A running,
+unavailable or blocked game is reported separately while other games continue. **Rollback** returns one game to the
+state before its most recent update; **Restore** returns the original game files.
+
+Installations register automatically for later updates. **Register** adds an existing installation, and **Library**
+lists versions, providers and pins. The optional local index can be deleted and rebuilt from launcher discovery or
+Register; each game retains its own runtime and recovery files. **Pin** holds a game and all its components at their
+current versions; **Unpin** resumes updates. CLI equivalents are `register`, `library`, `pin` and `unpin`.
+
+Setup’s **Update upscalers** updates the selected provider in each game while keeping the FreeFG core. On the CLI,
+`--component core` updates only FreeFG and Intel; `--component upscaler` updates only the selected provider.
+A new compatible HelixSR build is prepared once with HelixSR's own setup, then distributed to enrolled games by
+Update all. Use `--helixsr FOLDER` to select a prepared release explicitly. FreeFG identifies pinned archive/code
+revisions even when upstream reuses a version number. This candidate pins HelixSR 2.0.0; HLX DLSS and HLX FSR4
+need their own qualified adapters and are not offered yet.
+
+Compatible installations from 1.1.3.1, 1.1.4 and 1.1.5 can update directly. Later releases record a layout/configuration
+contract for future updates. Changed managed binaries, incompatible layouts or a release requiring different
+OptiScaler/launcher settings are reported for attention; those migrations still require Restore and Install.
+Automatic updates are optional: a deployment job you configure can invoke `install.py update --all` from the newly
+extracted package. FreeFG installs no background updater and downloads no new FreeFG release by itself. A nonzero
+exit status reports deferred or failed work; successful games remain updated, with their own Rollback available.
 
 **Change FG input:** Restore, then Install with the new input. Use **Upscaler** to switch FSR 4/HelixSR without
 changing the FG input.
@@ -222,6 +242,9 @@ Optional helpers in the release's `extras/` folder each include installation and
 [Privileges and local interfaces](SECURITY.md#what-runs-on-your-computer).
 
 ## Status
+
+**1.1.6 candidate.** Adds in-place Update all, per-game rollback and pins, a rebuildable library index, and
+compatible selected-upscaler updates. The runtime and shader payload are unchanged from 1.1.5.
 
 **1.1.5 (28 October 2026).** Reduces scaling overhead and fixes history invalidation and Restore
 metadata. All 43 SDK starts and 13 Cyberpunk starts pass, as do installer/Restore, reproducible public builds and

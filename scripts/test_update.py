@@ -42,6 +42,8 @@ class UpdateFixture(ProxyFixture):
         """A copy of the installed package (or of base) as another release: changes maps a package path to its new bytes
         (None: the release no longer has the file)."""
         package=self.root/folder;shutil.copytree(base or self.package,package);set_name(package,name)
+        manifest=json.loads((package/'manifest.json').read_text());manifest['update_contract']=dict(m.UPDATE_CONTRACT)
+        (package/'manifest.json').write_text(json.dumps(manifest))
         for path,data in changes.items():
             if data is None:remove_package_file(package,path)
             else:set_package_file(package,path,data)
@@ -260,7 +262,7 @@ class UpdateTests(UpdateFixture):
         # Replaced by something else since installation: FSR 4 is left as it is, the add-on is updated all the same.
         (self.game/'OptiScaler'/m.DLL).write_bytes(b'user FSR')
         status,out=self.run_quiet(m.update,self.exe,self.new,deps)
-        self.assertEqual(status,'update');self.assertIn('FSR 4 not updated',out)
+        self.assertEqual(status,'partial');self.assertIn('FSR 4 not updated',out)
         self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),b'user FSR');self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),CHANGES['payload/libxess_fg.dll'])
 
     def test_vkd3d_cache_is_emptied_when_the_profile_changes(self):
@@ -511,6 +513,33 @@ class ReviewRegressionTests(UpdateFixture):
                 self.run_quiet(m.update,self.exe,self.new)
         self.assertEqual(self.record()['update_pin']['package'],OLD)
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
+
+class UpdateContractTests(UpdateFixture):
+    def test_future_release_uses_contract_without_a_version_allowlist_edit(self):
+        m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,self.new)
+        before=self.record()['components']
+        future=self.newer({},name='freefg-1.1.99',folder='future',base=self.new)
+        status,_=self.run_quiet(m.update,self.exe,future)
+        self.assertEqual(status,'update');self.assertEqual(self.record()['components']['core']['package'],'freefg-1.1.99')
+        self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.record()['package'],NEW);self.assertEqual(self.record()['components'],before)
+
+    def test_future_package_needs_an_explicit_supported_contract(self):
+        m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,self.new)
+        future=self.newer({},name='freefg-1.1.99',folder='unknown-future',base=self.new)
+        manifest=json.loads((future/'manifest.json').read_text());manifest.pop('update_contract')
+        (future/'manifest.json').write_text(json.dumps(manifest));before=self.snapshot()
+        status,_=self.run_quiet(m.update,self.exe,future)
+        self.assertEqual(status,'blocked');self.assertEqual(self.snapshot(),before)
+
+    def test_incompatible_layout_and_downgrade_leave_the_game_untouched(self):
+        m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,self.new)
+        before=self.snapshot();record=self.record()
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.package)[0],'blocked')
+        manifest=json.loads((self.new/'manifest.json').read_text());manifest['update_contract']['layout']='different-layout'
+        (self.new/'manifest.json').write_text(json.dumps(manifest))
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'blocked')
+        self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
 
 class LibraryTests(UpdateFixture):
     """Update all: the games found from the launchers' entries, each updated or left on its own."""
