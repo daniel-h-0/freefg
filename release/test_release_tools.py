@@ -1258,6 +1258,14 @@ class PublicNameAssembly(unittest.TestCase):
         with self.assertRaisesRegex(self.assemble.ReleaseError, 'already names a different build'):
             self.assembled(spec, evidence={'lumen-pace-v31-2x-package.json': {'payload': {}}})
 
+    def test_assembled_package_keeps_the_update_compatibility_contract(self):
+        spec = self.public_spec(CHOSEN)
+        contract = {'format': 1, 'layout': 'game-local-xemfg-proxy', 'configuration': 1}
+        spec['manifest']['update_contract'] = contract
+        out, manifest, _receipt, _root = self.assembled(spec)
+        self.assertEqual(manifest['update_contract'], contract)
+        self.assertEqual(json.loads((out / 'manifest.json').read_text())['update_contract'], contract)
+
     def test_private_name_assembles_as_before(self):
         spec = self.public_spec()
         self.assertEqual(spec['name'], 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg')

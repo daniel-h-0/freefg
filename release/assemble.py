@@ -806,6 +806,7 @@ def assemble(config, spec, receipt_path=None, companion=True, archive_requested=
     manifest = dict(
         name=name, runtime=static['runtime'], candidate=receipt['status'] != 'pass', launcher_setup=static['launcher_setup'],
         addon_entry=static.get('addon_entry'), profile=static['profile'], addon_sha256=addon_record['sha256'],
+        update_contract=static.get('update_contract'),
         default_factor=static['default_factor'], max_factor=static.get('max_factor'), default_cap=static['default_cap'],
         fsr4=static['fsr4'],
         enabler=static['enabler'], status=static['status'], git_head=head,
