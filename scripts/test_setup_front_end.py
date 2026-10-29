@@ -407,6 +407,37 @@ class SetupFrontEnd(unittest.TestCase):
                                     self.helix_installer('missing'))
         self.assertEqual(len(runs), 1); self.assertIn('configure', runs[0]); self.assertEqual(runs[0][-2:], ['--upscaler', 'fsr4'])
 
+    def library_installer(self, games):
+        class Installer:
+            def library(self):
+                return list(games)
+            def idle(self, root):
+                pass
+        return Installer()
+
+    def test_update_all_shows_the_plan_then_updates_every_installed_game(self):
+        # No selection needed: the installer's library and the selected games, the plan first, then one confirmation.
+        installed = self.dir / 'installed'; installed.mkdir(); (installed / 'A.exe').write_bytes(b'')
+        chosen = self.dir / 'chosen'; chosen.mkdir(); (chosen / 'B.exe').write_bytes(b'')
+        games = sorted([str(installed / 'A.exe'), str(chosen / 'B.exe')])
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(chosen / 'B.exe')), (0, 'Update all'), (0, ''), (0, ''), (0, ''), (1, '')],
+                                    self.library_installer([installed / 'A.exe']))
+        self.assertEqual([r[2:] for r in runs], [[str(self.dir / 'install.py'), 'plan', *games], [str(self.dir / 'install.py'), 'update', *games]])
+        self.assertTrue(any('--question' in c and '--ok-label=Update' in c for c in calls))
+        # Back at the confirmation: the plan was shown, nothing is updated.
+        calls, runs = self.scripted([(0, 'Update all'), (0, ''), (1, ''), (1, '')], self.library_installer([installed / 'A.exe']))
+        self.assertEqual([r[3] for r in runs], ['plan'])
+
+    def test_update_all_with_no_installed_game_says_so(self):
+        calls, runs = self.scripted([(0, 'Update all'), (0, ''), (1, '')], self.library_installer([]))
+        self.assertEqual(runs, []); self.assertTrue(any('--info' in c and any('No game with' in a for a in c) for c in calls))
+
+    def test_rollback_runs_on_the_selected_games(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Rollback'), (0, ''), (0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Rollback'), (0, ''), (1, '')],
+                                    self.library_installer([]))
+        self.assertEqual([r[2:] for r in runs], [[str(self.dir / 'install.py'), 'rollback', str(game / 'Game.exe')]])
+
 
 if __name__ == '__main__':
     unittest.main()

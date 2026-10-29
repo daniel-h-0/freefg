@@ -359,6 +359,49 @@ def discover(exe, home=None):
     return list(unique.values())
 
 
+def installation_roots(home=None):
+    """Game folders whose installation a launcher entry starts: the layer path in the environment of every Steam app's
+    launch options and non-Steam shortcut, Heroic game configuration and Lutris game (layer_roots). Reads only; an
+    entry that cannot be read is skipped. Install.py update --all finds the games it updates so."""
+    home = Path(home or Path.home())
+    envs = []
+
+    def collect(read):
+        try:
+            env = read()
+        except Exception:  # noqa: BLE001 - one unreadable entry never hides the others
+            return
+        if isinstance(env, dict):
+            envs.append({str(k): str(v) for k, v in env.items()})
+    for steam in sorted({p.resolve() for p in (home/'.steam/steam', home/'.local/share/Steam',
+                         home/'.var/app/com.valvesoftware.Steam/.local/share/Steam') if p.is_dir()}):
+        for config in sorted((steam/'userdata').glob('*/config/localconfig.vdf')):
+            doc = _readable(config, lambda p: Document(p.read_bytes()))
+            if doc is None or not doc.has_object(APP):
+                continue
+            for appid in doc.keys(APP):
+                collect(lambda: split_steam(doc.get(APP+[appid, 'LaunchOptions']) or '')[0])
+        for config in sorted((steam/'userdata').glob('*/config/shortcuts.vdf')):
+            for record in (_readable(config, lambda p: shortcut_entries(p.read_bytes())) or {}).values():
+                if record['kind'] == 0:
+                    collect(lambda: split_steam(record['value'].get('launchoptions', {}).get('value') or '')[0])
+    for heroic in (home/'.config/heroic', home/'.var/app/com.heroicgameslauncher.hgl/config/heroic'):
+        for config in sorted((heroic/'GamesConfig').glob('*.json')):
+            data = _readable(config, _json)
+            for settings in data.values() if isinstance(data, dict) else []:
+                if isinstance(settings, dict):
+                    collect(lambda: {e['key']: e['value'] for e in settings.get('enviromentOptions') or []})
+    for lutris in (home/'.config/lutris', home/'.local/share/lutris',
+                   home/'.var/app/net.lutris.Lutris/config/lutris', home/'.var/app/net.lutris.Lutris/data/lutris'):
+        configs = sorted((lutris/'games').glob('*.yml'))
+        if configs:
+            from vendor import yaml
+        for config in configs:
+            data = _readable(config, lambda p: yaml.safe_load(p.read_text()))
+            collect(lambda: ((data.get('system') or {}).get('env') or {}) if isinstance(data, dict) else None)
+    return sorted({root.resolve() for env in envs for root in layer_roots(env)})
+
+
 def require_stopped(launchers):
     names = set(launchers)
     for proc in Path('/proc').glob('[0-9]*'):

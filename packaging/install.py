@@ -1360,7 +1360,10 @@ def restore(exe):
     if kept:record['kept_changed']=[path for path,_ in kept]
     # An anti-cheat override belonged to this installation: a new Install asks for it again.
     overridden=record.pop('risk_accepted',None)
+    # The releases in-place updates saved for rollback: nothing returns to them once the originals are back.
+    record.pop('generations',None)
     record['status']='restored';write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
+    if (state/GENERATIONS).is_dir() and not (state/GENERATIONS).is_symlink():shutil.rmtree(state/GENERATIONS)
     print(('Original files and launcher settings restored. ' if record.get('launchers') else 'Original files restored; later INI edits preserved. Remove the earlier build’s run.sh launch wrapper from the game’s launch options. ')+'Backups remain in '+str(state))
     if record.get('preserved_ini'):print('Settings from the removed fresh OptiScaler setup: '+str(state/record['preserved_ini']))
     if record.get('preserved_helixsr_ini') and any(Path(item['path']).name.lower()==helixsr.INI for item in record['files']):
@@ -1505,6 +1508,7 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     if percent is not None and limit is not None:raise ValueError('Choose a percentage or a limit')
     root=exe.parent.resolve();idle(root)
     record=json.loads(safe(root,STATE+'/state.json').read_text())
+    if (record.get('pending_update') or {}).get('generation'):raise ValueError('An update was interrupted: run install.py update again (or install.py rollback) first')
     if record.get('status')=='installed' and record.get('runtime')!='xemfg':raise ValueError('This build is 2× only; it has no frame-generation settings to change')
     if record.get('status')!='installed' or record.get('runtime')!='xemfg':raise ValueError('Install this build first')
     proxy=record.get('addon_entry')==PROXY_ENTRY
@@ -1559,6 +1563,418 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     print('Settings saved. Launch the game to apply them.')
     if record['route']=='opti':print('In game: Insert → Frame Generation → MFG also changes the multiplier. Save Settings to retain it.')
 
+# In-place updates (install.py plan, update, rollback, pin, unpin): a newer package's frame generation replaces an installed
+# one's without Restore and Install. Only these files change: the add-on's own (the libxess_fg.dll proxy and everything
+# under BC250-XeFG/: its shader profile, wave table, Vulkan layer and settings file), the pinned Intel runtime beside it
+# and, in a game on FSR 4, the pinned FSR 4 DLL. Everything else stays as it is: the original files and their backups
+# (Restore still puts back exactly what was there before installation), OptiScaler and OptiScaler.ini, HelixSR, the
+# launcher entries, recipe game settings and the user's values in BC250-XeFG/settings.ini. Before a file changes, the bytes
+# it replaces are saved in a generation in the installation's state folder (rollback returns to them byte for byte) and the
+# record names the new bytes in a pending update, as switch_upscaler does: Restore, update and rollback each resolve an
+# interrupted one.
+#
+# Releases whose installations this build updates in place: their installer plans OptiScaler.ini, the settings files and
+# the launcher entries as this build does (1.1.5 changed only Restore, this build only adds updates), so only the files
+# above can differ. A release that keeps it so adds the previous release here; any other installation needs Restore, then
+# Install. Each update checks the launch settings and OptiScaler again (launcher_changes, optiscaler_change) and refuses
+# where they would differ.
+UPDATES_FROM={'freefg-1.1.4','freefg-1.1.5'}
+# Generations kept for rollback: the release before the last update.
+GENERATIONS='generations'
+GENERATIONS_KEPT=1
+# The add-on's files beside the executable (the rest are under BC250-XeFG/), and the settings files whose values are the user's.
+ADDON_FILES=('libxess_fg.dll','bc250_xefg_original.dll','libxell.dll')
+SETTINGS_FILES=('BC250-XeFG/settings.ini','XeSSMFG/settings.ini')
+# The modules OptiScaler can be loaded as: the one the launcher's DLL override names is the installation's owner module.
+OPTI_PROXIES=[name+'.dll' for name in ['dxgi','winmm','d3d12','wininet','version','winhttp','dbghelp','OptiScaler']]+['OptiScaler.asi']
+COMPONENTS={'addon':'frame generation add-on','runtime':'Intel XeFG runtime','fsr4':'FSR 4'}
+
+def save_record(state,record):
+    write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
+
+def sync_folder(folder):
+    """fsync a folder: the names os.replace created or replaced in it are on disk before the next step depends on them."""
+    descriptor=os.open(folder,os.O_RDONLY|os.O_DIRECTORY)
+    try:os.fsync(descriptor)
+    finally:os.close(descriptor)
+
+def file_digest(root,relative):
+    """SHA-256 of a file in the game folder, or None when there is none (safe() refuses a symlink or a folder)."""
+    path=safe(root,relative);return digest(path.read_bytes()) if path.is_file() else None
+
+def launcher_changes(root,record):
+    """The recorded launcher entries whose fields this build would plan differently (an update would have to rewrite them,
+    with the launcher closed): [entry path]. Each is planned again from its fields as found at installation, with the
+    installation's route, game arguments, extra environment and vkd3d-proton cache. Records do not name the OptiScaler
+    module the DLL override loads, so each module OptiScaler can be loaded as is tried."""
+    rows=record.get('launchers') or []
+    if not rows:return []
+    import launcher_config
+    runtime='xemfg-proxy' if record.get('addon_entry')==PROXY_ENTRY else 'xemfg';route=record.get('route','native')
+    vkd3d=root/STATE/VKD3D_CACHE if record.get('vkd3d_cache')==VKD3D_CACHE else None
+    extra=(record.get('compat') or {}).get('extra_env');args=record.get('launch_args') or []
+    def same(row,owner):
+        before=row['before']
+        if row['launcher']=='steam':
+            return {'LaunchOptions':launcher_config.steam_options(before.get('LaunchOptions') or '',root,owner,runtime,route,args,extra,vkd3d)}==row['after']
+        current={e['key']:e['value'] for e in before.get('enviromentOptions') or []} if row['launcher']=='heroic' else dict(before.get('env') or {})
+        return launcher_config.environment(root,owner,current,runtime,route,extra,vkd3d)==launcher_config.planned_environment(row)
+    for owner in OPTI_PROXIES:
+        try:
+            if all(same(row,owner) for row in rows):return []
+        except (ValueError,KeyError,TypeError):continue
+    return [row['path'] for row in rows]
+
+def optiscaler_change(root,record,pins,custom=None):
+    """Why this package's OptiScaler does not match the installation's (an update would have to change OptiScaler), or None.
+    A fresh setup's files must be the ones this package pins (its INI and the upscaler DLL aside) and a custom OptiScaler
+    the package carries must be the one installed; a game's own OptiScaler setup must be a build this package accepts."""
+    items={item['path']:item for item in record['files']}
+    if record.get('fresh'):
+        skip={'OptiScaler.ini',(record.get('upscaler') or {}).get('target'),'OptiScaler/libxess_fg.dll','OptiScaler/libxell.dll'}
+        expected={setup_target(name):value for name,value in pins['payload']['Files'].items() if setup_target(name) not in skip}
+        if custom is not None:expected['dxgi.dll']=digest(custom)
+    elif custom is not None:expected={name:digest(custom) for name in OPTI_PROXIES if name in items}
+    else:
+        accepted={pins['payload']['ProxyHash'],*pins['payload'].get('CompatibleProxyHashes',[])}
+        if any((root/name).is_file() and not (root/name).is_symlink() and digest((root/name).read_bytes()) in accepted for name in OPTI_PROXIES):return None
+        return 'The game’s OptiScaler is not a build this release supports'
+    changed=sorted(path for path,value in expected.items() if (items.get(path) or {}).get('after')!=value)
+    return 'This release brings another OptiScaler build ('+', '.join(changed[:3])+')' if changed else None
+
+def update_plan(package,root,record):
+    """What install.py update would change in the installation at root, read only: dict(status, reason, actions, notes,
+    source, target, max_factor, pins). status: 'update' (apply actions; none when only the record names a new release),
+    'current', 'pinned', 'interrupted' (an update or rollback stopped part way: update and rollback resolve it first) or
+    'blocked'; reason says why and what to do instead. An action: path, index in record['files'] (None: a file new in this
+    release), component (COMPONENTS), kind ('replace'; 'add': new in this release; 'merge': a settings file with the user's
+    values kept in this release's file; 'retire': a file this release no longer has, which goes back to what was there
+    before installation), old (the record's SHA-256, None for none), new, data (bytes, None to delete, or an Upstream the
+    update fetches), mode, kept (merge: the user's values kept)."""
+    manifest=json.loads((package/'manifest.json').read_text());target=manifest.get('name')
+    out=dict(status='blocked',reason=None,actions=[],notes=[],source=record.get('package'),target=target,
+             max_factor=manifest.get('max_factor',2),pins=None)
+    def stop(status,reason):
+        out.update(status=status,reason=reason);return out
+    if record.get('status')=='restored':return stop('blocked','Restored: install this build with Install.')
+    if record.get('status')!='installed':return stop('blocked','The installation was interrupted after saving backups: use Restore, then Install again.')
+    pending=record.get('pending_update')
+    if pending and not pending.get('generation'):return stop('blocked','An update by an earlier build was interrupted: use Restore, then Install.')
+    if pending:return stop('interrupted','An '+pending.get('kind','update')+' was interrupted: install.py update or install.py rollback resolves it first.')
+    if record.get('runtime')!='xemfg' or record.get('addon_entry')!=PROXY_ENTRY:
+        return stop('blocked','Installed by an earlier add-on build: use Restore, then Install this build.')
+    if manifest.get('runtime')!='xemfg' or manifest.get('launcher_setup')!='automatic' or manifest.get('addon_entry')!=PROXY_ENTRY:
+        return stop('blocked','This package is not an enabler-free frame-generation package with automatic launcher setup; use its own installer.')
+    if record.get('update_pin'):
+        return stop('pinned','Pinned to '+str(record['update_pin'].get('package'))+': update leaves it as it is (install.py unpin to update it).')
+    if out['source']!=target and out['source'] not in UPDATES_FROM:
+        return stop('blocked',str(out['source'] or 'This installation')+' is not a release this build updates in place: use Restore, then Install.')
+    files=payload(package)
+    if 'dependencies.json' not in files:raise ValueError('Package lacks its pinned dependency list (dependencies.json)')
+    pins=out['pins']=check_pins(json.loads(files['dependencies.json']));runtime=pins['runtime']
+    if 'ProxyPackage' not in runtime:raise ValueError('install.py and dependencies.json come from different builds (no proxy runtime layout); use one package’s files')
+    layout=runtime['ProxyPackage']
+    for name,source in layout.items():
+        if name in files and digest(files[name])!=runtime['Files'][source]:raise ValueError('Package file differs from its pinned upstream download: '+name)
+    reason=optiscaler_change(root,record,pins,files.get('opti/OptiScaler.dll'))
+    if reason:return stop('blocked',reason+': use Restore, then Install.')
+    changed=launcher_changes(root,record)
+    if changed:return stop('blocked','This release plans other launch settings ('+', '.join(changed)+'): use Restore, then Install, with the launcher closed.')
+    # What the package places, as install() places it: its own payload files, and the pinned runtime (the package's copy
+    # when it carries one, checked above).
+    desired={name.removeprefix('payload/'):('addon',files[name]) for name in files if name.startswith('payload/') and name not in layout}
+    for name,source in layout.items():
+        if name.startswith('payload/'):
+            desired[name.removeprefix('payload/')]=('runtime',files.get(name) or Upstream(source,runtime['Files'][source]))
+    upscaler=record.get('upscaler') or {}
+    if upscaler.get('name')=='fsr4' and upscaler.get('target') and 'fsr4/'+DLL in layout:
+        source=layout['fsr4/'+DLL];desired[upscaler['target']]=('fsr4',files.get('fsr4/'+DLL) or Upstream(source,runtime['Files'][source]))
+    items={item['path']:(i,item) for i,item in enumerate(record['files'])}
+    actions=[];conflicts=[]
+    for path,(component,data) in sorted(desired.items()):
+        new=data.sha256 if isinstance(data,Upstream) else digest(data)
+        index,item=items.get(path,(None,None));now=file_digest(root,path)
+        action=dict(path=path,index=index,component=component,old=item['after'] if item else now,new=new,data=data,
+                    mode=item['mode'] if item else stat.S_IMODE(safe(root,path).stat().st_mode) if now is not None else 0o644)
+        if item is None:actions.append(dict(action,kind='add'));continue
+        if path in SETTINGS_FILES:
+            # This release's file with the user's values: every value that differs from its default, as Install carries
+            # them across Restore (the installed file may itself hold values an earlier Install carried, or configure's).
+            merged,kept=data,{}
+            if now is not None:
+                try:merged,kept=carry_settings(data,safe(root,path).read_bytes())
+                except (UnicodeDecodeError,ValueError,configparser.Error) as error:
+                    out['notes'].append(path+' could not be read ('+str(error)+'): it gets this release’s defaults; the update keeps the old file.')
+            if digest(merged)!=now:actions.append(dict(action,kind='merge',data=merged,new=digest(merged),kept=kept))
+            continue
+        if item['after']==new:continue
+        if now!=item['after']:
+            # The add-on and its runtime only work as one set; the upscaler DLL is another component, left as it is.
+            if component=='fsr4':out['notes'].append('Left '+path+' as it is: it changed since installation (FSR 4 not updated).')
+            else:conflicts.append(path)
+            continue
+        actions.append(dict(action,kind='replace'))
+    for index,item in enumerate(record['files']):
+        path=item['path']
+        if path in desired or item['after'] is None or item['after']==item['before'] or not (path.startswith('BC250-XeFG/') or path in ADDON_FILES):continue
+        if file_digest(root,path)!=item['after']:out['notes'].append('Left '+path+' as it is: this release no longer has it, and it changed since installation.');continue
+        original=None
+        if item['before'] is not None:
+            original=safe(root,STATE+'/backups/'+str(index)).read_bytes()
+            if digest(original)!=item['before']:raise ValueError('Backup checksum mismatch: '+path)
+        actions.append(dict(path=path,index=index,component='addon',kind='retire',old=item['after'],new=item['before'],data=original,mode=item['mode']))
+    if conflicts:
+        return stop('blocked','Changed since installation (a game update or another tool): '+', '.join(conflicts[:3])+(' and '+str(len(conflicts)-3)+' more' if len(conflicts)>3 else '')+
+                    '. Use Restore, then Install (Restore keeps the changed files as the game’s own).')
+    out['actions']=actions
+    if not actions and out['source']==target:return stop('current','Up to date ('+str(target)+').')
+    out['status']='update';return out
+
+def plan_lines(plan):
+    """What an update plan changes, one line each."""
+    if plan['status']!='update':return [plan['reason']]
+    lines=['Update '+str(plan['source'])+' → '+str(plan['target'])+':']
+    for component,label in COMPONENTS.items():
+        counts=collections.Counter(a['kind'] for a in plan['actions'] if a['component']==component and a['kind']!='merge')
+        words=[str(counts[kind])+' '+what for kind,what in (('replace','replaced'),('add','new'),('retire','no longer used')) if counts[kind]]
+        if words:lines.append('  '+label+': '+', '.join(words)+' file'+('s' if sum(counts.values())>1 else ''))
+    for action in plan['actions']:
+        if action['kind']=='merge':
+            lines.append('  '+action['path']+': this release’s file'+(' with your '+', '.join(s+'.'+k+'='+v for (s,k),v in action['kept'].items()) if action['kept'] else ''))
+    if not plan['actions']:lines.append('  no file changes (the record names the new release)')
+    downloads=sorted({a['data'].name for a in plan['actions'] if isinstance(a['data'],Upstream)})
+    if downloads:lines.append('  downloads (pinned upstream files): '+', '.join(downloads))
+    lines.append('  unchanged: original-file backups, OptiScaler and OptiScaler.ini, launch settings, game settings, other upscalers')
+    return lines+plan['notes']
+
+def load_generation(state,generation):
+    """A saved generation's description (generation.json), or None when its folder is missing or not readable."""
+    if not re.fullmatch(r'[0-9TZ]+-[0-9a-f]{8}',str(generation)):return None
+    try:return json.loads(safe(state,GENERATIONS+'/'+generation+'/generation.json').read_text())
+    except (OSError,ValueError):return None
+
+def saved_bytes(state,generation,entry):
+    """The bytes a generation saved for one of its files (None: there was no file), checked against their digest."""
+    if entry['saved'] is None:return None
+    data=safe(state,GENERATIONS+'/'+generation['id']+'/'+entry['saved']).read_bytes()
+    if digest(data)!=entry['saved_sha256']:raise ValueError('Saved file checksum mismatch: '+entry['path'])
+    return data
+
+def forget_folders(root,record,folders):
+    """Folders an update created that its undoing left empty: removed, and no longer named in the record."""
+    created=record.get('created_dirs') or []
+    for relative in folders:
+        folder=created_folder(root,relative)
+        if folder is not None:
+            with contextlib.suppress(OSError):folder.rmdir()
+        if created_folder(root,relative) is None and relative in created:created.remove(relative)
+
+def reset_vkd3d_cache(state,record,paths):
+    """Empty the installation's vkd3d-proton cache when paths (files an update or rollback changed) include the shader
+    profile or the layer: a new installation starts with an empty cache, and a changed profile is qualified so. Returns
+    whether it was emptied."""
+    cache=state/VKD3D_CACHE
+    if record.get('vkd3d_cache')!=VKD3D_CACHE or not cache.is_dir() or cache.is_symlink():return False
+    if not any(path.startswith(('BC250-XeFG/shaders/','BC250-XeFG/layer/')) for path in paths):return False
+    for child in list(cache.iterdir()):
+        if child.is_dir() and not child.is_symlink():shutil.rmtree(child)
+        else:child.unlink()
+    return True
+
+def prune_generations(state,record):
+    """Only the newest GENERATIONS_KEPT generations the record names stay; every other generation folder is deleted (also
+    one an interrupted update left half written). The record is saved first."""
+    history=record.get('generations') or []
+    del history[:max(0,len(history)-GENERATIONS_KEPT)]
+    save_record(state,record);sync_folder(state)
+    keep={item['id'] for item in history};folder=state/GENERATIONS
+    for child in sorted(folder.iterdir()) if folder.is_dir() and not folder.is_symlink() else []:
+        if child.name not in keep:
+            if child.is_dir() and not child.is_symlink():shutil.rmtree(child)
+            else:child.unlink()
+
+def settle_interrupted(root,record):
+    """An update or rollback that stopped part way (its pending update in the record). An update is undone: each file goes
+    back to the bytes its generation saved, and the record to the release before it. A rollback, or an update whose
+    generation is gone, is settled as Restore settles a pending update: the record takes each new file found on disk (a
+    rollback then finishes from there). Returns (whether an update was undone, messages)."""
+    state=root/STATE;pending=record['pending_update'];generation=load_generation(state,pending['generation'])
+    if pending.get('kind','update')=='update' and generation is not None:
+        for entry in generation['files']:
+            change=pending['files'].get(entry['path'])
+            if change is None:continue
+            item=record['files'][entry['index']];now=file_digest(root,entry['path'])
+            if now==change['after'] and now!=entry['saved_sha256']:
+                data=saved_bytes(state,generation,entry);target=safe(root,entry['path'])
+                if data is None:target.unlink()
+                else:write(target,data,item['mode'])
+            elif now!=entry['saved_sha256']:raise ValueError(entry['path']+' changed during the interrupted update: use Restore.')
+            item['after']=change['before']
+        record.pop('pending_update');forget_folders(root,record,generation.get('created_dirs') or []);save_record(state,record)
+        shutil.rmtree(state/GENERATIONS/generation['id'])
+        return True,['An update to '+str(generation['to']['package'])+' was interrupted: undone, back to '+str(generation['from']['package'])+'.']
+    items={item['path']:item for item in record['files']}
+    for path,change in pending['files'].items():
+        if path in items and file_digest(root,path)==change['after']:items[path]['after']=change['after']
+    record.pop('pending_update');save_record(state,record)
+    return False,[] if generation is not None else ['An interrupted update’s saved files are missing: the installation keeps the files on disk.']
+
+@locked
+def update(exe,package=None,dependency_dir=None):
+    """install.py update: replace the installed game's frame generation with this package's in place (update_plan says
+    what changes), recoverably and without Restore. Returns the plan's status ('update' once applied)."""
+    package=Path(package or Path(__file__).resolve().parent)
+    root=exe.parent.resolve();idle(root);state=root/STATE
+    if state.is_symlink():raise ValueError('Installation state is a symlink')
+    record=json.loads(safe(root,STATE+'/state.json').read_text())
+    if (record.get('pending_update') or {}).get('generation'):
+        for line in settle_interrupted(root,record)[1]:print(line)
+    plan=update_plan(package,root,record)
+    if plan['status']!='update':
+        print(plan['reason']);return plan['status']
+    actions=plan['actions']
+    if any(isinstance(a['data'],Upstream) for a in actions):
+        fetched=pinned(package,plan['pins'],['runtime'],dependency_dir)
+        for action in actions:
+            if isinstance(action['data'],Upstream):action['data']=fetched[action['data'].name]
+    # New files of this release become managed files: what was there is their original, backed up as install() does.
+    for action in actions:
+        if action['kind']!='add':continue
+        target=safe(root,action['path']);action['index']=len(record['files'])
+        item=dict(path=action['path'],before=action['old'],after=action['old'],mode=action['mode'])
+        if action['old'] is not None:item['mtime_ns']=target.stat().st_mtime_ns;write(state/'backups'/str(action['index']),target.read_bytes(),action['mode'])
+        record['files'].append(item)
+    created=created_folders(root,[a['path'] for a in actions if a['data'] is not None])
+    # The generation: the bytes each changed file has now, so rollback (or undoing an interrupted update) gets them back.
+    generation=time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'-'+uuid.uuid4().hex[:8]
+    folder=state/GENERATIONS;folder.mkdir(exist_ok=True)
+    staging=folder/('.'+generation);staging.mkdir()
+    entries=[]
+    for n,action in enumerate(actions):
+        target=safe(root,action['path']);data=target.read_bytes() if target.is_file() else None
+        if action['kind'] in ('replace','retire') and (digest(data) if data is not None else None)!=action['old']:raise ValueError(action['path']+' changed during the update; nothing was changed')
+        if data is not None:write(staging/'files'/str(n),data,0o600)
+        entries.append(dict(path=action['path'],index=action['index'],component=action['component'],kind=action['kind'],old=action['old'],new=action['new'],
+                            saved='files/'+str(n) if data is not None else None,saved_sha256=digest(data) if data is not None else None))
+    previous=dict(package=record.get('package'),max_factor=record.get('max_factor'))
+    description=dict(id=generation,created_at=time.time(),**{'from':previous},to=dict(package=plan['target'],max_factor=plan['max_factor']),files=entries,created_dirs=created)
+    write(staging/'generation.json',(json.dumps(description,indent=2)+'\n').encode())
+    if (staging/'files').is_dir():sync_folder(staging/'files')
+    sync_folder(staging);os.replace(staging,folder/generation);sync_folder(folder)
+    # The journal, then the files: an interruption from here on is undone by the next update or rollback, or settled by
+    # Restore (also an earlier build's).
+    record['created_dirs']=sorted(set(record.get('created_dirs') or [])|set(created),key=lambda name:(-name.count('/'),name))
+    record['pending_update']=dict(generation=generation,kind='update',files={a['path']:dict(before=a['old'],after=a['new']) for a in actions})
+    save_record(state,record);sync_folder(state)
+    touched=set()
+    for action in actions:
+        target=safe(root,action['path'])
+        if action['data'] is None:target.unlink(missing_ok=True)
+        else:
+            write(target,action['data'],action['mode'])
+            # A file that goes back to its original also gets the original's modification time back (as Restore does).
+            item=record['files'][action['index']]
+            if action['kind']=='retire' and isinstance(item.get('mtime_ns'),int):os.utime(target,ns=(target.stat().st_atime_ns,item['mtime_ns']))
+        touched.add(target.parent)
+    for parent in touched:sync_folder(parent)
+    emptied=reset_vkd3d_cache(state,record,[a['path'] for a in actions])
+    for action in actions:record['files'][action['index']]['after']=action['new']
+    record.pop('pending_update')
+    # installed_at: Status and Check read only logs written after it; a log of the release before is not this one's.
+    record.update(package=plan['target'],max_factor=plan['max_factor'],installed_at=time.time())
+    record.setdefault('generations',[]).append(dict(id=generation,**{'from':previous['package']},to=plan['target'],at=time.strftime('%Y-%m-%dT%H:%M:%S%z')))
+    prune_generations(state,record)
+    for line in plan_lines(plan)[1:]:print(line)
+    if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
+    print('Updated to '+str(plan['target'])+'. Launch the game as before; install.py rollback returns to '+str(previous['package'])+'.')
+    return 'update'
+
+@locked
+def rollback(exe):
+    """install.py rollback: back to the release before the last update, byte for byte (the generation that update saved),
+    keeping the user's values in the settings files; or, after an interrupted update, undo it."""
+    root=exe.parent.resolve();idle(root);state=root/STATE
+    record=json.loads(safe(root,STATE+'/state.json').read_text())
+    if record.get('status')!='installed':raise ValueError('Not installed: nothing to roll back')
+    pending=record.get('pending_update')
+    if pending and not pending.get('generation'):raise ValueError('An update by an earlier build was interrupted: use Restore.')
+    if pending:
+        undone,lines=settle_interrupted(root,record)
+        for line in lines:print(line)
+        if undone:return
+    history=record.get('generations') or []
+    if not history:raise ValueError('No update to roll back: this installation was not updated in place since it was installed or rolled back.')
+    generation=load_generation(state,history[-1]['id'])
+    if generation is None:raise ValueError('The files of '+str(history[-1]['from'])+' saved by the last update are missing: use Restore, then Install that release.')
+    actions=[];conflicts=[]
+    for entry in generation['files']:
+        item=record['files'][entry['index']];now=file_digest(root,entry['path'])
+        data=saved_bytes(state,generation,entry);goal=entry['saved_sha256']
+        if entry['path'] in SETTINGS_FILES:
+            # Settings changed since the update: the earlier file with the user's present values.
+            if data is not None and now not in (entry['new'],goal,None):
+                try:data,_=carry_settings(data,safe(root,entry['path']).read_bytes())
+                except (UnicodeDecodeError,ValueError,configparser.Error):pass
+        elif now not in (entry['new'],goal):conflicts.append(entry['path']);continue
+        actions.append(dict(entry=entry,item=item,data=data,new=digest(data) if data is not None else None))
+    if conflicts:raise ValueError('Changed since the update (a game update or another tool): '+', '.join(conflicts[:3])+'. Nothing was rolled back; Restore keeps them as the game’s own.')
+    record['pending_update']=dict(generation=generation['id'],kind='rollback',files={a['entry']['path']:dict(before=a['item']['after'],after=a['new']) for a in actions})
+    save_record(state,record);sync_folder(state)
+    touched=set()
+    for action in actions:
+        target=safe(root,action['entry']['path'])
+        if action['data'] is None:target.unlink(missing_ok=True)
+        elif file_digest(root,action['entry']['path'])!=action['new']:write(target,action['data'],action['item']['mode'])
+        touched.add(target.parent)
+    for parent in touched:
+        if parent.is_dir():sync_folder(parent)
+    emptied=reset_vkd3d_cache(state,record,[a['entry']['path'] for a in actions])
+    for action in actions:action['item']['after']=action['entry']['old']
+    record.pop('pending_update');forget_folders(root,record,generation.get('created_dirs') or [])
+    record.update(package=generation['from']['package'],installed_at=time.time())
+    if generation['from'].get('max_factor') is None:record.pop('max_factor',None)
+    else:record['max_factor']=generation['from']['max_factor']
+    history.pop();prune_generations(state,record)
+    print('Rolled back from '+str(generation['to']['package'])+' to '+str(generation['from']['package'])+': '+str(len(actions))+' file'+('s' if len(actions)!=1 else '')+
+          ' put back as they were. Launch the game as before.')
+    if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
+
+@locked
+def pin(exe,on=True):
+    """install.py pin / unpin: whether update (also update --all) leaves this game on its installed release."""
+    root=exe.parent.resolve();state=root/STATE
+    record=json.loads(safe(root,STATE+'/state.json').read_text())
+    if record.get('status')!='installed':raise ValueError('Install this build first')
+    if on:
+        record['update_pin']=dict(package=record.get('package'),at=time.strftime('%Y-%m-%dT%H:%M:%S%z'))
+        print('Pinned to '+str(record.get('package'))+': update leaves this game as it is (install.py unpin to update it again).')
+    else:
+        if not record.pop('update_pin',None):print('Not pinned.');return
+        print('Unpinned: install.py update updates this game again.')
+    save_record(state,record)
+
+def library(home=None):
+    """The executables of this build's installations that a launcher entry starts (launcher_config.installation_roots),
+    sorted: the games install.py update --all and plan --all go through. Restored installations are not among them."""
+    import launcher_config
+    found=set()
+    for root in launcher_config.installation_roots(home):
+        try:record=json.loads(safe(root,STATE+'/state.json').read_text())
+        except (OSError,ValueError):continue
+        exe=Path(str(record.get('game') or ''))
+        if record.get('status')=='installed' and exe.is_absolute() and exe.is_file() and exe.parent.resolve()==root:found.add(exe)
+    return sorted(found)
+
+def show_plan(package,exe):
+    """install.py plan: what update would do in one game (changes nothing). Returns the plan's status."""
+    root=exe.parent.resolve();record=json.loads(safe(root,STATE+'/state.json').read_text())
+    plan=update_plan(package,root,record)
+    for line in plan_lines(plan):print(line)
+    if plan['status']=='update':
+        try:idle(root)
+        except ValueError:print('The game is running: close it before updating.')
+    return plan['status']
+
 def run_scope(record):
     """compat.last_run's scope for an installation of this build: only the logs beside the executable, written since it
     was installed. Records of other entries (add-on builds) and records from before installed_at keep the full search."""
@@ -1569,7 +1985,14 @@ def status(exe):
     root=exe.parent.resolve();record=json.loads(safe(root,STATE+'/state.json').read_text())
     print(record['status']+' — '+record.get('route','native'))
     if record.get('package'):print('Package: '+record['package'])
-    if record.get('pending_update'):print('An update by an earlier build was interrupted: use Restore.')
+    if record.get('pending_update'):
+        print('An update was interrupted: run install.py update again, or install.py rollback.' if record['pending_update'].get('generation') else
+              'An update by an earlier build was interrupted: use Restore.')
+    if record.get('generations') and record['status']=='installed':
+        last=record['generations'][-1]
+        print('Updated in place from '+str(last['from'])+' ('+str(last['at'])[:10]+'); install.py rollback returns to it.')
+    if record.get('update_pin') and record['status']=='installed':
+        print('Pinned to '+str(record['update_pin'].get('package'))+': install.py update leaves it as it is (install.py unpin).')
     if record['status']=='prepared':print('The installation was interrupted after saving backups: use Restore, then Install again.')
     if record['status']!='installed':
         for line in risk_lines(record):print(line)
@@ -1723,7 +2146,7 @@ def accepted_for(accept,exe):
     return out
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check','plan','update','rollback','pin','unpin']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
     parser.add_argument('--factor',type=int,choices=[2,3,4])
     parser.add_argument('--resolution',choices=['output','scale','limit']);parser.add_argument('--percent',type=int);parser.add_argument('--limit',type=int,choices=[720,1080,1440,2160])
     parser.add_argument('--downscale',choices=['bilinear','area']);parser.add_argument('--upscale',choices=['bilinear','bicubic','lanczos2','fsr1'])
@@ -1748,7 +2171,8 @@ def main():
     parser.add_argument('--confirm-anticheat-risk',metavar='SENTENCE',
                         help='the sentence "'+RISK_SENTENCE+'" for --accept-anticheat-risk where there is no terminal to type it '
                              '(Setup, a script, output piped elsewhere); at a terminal it is typed all the same')
-    parser.add_argument('--all',action='store_true',help='check: every installed Steam and Heroic game, one line each')
+    parser.add_argument('--all',action='store_true',help='check: every installed Steam and Heroic game, one line each; plan, update: '
+                        'every game with this build installed that a Steam, Heroic or Lutris entry starts (and the games named)')
     parser.add_argument('--report',action='store_true',help='check: also print a redacted report for a GitHub issue')
     args=parser.parse_args()
     risk_values=args.accept_anticheat_risk
@@ -1767,13 +2191,26 @@ def main():
     if args.command=='helixsr':
         try:return helixsr_command(Path(__file__).resolve().parent,args.helixsr.absolute() if args.helixsr else None)
         except (ValueError,OSError,zipfile_errors()) as error:print(str(error),file=sys.stderr);return 1
-    if not args.exe:parser.error('choose at least one game executable')
-    failed=False
-    for exe in args.exe:
+    games=list(args.exe)
+    if args.all and args.command in ('plan','update'):
+        named={exe.absolute().resolve() for exe in games}
+        games+=[exe for exe in library() if exe.resolve() not in named]
+        if not games:print('No game with this build installed was found in Steam, Heroic or Lutris.');return 0
+    elif args.all and args.command!='check':parser.error('--all applies to check, plan and update')
+    if not games:parser.error('choose at least one game executable')
+    failed=False;outcomes=[]
+    for exe in games:
         print('\n'+str(exe))
         try:
             if args.command=='restore':restore(exe.absolute())
             elif args.command=='status':status(exe.absolute())
+            elif args.command=='plan':outcomes.append((exe,show_plan(Path(__file__).resolve().parent,exe.absolute())))
+            elif args.command=='update':
+                outcome=update(exe.absolute());outcomes.append((exe,outcome))
+                # A game left as it is for a reason (blocked) needs attention; up to date and pinned do not.
+                if outcome=='blocked':failed=True
+            elif args.command=='rollback':rollback(exe.absolute())
+            elif args.command in ('pin','unpin'):pin(exe.absolute(),args.command=='pin')
             elif args.command=='configure':configure(exe.absolute(),args.factor,args.resolution,args.percent,args.limit,args.downscale,args.upscale,
                                                      upscaler=args.upscaler,helixsr_dir=args.helixsr.absolute() if args.helixsr else None)
             elif args.command=='check':check(Path(__file__).resolve().parent,exe.absolute(),accepted_for(args.accept,exe),args.report)
@@ -1812,9 +2249,22 @@ def main():
                 install(Path(__file__).resolve().parent,exe.absolute(),args.command=='preview',route,fg_input,dlss_helper=args.dlss_helper,
                         upscaler=args.upscaler or 'fsr4',helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted,verdict=verdict,
                         accept_risk=risk)
-        except (ValueError,OSError,configparser.Error,subprocess.SubprocessError) as error:print(str(error),file=sys.stderr);failed=True
+        except (ValueError,OSError,configparser.Error,subprocess.SubprocessError) as error:
+            print(str(error),file=sys.stderr);failed=True;outcomes.append((exe,'failed'))
         except Exception as error:  # noqa: BLE001 - one game's unexpected failure must not skip the others
             import traceback
-            print('Unexpected error ('+type(error).__name__+'): '+str(error)+'\nPlease include this in a report:\n'+traceback.format_exc(),file=sys.stderr);failed=True
+            print('Unexpected error ('+type(error).__name__+'): '+str(error)+'\nPlease include this in a report:\n'+traceback.format_exc(),file=sys.stderr)
+            failed=True;outcomes.append((exe,'failed'))
+    if args.command in ('plan','update') and len(games)>1:print('\n'+batch_summary(args.command,outcomes))
     return int(failed)
+
+def batch_summary(command,outcomes):
+    """One line about plan or update across several games: how many of each outcome, naming the games that need attention."""
+    words={'plan':{'update':'to update','current':'up to date','pinned':'pinned','interrupted':'interrupted','blocked':'need attention','failed':'failed'},
+           'update':{'update':'updated','current':'up to date','pinned':'pinned','blocked':'need attention','failed':'failed'}}[command]
+    parts=[]
+    for status,word in words.items():
+        names=[exe.name for exe,outcome in outcomes if outcome==status]
+        if names:parts.append(str(len(names))+' '+word+(' ('+', '.join(names)+')' if status in ('pinned','interrupted','blocked','failed') else ''))
+    return ('Plan: ' if command=='plan' else 'Update: ')+'; '.join(parts)+'.'
 if __name__=='__main__':sys.exit(main())

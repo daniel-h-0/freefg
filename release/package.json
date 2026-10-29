@@ -330,7 +330,8 @@
   "test_helixsr_install",
   "test_gamescan",
   "test_compat",
-  "test_compat_install"
+  "test_compat_install",
+  "test_update"
  ],
  "variants": {
   "intel-free-mfg": {

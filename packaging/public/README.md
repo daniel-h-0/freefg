@@ -70,6 +70,10 @@ python3 install.py preview GAME.exe     # downloads dependencies, previews chang
 python3 install.py install GAME.exe     # automatic input, FSR 4
 python3 install.py configure GAME.exe --upscaler helixsr   # or fsr4
 python3 install.py status GAME.exe
+python3 install.py plan --all           # what an update would change; no changes
+python3 install.py update --all         # update every installed game in place
+python3 install.py rollback GAME.exe    # back to the release before the last update
+python3 install.py pin GAME.exe         # keep a game on its release (unpin to undo)
 python3 install.py restore GAME.exe
 python3 install.py helixsr              # find or download HelixSR
 python3 install.py doctor
@@ -188,8 +192,15 @@ there so wave-size settings apply consistently. [Implementation](ARCHITECTURE.md
 
 ## Restore and uninstall
 
-**Update or change FG input:** Restore with the existing package, then Install from the new package.
-Use **Upscaler** to switch FSR 4/HelixSR without changing the FG input.
+**Update:** choose **Update all** in Setup from the new package, or run `install.py update --all`. It shows the plan,
+then replaces FreeFG's own files in each installed game. Settings, OptiScaler, launch options and saved originals
+remain unchanged. Close the games first; launchers can stay open. **Rollback** returns a game to its previous release.
+Pinned games stay as they are. A game is named and left unchanged when its FreeFG files changed since installation,
+the new release changes launch options or OptiScaler, or its release is too old. Update such games through Restore in
+the old package, then Install from the new one. In-place updates start with installations from 1.1.4.
+
+**Change FG input:** Restore, then Install with the new input. Use **Upscaler** to switch FSR 4/HelixSR without
+changing the FG input.
 
 Restore puts back replaced files and removes files and launcher settings it added. It reverts recipe settings key by
 key while preserving later user edits. It reports changed game files that need attention rather than overwriting them.

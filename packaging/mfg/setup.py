@@ -166,6 +166,13 @@ def override_anticheat(installer,selected):
         dialog('--info','--width=560','--text=The sentence does not match. Nothing was installed.');return None
     return exe,typed.strip()
 
+def update_candidates(installer,selected):
+    """The games Update all goes through: every game with this build installed that a Steam, Heroic or Lutris entry starts
+    (install.py library), and the selected games."""
+    try:found=list(installer.library()) if installer else []
+    except Exception:found=[]  # noqa: BLE001 - the selected games are still offered
+    return sorted({Path(p).absolute() for p in [*found,*selected]})
+
 def show_text(command,selected):
     """Run install.py command on the selected games and show its output (Check system, Check)."""
     with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
@@ -234,6 +241,8 @@ def main():
             # A 2×-only package (no 3×/4×, no generated-frame scaling) has nothing for Settings to change.
             *(['Settings','Choose '+'/'.join(FACTORS)+(' and generated-frame resolution' if SCALING else ' frame generation')] if MFG and (len(FACTORS)>1 or SCALING) else []),
             'Upscaler','Switch installed games between FSR 4 and HelixSR (by lonewolf0622)',
+            'Update all','Update '+NAME+' in every installed game to this package, keeping settings (shows the plan first)',
+            'Rollback','Return selected games to the release before their last update',
             'Restore','Restore original files in selected games',
             'Status','Check installed files and the last acceleration log',
             'Check','Compatibility of each selected game: what Install would do, or why it refuses (changes nothing)',
@@ -251,11 +260,22 @@ def main():
                 if p not in selected:selected.append(p)
             continue
         if action=='Check system':show_text(['doctor'],[]);continue
-        if not selected:dialog('--info','--text=Add games first.');continue
+        games=selected
+        if action=='Update all':
+            # Every installed game, no selection needed: the plan first (what changes, what is left and why), then one
+            # confirmation. Launch settings never change, so only the games themselves must be closed.
+            games=update_candidates(installer,selected)
+            if not games:dialog('--info','--text=No game with '+NAME+' installed was found in Steam, Heroic or Lutris. Add games to choose them.');continue
+            show_text(['plan'],games)
+            if dialog('--question','--width=640','--ok-label=Update','--cancel-label=Back',
+                      '--text=Update the games the plan lists to this package?\nSettings, OptiScaler, launch options and the saved '
+                      'original files stay as they are; Rollback returns a game to its earlier release.') is None:continue
+        elif not selected:dialog('--info','--text=Add games first.');continue
         # Check prints each game's verdict and the redacted report a game report issue asks for (CONTRIBUTING.md).
         if action=='Check':show_text(['check','--report'],selected);continue
-        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure',RISK_ACTION:'install'}[action]
-        extra=[];games=selected
+        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure',RISK_ACTION:'install',
+                 'Update all':'update','Rollback':'rollback'}[action]
+        extra=[]
         if action=='Upscaler':
             extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed):\n'+HELIXSR_ABOUT)
             if not extra:continue

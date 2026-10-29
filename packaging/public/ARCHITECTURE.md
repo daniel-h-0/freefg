@@ -295,6 +295,16 @@ Upscaler switches record a pending operation so Restore can recover from interru
 are retained for later use. Restore reverts owned files and settings while preserving subsequent user edits; changed
 binaries can require attention. [Installation and removal](README.md#restore-and-uninstall).
 
+In-place updates (`install.py update`, Setup's **Update all**) replace only FreeFG's own files: the proxy, its shader
+profile, wave table, layer and settings file, plus the pinned Intel runtime and FSR 4 DLL when their pins change. The
+proxy and profile are one set, so a game with any of them changed since installation is left as it is. The original
+files, their backups, OptiScaler, `OptiScaler.ini`, HelixSR, launch options and recipe settings are untouched; settings
+keep the user's values. Before writing, the update saves the bytes it replaces as a generation and records a pending
+operation. Rollback returns to that generation byte for byte; the next update or rollback undoes an interrupted update,
+and Restore resolves it like an upscaler switch. A release that would plan other launch options or OptiScaler files,
+or an installation from a release the installer does not list, needs Restore and Install instead. Update all finds
+installations through the layer path in Steam, Heroic and Lutris launch settings.
+
 ## The compatibility check
 
 `gamescan.py` reads executable metadata and launcher records; `compat.py` combines detection with

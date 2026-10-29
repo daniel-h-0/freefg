@@ -2,6 +2,15 @@
 
 Release changes since 0.9.0. Measurements describe the named release and test conditions, not every later build.
 
+## Unreleased
+
+- Update installed games in place: `install.py update` (or Setup's **Update all** for every installed game) replaces
+  FreeFG's own files without Restore and keeps settings, OptiScaler, launch options and saved originals. `plan` shows
+  the changes first; `rollback` restores the previous release byte for byte; `pin`/`unpin` hold a game on its release.
+  A game whose FreeFG files changed since installation, or a release that changes launch options or OptiScaler, is
+  named and left for Restore and Install. Interrupted updates are undone by the next update, rollback or Restore.
+  Installations from 1.1.4 and later are supported.
+
 ## 1.1.5 – 2026-10-28
 
 - Reduce scaling overhead: synthesis writes directly into the enlargement input, and unchanged SDK colour histories

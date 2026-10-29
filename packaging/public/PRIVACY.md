@@ -60,14 +60,15 @@ local and must not be shared under HelixSR's terms. [Notices](NOTICE.md#helixsr)
 
 | Location | Use |
 | --- | --- |
-| Selected game folder | Back up replaced files, install runtime/configuration, record changes, and normally create an installation-specific vkd3d cache. Restore reverts owned files and removes that cache. |
+| Selected game folder | Back up replaced files, install runtime/configuration, record changes, and normally create an installation-specific vkd3d cache. Restore reverts owned files and removes that cache. An update also saves the files it replaces there for Rollback. |
 | Launcher records | Find and edit only the selected game's launch entry, after the launcher closes. Steam discovery reads every local account's configuration. |
 | Game's Proton settings | Apply recipe keys and retain originals for Restore. Later user edits are preserved. |
 | Download cache | Store verified payloads, extracted HelixSR and its remembered location. |
 
 Discovery reads Steam library lists, app manifests, `appinfo.vdf`, Proton selections, launch options and local account
 `localconfig.vdf`/`shortcuts.vdf`; Heroic library/configuration caches; and Lutris game configuration. Native and Flatpak
-locations are recognised, though Flatpak launcher operation is not qualified.
+locations are recognised, though Flatpak launcher operation is not qualified. Update all and `plan --all` read every
+Steam, Heroic and Lutris launch entry's environment to find this build's installations; they write no launcher record.
 
 Check reads executable/DLL headers, imports and relevant function-name strings; filenames; launcher metadata;
 GE-Proton's per-game fix; game settings/logs indicating the graphics API; and FreeFG logs for recorded

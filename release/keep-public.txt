@@ -361,6 +361,7 @@ scripts/test_helixsr_install.py
 scripts/test_gamescan.py
 scripts/test_compat.py
 scripts/test_compat_install.py
+scripts/test_update.py
 # The synthetic library (made-up games, one or two per verdict group) that test_compat checks verdicts against; the
 # maintainers' own library scans and their test stay in the maintainers' tree (keep.txt)
 scripts/fixtures/compat/library-synthetic.json
