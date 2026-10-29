@@ -4,7 +4,7 @@ release "freefg-1.1.4" installed, then a newer fixture package "freefg-1.1.5" wh
 1.1.5 do (the proxy, shader files and the wave table). The update changes only those files, keeps the user's settings,
 the original files, OptiScaler.ini and the launcher entry, rolls back byte for byte, and survives an interruption at any
 of its writes; Restore still returns every original."""
-import contextlib,io,json,shutil,unittest
+import configparser,contextlib,io,json,os,shutil,unittest
 from pathlib import Path
 from unittest.mock import patch
 from test_game_install import DEPENDENCIES,set_package_file,launcher_config,m
@@ -362,6 +362,155 @@ class InterruptionTests(UpdateFixture):
         with self.assertRaisesRegex(ValueError,'An update was interrupted'):m.configure(self.exe,percent=60)
         status,out=self.run_quiet(m.show_plan,self.new,self.exe);self.assertEqual(status,'interrupted')
         m.restore(self.exe);self.assertOriginal()
+
+class ReviewRegressionTests(UpdateFixture):
+    """Ownership, drift and recovery cases found while reviewing the first updater."""
+    def test_unchanged_managed_file_drift_blocks_the_whole_update(self):
+        m.install(self.package,self.exe,route='opti')
+        path=self.game/'BC250-XeFG/shaders/freefg-scaling.required'
+        path.write_bytes(b'changed outside the installer')
+        before=self.snapshot();record=self.record()
+        status,_=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'blocked')
+        self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
+
+    def test_missing_unchanged_managed_file_is_not_reported_current(self):
+        m.install(self.package,self.exe,route='opti')
+        (self.game/'BC250-XeFG/shaders/freefg-scaling.required').unlink()
+        status,_=self.run_quiet(m.update,self.exe,self.package)
+        self.assertEqual(status,'blocked')
+
+    def test_malformed_settings_are_not_replaced_with_defaults(self):
+        m.install(self.package,self.exe,route='opti')
+        path=self.game/'BC250-XeFG/settings.ini';path.write_bytes(b'user settings damaged\xff')
+        before=self.snapshot();record=self.record()
+        status,_=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'blocked')
+        self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
+
+    def test_rollback_restores_preupdate_file_metadata(self):
+        m.install(self.package,self.exe,route='opti')
+        path=self.game/'libxess_fg.dll';path.chmod(0o640)
+        stamp=1650000000123456789;os.utime(path,ns=(stamp,stamp))
+        self.run_quiet(m.update,self.exe,self.new);self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(path.stat().st_mtime_ns,stamp)
+        self.assertEqual(path.stat().st_mode&0o777,0o640)
+
+    def test_missing_generation_keeps_interrupted_journal_and_files(self):
+        m.install(self.package,self.exe,route='opti');real=m.write
+        def interrupt(path,*args,**kwargs):
+            result=real(path,*args,**kwargs)
+            if path==self.game/'libxess_fg.dll':raise Crash()
+            return result
+        with patch.object(m,'write',side_effect=interrupt):
+            with self.assertRaises(Crash):self.run_quiet(m.update,self.exe,self.new)
+        record=self.record();generation=record['pending_update']['generation']
+        shutil.rmtree(self.game/m.STATE/m.GENERATIONS/generation)
+        before=self.snapshot()
+        with self.assertRaisesRegex(ValueError,'[Gg]eneration|saved files|recovery'):
+            self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.record(),record);self.assertEqual(self.snapshot(),before)
+
+    def test_missing_original_backup_blocks_before_runtime_changes(self):
+        m.install(self.package,self.exe,route='opti')
+        i=next(i for i,x in enumerate(self.record()['files']) if x['before'] is not None)
+        (self.game/m.STATE/'backups'/str(i)).unlink()
+        before=self.snapshot();record=self.record()
+        with self.assertRaises((ValueError,OSError)):self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
+
+    def test_generation_symlink_cannot_redirect_saved_files(self):
+        m.install(self.package,self.exe,route='opti')
+        elsewhere=self.root/'elsewhere';elsewhere.mkdir()
+        (self.game/m.STATE/m.GENERATIONS).symlink_to(elsewhere,target_is_directory=True)
+        before=self.snapshot();record=self.record()
+        with self.assertRaisesRegex(ValueError,'[Ss]ymlink|generation'):
+            self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(list(elsewhere.iterdir()),[])
+        self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
+
+    def test_late_settings_edit_is_preserved_and_stale_plan_refused(self):
+        newer=self.newer({'payload/BC250-XeFG/settings.ini':SETTINGS+b'NewKey=5\n',**CHANGES},folder='late-edit')
+        m.install(self.package,self.exe,route='opti');real=m.created_folders
+        path=self.game/'BC250-XeFG/settings.ini'
+        late=m.patch_ini(path.read_bytes(),{('BC250','ResolutionPercent'):'80'})
+        def edit(*args,**kwargs):
+            result=real(*args,**kwargs);path.write_bytes(late);return result
+        with patch.object(m,'created_folders',side_effect=edit):
+            with self.assertRaisesRegex(ValueError,'changed|stale'):
+                self.run_quiet(m.update,self.exe,newer)
+        self.assertEqual(path.read_bytes(),late)
+        self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
+
+    def test_current_optiscaler_bytes_are_checked_against_contract(self):
+        deps=self.fresh();m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        (self.game/'dxgi.dll').write_bytes(b'a different unreviewed integration')
+        before=self.snapshot();record=self.record()
+        status,_=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'blocked')
+        self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
+
+    def test_interrupted_rollback_then_update_keeps_a_coherent_rollback_target(self):
+        m.install(self.package,self.exe,route='opti');before=self.snapshot()
+        self.run_quiet(m.update,self.exe,self.new);updated=self.snapshot();real=m.write
+        def interrupt(path,*args,**kwargs):
+            result=real(path,*args,**kwargs)
+            if path==self.game/'BC250-XeFG/shaders/0123456789abcdef.dxil':raise Crash()
+            return result
+        with patch.object(m,'write',side_effect=interrupt):
+            with self.assertRaises(Crash):self.run_quiet(m.rollback,self.exe)
+        self.run_quiet(m.update,self.exe,self.new);self.assertEqual(self.snapshot(),updated)
+        self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.record()['package'],OLD);self.assertEqual(self.snapshot(),before)
+
+    def test_update_preserves_unknown_user_keys_and_comments(self):
+        m.install(self.package,self.exe,route='opti')
+        path=self.game/'BC250-XeFG/settings.ini'
+        custom=path.read_bytes()+b'; my own note\n[MyTool]\nPreference=keep\n'
+        path.write_bytes(custom)
+        self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(path.read_bytes(),custom)
+
+    def test_rollback_merges_user_changes_to_new_keys(self):
+        newer=self.newer({**CHANGES,'payload/BC250-XeFG/settings.ini':SETTINGS+b'NewKey=5\n'},folder='rollback-key')
+        m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,newer)
+        path=self.game/'BC250-XeFG/settings.ini'
+        path.write_bytes(m.patch_ini(path.read_bytes(),{('BC250','NewKey'):'9'})+b'; newer user comment\n')
+        self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.settings()[('bc250','newkey')],'9')
+        self.assertIn(b'; newer user comment',path.read_bytes())
+
+    def test_rollback_does_not_overwrite_invalid_later_settings(self):
+        newer=self.newer({**CHANGES,'payload/BC250-XeFG/settings.ini':SETTINGS+b'NewKey=5\n'},folder='rollback-bad')
+        m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,newer)
+        (self.game/'BC250-XeFG/settings.ini').write_bytes(b'\xff damaged preferences')
+        before=self.snapshot();record=self.record()
+        with self.assertRaises((ValueError,UnicodeDecodeError,configparser.Error)):
+            self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
+
+    def test_late_unchanged_shader_edit_invalidates_the_plan(self):
+        m.install(self.package,self.exe,route='opti');real=m.created_folders
+        path=self.game/'BC250-XeFG/shaders/freefg-scaling.required'
+        def edit(*args,**kwargs):
+            result=real(*args,**kwargs);path.write_bytes(b'late shader edit');return result
+        with patch.object(m,'created_folders',side_effect=edit):
+            with self.assertRaisesRegex(ValueError,'changed|stale'):
+                self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(path.read_bytes(),b'late shader edit')
+        self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
+
+    def test_late_record_change_is_not_overwritten(self):
+        m.install(self.package,self.exe,route='opti');real=m.created_folders
+        def edit(*args,**kwargs):
+            result=real(*args,**kwargs);record=self.record()
+            record['update_pin']={'package':OLD};m.save_record(self.game/m.STATE,record)
+            return result
+        with patch.object(m,'created_folders',side_effect=edit):
+            with self.assertRaisesRegex(ValueError,'record.*changed|stale'):
+                self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.record()['update_pin']['package'],OLD)
+        self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
 
 class LibraryTests(UpdateFixture):
     """Update all: the games found from the launchers' entries, each updated or left on its own."""
