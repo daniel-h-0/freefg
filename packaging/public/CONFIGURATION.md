@@ -30,7 +30,7 @@ A provider switch creates a rollback generation; **Rollback** undoes the latest 
 
 ## Generated-frame scaling
 
-On the game page, choose **Generated Frame Size** and then **Apply**:
+On the game page, choose **Generated-frame size** and then **Apply**:
 
 | Choice | Result |
 | --- | --- |
@@ -41,7 +41,7 @@ On the game page, choose **Generated Frame Size** and then **Apply**:
 Reduced dimensions round down to even pixels, with a minimum of one. Match output, 100% and an output already within
 the limit preserve odd dimensions. Real frames, game resolution, depth and motion-vector inputs stay unchanged.
 
-**Downscale Filter** offers Bilinear and Area; **Upscale Filter** offers Bilinear, Bicubic, Lanczos2 and FSR 1 EASU without RCAS.
+**Downscale filter** offers Bilinear and Area; **Upscale filter** offers Bilinear, Bicubic, Lanczos2 and FSR 1 EASU without RCAS.
 Bilinear is the default for both. These filters are separate from the game's upscaler and change generated-frame
 detail, including in Exact mode.
 

@@ -270,7 +270,7 @@ class SetupWindow(UpdateFixture):
         def script(window):
             yield lambda: window.loaded and window.providers is not None
             game = setup_app.model.Game(self.other, title='Fixture game')
-            for cancel in (True, False):
+            for cancel in (True, False, "close"):
                 window.install(game)
                 dialog = self.dialog(window, setup_app.InstallDialog)
                 yield lambda: not dialog.checking
@@ -280,7 +280,9 @@ class SetupWindow(UpdateFixture):
                     dialog.install()
                     self.assertTrue(dialog.install_pending)
                     callback = reader.call_args.kwargs['done']
-                    if cancel:
+                    if cancel == "close":
+                        dialog.close()
+                    elif cancel:
                         dialog.cancel()
                     else:
                         dialog.input_row.set_selected(1)
@@ -328,6 +330,22 @@ class SetupWindow(UpdateFixture):
                 self.assertEqual(dialog.chosen, 'hlx-dlss')
                 self.assertTrue(dialog.switch_button.get_sensitive())
                 dialog.close()
+        self.drive(script)
+
+
+    def test_process_check_failure_keeps_settings_unchanged(self):
+        def script(window):
+            yield lambda: window.loaded
+            game = window.game_by_key(str(self.exe))
+            before = self.settings()
+            with patch.object(window.reader, 'call') as reader, patch.object(window, 'quietly') as mutate:
+                window.apply_settings(game, setup_app.model.Settings(), setup_app.model.Settings(size='1440'))
+                reader.call_args.kwargs['failed'](OSError('process list unavailable'))
+                mutate.assert_not_called()
+                self.assertEqual(self.settings(), before)
+                alert = window.get_visible_dialog()
+                self.assertEqual(alert.get_heading(), 'Could not check running processes')
+                self.answer(window, 'close')
         self.drive(script)
 
 

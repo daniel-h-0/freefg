@@ -1770,8 +1770,12 @@ class Window(Adw.ApplicationWindow):
             alert.set_close_response('back')
             alert.connect('response', lambda _a, response: response == 'again' and self.when_closed(games, launchers, then))
             alert.present(self)
+        def failed(error):
+            alert = Adw.AlertDialog(heading='Could not check running processes', body=str(error))
+            alert.add_response('close', '_Close')
+            alert.present(self)
         self.reader.call(self.ctx.blockers, self.ctx.installer, [g.exe for g in games], launchers, done=checked,
-                         failed=lambda error: checked([]))
+                         failed=failed)
 
     def confirm(self, heading, body, label, then, destructive=False):
         alert = Adw.AlertDialog(heading=heading, body=body)

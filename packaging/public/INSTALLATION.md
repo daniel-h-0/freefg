@@ -63,20 +63,20 @@ signals deferred or failed work. There is no atomic transaction across games.
 
 Compatible 1.1.3.1, 1.1.4, 1.1.5 and 1.1.6 installations update in place. Updates cover the compatible FreeFG/Intel set,
 selected upscaler, OptiScaler integration and owned launcher fields while retaining user additions and original
-backups. Close launchers if the plan changes their entries. The **Upscalers Only…** menu action keeps the FreeFG core; the CLI
+backups. Close launchers if the plan changes their entries. Choose **Upscalers only** in the update review to keep the FreeFG core; the CLI
 supports `--component core|upscaler`. Unprepared providers can be deferred, and changed owned binaries block the
 coupled transaction. `--loader winmm.dll` on `plan` or `update` moves the loader and its Wine override together;
 an occupied name is refused.
 
-- **Keep this version** on a game page holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
-- **Register Existing Install…** in the menu adds an existing installation to the optional index. The index can be rebuilt; game files and recovery
+- **Keep this release** on a game page holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
+- **Track** on an untracked installation’s page adds that installation to the optional index. The index can be rebuilt; game files and recovery
   do not depend on it.
 - **Rollback** restores the saved state before the most recent update **or provider switch**. Each game retains one
   completed generation; later settings edits are preserved where possible, and conflicting binary edits are refused.
 - **Restore** removes owned files and launcher changes and restores originals, preserving later user edits where
   possible. It reports conflicts and leaves backups and logs in a `.bc250-xefg-experimental-restored-…` folder.
 
-If an update is interrupted, retry Update or use Rollback. Use **Refresh Game Recipe…** for a gameplay-qualified input and
+If an update is interrupted, retry Update or use Rollback. Use **Preview…** beside **Refresh recipe** for a gameplay-qualified input and
 launcher recipe; the equivalent is `plan GAME.exe --refresh-recipe`, then `update GAME.exe --refresh-recipe`. Game
 settings are manual and saves are not changed by refresh. For a custom input, use OptiScaler's menu and restart.
 
