@@ -60,6 +60,7 @@ per-game, so a blocked game does not prevent other selected games from updating.
 
 Each game’s page controls generated-frame size and filters. **Change…** beside **Upscaler** selects AMD FSR 4, HLX DLSS or HLX FSR 4;
 HLX needs a one-time local preparation. MFG Unlocker is separate and is not shipped with FreeFG.
+**Wiki settings** reviews additional INI suggestions, their sources and conditions before applying selected values.
 [Configuration guide](CONFIGURATION.md) · [Troubleshooting](TROUBLESHOOTING.md).
 
 <a id="status"></a>

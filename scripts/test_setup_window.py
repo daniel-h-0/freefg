@@ -386,6 +386,50 @@ class SetupWindow(UpdateFixture):
                 self.assertEqual(self.snapshot(), before)
         self.drive(script)
 
+    def test_wiki_selection_runs_installer_and_rolls_back_exactly(self):
+        from test_game_install import set_package_file
+        catalogue = dict(schema=1, verified=[], leave_auto={}, backports={}, quirk_keys={}, wiki=[dict(
+            title='Fixture wiki game', match={'gog':['123']}, pages=[],
+            ini=[dict(key='Hotfix.ColorResourceBarrier', value='4')])])
+        set_package_file(self.new, 'recipes/recipes.json', json.dumps(catalogue).encode())
+        ini = self.game / 'OptiScaler.ini'
+        ini.write_bytes(ini.read_bytes() + b'\n; later player comment\n[Hotfix]\nColorResourceBarrier=auto\n')
+        before = self.snapshot()
+        release = self.record()['package']
+
+        def script(window):
+            yield lambda: window.loaded
+            game = window.game_by_key(str(self.exe))
+            window.review_wiki(game)
+            dialog = self.dialog(window, setup_app.WikiSettingsDialog)
+            yield lambda: dialog.plan is not None
+            row = next(row for row in dialog.plan['rows'] if row['key']=='Hotfix.ColorResourceBarrier')
+            self.assertEqual(row['action'], 'prefill')
+            self.assertEqual(self.snapshot(), before)
+            dialog.choices[row['id']].set_active(True)
+            dialog.apply()
+            yield lambda: isinstance(window.get_visible_dialog(), setup_app.OperationDialog)
+            operation = window.get_visible_dialog()
+            yield lambda: operation.done_button.get_visible()
+            self.assertTrue(all(result.ok for result in operation.results), operation.results)
+            self.assertEqual(m.read_ini(ini.read_bytes())[('hotfix', 'colorresourcebarrier')], '4')
+            self.assertEqual(self.record()['package'], release)
+            after = self.snapshot()
+            self.assertEqual(set(before), set(after))
+            self.assertEqual({name for name in after if before[name] != after[name]}, {'OptiScaler.ini'})
+            operation.close()
+            yield lambda: window.operations == 0 and window.get_visible_dialog() is None
+            window.rollback(window.game_by_key(str(self.exe)))
+            self.answer(window, 'go')
+            yield lambda: isinstance(window.get_visible_dialog(), setup_app.OperationDialog)
+            operation = window.get_visible_dialog()
+            yield lambda: operation.done_button.get_visible()
+            self.assertTrue(all(result.ok for result in operation.results), operation.results)
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual(self.record()['package'], release)
+            operation.close()
+        self.drive(script)
+
 
 if __name__ == '__main__':
     unittest.main()

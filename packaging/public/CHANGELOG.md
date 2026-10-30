@@ -13,12 +13,15 @@ retains earlier release notes.
   soon as it is listed. Install shows the verdict for the chosen input, and soft refusals are accepted per game.
 - Review every game's update plan, grouped by outcome, before one confirmation. A game's page checks its program files
   and launch settings against the installation record and edits generated-frame settings in place.
-
 - Cancel pending Install checks without starting a command; re-check input choices changed while a check is running.
 - Keep newer installations read-only in this Setup and isolate malformed records in the library.
 - Reuse checked, installer-owned HLX files after the shared preparation cache is removed; distinguish legacy HelixSR
   from its HLX successor when switching providers.
-- Keep 1.1.6's FreeFG runtime, shaders, OptiScaler and dependency pins. This candidate changes Setup and record handling.
+- Share wiki compatibility planning with Proton integrations. Add per-game Wiki settings review: show sources, current
+  INI values and conditions; apply only selected rows, confirm unknown conditions explicitly, and reject stale plans.
+  Selection uses an INI-only rollback generation while retaining the installed release, runtime and user additions.
+- Keep 1.1.6's FreeFG runtime, shaders, OptiScaler and dependency pins. This candidate changes Setup and compatibility
+  planning; it does not add gameplay or image-quality qualification.
 
 ## 1.1.6 – 2026-10-30
 
