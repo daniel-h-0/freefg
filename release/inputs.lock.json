@@ -423,7 +423,7 @@
   "optiscaler-fork": {
    "path": "OptiScaler-build",
    "env": "XEMFG_OPTISCALER",
-   "description": "OptiScaler fork candidate with independent custom HLX providers, retained path/INI/pacing fixes and upstream October 29 integration.",
+   "description": "OptiScaler fork with independent custom HLX providers, retained path/INI/pacing fixes and upstream October 29 integration.",
    "source": {
     "commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
     "branch": "codex/freefg-hlx-1.1.6",

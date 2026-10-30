@@ -2,7 +2,7 @@
 
 Release changes since 0.9.0. Measurements describe the named release and test conditions, not every later build.
 
-## 1.1.6 candidate
+## 1.1.6 – 2026-10-30
 
 - Update compatible installed games in place with Setup's **Update all** or `install.py update --all`; import
   1.1.3.1, 1.1.4 and 1.1.5 records and store an explicit contract for future compatible releases.
@@ -19,6 +19,8 @@ Release changes since 0.9.0. Measurements describe the named release and test co
 - Harden generation recovery, original-backup validation, drift checks and settings merges. Rollback preserves
   saved timestamps/permissions and later user settings; interrupted rollback finishes before a new update starts.
 - Keep the 1.1.5 runtime and shader payload. No background updater or automatic library rollout is installed.
+
+[Qualification and limits](MEASUREMENTS.md#checks-of-116).
 
 ## 1.1.5 – 2026-10-28
 

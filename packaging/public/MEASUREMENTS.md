@@ -2,6 +2,38 @@
 
 The numbers describe FreeFG on this hardware; they are not a prediction for other games, settings, displays or GPUs.
 
+## Checks of 1.1.6
+
+29–30 October 2026. The 97 FreeFG runtime/profile payload files are identical to 1.1.5. The integration uses
+OptiScaler fork `25db192b` (DLL `5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617`),
+with separate HLX DLSS and HLX FSR 4 providers from the pinned October 29 HelixSR 3.1.0 archive.
+
+All 514 installer tests and 124 applicable release-tool tests pass; three release tests for private or obsolete
+builds absent from this public tree are excluded. Sixteen actual installed-game copies pass in-place update,
+exact rollback, repeat update and the unmodified 1.1.5 Restore. Twelve released-package transition cases cover
+1.1.3.1, 1.1.4 and 1.1.5, both integration routes and legacy HelixSR/AMD FSR 4. Copy tests qualify the updater,
+not gameplay in those titles. Native Library rendering, selection and cancellation pass on an isolated X server.
+
+Eleven Cyberpunk 2.5 functional starts pass with confirmed provider operation and actual generated presents under
+GE-Proton11-11 on the BC-250. Both HLX providers pass 2× SDR/HDR at 1440p, 3× SDR at 4K with 1440p generation,
+and 4× HDR at 1440p. Higher factors use separately supplied MFG Unlocker 1.6.0. The count includes two final-layout
+2× HDR checks and a repeated HLX FSR 4 HDR check. Maximum sampled temperature is 85 °C.
+
+All 14 attempted game starts remain accounted for: 11 passes, one early provider-filename prototype that produced
+HLX's placeholder image, one HLX FSR 4 HDR GPU fault with the reactive-mask default, and one run that yielded to
+a separate preparation Wine process. A harness version refusal occurred before a game start. These are functional
+checks, not a performance comparison, image-quality assessment or new TV/VRR-pacing qualification.
+
+The filename prototype is corrected by retaining upstream's `helixsr.dll` name. Cyberpunk's HLX FSR 4 HDR path
+requires the scoped `InitFlags.DisableReactiveMask=true` recipe already used for HLX DLSS. Repeated HDR and higher
+factor checks pass with it. The mask-default fault's root cause and mask-on image-quality equivalence remain
+unresolved. Explicit user settings remain preserved and conflicting values are reported in the update plan.
+HLX FSR 4's own log confirms its runtime is active; selecting its name alone is not evidence against AMD fallback.
+
+Shared preparation reproduces both provider hashes from the pinned local model inputs. Model data is not shipped.
+These checks do not establish all-game startup, live-resize, latency or perceptual equivalence. The compatibility
+notes retain Hogwarts' FG-persistence issue and the unresolved Black Flag, Tainted Grail and RDR2 runtime limits.
+
 ## Scaling overhead in 1.1.5
 
 28 October 2026. Version 1.1.5 combines direct reduced synthesis, cached reductions of copied histories,

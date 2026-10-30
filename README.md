@@ -256,8 +256,9 @@ Optional helpers in the release's `extras/` folder each include installation and
 
 ## Status
 
-**1.1.6 candidate.** Adds in-place Update all, OptiScaler/launcher migrations, HLX providers, per-game rollback and optional pins, a library table, and
+**1.1.6 (30 October 2026).** Adds in-place Update all, OptiScaler/launcher migrations, HLX providers, per-game rollback and optional pins, a library table, and
 compatible selected-upscaler updates. The runtime and shader payload are unchanged from 1.1.5.
+[Qualification and limits](packaging/public/MEASUREMENTS.md#checks-of-116).
 
 **1.1.5 (28 October 2026).** Reduces scaling overhead and fixes history invalidation and Restore
 metadata. All 43 SDK starts and 13 Cyberpunk starts pass, as do installer/Restore, reproducible public builds and
