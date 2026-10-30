@@ -18,7 +18,9 @@
   "FrameGen.Enabled": "true"
  },
  "game_settings": [],
- "launch_args": [],
+ "launch_args": [
+  "-nobattleye"
+ ],
  "manual_steps": [
   "Story Mode only, with BattlEye disabled using the game launcher option (-nobattleye).",
   "Select DLSS in the game (Quality was tested); leave the game's frame generation off. FreeFG enables XeFG through OptiFG.",

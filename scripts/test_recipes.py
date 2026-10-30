@@ -404,6 +404,7 @@ class RecipeInstallTests(unittest.TestCase):
         self.assertEqual(ini[('framegen', 'fgoutput')].lower(), 'xefg')
         self.assertNotEqual(ini.get(('spoofing', 'dxgifactorywrapping')), 'true')
         self.assertNotIn('socialclub', self.options().lower())
+        self.assertIn('-nobattleye', self.options())
         self.assertEqual(self.renderer.read_bytes(), RENDERER)
         self.restore_quietly()
         self.assertOriginal()

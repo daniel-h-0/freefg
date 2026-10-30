@@ -45,7 +45,8 @@ frame pacing and image equivalence were not tested.
 
 ## Recipe and integration
 
-Install selects OptiFG and enables XeFG. Select DLSS in GTA and leave its own
+Install selects OptiFG, enables XeFG and adds the Story Mode launch argument
+`-nobattleye` after the existing per-game anti-cheat acceptance. Select DLSS in GTA and leave its own
 frame generation off. Keep factory wrapping at auto/false and remove an old
 Social Club DLL-disable override. The overlay remains available. The normal
 per-game anti-cheat refusal still applies; the recipe does not accept it.
