@@ -363,7 +363,7 @@
  "variants": {
   "intel-free-mfg": {
    "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-mfg builds exactly what release/assemble.py builds.",
-   "name": "freefg-1.1.6",
+   "name": "freefg-1.1.7",
    "package_dir": "package-intel-free-mfg",
    "documents_version": "public",
    "replace": {},
