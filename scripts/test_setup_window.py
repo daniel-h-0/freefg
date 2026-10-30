@@ -139,6 +139,10 @@ class SetupWindow(UpdateFixture):
             app.quit()
         app.connect_after('activate', lambda *_: resume(script(app.window)))
         app.run([])
+        if app.window is not None:
+            # Pending reads must finish before the disposable installation is
+            # removed; late GTK deliveries are suppressed by Reader.close().
+            app.window.reader.close(wait=True)
         if failures:
             raise failures[0]
         self.assertEqual(self.errors, [], 'an exception was raised in a window callback')
@@ -352,6 +356,25 @@ class SetupWindow(UpdateFixture):
                 self.answer(window, 'close')
         self.drive(script)
 
+
+    def test_closed_reader_finishes_work_without_delivering_to_destroyed_window(self):
+        import threading
+        reader = setup_app.Reader()
+        started, release = threading.Event(), threading.Event()
+        delivered = []
+        def read():
+            started.set()
+            release.wait(timeout=5)
+            return 'finished'
+        future = reader.call(read, done=delivered.append)
+        self.assertTrue(started.wait(timeout=5))
+        reader.close()
+        release.set()
+        reader.close(wait=True)
+        self.assertEqual(future.result(), 'finished')
+        context = GLib.MainContext.default()
+        while context.pending():context.iteration(False)
+        self.assertEqual(delivered, [])
 
     def test_wiki_review_starts_unselected_and_requires_condition_confirmation(self):
         rows = [dict(id='a', key='Hotfix.Example', value='true', current='auto', action='prefill',

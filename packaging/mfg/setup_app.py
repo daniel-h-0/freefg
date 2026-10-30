@@ -237,16 +237,25 @@ class Reader:
     beside them."""
 
     def __init__(self):
+        self.closed = False
         self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='setup-read')
         self.probes = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='setup-probe')
 
     def call(self, function, *args, done=None, failed=None, probe=False):
+        if self.closed:
+            return None
         future = (self.probes if probe else self.pool).submit(function, *args)
         future.add_done_callback(lambda f: GLib.idle_add(self._deliver, f, done, failed))
         return future
 
-    @staticmethod
-    def _deliver(future, done, failed):
+    def close(self, wait=False):
+        self.closed = True
+        self.pool.shutdown(wait=wait, cancel_futures=True)
+        self.probes.shutdown(wait=wait, cancel_futures=True)
+
+    def _deliver(self, future, done, failed):
+        if self.closed:
+            return GLib.SOURCE_REMOVE
         try:
             result = future.result()
         except Exception as error:  # noqa: BLE001 - a read that fails is shown, never a crash of the window
@@ -1904,6 +1913,7 @@ class Window(Adw.ApplicationWindow):
         if self.operations > 0:
             self.toast('Setup finishes the current step first.')
             return True
+        self.reader.close()
         return False
 
     def run(self, title, steps, working, success, next_steps=(), on_finished=None):
