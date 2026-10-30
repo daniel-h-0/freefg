@@ -2516,7 +2516,10 @@ def library_inventory(home=None):
     except (OSError,ValueError) as error:print('Library index needs attention; launcher discovery is still available: '+str(error),file=sys.stderr)
     found=[]
     for root,registered in sorted(roots.items()):
-        try:record=json.loads(safe(root,STATE+'/state.json').read_text())
+        try:
+            record=json.loads(safe(root,STATE+'/state.json').read_text())
+            if not isinstance(record,dict) or (record.get('upscaler') is not None and not isinstance(record['upscaler'],dict)):
+                raise ValueError('Malformed installation record')
         except (OSError,ValueError) as error:
             if registered is not None:found.append(dict(exe=registered,status='unavailable',reason=str(error),package=None,pinned=False,upscaler=None))
             continue

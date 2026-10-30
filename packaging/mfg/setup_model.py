@@ -15,7 +15,7 @@ import json
 import re
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 # Frame-generation inputs Install offers: id, label, what it is for. install.py's --route/--fg-input: input_args.
@@ -156,7 +156,17 @@ def read_record(installer, exe):
     """The installation record of the game at exe, None when there is none."""
     root = Path(exe).parent.resolve()
     try:
-        return json.loads(installer.safe(root, installer.STATE + '/state.json').read_text())
+        record = json.loads(installer.safe(root, installer.STATE + '/state.json').read_text())
+        if not isinstance(record, dict):
+            raise ValueError('Installation record must be an object')
+        for key in ('upscaler', 'recipe', 'pending_update', 'compat', 'components', 'update_pin'):
+            if record.get(key) is not None and not isinstance(record[key], dict):
+                raise ValueError('Invalid installation record field: ' + key)
+        for key in ('files', 'launchers', 'ini_changes', 'generations'):
+            if record.get(key) is not None and (not isinstance(record[key], list) or
+                                               any(not isinstance(row, dict) for row in record[key])):
+                raise ValueError('Invalid installation record field: ' + key)
+        return record
     except FileNotFoundError:
         return None
 
@@ -190,7 +200,7 @@ def title_for(exe, record=None, titles=None):
             if candidate in titles:
                 return titles[candidate]
     recipe = ((record or {}).get('recipe') or {}).get('title')
-    return recipe or exe.stem
+    return str(recipe or exe.stem)
 
 
 def read_settings(installer, exe):
@@ -416,7 +426,7 @@ def headline(game, ctx):
 def session_view(run):
     """(level, label, detail lines) of the last session's logs, for an installed game."""
     if not run or not run.get('found'):
-        return 'neutral', 'Not played yet', ['No logs yet: start the game once with frame generation on.']
+        return 'neutral', 'No recorded session', ['No logs yet: start the game once with frame generation on.']
     try:
         import compat
         lines = compat.last_run_lines(run)
@@ -796,6 +806,36 @@ def providers(ctx):
             out.append(Provider('helixsr', 'HelixSR', 'NVIDIA’s DLSS network as compute shaders, by lonewolf0622', 'missing',
                                 str(error)))
     return out
+
+
+def game_providers(ctx, game, prepared):
+    """Reuse only qualified HLX files owned by this installation when its shared preparation cache is gone."""
+    result = list(prepared)
+    catalog = hlx_catalog(ctx)
+    if not catalog or not game.installed:
+        return result
+    record = read_record(ctx.installer, game.exe)
+    current = record.get('upscaler') or {}
+    legacy = current.get('legacy_target') or current.get('target')
+    if not legacy:
+        return result
+    library = current.get('library_root') or str(Path(legacy).parent)
+    owned = {row['path']: row.get('after') for row in record.get('files', [])}
+    for i, provider in enumerate(result):
+        if provider.ready or provider.id not in catalog['providers']:
+            continue
+        descriptor = catalog['providers'][provider.id]
+        base = Path(library) / 'custom' / provider.id / descriptor['api']
+        try:
+            for name, entry in descriptor['files'].items():
+                path = (base / name).as_posix()
+                if owned.get(path) != entry['sha256'] or ctx.installer.file_digest(game.folder, path) != entry['sha256']:
+                    raise ValueError('Missing or changed game-local provider')
+        except (OSError, ValueError):
+            continue
+        result[i] = replace(provider, state='ready', version=catalog['version'],
+                            detail='Checked files in this game', folder=None)
+    return result
 
 
 def hlx_requirements(which=None, run=subprocess.run):

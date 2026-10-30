@@ -545,12 +545,15 @@ class InstallDialog(Adw.Dialog):
         super().__init__(title='Install ' + window.ctx.name, content_width=660, content_height=760)
         self.window, self.game, self.ctx = window, game, window.ctx
         self.risk_sentence = risk_sentence
+        self.cancelled = False
+        self.install_pending = False
+        self.connect('closed', lambda *_: setattr(self, 'cancelled', True))
         self.verdict, self.checking, self.generation = None, True, 0
         self.providers = window.providers
         self.accepted = {}
         view = Adw.ToolbarView()
         header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
-        header.pack_start(button('_Cancel', self.close))
+        header.pack_start(button('_Cancel', self.cancel))
         self.install_button = button('_Install', self.install, 'suggested-action')
         header.pack_end(self.install_button)
         header.set_title_widget(Adw.WindowTitle(title='Install ' + self.ctx.name, subtitle=game.title))
@@ -611,6 +614,10 @@ class InstallDialog(Adw.Dialog):
         window.providers_listeners.append(self.providers_changed)
         self.connect('closed', lambda *_: window.providers_listeners.remove(self.providers_changed))
         self.recheck()
+
+    def cancel(self):
+        self.cancelled = True
+        self.close()
 
     @property
     def input_id(self):
@@ -730,7 +737,7 @@ class InstallDialog(Adw.Dialog):
 
     def update_state(self):
         reason = self.blocked()
-        self.install_button.set_sensitive(reason is None)
+        self.install_button.set_sensitive(reason is None and not self.install_pending)
         self.hint.set_text(reason or ('Setup checks again that the game and its launcher are closed, then installs.'))
 
     def choice(self):
@@ -738,14 +745,29 @@ class InstallDialog(Adw.Dialog):
         return model.InstallChoice(self.input_id, self.chosen_provider, [], accept, self.risk_sentence)
 
     def install(self):
-        if self.blocked() is not None:
+        if self.cancelled or self.install_pending or self.blocked() is not None:
             return
+        self.install_pending = True
+        generation = self.generation
         self.install_button.set_sensitive(False)
-        self.window.reader.call(self.ctx.blockers, self.ctx.installer, [self.game.exe], True, done=self.closed_check,
-                                failed=lambda error: self.closed_check([]))
+        self.window.reader.call(self.ctx.blockers, self.ctx.installer, [self.game.exe], True, done=lambda names: self.closed_check(names, generation),
+                                failed=lambda error: self.check_failed(error))
 
-    def closed_check(self, names):
+    def check_failed(self, error):
+        self.install_pending = False
+        if self.cancelled:
+            return
+        self.banner.set_title('Could not check running processes: ' + str(error))
+        self.banner.set_revealed(True)
         self.update_state()
+
+    def closed_check(self, names, generation=None):
+        self.install_pending = False
+        if self.cancelled:
+            return
+        self.update_state()
+        if (generation is not None and generation != self.generation) or self.blocked() is not None:
+            return
         if names:
             self.banner.set_title('Close ' + model.joined(names) + ' first. A running launcher can overwrite the launch '
                                   'settings Setup writes.')
@@ -769,9 +791,10 @@ class UpscalerDialog(Adw.Dialog):
         super().__init__(title='Upscaler', content_width=560, content_height=460)
         self.window, self.game = window, game
         current = ((game.record or {}).get('upscaler') or {}).get('name') or 'fsr4'
-        self.current = 'hlx-dlss' if current == 'helixsr' and any(p.id == 'hlx-dlss' for p in window.providers or []) \
-            else current
-        self.chosen = self.current
+        self.current = current
+        self.chosen = 'hlx-dlss' if current == 'helixsr' and any(p.id == 'hlx-dlss' for p in window.providers or []) else current
+        self.providers = None
+        self.provider_generation = 0
         view = Adw.ToolbarView()
         header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
         header.pack_start(button('_Cancel', self.close))
@@ -791,6 +814,7 @@ class UpscalerDialog(Adw.Dialog):
         self.set_child(view)
         self.rows = []
         self.build()
+        self.providers_changed(window.providers)
         window.providers_listeners.append(self.providers_changed)
         self.connect('closed', lambda *_: window.providers_listeners.remove(self.providers_changed))
 
@@ -798,12 +822,12 @@ class UpscalerDialog(Adw.Dialog):
         for row in self.rows:
             self.group.remove(row)
         self.rows, first = [], None
-        if self.window.providers is None:
+        if self.providers is None:
             waiting = action_row('Checking the prepared upscalers…')
             waiting.add_suffix(spinner())
             self.group.add(waiting)
             self.rows.append(waiting)
-        for provider in self.window.providers or []:
+        for provider in self.providers or []:
             row = plain(Adw.ActionRow(), provider.label, provider.about if provider.ready else provider.detail)
             check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             if first is None:
@@ -823,6 +847,17 @@ class UpscalerDialog(Adw.Dialog):
         self.update_state()
 
     def providers_changed(self, providers):
+        if providers is None:
+            return
+        self.provider_generation += 1
+        generation = self.provider_generation
+        self.window.reader.call(model.game_providers, self.window.ctx, self.game, providers,
+                                done=lambda found: self.local_providers(generation, found))
+
+    def local_providers(self, generation, providers):
+        if generation != self.provider_generation:
+            return
+        self.providers = providers
         self.build()
 
     def choose(self, provider):
@@ -831,11 +866,13 @@ class UpscalerDialog(Adw.Dialog):
 
     def update_state(self):
         # An upscaler that is not prepared yet cannot be switched to: its row offers Prepare… instead.
-        provider = next((p for p in self.window.providers or [] if p.id == self.chosen), None)
+        provider = next((p for p in self.providers or [] if p.id == self.chosen), None)
         self.switch_button.set_sensitive(self.chosen != self.current and provider is not None and provider.ready)
 
     def switch(self):
-        provider = next(p for p in self.window.providers if p.id == self.chosen)
+        provider = next((p for p in self.providers or [] if p.id == self.chosen and p.ready), None)
+        if provider is None or self.chosen == self.current:
+            return
         game, window = self.game, self.window
         self.close()
         window.when_closed([game], False, lambda: window.run(
@@ -1638,7 +1675,7 @@ class Window(Adw.ApplicationWindow):
             listing.append(action_row(f'{len(installed)} game{"s" if len(installed) != 1 else ""} with {self.ctx.name}',
                                       None, 'emblem-ok-symbolic', 'success' if installed else 'dim'))
             row = action_row(f'{len(updates)} update{"s" if len(updates) != 1 else ""} available' if updates else
-                             'Every game is up to date', None, 'software-update-available-symbolic',
+                             'No release upgrades found', None, 'software-update-available-symbolic',
                              'accent' if updates else 'dim')
             row.add_suffix(button('_Review…' if updates else '_Check…', self.update_all, 'flat'))
             listing.append(row)
@@ -1964,10 +2001,11 @@ class GamePage(Adw.NavigationPage):
             self.available()
         elif game.record and state not in ('unavailable',):
             self.overview()
-            if state in ('installed', 'update', 'pinned', 'newer', 'outdated'):
+            if state in ('installed', 'update', 'pinned'):
                 self.settings()
                 self.updates()
-            self.recovery()
+            if state != 'newer':
+                self.recovery()
         self.diagnostics()
 
     def main_actions(self):
@@ -2037,7 +2075,7 @@ class GamePage(Adw.NavigationPage):
         game, ctx, record = self.game, self.ctx, self.game.record or {}
         setup = group('Configuration')
         upscaler = action_row('Upscaler', model.provider_label(record))
-        if self.state not in ('recovery', 'attention'):
+        if self.state in ('installed', 'update', 'pinned'):
             upscaler.add_suffix(button('_Change…', lambda: self.window.change_upscaler(game), 'flat'))
         setup.add(upscaler)
         factor = (game.settings.factor if game.settings else 2)

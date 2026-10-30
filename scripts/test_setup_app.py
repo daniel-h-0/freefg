@@ -271,5 +271,67 @@ class Installations(UpdateFixture):
         self.assertEqual([g.exe for g in games], [self.exe])
 
 
-if __name__ == '__main__':
+
+
+class ReviewRegressions(UpdateFixture):
+    def setUp(self):
+        super().setUp()
+        m.install(self.package, self.exe, route='opti')
+        self.ctx = context(self.new)
+
+    def load(self):
+        return model.load_game(self.ctx, self.exe, titles={})
+
+    def state_file(self):
+        return self.exe.parent / m.STATE / 'state.json'
+
+    def test_malformed_record_does_not_hide_other_registered_games(self):
+        m.register_installation(self.exe)
+        bad = self.root / 'bad/Game.exe';bad.parent.mkdir();bad.touch()
+        (bad.parent / m.STATE).mkdir()
+        (bad.parent / m.STATE / 'state.json').write_text('[]')
+        index = m.freefg_library.load()
+        index['games'][str(bad)] = dict(exe=str(bad), package=OLD)
+        m.freefg_library.location().write_text(json.dumps(index))
+        found = m.library_inventory()
+        self.assertEqual({str(x['exe']) for x in found}, {str(self.exe), str(bad)})
+        self.assertEqual(next(x for x in found if x['exe'] == bad)['status'], 'unavailable')
+        loaded = model.load_game(self.ctx, bad)
+        self.assertEqual(model.state(loaded, self.ctx), 'attention')
+
+    def test_nested_invalid_record_has_an_attention_page(self):
+        record = self.record();record['recipe'] = ['invalid']
+        self.state_file().write_text(json.dumps(record))
+        game = self.load()
+        self.assertEqual(model.state(game, self.ctx), 'attention')
+        self.assertIn('recipe', game.reason)
+
+    def test_missing_logs_do_not_claim_the_game_was_never_played(self):
+        self.assertEqual(model.session_view(None)[1], 'No recorded session')
+
+    def test_game_local_hlx_requires_owned_pinned_files_without_preparation_cache(self):
+        import hashlib
+        target = 'OptiScaler/custom/hlx-fsr4/ffx/provider.dll'
+        companion = 'OptiScaler/custom/hlx-fsr4/ffx/companion.dll'
+        entries = {}
+        record = self.record()
+        for path in (target, companion):
+            data = path.encode();file = self.game / path;file.parent.mkdir(parents=True, exist_ok=True);file.write_bytes(data)
+            digest = hashlib.sha256(data).hexdigest()
+            entries[Path(path).name] = dict(sha256=digest)
+            record['files'].append(dict(path=path, after=digest))
+        self.state_file().write_text(json.dumps(record))
+        spec = dict(version='3.1.0', providers={'hlx-fsr4':dict(api='ffx', files=entries)})
+        unprepared = [model.Provider('hlx-fsr4','HLX FSR 4','local',state='unprepared')]
+        with patch.object(m.hlx, 'catalog', return_value=spec):
+            game = self.load()
+            self.assertTrue(model.game_providers(self.ctx, game, unprepared)[0].ready)
+            (self.game / companion).write_bytes(b'drift')
+            self.assertFalse(model.game_providers(self.ctx, game, unprepared)[0].ready)
+            (self.game / companion).write_bytes(companion.encode())
+            record['files'] = [x for x in record['files'] if x['path'] != companion]
+            self.state_file().write_text(json.dumps(record))
+            self.assertFalse(model.game_providers(self.ctx, game, unprepared)[0].ready)
+
+if __name__ == "__main__":
     unittest.main()

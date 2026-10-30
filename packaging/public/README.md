@@ -264,6 +264,10 @@ Optional helpers in the release's `extras/` folder each include installation and
 
 ## Status
 
+**1.1.7 candidate.** The redesigned Setup window is under qualification. It adds a library sidebar, per-game pages,
+inline settings and grouped update reviews, using the existing installer transactions. The released 1.1.6 runtime
+and dependencies remain unchanged. This branch is not a published 1.1.7 release.
+
 **1.1.6 (30 October 2026).** Adds in-place Update all, OptiScaler/launcher migrations, HLX providers, per-game rollback and optional pins, a library table, and
 compatible selected-upscaler updates. The runtime and shader payload are unchanged from 1.1.5.
 [Qualification and limits](MEASUREMENTS.md#checks-of-116).

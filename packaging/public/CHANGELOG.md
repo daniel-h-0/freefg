@@ -2,7 +2,7 @@
 
 Release changes since 0.9.0. Measurements describe the named release and test conditions, not every later build.
 
-## Unreleased
+## 1.1.7 candidate
 
 - Replace Setup's chain of Zenity dialogs with a window built on GTK 4 and libadwaita 1.5+: the game library grouped by
   what needs attention, a page per game with its state and only the actions that state allows, and every change run
@@ -11,6 +11,12 @@ Release changes since 0.9.0. Measurements describe the named release and test co
   soon as it is listed. Install shows the verdict for the chosen input, and soft refusals are accepted per game.
 - Review every game's update plan, grouped by outcome, before one confirmation. A game's page checks its program files
   and launch settings against the installation record and edits generated-frame settings in place.
+
+- Cancel pending Install checks without starting a command; re-check input choices changed while a check is running.
+- Keep newer installations read-only in this Setup and isolate malformed records in the library.
+- Reuse checked, installer-owned HLX files after the shared preparation cache is removed; distinguish legacy HelixSR
+  from its HLX successor when switching providers.
+- Keep 1.1.6's FreeFG runtime, shaders, OptiScaler and dependency pins. This candidate changes Setup and record handling.
 
 ## 1.1.6 – 2026-10-30
 

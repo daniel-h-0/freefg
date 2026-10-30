@@ -1,6 +1,6 @@
 {
  "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build (variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-mfg for tools that pass --variant intel-free-mfg, and that entry changes nothing.",
- "name": "freefg-1.1.6",
+ "name": "freefg-1.1.7",
  "variant": "intel-free-mfg",
  "documents_version": "public",
  "documents_component": "documents",

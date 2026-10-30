@@ -266,5 +266,70 @@ class SetupWindow(UpdateFixture):
         self.drive(script)
 
 
+    def test_cancel_or_changed_input_invalidates_pending_install_check(self):
+        def script(window):
+            yield lambda: window.loaded and window.providers is not None
+            game = setup_app.model.Game(self.other, title='Fixture game')
+            for cancel in (True, False):
+                window.install(game)
+                dialog = self.dialog(window, setup_app.InstallDialog)
+                yield lambda: not dialog.checking
+                dialog.checked(dialog.generation, dict(blocking=[], manual_steps=[], warnings=[], line='Fixture ready'))
+                self.assertIsNone(dialog.blocked())
+                with patch.object(window.reader, 'call') as reader, patch.object(window, 'run') as run:
+                    dialog.install()
+                    self.assertTrue(dialog.install_pending)
+                    callback = reader.call_args.kwargs['done']
+                    if cancel:
+                        dialog.cancel()
+                    else:
+                        dialog.input_row.set_selected(1)
+                    callback([])
+                    run.assert_not_called()
+                    self.assertFalse((self.other.parent / m.STATE / 'state.json').exists())
+                dialog.close()
+                yield lambda: window.get_visible_dialog() is None
+        self.drive(script)
+
+    def test_newer_installation_page_exposes_diagnostics_without_mutations(self):
+        record = self.record(); record['package'] = 'freefg-9999.0'
+        (self.game / m.STATE / 'state.json').write_text(json.dumps(record))
+        def script(window):
+            yield lambda: window.loaded
+            game = window.game_by_key(str(self.exe))
+            window.show_game(game)
+            page = window.split.get_content()
+            self.assertEqual(page.state, 'newer')
+            self.assertFalse(hasattr(page, 'settings_group'))
+            def walk(widget):
+                yield widget
+                child = widget.get_first_child()
+                while child is not None:
+                    yield from walk(child)
+                    child = child.get_next_sibling()
+            labels = [w.get_label() for w in walk(page) if isinstance(w, Gtk.Button)]
+            self.assertFalse({'_Change…','_Restore…','_Roll Back…','_Apply'} & set(labels))
+            self.assertIn('_Show…', labels)
+        self.drive(script)
+
+    def test_legacy_helix_can_switch_to_distinct_hlx_successor(self):
+        from dataclasses import replace
+        def script(window):
+            yield lambda: window.loaded and window.providers is not None
+            game = window.game_by_key(str(self.exe))
+            game.record['upscaler']['name'] = 'helixsr'
+            provider = setup_app.model.Provider('hlx-dlss','HLX DLSS','fixture',state='unprepared')
+            window.providers = [provider]
+            with patch.object(setup_app.model, 'game_providers', return_value=[replace(provider, state='ready')]):
+                window.change_upscaler(game)
+                dialog = self.dialog(window, setup_app.UpscalerDialog)
+                yield lambda: dialog.providers is not None
+                self.assertEqual(dialog.current, 'helixsr')
+                self.assertEqual(dialog.chosen, 'hlx-dlss')
+                self.assertTrue(dialog.switch_button.get_sensitive())
+                dialog.close()
+        self.drive(script)
+
+
 if __name__ == '__main__':
     unittest.main()
