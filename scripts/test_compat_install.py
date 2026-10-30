@@ -688,6 +688,8 @@ class WikiPrefillInstallTests(ProxyFixture):
         return plan, next(row for row in plan['rows'] if row['key']=='Hotfix.ColorResourceBarrier')
 
     def test_prefill_writes_ini_and_rollback_is_exact(self):
+        import stat
+        self.ini_path.chmod(0o640)
         before = self.ini_path.read_bytes()
         plan, row = self.selected()
         self.assertEqual(row['action'], 'prefill')
@@ -698,7 +700,9 @@ class WikiPrefillInstallTests(ProxyFixture):
         self.assertEqual(self.prepared, prepared)
         self.assertEqual(self.config.read_bytes(), launcher)
         self.assertTrue(self.record()['wiki_settings']['selected'])
+        self.assertEqual(stat.S_IMODE(self.ini_path.stat().st_mode), 0o640)
         m.rollback(self.exe)
+        self.assertEqual(stat.S_IMODE(self.ini_path.stat().st_mode), 0o640)
         self.assertEqual(self.ini_path.read_bytes(), before)
         self.assertNotIn('wiki_settings', self.record())
         m.restore(self.exe)

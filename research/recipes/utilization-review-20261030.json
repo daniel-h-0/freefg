@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "base_wiki": "9812e2d50baa708a852152c74fa0595f545ee6a6",
+  "wiki": "5f927893bba46d8bf8f9754a9b295e094944cc00",
+  "reviewed": "2026-10-30",
+  "changed_table_entries": [
+    "CONTROL Resonant",
+    "Death Stranding: Director’s Cut",
+    "DEATH STRANDING 2: ON THE BEACH",
+    "FINAL FANTASY XIV: Dawntrail",
+    "Gears of War: E-Day",
+    "Ghost of Tsushima DIRECTOR'S CUT",
+    "Horizon Forbidden West Complete Edition",
+    "Horizon Zero Dawn Remastered",
+    "Marvel's Spider‐Man 2",
+    "Marvel's Spider-Man: Miles Morales",
+    "Marvel’s Spider-Man Remastered",
+    "MechWarrior 5: Mercenaries",
+    "Ratchet & Clank: Rift Apart",
+    "Rivage",
+    "SPRAWL",
+    "Supraland",
+    "The Last of Us Part II Remastered",
+    "Tony Hawk's Pro Skater 3 + 4",
+    "Tormented Souls 2",
+    "Valor Mortis",
+    "Voidtrain",
+    "Way of the Hunter"
+  ],
+  "steam_identities": [
+    {
+      "wiki_title": "Apocalypse 2.0",
+      "appid": "1291680",
+      "store_title": "Apocalypse: 2.0 Edition",
+      "store_type": "game",
+      "source": "https://store.steampowered.com/api/appdetails?appids=1291680&l=english",
+      "checked": "2026-10-30"
+    },
+    {
+      "wiki_title": "FINAL FANTASY VII REBIRTH",
+      "appid": "2909400",
+      "store_title": "FINAL FANTASY VII REBIRTH",
+      "store_type": "game",
+      "source": "https://store.steampowered.com/api/appdetails?appids=2909400&l=english",
+      "checked": "2026-10-30"
+    },
+    {
+      "wiki_title": "High on Life",
+      "appid": "1583230",
+      "store_title": "High On Life",
+      "store_type": "game",
+      "source": "https://store.steampowered.com/api/appdetails?appids=1583230&l=english",
+      "checked": "2026-10-30"
+    },
+    {
+      "wiki_title": "Shadow of the Tomb Raider",
+      "appid": "750920",
+      "store_title": "Shadow of the Tomb Raider: Definitive Edition",
+      "store_type": "game",
+      "source": "https://store.steampowered.com/api/appdetails?appids=750920&l=english",
+      "checked": "2026-10-30"
+    },
+    {
+      "wiki_title": "Soulstice",
+      "appid": "1602080",
+      "store_title": "Soulstice",
+      "store_type": "game",
+      "source": "https://store.steampowered.com/api/appdetails?appids=1602080&l=english",
+      "checked": "2026-10-30"
+    },
+    {
+      "wiki_title": "God of War Ragnarok",
+      "appid": "2322010",
+      "store_title": "God of War Ragnarök",
+      "store_type": "game",
+      "source": "https://store.steampowered.com/api/appdetails?appids=2322010&l=english",
+      "checked": "2026-10-30"
+    }
+  ],
+  "quirk_sources": [
+    "03db4f8692878e65748769ebe583c053cae96360",
+    "25db192b1c1ebf42ae7cd6615bc6288b39121c5b"
+  ],
+  "quirk_effects_equal": true,
+  "curated_rows_unchanged": true,
+  "note": "No new automatic promotion: six existing promoted values gain verified store identities. Other usable values become explicit conditional INI prefills."
+}

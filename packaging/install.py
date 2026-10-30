@@ -1962,8 +1962,20 @@ def wiki_settings_plan(package, exe):
     if ctx['fg_output'] == 'auto': ctx['fg_output'] = 'xefg'
     protected = dict((verified or {}).get('ini') or {})
     protected.update((verified or {}).get('upscaler_ini', {}).get('helixsr' if provider == 'hlx-dlss' else provider, {}))
-    plan = compat.wiki_plan(data, ids, ctx, supported_keys=['.'.join(key) for key in names.values()],
-                            current={'.'.join(key): value for key, value in parsed.items()}, recipe_ini=protected)
+    required = {str(item.get('when', {}).get('required_file')) for row in data.get('wiki', []) for item in row.get('ini', []) if item.get('when', {}).get('required_file')}
+    ctx['files'] = sorted(name for name in required if safe(root, name).is_file())
+    if record.get('route') == 'native':ctx['fg_output'] = 'xefg'
+    supported = ['.'.join(key) for key in names.values()]
+    opti_commit = None
+    owner = record.get('opti_owner')
+    owner_hash = file_digest(root, owner) if owner else None
+    for commit, build in data.get('optiscaler_builds', {}).items():
+        if owner_hash and build['dll_sha256'] == owner_hash:
+            opti_commit, supported = commit, build['keys']
+            break
+    plan = compat.wiki_plan(data, ids, ctx, supported_keys=supported,
+                            current={'.'.join(key): value for key, value in parsed.items()}, recipe_ini=protected,
+                            optiscaler_commit=opti_commit)
     return plan
 
 
@@ -1986,7 +1998,7 @@ def _wiki_update_plan(package, root, record, selected, confirmed, expected):
     item = record['files'][index]
     action = dict(path='OptiScaler.ini', index=index, component='integration', kind='merge',
                   old=item['after'], observed=digest(before), new=digest(after), data=after,
-                  mode=item['mode'], kept={}, setting_changes=[dict(section=section, key=key,
+                  mode=stat.S_IMODE(safe(root, 'OptiScaler.ini').stat().st_mode), kept={}, setting_changes=[dict(section=section, key=key,
                       before=read_ini(before).get((section.lower(), key.lower())), after=value)
                       for (section, key), value in changes.items()])
     return dict(status='update' if before != after else 'current', reason='Selected wiki values are already set.',

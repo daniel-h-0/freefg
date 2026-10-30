@@ -136,6 +136,14 @@ def _condition(key, value, ctx):
         if v.startswith('not '):
             return (not hit), (None if not hit else f'not with {INPUT_NAMES.get(chosen, chosen)}')
         return hit, (None if hit else f'only with {", ".join(sorted(INPUT_NAMES.get(p, p) for p in parts))}')
+    if key == 'required_file':
+        files = ctx.get('files')
+        return (None, None) if files is None else (v in {str(path).lower() for path in files}, 'required file: ' + str(value))
+    if key == 'upscaler_input':
+        chosen = ctx.get('upscaler_input')
+        if not chosen:
+            return None, None
+        return (str(chosen).lower() == v, 'requires ' + str(value) + ' game input')
     if key in ('upscaler', 'upscaler_output'):
         mine = ctx.get('upscaler', 'fsr4')
         if mine in v:
@@ -148,11 +156,17 @@ def _condition(key, value, ctx):
             return False, f'OptiScaler {value} (older than the shipped build)'
         return True, None
     if key == 'api':
-        if re.search(r'dx12|d3d12|directx 12', v):
-            return True, None
-        if re.search(r'dx11|d3d11|vulkan|opengl|dx9', v):
-            return False, f'{value} (this build runs in DirectX 12)'
+        mine = str(ctx.get('api') or '').lower()
+        aliases = {'dx12': ('dx12', 'd3d12', 'directx 12'), 'dx11': ('dx11', 'd3d11', 'directx 11'),
+                   'vulkan': ('vulkan',), 'opengl': ('opengl',), 'dx9': ('dx9', 'd3d9')}
+        expected = {name for name, names in aliases.items() if any(alias in v for alias in names)}
+        actual = next((name for name, names in aliases.items() if mine in names), None)
+        if actual and expected:
+            return actual in expected, f'requires {value}; current API is {mine}'
         return None, None
+    if key == 'proxy':
+        mine = ctx.get('proxy')
+        return (None, None) if not mine else (str(mine).lower() == v, 'requires proxy ' + str(value))
     if key in ('platform', 'store', 'launcher'):
         if re.search(r'xbox|game ?pass|ms store|microsoft store', v):
             return False, 'the Xbox / Game Pass build'
@@ -234,17 +248,21 @@ def wiki_plan(data, ids, ctx=None, *, supported_keys=None, current=None, recipe_
     selectable. Merely constructing or displaying this plan changes nothing.
     """
     ctx = dict(DEFAULT_CONTEXT, **(ctx or {}))
+    for key in ('fg_input', 'fg_output', 'upscaler', 'api'):
+        if ctx.get(key) is not None:ctx[key] = str(ctx[key]).lower()
     ctx.setdefault('store', next((store for store in ('steam', 'gog', 'epic') if ids.get(store)), None))
     supported = None if supported_keys is None else {key.lower() for key in supported_keys}
     current = {key.lower(): str(value) for key, value in (current or {}).items()}
     recipe_ini = {key.lower(): str(value) for key, value in (recipe_ini or {}).items()}
     source_commit = (data.get('sources') or {}).get('optiscaler_pinned')
-    quirk_current = not optiscaler_commit or not source_commit or optiscaler_commit == source_commit
+    compatible = set((data.get('sources') or {}).get('optiscaler_compatible_commits', [])) | {source_commit}
+    quirk_current = not optiscaler_commit or not source_commit or optiscaler_commit in compatible
     quirks = (data.get('quirk_keys') or {}).get(quirk_exe or ids.get('exe', ''), {}) if quirk_current else {}
     quirks = {key.lower(): value for key, value in quirks.items()}
     matches = wiki_matches(data, ids)
-    rows, vetoes, weak_vetoes = [], {}, {}
+    rows, vetoes, weak_vetoes, requirements = [], {}, {}, []
     for entry, strength in matches:
+        requirements.extend(dict(title=entry['title'], text=text, pages=entry.get('pages', [])) for text in entry.get('requirements', []))
         for advice in entry.get('fg_advice', []):
             when = {k: v for k, v in (advice.get('when') or {}).items() if k != 'fg_input'}
             if advice.get('advice') in ('broken', 'avoid') and evaluate(when, ctx)[0] is True:
@@ -265,7 +283,7 @@ def wiki_plan(data, ids, ctx=None, *, supported_keys=None, current=None, recipe_
             rule, rule_reason = key_rule(key, value)
             reviewed = (low, value, json.dumps(when, sort_keys=True)) in promoted
             source = dict(title=entry['title'], pages=list(entry.get('pages', [])),
-                          wiki=(data.get('sources') or {}).get('wiki'), reviewed=reviewed)
+                          wiki=(data.get('sources') or {}).get('wiki'), reviewed=reviewed, tested=entry.get('tested', {}))
             identity = dict(source=source, key=key, value=value, when=when)
             token = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
             confirmations = ([] if strength == 'strong' else ['Confirm this is the game named by the wiki'])
@@ -289,7 +307,8 @@ def wiki_plan(data, ids, ctx=None, *, supported_keys=None, current=None, recipe_
             elif confirmations:
                 action, reason = 'conditional', '; '.join(confirmations)
             elif rule_reason:
-                reason = rule_reason + '; explicit selection only'
+                reason = ('Changes GPU-spoofing behavior; this game has no recipe/runtime owner for the key; explicit selection only'
+                          if low == 'spoofing.dxgi' else rule_reason + '; explicit selection only')
             rows.append(dict(id=token, key=key, value=value, current=current.get(low), when=when,
                              condition=condition, strength=strength, action=action, reason=reason,
                              confirmations=confirmations, source=source))
@@ -304,7 +323,7 @@ def wiki_plan(data, ids, ctx=None, *, supported_keys=None, current=None, recipe_
     rows = list({row['id']: row for row in rows}.values())
     automatic = {row['key']: row['value'] for row in rows if row['action'] == 'automatic'}
     plan = dict(format=WIKI_PLAN_FORMAT, context=ctx, rows=rows, automatic=automatic,
-                vetoes=vetoes, weak_vetoes=weak_vetoes, quirks_current=quirk_current)
+                vetoes=vetoes, weak_vetoes=weak_vetoes, quirks_current=quirk_current, requirements=requirements)
     plan['digest'] = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()
     return plan
 
@@ -699,6 +718,7 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
     recipe_settings = {str(k).lower(): str(v) for s in entry.get('game_settings') or [] for k, v in (s.get('values') or {}).items()}
     chooser = {'user': 'your choice', 'verified': 'the verified recipe', 'community': 'the community recipe'}.get(verdict.get('choice'))
     for w, strength in wiki_matches(data, ids):
+        shown.extend(w.get('requirements', []))
         links += [p for p in w.get('pages', []) if p not in links]
         t = w.get('tested') or {}
         if t:
