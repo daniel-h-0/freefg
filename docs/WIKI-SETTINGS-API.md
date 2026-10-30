@@ -8,11 +8,11 @@ versions are unchanged by an INI-only application.
 
 `install.wiki_settings_plan(package, exe)` is read-only and returns a JSON-safe
 object with `format`, `digest`, `context`, `rows`, `automatic`, `vetoes`,
-`weak_vetoes`, and `quirks_current`.
+`weak_vetoes`, `quirks_current`, and `requirements` (title, text and page links).
 
 Each row contains `id`, `key`, `value`, `current`, `when`, `condition`
 (`true`, `false`, or `null`), `strength`, `action`, `reason`, `confirmations`,
-and `source` (title, page links, wiki revision and reviewed status).
+and `source` (title, page links, wiki revision, tested context and reviewed status).
 
 - `automatic`: a reviewed, strongly matched fix whose conditions hold. The
   ordinary installation planner uses these defaults where the user left auto.
@@ -70,3 +70,15 @@ supported by the selected OptiScaler build. `current` and `recipe_ini` use
 selection and returns `settings` (`Section.Key → value`), `selected` provenance
 rows and `plan_digest`. Proton stores these as explicit per-game settings and
 uses its own prefix transaction; it must not run the game-local installer.
+
+The October 30 catalogue review covers wiki commit `5f927893`, with 761 titles
+and 295 INI instructions. Six existing automatic values now have verified Steam
+identities; other usable values remain explicit prefills. The review record is
+[`utilization-review-20261030.json`](../research/recipes/utilization-review-20261030.json).
+No new automatic promotion or gameplay qualification is implied.
+
+The installed planner identifies supported keys from the actual OptiScaler DLL's
+hash and a pinned INI key manifest, falling back to keys in the current INI for
+an unrecognized build. Integrations may provide `files` (relative dependency
+paths) and `upscaler_input` when known. A known missing file cannot be confirmed
+away; unknown symptoms or input choices still need explicit confirmation.

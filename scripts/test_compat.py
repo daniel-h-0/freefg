@@ -465,7 +465,7 @@ class LibraryTests(unittest.TestCase):
         # the option where detection confirms DX12, but stays tier D.
         games = json.loads((FIXTURES/'library-synthetic.json').read_text())['games']
         data_ = r.load(ROOT/'packaging/recipes/recipes-runtime.json')
-        wiki = next(w for w in data_['wiki'] if w['match'].get('exe') and w.get('compat') == 'working' and not w['match'].get('steam')
+        wiki = next(w for w in data_['wiki'] if w['match'].get('exe') and w.get('compat') == 'working'
                     and any(a.lower() in c.DX12_ARGS for a in w.get('launch_args', [])))
         args = [a for a in wiki['launch_args'] if a.lower() in c.DX12_ARGS][:1]
         strong = dict(copy.deepcopy(games[0]), name=wiki['title'])

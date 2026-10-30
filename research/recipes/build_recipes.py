@@ -424,7 +424,7 @@ VERIFIED_FIELDS = ('manual_steps', 'title', 'match', 'route', 'fg_input', 'ini',
 COMMUNITY_FIELDS = VERIFIED_FIELDS + ('status', 'manual_steps', 'known_problems')
 # requires_fg_input is kept whenever present, even as null: a missing key means "the recipe's own input".
 SETTING_FIELDS = ('file', 'format', 'section', 'values', 'requires_fg_input')
-WIKI_FIELDS = ('title', 'match', 'pages', 'launch_args', 'other_launch_args', 'tested', 'proxy', 'compat', 'optipatcher',
+WIKI_FIELDS = ('requirements', 'identity_sources', 'title', 'match', 'pages', 'launch_args', 'other_launch_args', 'tested', 'proxy', 'compat', 'optipatcher',
                'game_settings', 'promoted', 'counts')
 SHOWN_ADVICE = ('prefer', 'broken', 'avoid')  # recipes.suggestions lists only these
 
@@ -435,7 +435,8 @@ def _pick(entry, fields):
 
 def _nvidia_only(item):
     """Wiki advice and settings recipes.suggestions never shows (it skips NVIDIA-only conditions)."""
-    return 'nvidia' in str(item.get('when', {}).get('gpu', '')).lower()
+    gpu = str(item.get('when', {}).get('gpu', '')).lower()
+    return 'nvidia' in gpu and not re.search(r'non[- ]?nvidia|not nvidia|amd|radeon|rdna|intel|steam deck', gpu)
 
 
 def compact(data, full_sha256):
@@ -471,7 +472,7 @@ def compact(data, full_sha256):
                 verified=verified, community=community,
                 leave_auto={exe: [_pick(i, ('key', 'quirk')) for i in items] for exe, items in data['leave_auto'].items()},
                 backports={exe: {key: _pick(b, ('value',)) for key, b in keys.items()} for exe, keys in data['backports'].items()},
-                quirk_keys=data.get('quirk_keys', {}), wiki=wiki)
+                quirk_keys=data.get('quirk_keys', {}), optiscaler_builds=data.get('optiscaler_builds', {}), wiki=wiki)
 
 
 def write_compact(full=OUT, out=COMPACT):
