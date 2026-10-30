@@ -20,6 +20,9 @@ retains earlier release notes.
 - Share wiki compatibility planning with Proton integrations. Add per-game Wiki settings review: show sources, current
   INI values and conditions; apply only selected rows, confirm unknown conditions explicitly, and reject stale plans.
   Selection uses an INI-only rollback generation while retaining the installed release, runtime and user additions.
+- Refresh the bundled wiki to 30 October: 761 entries and 295 INI instructions. Verified Steam identities make the
+  six existing promoted fixes and Ragnarök's negative FG evidence match reliably. Record the exact OptiScaler builds
+  that own runtime fixes and show wiki requirements/test context. All 19 curated BC-250 rows are preserved.
 - Keep 1.1.6's FreeFG runtime, shaders, OptiScaler and dependency pins. This candidate changes Setup and compatibility
   planning; it does not add gameplay or image-quality qualification.
 
