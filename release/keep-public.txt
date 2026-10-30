@@ -427,3 +427,14 @@ vendor/fsr1/LICENSE.txt
 vendor/fsr1/PROVENANCE.json
 vendor/fsr1/ffx_a.h
 vendor/fsr1/ffx_fsr1.h
+
+packaging/hlx.py
+packaging/launcher_migrations.py
+scripts/test_hlx_updates.py
+scripts/test_integration_updates.py
+scripts/test_launcher_migrations.py
+
+packaging/library_view.py
+scripts/test_library_view.py
+scripts/test_recipe_migrations.py
+scripts/test_hlx_preparation.py

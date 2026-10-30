@@ -176,6 +176,18 @@ def helixsr_row(home, package=None):
     built it on this computer. None when the package pins no HelixSR. Downloads nothing."""
     folder = Path(package or Path(__file__).resolve().parent)
     try:
+        pinned=json.loads((folder/'dependencies.json').read_text())
+        if pinned.get('hlx'):
+            import hlx
+            ready=[];missing=[]
+            for provider in hlx.NAMES:
+                try:hlx.find(folder,provider);ready.append(hlx.NAMES[provider])
+                except (OSError,ValueError):missing.append(hlx.NAMES[provider])
+            text=('Prepared: '+', '.join(ready)+'. ' if ready else '')
+            if missing:text+='Prepare '+', '.join(missing)+' once in Setup → Upscaler, or import a prepared HelixSR release.'
+            return ('OK' if not missing else 'INFO','HLX',text)
+    except (OSError,ValueError):pass
+    try:
         import importlib.util
         spec = importlib.util.spec_from_file_location('bc250_helixsr_doctor', Path(__file__).resolve().parent/'helixsr.py')
         module = importlib.util.module_from_spec(spec)

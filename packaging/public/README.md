@@ -2,7 +2,7 @@
 
 FreeFG accelerates Intel XeSS Frame Generation (XeFG) on the **AMD BC-250**, in DirectX 12 games under Proton.
 It runs its own shaders alongside Intel's unmodified runtime and paces the output for gamescope/VRR displays.
-OptiScaler provides upscaling through **FSR 4 RC12** or **HelixSR 2.0.0**.
+OptiScaler provides upscaling through **AMD FSR 4 RC12**, **HLX DLSS** or **HLX FSR 4** (HelixSR 3.1.0).
 
 The default is **2× output: one generated frame per game-rendered frame**. An optional, separate
 [MFG Unlocker](#3-and-4-with-mfg-unlocker) enables 3×/4×. Generated frames improve motion smoothness; they do not
@@ -87,24 +87,30 @@ other proxy mods can require manual integration. Check explains each refusal bef
 
 ## Upscaler: FSR 4 or HelixSR
 
-FSR 4 RC12 is the default. [HelixSR](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate upscaler
-that runs NVIDIA's DLSS network on other GPUs. Frame generation remains XeFG with either choice.
+Choose **Upscaler** in Setup, then **FSR 4**, **HLX DLSS** or **HLX FSR 4**. AMD FSR 4 remains the default.
+HLX is a separate project by [lonewolf0622](https://github.com/lonewolf0622/HelixSR), under its own licence.
+FreeFG ships neither Helix's code nor its locally built model data. Frame generation remains FreeFG/XeFG;
+Helix's DLSS frame-generation files are never installed.
 
-To use HelixSR:
+For HLX, choose an already prepared official **HelixSR 3.1.0** folder, or **Prepare HLX**. Preparation downloads the
+complete official archive and Microsoft shader compilers, verifies their hashes, and runs Helix's build-only Python
+entry point with networking disabled. It requires Wine, bubblewrap, Python numpy, and the local NVIDIA/AMD model
+inputs identified in `dependencies.json`: NVIDIA DLSS **310.7.0** and `amdxcffx64.dll` **2.4.0.4370** from
+AMD Software **26.10.1**. An already prepared folder avoids selecting these again. It never runs Helix's game installer. Prepare once for all games:
 
-1. Choose **HelixSR** in Setup. It offers the pinned official 2.0.0 download if no supported copy is available.
-2. Run its own setup once in the downloaded folder:
-   `./helixsr-setup.sh --no-fg`. It asks before downloading NVIDIA's DLL and builds the network locally.
-   At the first game-install question, press **Ctrl+C**, or answer **n** for each game. Let FreeFG install it.
-3. Select HelixSR again in Setup. For an existing FreeFG installation, use **Upscaler** or the `configure` command.
+```sh
+python3 install.py hlx --dlss-input /path/to/nvngx_dlss.dll --amd-input /path/to/amdxcffx64.dll
+python3 install.py configure GAME.exe --upscaler hlx-dlss
+python3 install.py configure GAME.exe --upscaler hlx-fsr4
+```
 
-For a copy elsewhere, pass `--helixsr /path/to/HelixSR-2.0.0`; Setup remembers that folder.
-Use FreeFG's Restore for games it installed. [Downloads and privacy](PRIVACY.md#helixsr-optional) ·
-[HelixSR and NVIDIA terms](NOTICE.md#helixsr).
+Use `--helixsr /path/to/HelixSR-3.1.0` to import a prepared release elsewhere. Its complete model-bearing files must
+match the qualified build. Archive identity distinguishes upstream reissues with the same version number.
+HLX providers occupy separate OptiScaler custom folders; AMD FSR 4 remains available. A compatible update advances
+legacy HelixSR 2.0.0 to HLX DLSS when preparation is ready. `--upscaler helixsr` is an alias for HLX DLSS in this release.
+Provider selection, integration files and their settings share one recovery transaction. **Rollback** undoes the latest
+switch or update; **Restore** removes the installation and returns the original files. User-edited Helix settings are retained.
 
-Cyberpunk 2.5's HelixSR recipe disables the reactive/bias mask input to avoid observed startup faults. This changes
-a temporal-reconstruction input; equivalent image quality with the mask enabled has not been established.
-[Details](TROUBLESHOOTING.md#cyberpunk-25-with-helixsr-stops-at-the-first-rendered-frames).
 
 ## Generated-frame scaling
 
@@ -195,31 +201,37 @@ there so wave-size settings apply consistently. [Implementation](ARCHITECTURE.md
 **Update:** extract the new package and choose **Update all** in Setup. Setup shows a plan, then updates every
 available, unpinned installation without a per-game Restore/Install cycle. The command-line equivalent is
 `python3 install.py plan --all`, followed by `python3 install.py update --all` (the latter applies immediately).
-Updates include FreeFG, its pinned Intel runtime and the selected compatible upscaler. Settings, provider selection,
-OptiScaler, launch options and saved originals are retained. Close the games first; launchers can stay open. A running,
+Updates include FreeFG, Intel’s runtime, the selected upscaler and compatible OptiScaler integration files.
+Launcher migrations change only owned fields and preserve user additions. Close the games first; if the plan changes
+launcher entries, close the affected launcher too. User settings and original backups are retained. A running,
 unavailable or blocked game is reported separately while other games continue. **Rollback** returns one game to the
 state before its most recent update; **Restore** returns the original game files.
 
 Installations register automatically for later updates. **Register** adds an existing installation, and **Library**
-lists versions, providers and pins. The optional local index can be deleted and rebuilt from launcher discovery or
+shows a selectable table with versions, providers, last-session logs and recovery status. Log evidence is separate
+from file integrity and does not certify gameplay or settings persistence. **Update selected** acts on the chosen rows. The optional local index can be deleted and rebuilt from launcher discovery or
 Register; each game retains its own runtime and recovery files. **Pin** holds a game and all its components at their
 current versions; **Unpin** resumes updates. CLI equivalents are `register`, `library`, `pin` and `unpin`.
 
-Setup’s **Update upscalers** updates the selected provider in each game while keeping the FreeFG core. On the CLI,
-`--component core` updates only FreeFG and Intel; `--component upscaler` updates only the selected provider.
-A new compatible HelixSR build is prepared once with HelixSR's own setup, then distributed to enrolled games by
-Update all. Use `--helixsr FOLDER` to select a prepared release explicitly. FreeFG identifies pinned archive/code
-revisions even when upstream reuses a version number. This candidate pins HelixSR 2.0.0; HLX DLSS and HLX FSR4
-need their own qualified adapters and are not offered yet.
+Setup’s **Update upscalers** updates each selected provider while keeping the FreeFG core. On the CLI,
+`--component core` updates FreeFG/Intel and their integration; `--component upscaler` updates the provider and any
+required integration. Incompatible or unprepared providers are deferred. Changed owned binaries block the coupled
+operation for that game. A missing preparation cache does not prevent checking an already-current portable install.
 
-Compatible installations from 1.1.3.1, 1.1.4 and 1.1.5 can update directly. Later releases record a layout/configuration
-contract for future updates. Changed managed binaries, incompatible layouts or a release requiring different
-OptiScaler/launcher settings are reported for attention; those migrations still require Restore and Install.
+Compatible installations from 1.1.3.1, 1.1.4 and 1.1.5 update directly. Format 2 also imports format 1 records and
+migrates OptiScaler DLLs, additive INI defaults and Steam/Heroic/Lutris launcher fields in place. An explicit
+`--loader winmm.dll` on `plan`/`update` changes the loader and its Wine override together; it refuses occupied mod
+filenames. Choosing another loader is a compatibility trial, not a guarantee that a game's startup issue is fixed.
+Unknown layouts and conflicting user edits need reconciliation. Updater changes do not silently reset game quality,
+reassert settings a game keeps rejecting, or overwrite saves.
 Automatic updates are optional: a deployment job you configure can invoke `install.py update --all` from the newly
 extracted package. FreeFG installs no background updater and downloads no new FreeFG release by itself. A nonzero
 exit status reports deferred or failed work; successful games remain updated, with their own Rollback available.
 
-**Change FG input:** Restore, then Install with the new input. Use **Upscaler** to switch FSR 4/HelixSR without
+**Change FG input:** use **Refresh recipe** for this release’s tested integration and launcher settings. The CLI is
+`plan GAME.exe --refresh-recipe`, then `update GAME.exe --refresh-recipe`. Only gameplay-qualified recipes are
+offered; the plan lists manual game settings and does not change quality or saves. For custom inputs, use OptiScaler’s
+menu, save and restart. Use **Upscaler** to switch providers without
 changing the FG input.
 
 Restore puts back replaced files and removes files and launcher settings it added. It reverts recipe settings key by
@@ -243,7 +255,7 @@ Optional helpers in the release's `extras/` folder each include installation and
 
 ## Status
 
-**1.1.6 candidate.** Adds in-place Update all, per-game rollback and pins, a rebuildable library index, and
+**1.1.6 candidate.** Adds in-place Update all, OptiScaler/launcher migrations, HLX providers, per-game rollback and optional pins, a library table, and
 compatible selected-upscaler updates. The runtime and shader payload are unchanged from 1.1.5.
 
 **1.1.5 (28 October 2026).** Reduces scaling overhead and fixes history invalidation and Restore

@@ -141,7 +141,7 @@ class UpdateTests(UpdateFixture):
         before=self.snapshot();record=self.record()
         status,out=self.run_quiet(m.show_plan,self.new,self.exe)
         self.assertEqual(status,'update');self.assertIn('Update '+OLD+' → '+NEW,out)
-        self.assertIn('frame generation add-on: 3 replaced, 1 new files',out);self.assertIn('unchanged: original-file backups',out)
+        self.assertIn('frame generation add-on: 3 replaced, 1 new files',out);self.assertIn('original-file backups and user settings are retained',out)
         self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
 
     def test_a_file_changed_since_installation_leaves_the_game_as_it_is(self):
@@ -178,33 +178,41 @@ class UpdateTests(UpdateFixture):
         self.assertEqual(status,'blocked');self.assertIn('freefg-1.1.3.1 is not a release this build updates in place',out)
         self.assertEqual(self.snapshot(),before)
 
-    def test_other_launch_settings_need_restore_and_install(self):
+    def test_new_launch_policy_migrates_and_rolls_back(self):
         # A release whose launcher planning differs (here: one more variable) would have to rewrite the launcher entry.
         m.install(self.package,self.exe,route='opti');before=self.snapshot()
         planned=launcher_config.environment
         def environment(*args,**kwargs):return dict(planned(*args,**kwargs),BC250_NEW_SWITCH='1')
         with patch.object(launcher_config,'environment',side_effect=environment):
             status,out=self.run_quiet(m.update,self.exe,self.new)
-        self.assertEqual(status,'blocked');self.assertIn('other launch settings',out);self.assertEqual(self.snapshot(),before)
-        # The launcher entry as it is planned now matches: the update goes ahead.
-        self.assertEqual(m.launcher_changes(self.game.resolve(),self.record()),[])
+            self.assertEqual(status,'update')
+            self.assertIn('BC250_NEW_SWITCH',self.config.read_text())
+            self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.snapshot(),before)
+        self.assertEqual(m.update_plan(self.new,self.game.resolve(),self.record())['launcher_ops'],[])
 
-    def test_another_optiscaler_build_needs_restore_and_install(self):
+    def test_unsupported_external_optiscaler_is_not_silently_adopted(self):
         # The game's own OptiScaler setup (dxgi.dll 'opti') is accepted by the installed release, not by the newer one.
         m.install(self.package,self.exe,route='opti')
         pins=json.loads((self.new/'dependencies.json').read_text());pins['payload']['ProxyHash']=m.digest(b'another OptiScaler')
         set_package_file(self.new,'dependencies.json',json.dumps(pins).encode())
         status,out=self.run_quiet(m.update,self.exe,self.new)
-        self.assertEqual(status,'blocked');self.assertIn('OptiScaler is not a build this release supports',out)
+        self.assertEqual(status,'blocked');self.assertIn('OptiScaler bytes changed',out)
         m.restore(self.exe);self.assertOriginal()
 
-    def test_a_fresh_optiscaler_setup_from_other_pins_needs_restore_and_install(self):
+    def test_fresh_optiscaler_support_files_follow_verified_dependency_updates(self):
         deps=self.fresh();m.install(self.package,self.exe,route='opti',dependency_dir=deps)
         self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
         pins=json.loads((self.new/'dependencies.json').read_text());pins['payload']['Files']['OptiScaler/plugins/OptiPatcher.asi']=m.digest(b'patcher 2')
         set_package_file(self.new,'dependencies.json',json.dumps(pins).encode());set_name(self.new,'freefg-1.1.6')
-        with patch.object(m,'UPDATES_FROM',{OLD,NEW}):status,out=self.run_quiet(m.update,self.exe,self.new)
-        self.assertEqual(status,'blocked');self.assertIn('another OptiScaler build (OptiScaler/plugins/OptiPatcher.asi)',out)
+        before=self.snapshot()
+        with self.assertRaisesRegex(ValueError,'Dependency checksum mismatch'):
+            self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.snapshot(),before)
+        (self.deps/'OptiScaler/plugins/OptiPatcher.asi').write_bytes(b'patcher 2')
+        status,out=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'update');self.assertEqual((self.game/'OptiScaler/plugins/OptiPatcher.asi').read_bytes(),b'patcher 2')
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),before)
 
     def test_a_file_the_release_no_longer_has_goes_back(self):
         newer=self.newer({**CHANGES,'payload/BC250-XeFG/shaders/winograd.required':None},folder='package-retire')
@@ -259,11 +267,11 @@ class UpdateTests(UpdateFixture):
         m.install(self.package,self.exe,route='opti')
         self.run_quiet(m.update,self.exe,self.new,deps);self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),b'FSR 2')
         self.run_quiet(m.rollback,self.exe);self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),b'FSR')
-        # Replaced by something else since installation: FSR 4 is left as it is, the add-on is updated all the same.
+        # Drift blocks the coupled transaction; no component is partially selected.
         (self.game/'OptiScaler'/m.DLL).write_bytes(b'user FSR')
         status,out=self.run_quiet(m.update,self.exe,self.new,deps)
-        self.assertEqual(status,'partial');self.assertIn('FSR 4 not updated',out)
-        self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),b'user FSR');self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),CHANGES['payload/libxess_fg.dll'])
+        self.assertEqual(status,'blocked');self.assertIn('provider changed',out)
+        self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),b'user FSR');self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
 
     def test_vkd3d_cache_is_emptied_when_the_profile_changes(self):
         # As a new installation starts with an empty cache: emptied when shader files change, kept for a proxy-only release.

@@ -6,9 +6,14 @@ Release changes since 0.9.0. Measurements describe the named release and test co
 
 - Update compatible installed games in place with Setup's **Update all** or `install.py update --all`; import
   1.1.3.1, 1.1.4 and 1.1.5 records and store an explicit contract for future compatible releases.
-- Add selected-upscaler updates through pinned adapters, including compatible HelixSR revisions prepared once by
-  its own setup. Keep provider selection and settings. Offer core-only and upscaler-only CLI updates; new HLX
-  providers remain unqualified and are not offered by this candidate.
+- Add distinct HLX DLSS and HLX FSR 4 providers from HelixSR 3.1.0, prepared once locally through its build-only
+  entry point. Legacy HelixSR advances to HLX DLSS; AMD FSR 4 remains a separate choice. Complete prepared hashes
+  identify the upstream archive revision. Provider switches use the shared rollback engine.
+- Migrate OptiScaler, additive defaults, loader names and owned launcher fields in place, preserving unrelated
+  settings. Import format 1 records into format 2. Keep update/rollback recovery consistent across files and launchers.
+- Add explicit recipe refresh for tested input/launcher changes; retire obsolete pending game-setting writes.
+- Add a native selectable library table and Update selected. Keep last-session logs distinct from installation state.
+  Incorporate Deep Rock and Deadzone input findings and document the unresolved Hogwarts/Black Flag/Tainted Grail/RDR2 cases.
 - Add a rebuildable library index, Register/Library and Pin/Unpin actions. Batch operations report running,
   unavailable, deferred and failed games separately and continue with other games.
 - Harden generation recovery, original-backup validation, drift checks and settings merges. Rollback preserves

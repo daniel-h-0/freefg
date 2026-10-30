@@ -6,7 +6,8 @@
   "optiscaler_upstream": "08e13adf55b3fd71a67071eac2e95973ac598df3",
   "wiki": "9812e2d (2026-10-17)",
   "wiki_url": "https://github.com/optiscaler/OptiScaler/wiki/",
-  "host": "maintainers' BC-250 library, 2026-09-29"
+  "host": "maintainers' BC-250 library, 2026-09-29",
+  "runtime_triage": "BC-250 gameplay and launcher observations, 2026-10-29; scope recorded per recipe"
  },
  "rules": "research/recipes/RULES.md",
  "verified": [
@@ -56,15 +57,18 @@
    },
    "status": "verified-bc250",
    "route": "opti",
-   "fg_input": "fsrfg",
+   "fg_input": "upscaler",
    "ini": {
     "Inputs.EnableFfxInputs": "true"
    },
    "game_settings": [],
    "launch_args": [],
-   "note": null,
-   "evidence": "fails",
-   "observed": "does not generate yet"
+   "note": "Use FSR Native in the game. FSR Quality produced incompatible motion/depth dimensions (XeFG status -4). Native changes the rendering workload; the installer does not silently change quality.",
+   "evidence": "gameplay",
+   "observed": "2× generated presents in two gameplay starts on October 29, 2026; FSR Native input",
+   "manual_steps": [
+    "In the game, choose FSR and Native mode. The tested upscaler input requires matching motion/depth dimensions; Quality failed on the tested build. Restart after changing the input."
+   ]
   },
   {
    "title": "Echo Point Nova",
@@ -178,9 +182,9 @@
    "launch_args": [
     "-force-d3d12"
    ],
-   "note": null,
-   "evidence": "installed",
-   "observed": "installed; generation not checked"
+   "note": "FSR, DLSS and DXGI-spoof trials supplied no upscaler input on the tested build. No verified recipe fix. Preserve saves and graphics preferences during diagnosis.",
+   "evidence": "fails",
+   "observed": "No upscaler creation or generated frames in the tested gameplay, October 29, 2026"
   },
   {
    "title": "VOIN",
@@ -293,9 +297,12 @@
    "launch_args": [
     "-dx12"
    ],
-   "note": null,
-   "evidence": "fails",
-   "observed": "did not generate: choose an upscaler once in the game's Video menu"
+   "note": "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart. An unselected reward screen can prevent reaching gameplay.",
+   "evidence": "gameplay",
+   "observed": "Sustained 2× generated presents in the Space Rig after a fresh restart, October 29, 2026",
+   "manual_steps": [
+    "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart."
+   ]
   },
   {
    "title": "The Invincible",
@@ -398,11 +405,14 @@
     }
    ],
    "launch_args": [],
-   "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
+   "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved. HLX FSR 4 HDR also requires the tested reactive-mask-off workaround: the default produced a GPU page fault during startup. This changes an upscaler input; mask-on quality equivalence is unqualified.",
    "evidence": "generates",
    "observed": "2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10",
    "upscaler_ini": {
     "helixsr": {
+     "InitFlags.DisableReactiveMask": "true"
+    },
+    "hlx-fsr4": {
      "InitFlags.DisableReactiveMask": "true"
     }
    }
@@ -425,24 +435,15 @@
     "Spoofing.Dxgi": "false",
     "Hotfix.DisableOverlays": "true"
    },
-   "game_settings": [
-    {
-     "file": "AppData/Local/HogwartsLegacy/Saved/Config/WindowsNoEditor/GameUserSettings.ini",
-     "base": "steamuser",
-     "format": "ini-replace",
-     "section": null,
-     "values": {
-      "FrameGeneration": "(Mode=Nvidia_DLSSG,NumFramesInterpolated=1,LocStr=\"DLSS Frame Generation\")"
-     },
-     "why": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
-     "requires_fg_input": "dlssg"
-    }
-   ],
+   "game_settings": [],
    "launch_args": [],
-   "note": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
-   "evidence": "installed",
-   "observed": "installed; generation not checked",
-   "pending_verification": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off)."
+   "note": "The game can reset DLSS FG to Off on startup. One gameplay run generated 2×, but setting persistence is unresolved. Check the menu after restarting; installation integrity alone does not confirm FG.",
+   "evidence": "gameplay",
+   "observed": "2× in opening gameplay with DLSS Quality and DLSS FG; repeat-launch persistence unresolved, October 29, 2026",
+   "pending_verification": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
+   "manual_steps": [
+    "Select DLSS Quality and DLSS Frame Generation in the game, then verify both after restarting. The tested game rewrote FG to Off; do not assume the saved setting took effect."
+   ]
   },
   {
    "title": "Red Dead Redemption 2",
@@ -463,9 +464,9 @@
    },
    "game_settings": [],
    "launch_args": [],
-   "note": null,
+   "note": "The tested launch stopped at Rockstar authentication error 2 even directly through Heroic. Resolve launcher authentication before diagnosing FreeFG.",
    "evidence": "installed",
-   "observed": "installed; generation not checked"
+   "observed": "Rockstar authentication error 2 prevented game qualification, October 29, 2026"
   },
   {
    "title": "Assassin's Creed Black Flag Resynced",
@@ -485,9 +486,9 @@
    },
    "game_settings": [],
    "launch_args": [],
-   "note": null,
+   "note": "The tested DXGI loader route stopped at DX12 error 0x80004004. Removing the loader allowed gameplay but lost OptiScaler upscaling and did not confirm FG. Alternate loader selection requires a fresh game check.",
    "evidence": "installed",
-   "observed": "installed; generation not checked"
+   "observed": "DXGI loader caused DX12 startup error on tested build; bypass reached gameplay without confirmed FG, October 29, 2026"
   },
   {
    "title": "System Shock",

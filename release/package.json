@@ -23,12 +23,13 @@
   },
   "enabler_overlay": "not applicable (no XeSSMFG enabler)",
   "optiscaler": {
-   "source_commit": "be42012aff2dbe26e5565d076e50f227e428cad1",
-   "upstream_base": "c2e44a8bc911010d7ed3e4fa63843185fbb55d03 (OptiScaler master, 19 October 2026)",
+   "source_commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
+   "upstream_base": "e7e3872d410f704479d94d318d68d163b6b58947",
    "fixed": [
     "f6db41dfa7bacb16ac50bd1e5787fdb44362da47 Try to prevent race conditions when hooking sl plugins (lock order: the loader lock before a Streamline plugin mutex)",
     "Separate XeSS, XeFG and XeLL library-path configuration fields (saved XeSSPath corruption)",
-    "Adaptive FreeFG frame-start pacing through XeLL at 3x/4x, with bounded stall recovery"
+    "Adaptive FreeFG frame-start pacing through XeLL at 3x/4x, with bounded stall recovery",
+    "Distinct HLX providers with original-input parameters and actual FFX provider identity"
    ]
   },
   "extras": {
@@ -39,7 +40,7 @@
   "addon_entry": "libxess_fg-proxy",
   "max_factor": 2,
   "update_contract": {
-   "format": 1,
+   "format": 2,
    "layout": "game-local-xemfg-proxy",
    "configuration": 1
   }
@@ -62,7 +63,10 @@
     "helixsr.py": "repo:packaging/helixsr.py",
     "Start-freefg.sh": "repo:packaging/Start-BC250-XeFG.sh",
     "freefg_library.py": "repo:packaging/freefg_library.py",
-    "upscaler_updates.py": "repo:packaging/upscaler_updates.py"
+    "upscaler_updates.py": "repo:packaging/upscaler_updates.py",
+    "hlx.py": "repo:packaging/hlx.py",
+    "launcher_migrations.py": "repo:packaging/launcher_migrations.py",
+    "library_view.py": "repo:packaging/library_view.py"
    }
   },
   "installer-vendor": {
@@ -272,7 +276,8 @@
     "licenses/OptiScaler-third-party/NVIDIA-Streamline-2.txt": "repo:packaging/licenses/OptiScaler-third-party/NVIDIA-Streamline-2.txt",
     "licenses/OptiScaler-third-party/simpleini.txt": "repo:packaging/licenses/OptiScaler-third-party/simpleini.txt",
     "licenses/OptiScaler-third-party/spdlog.txt": "repo:packaging/licenses/OptiScaler-third-party/spdlog.txt",
-    "licenses/OptiScaler-third-party/unordered_dense.txt": "repo:packaging/licenses/OptiScaler-third-party/unordered_dense.txt"
+    "licenses/OptiScaler-third-party/unordered_dense.txt": "repo:packaging/licenses/OptiScaler-third-party/unordered_dense.txt",
+    "opti/OptiScaler.ini": "input:optiscaler-fork/OptiScaler.ini"
    }
   },
   "licenses-2x": {
@@ -315,7 +320,10 @@
    "d2030dcd694fda8f2ec7e044b13e6db8f0b56d4ba9113a5efad334e3f3ded8c7": "Intel libxell.dll 1.3.2.10",
    "8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175": "FSR4 RC11 amd_fidelityfx_upscaler_dx12.dll",
    "4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79": "FSR4 RC12 amd_fidelityfx_upscaler_dx12.dll",
-   "82b612a73759117d4203f0ca76f18b325e1c6f3c61c64481c94750abce392a09": "HelixSR 2.0.0 amd_fidelityfx_dx12.dll as shipped by its author (lonewolf0622; a separate project under its own licence, fetched by installations from its GitHub releases on request)"
+   "82b612a73759117d4203f0ca76f18b325e1c6f3c61c64481c94750abce392a09": "HelixSR 2.0.0 amd_fidelityfx_dx12.dll as shipped by its author (lonewolf0622; a separate project under its own licence, fetched by installations from its GitHub releases on request)",
+   "4c89086fd6809e5d1b67fb31804d17cd6b88da318852f094334eaf704a4b58fd": "Locally prepared HLX DLSS 3.1.0",
+   "b9f906ca669e444a9fc4d3727192a0d881c8e4c62557bf3a8063d2d694e806ae": "Locally prepared HLX FSR 4 3.1.0",
+   "d0dcccc74a43c44ba435b7a369b456e0970d8a4464e4bd683119b374f2c9fb46": "HLX AMD provider companion, fetched locally"
   }
  },
  "source_companion": {
@@ -340,7 +348,13 @@
   "test_compat_install",
   "test_update",
   "test_freefg_library",
-  "test_component_updates"
+  "test_component_updates",
+  "test_hlx_updates",
+  "test_integration_updates",
+  "test_launcher_migrations",
+  "test_library_view",
+  "test_recipe_migrations",
+  "test_hlx_preparation"
  ],
  "variants": {
   "intel-free-mfg": {

@@ -10,6 +10,8 @@ if str(Path(__file__).resolve().parent) not in sys.path:sys.path.insert(0,str(Pa
 import helixsr
 import freefg_library
 import upscaler_updates
+import launcher_migrations
+import hlx
 
 STATE='.bc250-xefg-experimental'
 DLL='amd_fidelityfx_upscaler_dx12.dll'
@@ -29,7 +31,7 @@ DLSS_HELPER='nvngx_dlss.dll'
 # (OptiScaler/amd_fidelityfx_upscaler_dx12.dll in a fresh setup): the BC-250 build of FSR 4 (default) or HelixSR, a separate
 # project by lonewolf0622 that the user's own HelixSR setup built on this computer (helixsr.py). Frame generation is XeFG
 # either way.
-UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC12)','helixsr':helixsr.LABEL}
+UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC12)','helixsr':helixsr.LABEL,**hlx.NAMES}
 # BC-250 builds of the FSR 4 DLL by SHA-256: the one dependencies.json pins (RC12, since 1.1.2) and the one earlier builds
 # installed (RC11), so Status names the build a game has and records of earlier builds stay readable.
 FSR4_BUILDS={'4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79':'RC12',
@@ -291,6 +293,15 @@ def locked(function):
         finally:os.close(descriptor)
     return call
 
+def launcher_locked(function):
+    @functools.wraps(function)
+    def call(exe,*args,**kwargs):
+        path=safe(exe.parent.resolve(),STATE+'/state.json')
+        record=json.loads(path.read_text()) if path.is_file() else {}
+        with launcher_migrations.locked(record.get('launchers') or []):
+            return function(exe,*args,**kwargs)
+    return call
+
 # Automatic input: the game's own XeSS FG when it ships it beside the executable (measured best on this runtime, and
 # OptiScaler's frame-generation hooks stay out of it); otherwise OptiScaler's upscaler input, which needs no in-game
 # frame-generation toggle and no GPU spoofing. Other inputs the game appears to ship are reported, not chosen: DLSS FG
@@ -441,6 +452,7 @@ def helper_line(helper):
 def upscaler_line(upscaler,dll=None):
     """One line naming a game's upscaler (records of earlier builds have none: FSR 4); dll, the SHA-256 of the FSR 4 DLL
     placed, names its build."""
+    if (upscaler or {}).get('name') in hlx.NAMES:return 'Upscaler: '+hlx.NAMES[upscaler['name']]+' '+str(upscaler.get('version'))+'; frame generation: FreeFG/XeFG.'
     if (upscaler or {}).get('name')!='helixsr':return 'Upscaler: FSR 4 (BC-250 build'+(' '+FSR4_BUILDS[dll] if dll in FSR4_BUILDS else '')+').'
     return ('Upscaler: HelixSR '+str(upscaler.get('version'))+', a separate project by '+helixsr.AUTHOR+' ('+helixsr.PROJECT+') under its '
             'own licence, running NVIDIA’s DLSS network; built on this computer by HelixSR’s own setup. In the game, choose the '
@@ -511,7 +523,7 @@ def apply_pending_settings(exe,root,record,launcher_home=None):
     """Apply recipe game settings that were waiting for the game to create its settings file (or the recipe's keys in
     it): (items applied or found already set, messages about the ones still waiting). A game's file never makes this
     fail: configure must keep working whatever the game wrote."""
-    pending=[(i,item) for i,item in enumerate(record.get('game_settings',[])) if item['status']=='pending']
+    pending=[(i,item) for i,item in enumerate(record.get('game_settings',[])) if item['status']=='pending' and item.get('active',True)]
     if not pending:return [],[]
     rm=recipes_module();done=[];waiting=[];state=root/STATE
     try:user=rm.prefix_user(exe,record.get('launchers') or [],launcher_home)
@@ -928,7 +940,9 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if 'dependencies.json' not in files:raise ValueError('Package lacks its pinned dependency list (dependencies.json)')
     pins=check_pins(json.loads(files['dependencies.json']));runtime=pins['runtime']
     # HelixSR: a release on this computer whose network HelixSR's own setup has built, checked before anything is fetched.
-    helix=None
+    helix=None;modern_provider=None
+    if upscaler=='helixsr' and pins.get('hlx'):upscaler='hlx-dlss'
+    if upscaler in hlx.NAMES and not custom_hlx_supported(files,pins):raise ValueError('Package lacks the qualified OptiScaler integration required by HLX')
     if upscaler=='helixsr':
         helix=helixsr.find(package,explicit=helixsr_dir)
         if helix['state']!='ready':raise ValueError(helixsr.guidance(helix))
@@ -954,6 +968,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         # Its OptiScaler.ini decides the checks below, so these downloads come first (also for a preview).
         dependencies={setup_target(name):data for name,data in pinned(package,pins,['payload'],dependency_dir).items()}
         original_ini=dependencies.pop('OptiScaler.ini')
+        if files.get('opti/OptiScaler.ini') is not None:original_ini=merge_update_settings(files['opti/OptiScaler.ini'],original_ini)[0]
     else:
         original_ini=ini.read_bytes()
         proxies=[name+'.dll' for name in ['dxgi','winmm','d3d12','wininet','version','winhttp','dbghelp','OptiScaler']]+['OptiScaler.asi']
@@ -1028,7 +1043,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
             key=tuple(item['key'].split('.',1))
             if parsed.get((key[0].lower(),key[1].lower()),'auto').strip().lower() in ['','auto']:
                 changes.pop(key,None);notes.append('Left '+item['key']+' to OptiScaler’s own setting for this game ('+item['quirk']+').')
-        changes.update(rm.ini_changes(verified,backports,parsed,fg_input,recipe_input,route,upscaler))
+        changes.update(rm.ini_changes(verified,backports,parsed,fg_input,recipe_input,route,'helixsr' if upscaler=='hlx-dlss' else upscaler))
         user=rm.prefix_user(exe,recipe[5],launcher_home)
         # Recipe values a previous installation's Restore could not put back keep their true originals.
         earlier=previous_settings(state,record,rm) if archive_state else {}
@@ -1123,6 +1138,17 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         existing=safe(root,helix_ini);base=existing.read_bytes() if existing.is_file() else previous_helixsr_ini
         replacements[helix_ini]=helixsr.ini_bytes(base)
     else:replacements[fsr_target]=files['fsr4/'+DLL]
+    if upscaler in hlx.NAMES:
+        modern_provider=hlx.layout(package,upscaler,str(Path(fsr_target).parent),helixsr_dir)
+        modern_provider['metadata']['legacy_target']=fsr_target
+        for name in modern_provider['files']:
+            if safe(root,name).exists():raise ValueError('Provider target is already occupied: '+name)
+        replacements.update(modern_provider['files'])
+        if modern_provider['metadata'].get('ini'):
+            name=modern_provider['metadata']['ini']
+            if safe(root,name).exists():raise ValueError('Provider settings are already occupied: '+name)
+            replacements[name]=helixsr.ini_bytes(previous_helixsr_ini)
+        changes.update(modern_provider['ini_changes']);ini_after=patch_ini(ini_after,modern_provider['ini_changes'])
     replacements['OptiScaler.ini']=ini_after
     # Last refusals (a symlink or folder where a file goes), then the runtime downloads: no check waits on the network.
     # A preview fetches them too, so a preview that succeeds proves the install has every byte it needs: the
@@ -1149,7 +1175,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     displaced=[name for name in PROXY_LOGS if proxy and (root/name).is_file() and not (root/name).is_symlink()]
     # HelixSR writes helixsr.log beside its DLL: one there already (an earlier HelixSR) is set aside until Restore.
     helix_displaced=bool(helix) and safe(root,helix_log).is_file()
-    upscaler_record=dict(name=upscaler,target=fsr_target)
+    upscaler_record=modern_provider['metadata'] if modern_provider else dict(name=upscaler,target=fsr_target)
     if helix:upscaler_record.update(version=helix['version'],release=helix['folder'],ini=helix_ini,log=helix_log,displaced_log=helix_displaced)
     if preview:
         print('\n'.join(item['path'] for item in plan))
@@ -1227,6 +1253,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         record['components']=component_state(record,digest((package/'manifest.json').read_bytes()))
     write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
     remember_installation(exe,record,home=launcher_home)
+    if upscaler in hlx.NAMES:remember_prepared(package,helixsr_dir)
     print('\nInstalled. Open your launcher and play normally. No wrapper command is needed.')
     if kept:print('Kept your settings from the previous installation: '+', '.join(kept))
     for item in record.get('game_settings',[]):
@@ -1246,11 +1273,15 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if proxy:print('This build generates 2× (one generated frame per real frame).')
 
 @locked
+@launcher_locked
 def restore(exe):
     root=exe.parent.resolve();idle(root);state=root/STATE
     record=json.loads(safe(root,STATE+'/state.json').read_text())
     if record['status']=='restored':print('Already restored.');return
     pending=record.get('pending_update')
+    if pending and pending.get('generation'):
+        for line in settle_interrupted(root,record)[1]:print(line)
+        pending=record.get('pending_update')
     if pending:
         for name,change in pending['files'].items():
             item=next(v for v in record['files'] if v['path']==name)
@@ -1341,7 +1372,13 @@ def restore(exe):
     # The proxy's logs: every one in the game folder is this installation's, except one that was there before it and
     # was never set aside (an interrupted installation). Records of earlier builds set nothing aside.
     displaced=record.get('displaced_logs');held=state/'displaced-logs';notes=[]
-    if (record.get('upscaler') or {}).get('name')=='helixsr':put_back_helixsr_log(root,state,record['upscaler'],notes)
+    provider=record.get('upscaler') or {}
+    if provider.get('name')=='helixsr':put_back_helixsr_log(root,state,provider,notes)
+    elif provider.get('legacy_helixsr'):put_back_helixsr_log(root,state,provider['legacy_helixsr'],notes)
+    for relative in ('OptiScaler/custom/hlx-dlss/dlss/helixsr.log','OptiScaler/custom/hlx-fsr4/ffx/hlx-fsr4.log'):
+        log=log_path(root,relative)
+        if log is not None and log.is_file() and any(row['path'].startswith(str(Path(relative).parent)+'/') for row in record['files']):
+            write(state/'runtime-logs'/Path(relative).name,log.read_bytes());log.unlink()
     logs=[name for name in PROXY_LOGS if record.get('addon_entry')==PROXY_ENTRY and (root/name).is_file() and not (root/name).is_symlink()
           and not (displaced is not None and name in displaced and not (held/name).is_file())]
     if logs:
@@ -1511,9 +1548,8 @@ def upscaler_recipe_changes(package,exe,record,upscaler):
 
 @locked
 def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=None,upscale=None,upscaler=None,helixsr_dir=None,package=None,dependency_dir=None):
-    """Change user settings for an installed package. Runtime files stay as they are, except the upscaler DLL (and HelixSR's
-    helixsr.ini beside it) when upscaler names one: switch_upscaler runs first, so a settings error after it leaves the
-    switch in place (each part is complete and recorded on its own)."""
+    """Change user settings. Modern provider selections use the shared generation transaction; legacy packages
+    retain their original switch protocol. Scaling/factor choices follow a completed provider selection."""
     if factor not in [None,2,3,4]:raise ValueError('Invalid setting')
     if resolution not in [None,'output','scale','limit'] or (percent is not None and not 50<=percent<=100) or limit not in [None,720,1080,1440,2160]:raise ValueError('Invalid resolution setting')
     down_filters={'bilinear':0,'area':1}
@@ -1548,7 +1584,14 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
             setting_values[('BC250','UpscaleFilter')]=str(up_filters[upscale])
     switched=[]
     upscaler_changes=upscaler_recipe_changes(Path(package or Path(__file__).resolve().parent),exe,record,upscaler) if upscaler is not None else {}
-    if upscaler is not None:switched=switch_upscaler(Path(package or Path(__file__).resolve().parent),root,record,upscaler,helixsr_dir,dependency_dir)
+    if upscaler is not None:
+        chosen_package=Path(package or Path(__file__).resolve().parent)
+        if hlx.catalog(chosen_package) or record.get('update_contract')==UPDATE_CONTRACT:
+            outcome=update.__wrapped__(exe,chosen_package,dependency_dir,component='upscaler',helixsr_dir=helixsr_dir,upscaler=upscaler)
+            if outcome not in ('update','current'):raise ValueError('Provider selection was not applied: '+outcome)
+            record=json.loads(safe(root,STATE+'/state.json').read_text());managed={item['path'] for item in record['files']}
+            switched=['Provider selection saved.'];upscaler_changes={}
+        else:switched=switch_upscaler(chosen_package,root,record,upscaler,helixsr_dir,dependency_dir)
     for line in switched:print(line)
     done,waiting=apply_pending_settings(exe,root,record)
     for item in done:print(('Game setting applied: ' if item['status']=='applied' else 'Game setting already set: ')+setting_line(item))
@@ -1579,24 +1622,15 @@ def configure(exe,factor=None,resolution=None,percent=None,limit=None,downscale=
     print('Settings saved. Launch the game to apply them.')
     if record['route']=='opti':print('In game: Insert → Frame Generation → MFG also changes the multiplier. Save Settings to retain it.')
 
-# In-place updates (install.py plan, update, rollback, pin, unpin): a newer package's frame generation replaces an installed
-# one's without Restore and Install. Only these files change: the add-on's own (the libxess_fg.dll proxy and everything
-# under BC250-XeFG/: its shader profile, wave table, Vulkan layer and settings file), the pinned Intel runtime beside it
-# and the selected compatible upscaler. Everything else stays as it is: the original files and their backups
-# (Restore still puts back exactly what was there before installation), OptiScaler and OptiScaler.ini, the
-# launcher entries, recipe game settings and the user's values in BC250-XeFG/settings.ini. Before a file changes, the bytes
-# it replaces are saved in a generation in the installation's state folder (rollback returns to them byte for byte) and the
-# record names the new bytes in a pending update, as switch_upscaler does: Restore, update and rollback each resolve an
-# interrupted one.
-#
-# Releases whose installations this build updates in place: their installer plans OptiScaler.ini, the settings files and
-# the launcher entries as this build does, so only the files above can differ. These older versions are imported
-# explicitly; later releases use UPDATE_CONTRACT. Each update checks the launch settings and OptiScaler again
-# (launcher_changes, optiscaler_change) and refuses where they would differ.
+# One generation covers the coherent runtime, integration, selected provider and owned launcher deltas.
+# Original backups remain independent of generations: Rollback undoes the latest operation, Restore uninstalls.
+# Older known releases and format 1 records are imported into the explicit format 2 contract.
 UPDATES_FROM={'freefg-1.1.3.1','freefg-1.1.4','freefg-1.1.5'}
 LEGACY_UPDATE_TARGETS=frozenset(UPDATES_FROM)
-UPDATE_CONTRACT={'format':1,'layout':'game-local-xemfg-proxy','configuration':1}
-RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler')
+UPDATE_CONTRACT={'format':2,'layout':'game-local-xemfg-proxy','configuration':1}
+LEGACY_CONTRACT={'format':1,'layout':'game-local-xemfg-proxy','configuration':1}
+RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler','ini_changes','launchers',
+                'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input')
 # Generations kept for rollback: the release before the last update.
 GENERATIONS='generations'
 GENERATIONS_KEPT=1
@@ -1605,7 +1639,8 @@ ADDON_FILES=('libxess_fg.dll','bc250_xefg_original.dll','libxell.dll')
 SETTINGS_FILES=('BC250-XeFG/settings.ini','XeSSMFG/settings.ini')
 # The modules OptiScaler can be loaded as: the one the launcher's DLL override names is the installation's owner module.
 OPTI_PROXIES=[name+'.dll' for name in ['dxgi','winmm','d3d12','wininet','version','winhttp','dbghelp','OptiScaler']]+['OptiScaler.asi']
-COMPONENTS={'addon':'frame generation add-on','runtime':'Intel XeFG runtime','fsr4':'FSR 4','helixsr':'HelixSR'}
+COMPONENTS={'addon':'frame generation add-on','runtime':'Intel XeFG runtime','integration':'OptiScaler integration',
+            'fsr4':'FSR 4','helixsr':'HelixSR','hlx-dlss':'HLX DLSS','hlx-fsr4':'HLX FSR 4'}
 
 def save_record(state,record):
     write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
@@ -1676,9 +1711,9 @@ def update_compatibility(record,manifest,core=True):
     if target is None:
         if manifest.get('name') not in LEGACY_UPDATE_TARGETS:return 'The selected package has no supported update contract; use its matching installer.'
         target=UPDATE_CONTRACT
-    if target!=UPDATE_CONTRACT:return 'This package requires a different update format or integration layout; use a compatible installer.'
+    if target not in (UPDATE_CONTRACT,LEGACY_CONTRACT):return 'This package requires a different update format or integration layout; use a compatible installer.'
     source=record.get('update_contract')
-    if source is not None and source!=UPDATE_CONTRACT:return 'This installation requires a different update format or integration layout; use a compatible installer.'
+    if source is not None and source not in (UPDATE_CONTRACT,LEGACY_CONTRACT):return 'This installation requires a different update format or integration layout; use a compatible installer.'
     old,new=release_number(record.get('package')),release_number(manifest.get('name'))
     if core and old is not None and new is not None and new<old:return 'The selected package is older than this installation. Use Rollback for a saved earlier release.'
     if source is None and record.get('package')!=manifest.get('name') and record.get('package') not in UPDATES_FROM:
@@ -1714,11 +1749,25 @@ def restore_release_metadata(record,generation):
         # Component choices made after an update belong to the user. File rollback already refuses if a changed
         # component's bytes no longer match, while a core-only rollback must leave a later provider switch intact.
         if key=='upscaler' and key in after and record.get(key)!=after[key]:continue
+        if key=='ini_changes':
+            old={(x['section'].lower(),x['key'].lower()):x for x in previous.get(key,[])}
+            applied={(x['section'].lower(),x['key'].lower()):x for x in after.get(key,[])}
+            now={(x['section'].lower(),x['key'].lower()):x for x in record.get(key,[])}
+            for pair in set(old)|set(applied):
+                if now.get(pair)==applied.get(pair):
+                    if pair in old:now[pair]=old[pair]
+                    else:now.pop(pair,None)
+            record[key]=list(now.values());continue
         if key in previous:record[key]=previous[key]
         else:record.pop(key,None)
     if generation.get('core_updated',True):
         core_manifest=(previous.get('components') or {}).get('core',{}).get('manifest_sha256')
     record['components']=component_state(record,core_manifest)
+
+def remember_prepared(package,folder):
+    if folder is None:return
+    try:hlx.remember(package,folder)
+    except (OSError,ValueError) as error:print('Prepared HLX folder was not remembered: '+str(error))
 
 def remember_installation(exe,record,home=None,strict=False):
     """The index is optional: an unavailable index never invalidates a completed game transaction."""
@@ -1740,50 +1789,139 @@ def register_installation(exe):
     remember_installation(exe,record,strict=True)
     print('Registered '+str(exe)+' for Update all; its runtime and settings are unchanged.')
 
-def launcher_changes(root,record):
-    """The recorded launcher entries whose fields this build would plan differently (an update would have to rewrite them,
-    with the launcher closed): [entry path]. Each is planned again from its fields as found at installation, with the
-    installation's route, game arguments, extra environment and vkd3d-proton cache. Records do not name the OptiScaler
-    module the DLL override loads, so each module OptiScaler can be loaded as is tried."""
-    rows=record.get('launchers') or []
-    if not rows:return []
-    import launcher_config
-    runtime='xemfg-proxy' if record.get('addon_entry')==PROXY_ENTRY else 'xemfg';route=record.get('route','native')
-    vkd3d=root/STATE/VKD3D_CACHE if record.get('vkd3d_cache')==VKD3D_CACHE else None
-    extra=(record.get('compat') or {}).get('extra_env');args=record.get('launch_args') or []
-    def same(row,owner):
-        before=row['before']
-        if row['launcher']=='steam':
-            return {'LaunchOptions':launcher_config.steam_options(before.get('LaunchOptions') or '',root,owner,runtime,route,args,extra,vkd3d)}==row['after']
-        current={e['key']:e['value'] for e in before.get('enviromentOptions') or []} if row['launcher']=='heroic' else dict(before.get('env') or {})
-        return launcher_config.environment(root,owner,current,runtime,route,extra,vkd3d)==launcher_config.planned_environment(row)
-    for owner in OPTI_PROXIES:
-        try:
-            if all(same(row,owner) for row in rows):return []
-        except (ValueError,KeyError,TypeError):continue
-    return [row['path'] for row in rows]
-
-def optiscaler_change(root,record,pins,custom=None):
-    """Why this package's OptiScaler does not match the installation's (an update would have to change OptiScaler), or None.
-    A fresh setup's files must be the ones this package pins (its INI and the upscaler DLL aside) and a custom OptiScaler
-    the package carries must be the one installed; a game's own OptiScaler setup must be a build this package accepts."""
+def integration_plan(root,record,pins,files,loader=None):
+    """Qualified OptiScaler files and additive defaults, retaining the original installation ledger."""
     items={item['path']:item for item in record['files']}
+    owned=[name for name in OPTI_PROXIES if name in items and items[name]['after'] is not None]
+    accepted={pins['payload']['ProxyHash'],*pins['payload'].get('CompatibleProxyHashes',[])}
+    if files.get('opti/OptiScaler.dll') is not None:accepted.add(digest(files['opti/OptiScaler.dll']))
+    existing=[name for name in OPTI_PROXIES if file_digest(root,name) in accepted]
+    available=list(dict.fromkeys([*owned,*existing]))
+    owner=record.get('opti_owner') or (available[0] if len(available)==1 else None)
+    if owner not in available:raise ValueError('OptiScaler bytes changed or its loader ownership is ambiguous; reconcile before updating')
+    selected=loader or owner
+    if selected not in OPTI_PROXIES:raise ValueError('Unsupported OptiScaler loader: '+str(selected))
+    if selected!=owner and selected not in items and file_digest(root,selected) is not None:
+        raise ValueError('The requested loader filename belongs to another file: '+selected+'; choose a free loader name')
+    desired={};retired=[]
+    custom=files.get('opti/OptiScaler.dll')
+    expected=pins['payload']['Files'].get('OptiScaler.dll')
+    if custom is None and expected!=pins['payload']['ProxyHash']:
+        raise ValueError('OptiScaler proxy and dependency pins disagree')
+    proxy=custom if custom is not None else Upstream('OptiScaler.dll',expected)
+    wanted=digest(custom) if custom is not None else expected
+    # Do not claim an existing external OptiScaler solely because it already matches. A real version migration
+    # backs up and enrolls the accepted original immediately before replacing it.
+    if selected in items or selected!=owner or file_digest(root,selected)!=wanted:desired[selected]=('integration',proxy)
+    if selected!=owner:retired.append(owner)
     if record.get('fresh'):
-        skip={'OptiScaler.ini',(record.get('upscaler') or {}).get('target'),'OptiScaler/libxess_fg.dll','OptiScaler/libxell.dll'}
-        expected={setup_target(name):value for name,value in pins['payload']['Files'].items() if setup_target(name) not in skip}
-        if custom is not None:expected['dxgi.dll']=digest(custom)
-    elif custom is not None:expected={name:digest(custom) for name in OPTI_PROXIES if name in items}
-    else:
-        accepted={pins['payload']['ProxyHash'],*pins['payload'].get('CompatibleProxyHashes',[])}
-        if any((root/name).is_file() and not (root/name).is_symlink() and digest((root/name).read_bytes()) in accepted for name in OPTI_PROXIES):return None
-        return 'The game’s OptiScaler is not a build this release supports'
-    changed=sorted(path for path,value in expected.items() if (items.get(path) or {}).get('after')!=value)
-    if not changed:
-        drift=sorted(path for path,value in expected.items() if file_digest(root,path)!=value)
-        if drift:return 'Installed OptiScaler files changed since installation ('+', '.join(drift[:3])+')'
-    return 'This release brings another OptiScaler build ('+', '.join(changed[:3])+')' if changed else None
+        for name,value in pins['payload']['Files'].items():
+            target=setup_target(name)
+            if target in ('OptiScaler.ini','dxgi.dll') or target in {owner,selected,(record.get('upscaler') or {}).get('target'),(record.get('upscaler') or {}).get('legacy_target')}:
+                continue
+            # These SDK copies were deliberately removed by the proxy layout; do not put them back.
+            if target in ('OptiScaler/libxess_fg.dll','OptiScaler/libxell.dll'):continue
+            desired[target]=('integration',Upstream(name,value))
+    metadata={'opti_owner':selected}
+    edits={}
+    if 'opti/OptiScaler.ini' in files:
+        path=safe(root,'OptiScaler.ini');current=path.read_bytes()
+        merged,_=merge_update_settings(files['opti/OptiScaler.ini'],current)
+        if merged!=current:
+            edits['OptiScaler.ini']=merged
+            before=read_ini(current);after=read_ini(merged);names=ini_names(merged)
+            changes=json.loads(json.dumps(record.get('ini_changes') or []))
+            present={(row['section'].lower(),row['key'].lower()) for row in changes}
+            for pair,value in after.items():
+                if pair not in before and pair not in present:
+                    section,key=names[pair];changes.append(dict(section=section,key=key,value=value))
+            metadata['ini_changes']=changes
+    return dict(owner=selected,previous_owner=owner,desired=desired,retired=retired,edits=edits,metadata=metadata)
 
-def update_plan(package,root,record,component='all',helixsr_dir=None):
+
+def custom_hlx_supported(files,pins):
+    return bool(pins.get('hlx') and files.get('opti/OptiScaler.dll'))
+
+
+def provider_plan(package,root,record,pins,files,prepared=None,selection=None):
+    """One selected provider, its files and configuration. Legacy HelixSR advances to its HLX DLSS successor."""
+    current=dict(record.get('upscaler') or {})
+    name=selection or current.get('name')
+    modern=bool(pins.get('hlx'))
+    if name=='helixsr' and modern:name='hlx-dlss'
+    legacy=current.get('legacy_target') or current.get('target')
+    if not legacy:raise ValueError('The installation has no recorded upscaler target')
+    library=current.get('library_root') or str(Path(legacy).parent)
+    if name in hlx.NAMES:
+        plan=hlx.layout(package,name,library,prepared,current,root)
+        plan['metadata']['legacy_target']=legacy
+        if current.get('name')=='helixsr':
+            plan['metadata']['legacy_helixsr']=current
+        elif current.get('legacy_helixsr'):
+            plan['metadata']['legacy_helixsr']=current['legacy_helixsr']
+        ini=plan['metadata'].get('ini')
+        if ini:
+            source=safe(root,ini)
+            old=safe(root,current['ini']) if current.get('ini') else None
+            value=source.read_bytes() if source.is_file() else old.read_bytes() if old and old.is_file() else None
+            plan['files'][ini]=helixsr.ini_bytes(value)
+            plan['config_paths']=[ini]
+        return plan
+    selected=dict(record,upscaler=dict(name=name,target=legacy)) if selection or current.get('name') in hlx.NAMES else record
+    plan=upscaler_updates.plan(package,selected,pins,files,prepared,safe(root,legacy))
+    if plan.get('deferred'):return plan
+    plan['files']={plan['target']:plan['data'] if plan['data'] is not None else Upstream(plan['dependency'],plan['sha256'])}
+    plan['ini_changes']={('Upscalers','Dx12Upscaler'):'ffx',('FSR','UpscalerIndex'):'0'} if selection else {}
+    if current.get('legacy_helixsr'):plan['metadata']['legacy_helixsr']=current['legacy_helixsr']
+    return plan
+
+
+def own_ini_changes(record,changes):
+    rows=json.loads(json.dumps(record.get('ini_changes') or []))
+    index={(row['section'].lower(),row['key'].lower()):row for row in rows}
+    for (section,key),value in changes.items():
+        pair=(section.lower(),key.lower())
+        if pair in index:index[pair]['value']=value
+        else:rows.append(dict(section=section,key=key,value=value))
+    return rows
+
+
+def recipe_migration(package,root,record,ini):
+    """Explicitly refresh a tested input/launcher recipe, never silently rewrite game quality or save files."""
+    found=recipe_for(package,Path(record['game']))
+    verified=found[1] if found else None
+    if not verified or verified.get('evidence') not in ('gameplay','generates'):
+        raise ValueError('No gameplay-qualified recipe refresh is available for this game; use Check for its current limitations')
+    rm=found[0];route=verified['route'];fg=verified.get('fg_input') or 'upscaler'
+    changes={('FrameGen','Enabled'):'true' if route=='opti' else 'false',
+             ('fakenvapi','UseFakenvapi'):'true' if route=='opti' else 'false'}
+    if route=='opti':changes.update({('FrameGen','FGInput'):fg,('FrameGen','FGOutput'):'xefg'})
+    parsed=read_ini(ini)
+    changes.update(rm.ini_changes(verified,found[4],parsed,fg,fg,route,(record.get('upscaler') or {}).get('name')))
+    if route=='opti' and fg in ('fsrfg','fsrfg30'):changes[('FrameGen','DisableHudless')]='true'
+    if route=='opti' and fg in ('upscaler','fsrfg','fsrfg30') and parsed.get(('fakenvapi','forcereflex'),'auto').strip().lower() in ('','auto'):
+        changes[('fakenvapi','ForceReflex')]='2'
+    old_args=set((record.get('recipe') or {}).get('launch_args') or [])
+    args=list(rm.launch_args(verified,found[2]))
+    args.extend(x for x in record.get('launch_args',[]) if x not in old_args and x not in args)
+    recipe=dict(title=verified['title'],status='verified-bc250',wiki=[w['title'] for w in found[2]],
+                launch_args=list(rm.launch_args(verified,found[2])),evidence=verified.get('evidence'),observed=verified.get('observed'))
+    if verified.get('upscaler_ini'):recipe['upscaler_ini']=verified['upscaler_ini']
+    # Original game-setting ownership stays available for Restore. Obsolete pending settings are never reasserted.
+    settings=json.loads(json.dumps(record.get('game_settings') or []))
+    for row in settings:
+        if not any(all(row.get(k)==entry.get(k) for k in ('file','format','section','values')) for entry in verified.get('game_settings',[])):
+            row['active']=False
+    metadata=dict(route=route,fg_input=fg,launch_args=args,recipe=recipe,game_settings=settings,
+                  ini_changes=own_ini_changes(record,changes))
+    notes=['Recipe refresh: '+verified['title']+'; '+route+'/'+fg+'. Game settings and saves are not written.']
+    notes+=['After update: '+step for step in verified.get('manual_steps',[])]
+    if verified.get('note'):notes.append(verified['note'])
+    if verified.get('game_settings'):notes.append('Review the game’s graphics settings for this recipe; this refresh changes only the integration and launcher.')
+    return patch_ini(ini,changes),metadata,notes
+
+
+def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None,upscaler=None,refresh_recipe=False):
     """What install.py update would change in the installation at root, read only: dict(status, reason, actions, notes,
     source, target, max_factor, pins). status: 'update' (apply actions; none when only the record names a new release),
     'current', 'pinned', 'interrupted' (an update or rollback stopped part way: update and rollback resolve it first) or
@@ -1797,7 +1935,7 @@ def update_plan(package,root,record,component='all',helixsr_dir=None):
     manifest=json.loads((package/'manifest.json').read_text());target=manifest.get('name') if core else record.get('package')
     out=dict(status='blocked',reason=None,actions=[],notes=[],source=record.get('package'),target=target,
              max_factor=manifest.get('max_factor',2) if core else record.get('max_factor',2),pins=None,observed={},
-             component=component,core=core,deferred=[],metadata={})
+             component=component,core=core,deferred=[],metadata={},launcher_ops=[],config_paths=set(SETTINGS_FILES))
     def stop(status,reason):
         out.update(status=status,reason=reason);return out
     if record.get('status')=='restored':return stop('blocked','Restored: install this build with Install.')
@@ -1823,26 +1961,73 @@ def update_plan(package,root,record,component='all',helixsr_dir=None):
         if name in files and digest(files[name])!=runtime['Files'][source]:raise ValueError('Package file differs from its pinned upstream download: '+name)
     for path in OPTI_PROXIES:
         if (root/path).exists():out['observed'][path]=file_digest(root,path)
-    reason=optiscaler_change(root,record,pins,files.get('opti/OptiScaler.dll'))
-    if reason:return stop('blocked',reason+': use Restore, then Install.')
-    changed=launcher_changes(root,record)
-    if changed:return stop('blocked','This release plans other launch settings ('+', '.join(changed)+'): use Restore, then Install, with the launcher closed.')
+    try:integration=integration_plan(root,record,pins,files,loader)
+    except ValueError as error:return stop('blocked',str(error))
+    policy_record=record
+    if refresh_recipe:
+        try:
+            ini=integration['edits'].get('OptiScaler.ini',safe(root,'OptiScaler.ini').read_bytes())
+            base=dict(record,ini_changes=integration['metadata'].get('ini_changes',record.get('ini_changes',[])))
+            changed,metadata,notes=recipe_migration(package,root,base,ini)
+        except ValueError as error:return stop('blocked',str(error))
+        integration['edits']['OptiScaler.ini']=changed;integration['metadata'].update(metadata);out['notes']+=notes
+        policy_record=dict(record,**metadata)
+    migrations=launcher_migrations.plan(record,root,integration['owner'],
+                 route=policy_record.get('route'),args=policy_record.get('launch_args'),
+                 extra=(record.get('compat') or {}).get('extra_env'),
+                 cache=root/STATE/VKD3D_CACHE if record.get('vkd3d_cache')==VKD3D_CACHE else None,
+                 previous_owner=integration['previous_owner'])
+    out['launcher_ops']=migrations['operations']
+    if migrations['records']!=record.get('launchers',[]):out['metadata']['launchers']=migrations['records']
+    if migrations['operations']:out['metadata']['launcher_policy_keys']=migrations['policy_keys']
+    out['metadata'].update({key:value for key,value in integration['metadata'].items() if record.get(key)!=value})
+    edits=integration['edits']
     # What the package places, as install() places it: its own payload files, and the pinned runtime (the package's copy
     # when it carries one, checked above).
     desired={name.removeprefix('payload/'):('addon',files[name]) for name in files if core and name.startswith('payload/') and name not in layout}
     for name,source in layout.items():
         if core and name.startswith('payload/'):
             desired[name.removeprefix('payload/')]=('runtime',files.get(name) or Upstream(source,runtime['Files'][source]))
-    if component in ('all','upscaler'):
-        upscaler_path=(record.get('upscaler') or {}).get('target')
-        provider=upscaler_updates.plan(package,record,pins,files,helixsr_dir,safe(root,upscaler_path) if upscaler_path else None)
+    desired.update(integration['desired'])
+    desired.update({path:('integration',data) for path,data in edits.items()})
+    out['config_paths'].update(edits)
+    if component in ('all','upscaler') or upscaler:
+        current_provider=record.get('upscaler') or {}
+        current_paths=current_provider.get('files') or [current_provider.get('target')]
+        owned={row['path']:row['after'] for row in record['files']}
+        for path in filter(None,current_paths):
+            now=file_digest(root,path);out['observed'][path]=now
+            if path not in owned or now!=owned[path]:return stop('blocked','Selected provider changed since installation: '+path+'; reconcile before updating')
+        try:provider=provider_plan(package,root,record,pins,files,helixsr_dir,upscaler)
+        except ValueError as error:provider={'deferred':str(error)}
         if provider.get('deferred'):
             out['deferred'].append('upscaler');out['notes'].append(provider['deferred'])
+            if upscaler or not core:return stop('deferred',provider['deferred'])
         else:
-            if provider['target'] not in {item['path'] for item in record['files']}:
-                return stop('blocked','The selected upscaler target is not owned by this installation.')
-            data=provider['data'] if provider['data'] is not None else Upstream(provider['dependency'],provider['sha256'])
-            desired[provider['target']]=(provider['component'],data)
+            for path,data in provider['files'].items():
+                # New providers live in their own folders; do not take over another mod's files.
+                if path not in {item['path'] for item in record['files']} and safe(root,path).exists():
+                    return stop('blocked','Provider target already exists outside this installation: '+path)
+                desired[path]=(provider['component'],data)
+            out['config_paths'].update(provider.get('config_paths',[]))
+            changes=dict(provider.get('ini_changes') or {})
+            recipe_name='helixsr' if provider['metadata']['name']=='hlx-dlss' else provider['metadata']['name']
+            changes.update(upscaler_recipe_changes(package,Path(record['game']),record,recipe_name))
+            if changes:
+                data=edits.get('OptiScaler.ini',safe(root,'OptiScaler.ini').read_bytes())
+                changed=patch_ini(data,changes)
+                desired['OptiScaler.ini']=('integration',changed);edits['OptiScaler.ini']=changed
+                out['config_paths'].add('OptiScaler.ini')
+                base=dict(record,ini_changes=out['metadata'].get('ini_changes',record.get('ini_changes',[])))
+                owned_changes=own_ini_changes(base,changes)
+                if owned_changes!=record.get('ini_changes',[]):out['metadata']['ini_changes']=owned_changes
+            recipe=recipe_for(package,Path(record['game']))
+            rules=((recipe[1] or {}).get('upscaler_ini',{}) if recipe else record.get('recipe',{}).get('upscaler_ini',{}))
+            proposed=read_ini(edits.get('OptiScaler.ini',safe(root,'OptiScaler.ini').read_bytes()))
+            for key,wanted in rules.get(recipe_name,{}).items():
+                section,name=key.split('.',1);actual=proposed.get((section.lower(),name.lower()),'auto')
+                if actual.strip().lower()!=str(wanted).strip().lower():
+                    out['notes'].append('Recipe recommends '+key+'='+str(wanted)+'; your explicit '+actual+' is preserved. Review the game-specific compatibility note before playing.')
             if provider['metadata']!=(record.get('upscaler') or {}):out['metadata']['upscaler']=provider['metadata']
     items={item['path']:(i,item) for i,item in enumerate(record['files'])}
     actions=[];conflicts=[]
@@ -1853,34 +2038,42 @@ def update_plan(package,root,record,component='all',helixsr_dir=None):
         action=dict(path=path,index=index,component=component,old=item['after'] if item else now,new=new,data=data,
                     observed=now,mode=stat.S_IMODE(safe(root,path).stat().st_mode) if now is not None else item['mode'] if item else 0o644)
         if item is None:actions.append(dict(action,kind='add'));continue
-        if path in SETTINGS_FILES:
+        if path in out['config_paths'] and now is None and item['after'] is None:
+            actions.append(dict(action,kind='replace'));continue
+        if path in out['config_paths']:
             # This release's file with the user's values: every value that differs from its default, as Install carries
             # them across Restore (the installed file may itself hold values an earlier Install carried, or configure's).
             if now is None:return stop('blocked',path+' is missing: repair the settings before updating; no defaults were written.')
-            try:merged,kept=merge_update_settings(data,safe(root,path).read_bytes())
+            try:
+                merged,kept=(data,{}) if path in edits else merge_update_settings(data,safe(root,path).read_bytes())
             except (UnicodeDecodeError,ValueError,configparser.Error) as error:
                 return stop('blocked',path+' could not be read ('+str(error)+'): repair the settings before updating; no defaults were written.')
-            if digest(merged)!=now:actions.append(dict(action,kind='merge',data=merged,new=digest(merged),kept=kept))
+            if digest(merged)!=now:
+                before_values=read_ini(safe(root,path).read_bytes());after_values=read_ini(merged)
+                keys=sorted(set(before_values)|set(after_values),key=lambda pair:(pair not in before_values,pair))
+                differences=[dict(section=k[0],key=k[1],before=before_values.get(k),after=after_values.get(k))
+                             for k in keys if before_values.get(k)!=after_values.get(k)]
+                actions.append(dict(action,kind='merge',data=merged,new=digest(merged),kept=kept,setting_changes=differences))
             continue
         if now!=item['after']:
             # The add-on and its runtime only work as one set; the upscaler DLL is another component, left as it is.
-            if component in ('fsr4','helixsr'):
-                out['notes'].append('Left '+path+' as it is: it changed since installation ('+COMPONENTS[component]+' not updated).')
-                out['deferred'].append('upscaler');out['metadata'].pop('upscaler',None)
+            if component in ('fsr4','helixsr','hlx-dlss','hlx-fsr4'):
+                return stop('blocked','Selected provider changed since installation: '+path+'; reconcile before updating')
             else:conflicts.append(path)
             continue
         if item['after']==new:continue
         actions.append(dict(action,kind='replace'))
     for index,item in enumerate(record['files']):
         path=item['path']
-        if not core or path in desired or item['after'] is None or item['after']==item['before'] or not (path.startswith('BC250-XeFG/') or path in ADDON_FILES):continue
+        integration_retired=path in integration['retired']
+        if (not core and not integration_retired) or path in desired or item['after'] is None or item['after']==item['before'] or not (integration_retired or path.startswith('BC250-XeFG/') or path in ADDON_FILES):continue
         out['observed'][path]=file_digest(root,path)
         if out['observed'][path]!=item['after']:conflicts.append(path);continue
         original=None
         if item['before'] is not None:
             original=safe(root,STATE+'/backups/'+str(index)).read_bytes()
             if digest(original)!=item['before']:raise ValueError('Backup checksum mismatch: '+path)
-        actions.append(dict(path=path,index=index,component='addon',kind='retire',old=item['after'],new=item['before'],data=original,
+        actions.append(dict(path=path,index=index,component='integration' if integration_retired else 'addon',kind='retire',old=item['after'],new=item['before'],data=original,
                             observed=item['after'],mode=stat.S_IMODE(safe(root,path).stat().st_mode)))
     if conflicts:
         return stop('blocked','Changed since installation (a game update or another tool): '+', '.join(conflicts[:3])+(' and '+str(len(conflicts)-3)+' more' if len(conflicts)>3 else '')+
@@ -1889,7 +2082,7 @@ def update_plan(package,root,record,component='all',helixsr_dir=None):
     out['core_paths']=set(desired) if core else None
     if not core and not actions and not out['metadata'] and out['deferred']:
         return stop('deferred','No changes applied: '+out['notes'][0])
-    if not actions and not out['metadata'] and out['source']==target and record.get('update_contract')==UPDATE_CONTRACT:
+    if not actions and not out['metadata'] and not out['launcher_ops'] and out['source']==target and record.get('update_contract')==UPDATE_CONTRACT:
         if out['deferred']:return stop('deferred','No changes applied: '+out['notes'][0])
         return stop('current','Up to date ('+str(target)+').')
     out['status']='update';return out
@@ -1905,11 +2098,18 @@ def plan_lines(plan):
         if words:lines.append('  '+label+': '+', '.join(words)+' file'+('s' if sum(counts.values())>1 else ''))
     for action in plan['actions']:
         if action['kind']=='merge':
-            lines.append('  '+action['path']+': this release’s file'+(' with your '+', '.join(s+'.'+k+'='+v for (s,k),v in action['kept'].items()) if action['kept'] else ''))
+            lines.append('  '+action['path']+': update owned settings and add missing defaults')
+            changes=action.get('setting_changes',[])
+            for value in changes[:12]:
+                lines.append('    '+value['section']+'.'+value['key']+': '+str(value['before'] if value['before'] is not None else '(unset)')+' → '+str(value['after'] if value['after'] is not None else '(unset)'))
+            if len(changes)>12:lines.append('    and '+str(len(changes)-12)+' other new defaults/settings')
     if not plan['actions']:lines.append('  no file changes (update the release/component record)')
     downloads=sorted({a['data'].name for a in plan['actions'] if isinstance(a['data'],Upstream)})
     if downloads:lines.append('  downloads (pinned upstream files): '+', '.join(downloads))
-    lines.append('  unchanged: original-file backups, OptiScaler and OptiScaler.ini, launch settings, game settings and provider selection')
+    if plan.get('launcher_ops'):lines.append('  launcher entries migrated: '+', '.join(op['target']['launcher']+'/'+str(op['target'].get('id','game')) for op in plan['launcher_ops']))
+    if plan.get('metadata',{}).get('opti_owner'):lines.append('  OptiScaler loader: '+plan['metadata']['opti_owner'])
+    if plan.get('metadata',{}).get('upscaler'):lines.append('  '+upscaler_line(plan['metadata']['upscaler']))
+    lines.append('  original-file backups and user settings are retained')
     return lines+plan['notes']
 
 def load_generation(state,generation):
@@ -1974,6 +2174,48 @@ def applied_bytes(state,generation,entry):
     if digest(data)!=entry['new']:raise ValueError('Applied settings checksum mismatch: '+entry['path'])
     return data
 
+def validate_external_generation(root,record,generation):
+    operations=generation.get('launcher_ops') or []
+    entries=generation.get('external_files') or []
+    known={row['path'] for row in record.get('launchers') or []}
+    known|={row['path'] for row in (generation.get('metadata_before') or {}).get('launchers',[])}
+    paths={op['target']['path'] for op in operations}
+    if paths!={entry.get('path') for entry in entries} or len(entries)!=len(paths) or not paths<=known:
+        raise ValueError('Recovery launcher files do not match the installation record')
+    snapshots={}
+    for entry in entries:
+        if not re.fullmatch(r'external/[0-9]+',str(entry.get('saved'))):raise ValueError('Invalid saved launcher path')
+        path=Path(entry['path'])
+        if not path.is_absolute() or path.is_symlink():raise ValueError('Invalid launcher recovery target')
+        data=safe(root/STATE,GENERATIONS+'/'+generation['id']+'/'+entry['saved']).read_bytes()
+        if digest(data)!=entry.get('saved_sha256'):raise ValueError('Saved launcher checksum mismatch: '+str(path))
+        snapshots[str(path)]=data
+    for path,rows in launcher_migrations.grouped(operations).items():
+        import launcher_config
+        data=snapshots[path]
+        for row in rows:
+            if row['target'].get('launcher') not in ('steam','heroic','lutris'):raise ValueError('Unknown recovery launcher')
+            current=launcher_config.fields(dict(row['target'],before=row['before']),data)
+            if current!=row['before']:raise ValueError('Saved launcher fields differ from their recovery plan')
+            data=launcher_config.patch(row['target'],data,row['after'])
+        entry=next(row for row in entries if row['path']==path)
+        if digest(data)!=entry.get('applied_sha256'):raise ValueError('Saved launcher migration is inconsistent')
+    return snapshots
+
+def restore_external_generation(root,record,generation):
+    """Undo owned entry changes, restoring exact file layout/metadata only when no other edits would be lost."""
+    snapshots=validate_external_generation(root,record,generation)
+    operations=generation.get('launcher_ops') or []
+    launcher_migrations.apply(operations,write,reverse=True)
+    import launcher_config
+    for entry in generation.get('external_files') or []:
+        path=Path(entry['path']);data=path.read_bytes();original=snapshots[str(path)]
+        row=next(op['target'] for op in operations if op['target']['path']==str(path))
+        if data==original or launcher_config.same_settings(row,data,original):
+            if data!=original:write(path,original,entry['mode'])
+            restore_generation_metadata(path,entry)
+        sync_folder(path.parent)
+
 def forget_folders(root,record,folders):
     """Folders an update created that its undoing left empty: removed, and no longer named in the record."""
     created=record.get('created_dirs') or []
@@ -2013,6 +2255,8 @@ def settle_interrupted(root,record):
     state=root/STATE;pending=record['pending_update'];generation=load_generation(state,pending['generation'])
     if generation is None:raise ValueError('Recovery generation is missing: pending journal and game files were kept. Restore its saved files before recovery.')
     validate_generation(record,generation)
+    validate_external_generation(root,record,generation)
+    launcher_migrations.prepare_apply(generation.get('launcher_ops') or [],reverse=True)
     if set(pending.get('files') or {})!={entry['path'] for entry in generation['files']}:
         raise ValueError('Recovery generation does not match the pending file set')
     if pending.get('kind','update')=='update':
@@ -2035,6 +2279,8 @@ def settle_interrupted(root,record):
             item['after']=change['before']
         for parent in touched:
             if parent.is_dir():sync_folder(parent)
+        restore_external_generation(root,record,generation)
+        restore_release_metadata(record,generation)
         record.pop('pending_update');forget_folders(root,record,generation.get('created_dirs') or []);save_record(state,record)
         shutil.rmtree(state/GENERATIONS/generation['id'])
         sync_folder(state/GENERATIONS)
@@ -2044,7 +2290,8 @@ def settle_interrupted(root,record):
     return True,['An interrupted rollback was completed: back to '+str(generation['from']['package'])+'.']
 
 @locked
-def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None):
+@launcher_locked
+def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None,loader=None,upscaler=None,refresh_recipe=False):
     """install.py update: replace the installed game's frame generation with this package's in place (update_plan says
     what changes), recoverably and without Restore. Returns the plan's status ('update' once applied)."""
     package=Path(package or Path(__file__).resolve().parent)
@@ -2055,13 +2302,19 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     if (record.get('pending_update') or {}).get('generation'):
         for line in settle_interrupted(root,record)[1]:print(line)
         expected_record=file_digest(state,'state.json')
-    plan=update_plan(package,root,record,component,helixsr_dir)
+    plan=update_plan(package,root,record,component,helixsr_dir,loader,upscaler,refresh_recipe)
     if plan['status']!='update':
         if plan['status'] in ('current','pinned'):remember_installation(exe,record)
         print(plan['reason']);return plan['status']
     actions=plan['actions']
     if any(isinstance(a['data'],Upstream) for a in actions):
-        fetched=pinned(package,plan['pins'],['runtime'],dependency_dir)
+        needed={a['data'].name for a in actions if isinstance(a['data'],Upstream)}
+        groups=[]
+        for group in ('runtime','payload','dlss'):
+            names=set(plan['pins'].get(group,{}).get('Files',{}))
+            if needed & names:groups.append(group);needed-=names
+        if needed:raise ValueError('Unresolved component dependencies: '+', '.join(sorted(needed)))
+        fetched=pinned(package,plan['pins'],groups,dependency_dir)
         for action in actions:
             if isinstance(action['data'],Upstream):action['data']=fetched[action['data'].name]
     # New files of this release become managed files: what was there is their original, backed up as install() does.
@@ -2083,7 +2336,7 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
         target=safe(root,action['path']);data=target.read_bytes() if target.is_file() else None
         if (digest(data) if data is not None else None)!=action['observed']:raise ValueError(action['path']+' changed during the update; no game files were changed')
         if data is not None:write(staging/'files'/str(n),data,0o600)
-        applied='applied/'+str(n) if action['path'] in SETTINGS_FILES and action['data'] is not None else None
+        applied='applied/'+str(n) if action['kind']=='merge' and action['data'] is not None else None
         if applied:write(staging/applied,action['data'],0o600)
         entries.append(dict(path=action['path'],index=action['index'],component=action['component'],kind=action['kind'],old=action['old'],new=action['new'],
                             saved='files/'+str(n) if data is not None else None,saved_sha256=digest(data) if data is not None else None,
@@ -2091,23 +2344,33 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
                             mode=stat.S_IMODE(target.stat().st_mode) if data is not None else action['mode'],
                             mtime_ns=target.stat().st_mtime_ns if data is not None else None))
     previous=dict(package=record.get('package'),max_factor=record.get('max_factor'))
+    external=[]
+    for n,(path,before,after) in enumerate(launcher_migrations.prepare_apply(plan['launcher_ops'])):
+        relative='external/'+str(n);write(staging/relative,before,0o600)
+        external.append(dict(path=str(path),saved=relative,saved_sha256=digest(before),applied_sha256=digest(after),
+                             mode=stat.S_IMODE(path.stat().st_mode),mtime_ns=path.stat().st_mtime_ns))
     description=dict(id=generation,created_at=time.time(),**{'from':previous},to=dict(package=plan['target'],max_factor=plan['max_factor']),
                      metadata_before=release_metadata(record),metadata_after=plan['metadata'],
                      metadata_fields=['update_contract','components',*plan['metadata']],core_updated=plan['core'],
-                     files=entries,created_dirs=created)
+                     files=entries,created_dirs=created,launcher_ops=plan['launcher_ops'],external_files=external)
     write(staging/'generation.json',(json.dumps(description,indent=2)+'\n').encode())
     if (staging/'files').is_dir():sync_folder(staging/'files')
     if (staging/'applied').is_dir():sync_folder(staging/'applied')
+    if (staging/'external').is_dir():sync_folder(staging/'external')
     sync_folder(staging);os.replace(staging,folder/generation);sync_folder(folder)
     # Preparation may include downloads or a long copy. Recheck every coupled file, not just replacement targets.
     idle(root)
     if file_digest(state,'state.json')!=expected_record:raise ValueError('Installation record changed since planning; no game files were changed')
     drift=[path for path,expected in plan['observed'].items() if file_digest(root,path)!=expected]
     if drift:raise ValueError('Files changed since planning: '+', '.join(drift[:3])+'; no game files were changed')
+    launcher_migrations.check(plan['launcher_ops'])
     # The journal, then the files: an interruption from here on is undone by the next update or rollback, or settled by
     # Restore (also an earlier build's).
     record['created_dirs']=sorted(set(record.get('created_dirs') or [])|set(created),key=lambda name:(-name.count('/'),name))
     record['pending_update']=dict(generation=generation,kind='update',files={a['path']:dict(before=a['old'],after=a['new']) for a in actions})
+    # Restore needs the new ownership information even if an interruption happens between resource writes.
+    for key in ('ini_changes','launchers','launcher_policy_keys'):
+        if key in plan['metadata']:record[key]=plan['metadata'][key]
     save_record(state,record);sync_folder(state)
     journal_hash=file_digest(state,'state.json')
     touched=set()
@@ -2124,6 +2387,8 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     for relative in created:
         parent=(root/relative).parent
         if parent.is_dir():sync_folder(parent)
+    launcher_migrations.apply(plan['launcher_ops'],write)
+    for row in external:sync_folder(Path(row['path']).parent)
     expected_files=dict(plan['observed']);expected_files.update({a['path']:a['new'] for a in actions})
     changed=[path for path,expected in expected_files.items() if file_digest(root,path)!=expected]
     if changed:raise ValueError('Update verification failed for '+', '.join(changed[:3])+': recovery journal retained')
@@ -2140,6 +2405,7 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     record.setdefault('generations',[]).append(dict(id=generation,**{'from':previous['package']},to=plan['target'],at=time.strftime('%Y-%m-%dT%H:%M:%S%z')))
     prune_generations(state,record)
     remember_installation(exe,record)
+    if (record.get('upscaler') or {}).get('name') in hlx.NAMES:remember_prepared(package,helixsr_dir)
     for line in plan_lines(plan)[1:]:print(line)
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
     print('Updated to '+str(plan['target'])+'. Launch the game as before; install.py rollback returns to '+str(previous['package'])+'.')
@@ -2151,11 +2417,13 @@ def rollback_generation(root,record,generation):
     history=record.get('generations') or []
     if not history or history[-1]['id']!=generation['id']:raise ValueError('Rollback generation does not match history')
     validate_generation(record,generation)
+    validate_external_generation(root,record,generation)
+    launcher_migrations.prepare_apply(generation.get('launcher_ops') or [],reverse=True)
     actions=[];conflicts=[]
     for entry in generation['files']:
         item=record['files'][entry['index']];now=file_digest(root,entry['path'])
         data=saved_bytes(state,generation,entry);goal=entry['saved_sha256']
-        if entry['path'] in SETTINGS_FILES:
+        if entry['kind']=='merge':
             # Settings changed since the update: the earlier file with the user's present values.
             if data is not None and now not in (entry['new'],goal):
                 if now is None:raise ValueError(entry['path']+' was removed after the update; no settings were overwritten')
@@ -2175,6 +2443,7 @@ def rollback_generation(root,record,generation):
         touched.add(target.parent)
     for parent in touched:
         if parent.is_dir():sync_folder(parent)
+    restore_external_generation(root,record,generation)
     emptied=reset_vkd3d_cache(state,record,[a['entry']['path'] for a in actions])
     for action in actions:action['item']['after']=action['entry']['old']
     record.pop('pending_update');forget_folders(root,record,generation.get('created_dirs') or [])
@@ -2191,6 +2460,7 @@ def rollback_generation(root,record,generation):
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
 
 @locked
+@launcher_locked
 def rollback(exe):
     """install.py rollback: back to the release before the last update, byte for byte (the generation that update saved),
     keeping the user's values in the settings files; or, after an interrupted update, undo it."""
@@ -2263,10 +2533,10 @@ def show_library():
               ('; '+row['reason'] if row['reason'] else ''))
     return rows
 
-def show_plan(package,exe,component='all',helixsr_dir=None):
+def show_plan(package,exe,component='all',helixsr_dir=None,loader=None,refresh_recipe=False):
     """install.py plan: what update would do in one game (changes nothing). Returns the plan's status."""
     root=exe.parent.resolve();record=json.loads(safe(root,STATE+'/state.json').read_text())
-    plan=update_plan(package,root,record,component,helixsr_dir)
+    plan=update_plan(package,root,record,component,helixsr_dir,loader,refresh_recipe=refresh_recipe)
     for line in plan_lines(plan):print(line)
     if plan['status']=='update':
         try:idle(root)
@@ -2418,6 +2688,16 @@ def helixsr_command(package,folder=None,download=None):
     on this computer, it downloads the official release the package pins from HelixSR's GitHub releases into the download
     cache (the user asked for it by running this command, or by choosing HelixSR in Setup). It never runs HelixSR's setup:
     it prints the command that does, which asks before downloading NVIDIA's DLSS DLL and builds the network."""
+    if hlx.catalog(package):
+        ready=True
+        for provider in hlx.NAMES:
+            try:
+                spec,location,_=hlx.find(package,provider,folder)
+                print(hlx.NAMES[provider]+' '+spec['version']+' ready: '+str(location))
+            except (OSError,ValueError) as error:ready=False;print(str(error))
+        if ready and folder:hlx.remember(package,folder)
+        if not ready:print('Use Setup → Upscaler → Prepare HLX, or install.py hlx --dlss-input FILE --amd-input FILE.')
+        return 0 if ready else 1
     found=helixsr.find(package,explicit=folder)
     # Nothing usable on this computer: no release, or only one this installer does not know (another version, or a
     # changed DLL). The official release the package pins is downloaded; an unknown folder found is left as it is.
@@ -2444,7 +2724,7 @@ def accepted_for(accept,exe):
     return out
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check','plan','update','rollback','pin','unpin','register','library']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check','plan','update','rollback','pin','unpin','register','library','hlx']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
     parser.add_argument('--factor',type=int,choices=[2,3,4])
     parser.add_argument('--resolution',choices=['output','scale','limit']);parser.add_argument('--percent',type=int);parser.add_argument('--limit',type=int,choices=[720,1080,1440,2160])
     parser.add_argument('--downscale',choices=['bilinear','area']);parser.add_argument('--upscale',choices=['bilinear','bicubic','lanczos2','fsr1'])
@@ -2458,6 +2738,10 @@ def main():
                              'project by lonewolf0622 that its own setup builds on this computer (see install.py helixsr)')
     parser.add_argument('--helixsr',type=Path,metavar='FOLDER',help='a HelixSR release folder (the one with helixsr-setup.sh); '
                         'default: the one found on this computer')
+    parser.add_argument('--refresh-recipe',action='store_true',help='plan/update: apply the latest gameplay-qualified integration and launcher recipe; game settings remain manual')
+    parser.add_argument('--loader',choices=OPTI_PROXIES,help='plan/update: migrate the OptiScaler loader and its launcher override')
+    parser.add_argument('--dlss-input',type=Path,help='hlx: local NVIDIA DLSS model input')
+    parser.add_argument('--amd-input',type=Path,help='hlx: local AMD model input')
     parser.add_argument('--component',choices=['all','core','upscaler'],default='all',
                         help='plan/update: update the whole compatible set, only FreeFG/Intel, or only the selected upscaler; never switches providers')
     parser.add_argument('--accept',action='append',default=[],metavar='CODE[=EXE]',
@@ -2475,6 +2759,11 @@ def main():
                         'every game with this build installed that a Steam, Heroic or Lutris entry starts (and the games named)')
     parser.add_argument('--report',action='store_true',help='check: also print a redacted report for a GitHub issue')
     args=parser.parse_args()
+    if args.refresh_recipe and args.command not in ('plan','update'):parser.error('--refresh-recipe applies to plan and update')
+    if args.loader and args.command not in ('plan','update'):parser.error('--loader applies to plan and update')
+    if args.command=='hlx':
+        try:hlx.prepare(Path(__file__).resolve().parent,args.dlss_input,args.amd_input);return 0
+        except (OSError,ValueError,subprocess.SubprocessError) as error:print(str(error),file=sys.stderr);return 1
     if args.component!='all' and args.command not in ('plan','update'):parser.error('--component applies to plan and update')
     if args.command in ('plan','update') and any(getattr(args,key) is not None for key in ('upscaler','factor','resolution','percent','limit','downscale','upscale')):
         parser.error('Update preserves settings and provider selection; use configure for those changes')
@@ -2513,9 +2802,9 @@ def main():
                 outcomes.append((exe,'unavailable'));failed=failed or args.command=='update';continue
             if args.command=='restore':restore(exe.absolute())
             elif args.command=='status':status(exe.absolute())
-            elif args.command=='plan':outcomes.append((exe,show_plan(Path(__file__).resolve().parent,exe.absolute(),args.component,args.helixsr)))
+            elif args.command=='plan':outcomes.append((exe,show_plan(Path(__file__).resolve().parent,exe.absolute(),args.component,args.helixsr,args.loader,args.refresh_recipe)))
             elif args.command=='update':
-                outcome=update(exe.absolute(),component=args.component,helixsr_dir=args.helixsr);outcomes.append((exe,outcome))
+                outcome=update(exe.absolute(),component=args.component,helixsr_dir=args.helixsr,loader=args.loader,refresh_recipe=args.refresh_recipe);outcomes.append((exe,outcome))
                 # A game left as it is for a reason (blocked) needs attention; up to date and pinned do not.
                 if outcome in ('blocked','partial','deferred'):failed=True
             elif args.command=='rollback':rollback(exe.absolute())

@@ -702,7 +702,7 @@ class RenameTool(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             package = Path(folder) / 'package'
             package.mkdir()
-            for name in ('install.py', 'launcher_config.py', 'steam_config.py', 'helixsr.py', 'freefg_library.py', 'upscaler_updates.py'):
+            for name in ('install.py', 'launcher_config.py', 'steam_config.py', 'helixsr.py', 'freefg_library.py', 'upscaler_updates.py', 'launcher_migrations.py', 'hlx.py'):
                 shutil.copy2(TREE / 'packaging' / name, package / name)
             shutil.copytree(TREE / 'packaging/vendor', package / 'vendor')
             # A stand-in for doctor.py that imports what the real modules import, without probing this system.
@@ -2013,8 +2013,16 @@ class HelixSRNeverShipped(unittest.TestCase):
                         components=dict(c=dict(files={'payload/x.dll': 'plain.dll'})))
             self.assertEqual(list(assemble.plan(spec, Sources())), ['payload/x.dll'])
             spec['components']['c']['files']['payload/x.dll'] = 'built.dll'
-            with self.assertRaisesRegex(assemble.ReleaseError, 'HelixSR'):
+            with self.assertRaisesRegex(assemble.ReleaseError, 'HLX'):
                 assemble.plan(spec, Sources())
+
+    def test_hlx_fsr4_embedded_payload_is_also_rejected(self):
+        import struct
+        import assemble
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'provider.dll'
+            path.write_bytes(b'MZ'+bytes(64)+b'local model data'+b'HLXFSR4D'+struct.pack('<QQ',16,123))
+            self.assertTrue(assemble.built_helixsr(path))
 
     def test_pin_check_never_fetches_helixsr(self):
         import subprocess

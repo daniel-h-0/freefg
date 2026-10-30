@@ -390,7 +390,8 @@ def built_helixsr(path):
             return False
         with open(path, 'rb') as stream:
             stream.seek(size - 32)
-            return stream.read(8) == HELIXSR_NETWORK_MAGIC
+            tail=stream.read(32)
+            return tail[:8] == HELIXSR_NETWORK_MAGIC or tail[8:16] == b'HLXFSR4D'
     except OSError:
         return False
 
@@ -412,7 +413,7 @@ def plan(spec, sources):
             if digest in rules['sha256']:
                 raise ReleaseError(f'{target} is {rules["sha256"][digest]}, which must not be shipped')
             if built_helixsr(path):
-                raise ReleaseError(f'{target} is a HelixSR DLL with the network its setup builds from NVIDIA\'s DLSS DLL, '
+                raise ReleaseError(f'{target} is an HLX DLL containing locally built model data, '
                                    'which must not be shipped')
             files[target] = (component, path)
     return dict(sorted(files.items()))

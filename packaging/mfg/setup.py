@@ -99,12 +99,62 @@ def helixsr_ready(installer):
         dialog('--text-info','--width=1000','--height=520','--filename='+str(note))
     return False
 
+def hlx_ready(installer,provider):
+    try:installer.hlx.find(ROOT,provider);return []
+    except (OSError,ValueError):pass
+    choice=dialog('--list','--width=720','--height=270','--column=Action','--column=Description',
+        'Use prepared folder','Select an HLX release already built on this computer',
+        'Prepare HLX','Build DLSS and FSR 4 once from local model inputs; no games are changed',
+        '--text=HLX preparation is shared by every game. Built model files stay on this computer.')
+    if choice=='Use prepared folder':
+        folder=dialog('--file-selection','--directory','--title=Prepared HelixSR release folder')
+        if not folder:return None
+        try:installer.hlx.find(ROOT,provider,folder);return ['--helixsr',folder]
+        except (OSError,ValueError) as error:dialog('--error','--text='+str(error));return None
+    if choice=='Prepare HLX':
+        dlss=dialog('--file-selection','--title=NVIDIA nvngx_dlss.dll model input')
+        if not dlss:return None
+        amd=dialog('--file-selection','--title=AMD amdxcffx64.dll model input')
+        if not amd:return None
+        run_and_show(['hlx','--dlss-input',dlss,'--amd-input',amd],'Preparing HLX for all games. This takes several minutes.')
+        try:installer.hlx.find(ROOT,provider);return []
+        except (OSError,ValueError):return None
+    return None
+
+
+def select_library(installer,selected):
+    """A native table selects enrolled games; later actions use the existing installer commands."""
+    if installer is None:return selected
+    from library_view import rows
+    try:items=rows(installer)
+    except (OSError,ValueError) as error:dialog('--error','--text='+str(error));return selected
+    if not items:
+        dialog('--info','--text=No enrolled games. Add a game to install it, or Register an existing FreeFG installation.');return selected
+    values=[]
+    for row in items:
+        values.extend(['TRUE' if Path(row['exe']) in selected else 'FALSE',row['exe'],row['title'],row['release'],
+                       row['provider'],row['files'],row['runtime'],row['recovery'],row['pin']])
+    choice=dialog('--list','--checklist','--width=1200','--height=600','--hide-column=2','--print-column=2','--separator=\n',
+        '--column=Select','--column=Executable','--column=Game','--column=FreeFG','--column=Upscaler',
+        '--column=Files','--column=Last session','--column=Recovery','--column=Updates',*values,
+        '--ok-label=Use selection','--text=Choose games for Settings, Upscaler, Update selected, Rollback or Status.\nLast-session logs describe that run; they do not certify gameplay or settings persistence.')
+    return selected if choice is None else [Path(x) for x in choice.splitlines() if x]
+
+
 def choose_upscaler(installer,text):
     """install.py arguments for the upscaler the user picks, or None (cancelled, or HelixSR not ready yet)."""
-    choice=dialog('--list','--width=900','--height=300','--column=Upscaler','--column=About',*UPSCALER_ROWS,'--text='+text)
+    modern=hasattr(installer,'hlx') and bool(installer.hlx.catalog(ROOT))
+    rows=(['FSR 4','AMD FSR 4 BC-250 build','HLX DLSS','Helix DLSS network, prepared locally',
+           'HLX FSR 4','Helix FSR 4 provider, prepared locally'] if modern else UPSCALER_ROWS)
+    choice=dialog('--list','--width=900','--height=300','--column=Upscaler','--column=About',*rows,'--text='+text)
     if not choice:return None
     if choice=='FSR 4':return ['--upscaler','fsr4']
+    if modern:
+        provider={'HLX DLSS':'hlx-dlss','HLX FSR 4':'hlx-fsr4'}[choice]
+        extra=hlx_ready(installer,provider)
+        return ['--upscaler',provider,*extra] if extra is not None else None
     return ['--upscaler','helixsr'] if helixsr_ready(installer) else None
+
 
 def verdicts(installer,selected,route=None,fg_input=None,accept_risk=()):
     """[(game, exe, compatibility verdict or None)] for every selected game (install.py compat_verdict: read only, no
@@ -240,10 +290,12 @@ def main():
             'Install','Install '+NAME+' into selected games',
             # A 2×-only package (no 3×/4×, no generated-frame scaling) has nothing for Settings to change.
             *(['Settings','Choose '+'/'.join(FACTORS)+(' and generated-frame resolution' if SCALING else ' frame generation')] if MFG and (len(FACTORS)>1 or SCALING) else []),
-            'Upscaler','Switch installed games between FSR 4 and HelixSR (by lonewolf0622)',
+            'Upscaler','Choose AMD FSR 4, HLX DLSS or HLX FSR 4 for selected games',
             'Update all','Update '+NAME+' in every installed game to this package, keeping settings (shows the plan first)',
             'Update upscalers','Update each selected compatible upscaler across the library, keeping FreeFG and provider selection',
-            'Library','List installed games, versions and update pins',
+            'Library','Select enrolled games; view versions, last-session logs and recovery'
+            ,'Update selected','Preview and update the selected games in place',
+            'Refresh recipe','Apply a tested input and launcher recipe in place; game settings stay manual',
             'Register','Remember selected existing installations for Update all',
             'Pin','Keep selected games on their installed release',
             'Unpin','Allow selected games to receive updates again',
@@ -265,24 +317,24 @@ def main():
                 if p not in selected:selected.append(p)
             continue
         if action=='Check system':show_text(['doctor'],[]);continue
-        if action=='Library':show_text(['library'],[]);continue
+        if action=='Library':selected=select_library(installer,selected);continue
         games=selected
-        update_scope=['--component','upscaler'] if action=='Update upscalers' else []
-        if action in ('Update all','Update upscalers'):
+        update_scope=['--component','upscaler'] if action=='Update upscalers' else ['--refresh-recipe'] if action=='Refresh recipe' else []
+        if action in ('Update all','Update upscalers','Update selected','Refresh recipe'):
             # Every installed game, no selection needed: the plan first (what changes, what is left and why), then one
-            # confirmation. Launch settings never change, so only the games themselves must be closed.
-            games=update_candidates(installer,selected)
+            # confirmation. The engine checks launcher closure when its plan changes launcher fields.
+            games=selected if action in ('Update selected','Refresh recipe') else update_candidates(installer,selected)
             if not games:dialog('--info','--text=No game with '+NAME+' installed was found in Steam, Heroic or Lutris. Add games to choose them.');continue
             show_text(['plan',*update_scope],games)
             if dialog('--question','--width=640','--ok-label=Update','--cancel-label=Back',
-                      '--text=Update the games the plan lists to this package?\nSettings, OptiScaler, launch options and the saved '
-                      'original files stay as they are; Rollback returns a game to its earlier release.\n'
+                      '--text=Apply the displayed update plan?\nFreeFG, the selected upscaler, OptiScaler and owned launcher fields may change.\n'
+                      'Your settings and original backups are retained. Rollback undoes the latest update or provider switch.\n'
                       'Close the games you want to update. Running or unavailable games are deferred; other games can finish.') is None:continue
         elif not selected:dialog('--info','--text=Add games first.');continue
         # Check prints each game's verdict and the redacted report a game report issue asks for (CONTRIBUTING.md).
         if action=='Check':show_text(['check','--report'],selected);continue
         command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure',RISK_ACTION:'install',
-                 'Update all':'update','Update upscalers':'update','Rollback':'rollback','Register':'register','Pin':'pin','Unpin':'unpin'}[action]
+                 'Update all':'update','Update upscalers':'update','Update selected':'update','Refresh recipe':'update','Rollback':'rollback','Register':'register','Pin':'pin','Unpin':'unpin'}[action]
         extra=update_scope
         if action=='Upscaler':
             extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed):\n'+HELIXSR_ABOUT)
@@ -328,7 +380,7 @@ def main():
                 try:progress.communicate(b'100\n',timeout=10)
                 except (subprocess.TimeoutExpired,BrokenPipeError):progress.terminate();progress.wait()
             if result:
-                with output.open('a') as stream:stream.write('\nSome games could not complete. Read their messages above. If an install was interrupted after saving backups, use Restore before retrying.\n')
+                with output.open('a') as stream:stream.write('\nSome games could not complete. Read their messages above. For an interrupted update, retry Update or use Rollback. For an interrupted first installation, use Restore.\n')
             dialog('--text-info','--width=1000','--height=650','--filename='+str(output))
     return 0
 

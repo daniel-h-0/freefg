@@ -65,16 +65,16 @@ class ComponentUpdateTests(UpdateFixture):
             status,_=self.run_quiet(m.update,self.exe,self.new)
         self.assertEqual(status,'current')
 
-    def test_core_rollback_keeps_a_later_provider_switch(self):
+    def test_rollback_undoes_the_latest_provider_switch_and_keeps_prior_core(self):
         self.install_helix()
         self.run_quiet(m.update,self.exe,self.new,component='core')
         self.run_quiet(m.configure,self.exe,upscaler='fsr4',package=self.new)
-        provider=self.record()['upscaler'];data=(self.game/'OptiScaler'/m.DLL).read_bytes()
+        self.assertEqual(self.record()['upscaler']['name'],'fsr4')
         self.run_quiet(m.rollback,self.exe)
-        self.assertEqual(self.record()['upscaler'],provider)
-        self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),data)
-        self.assertEqual(self.record()['components']['upscaler']['provider'],'fsr4')
-        self.assertEqual(self.record()['components']['core']['package'],OLD)
+        self.assertEqual(self.record()['upscaler']['name'],'helixsr')
+        self.assertEqual((self.game/'OptiScaler'/m.DLL).read_bytes(),built())
+        self.assertEqual(self.record()['components']['upscaler']['provider'],'helixsr')
+        self.assertEqual(self.record()['components']['core']['package'],NEW)
 
     def test_invalid_component_recovery_metadata_blocks_before_writes(self):
         self.install_helix();self.run_quiet(m.update,self.exe,self.new)
@@ -104,8 +104,8 @@ class ComponentUpdateTests(UpdateFixture):
     def test_changed_provider_is_preserved(self):
         self.install_helix();path=self.game/'OptiScaler'/m.DLL;path.write_bytes(b'user provider')
         status,out=self.run_quiet(m.update,self.exe,self.new)
-        self.assertEqual(status,'partial');self.assertEqual(path.read_bytes(),b'user provider')
-        self.assertIn('HelixSR not updated',out)
+        self.assertEqual(status,'blocked');self.assertEqual(path.read_bytes(),b'user provider')
+        self.assertIn('provider changed',out)
 
     def test_same_version_reissue_needs_an_unambiguous_preferred_revision(self):
         self.install_helix();pins=json.loads((self.new/'dependencies.json').read_text());pins['helixsr'].pop('PreferredBaseHash')

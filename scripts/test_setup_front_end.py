@@ -16,7 +16,11 @@ class SetupFrontEnd(unittest.TestCase):
         (self.dir / 'launcher_config.py').write_text("CALLS=[]\ndef discover(exe):\n    CALLS.append(exe)\n    return [{'launcher':'lutris'}]\n")
         spec = importlib.util.spec_from_file_location('bc250_setup_test', self.dir / 'setup.py')
         self.setup = importlib.util.module_from_spec(spec); spec.loader.exec_module(self.setup)
-        self.addCleanup(lambda: [sys.modules.pop('launcher_config', None), sys.path.remove(str(self.dir)) if str(self.dir) in sys.path else None])
+        from unittest.mock import patch
+        fake_spec=importlib.util.spec_from_file_location('launcher_config',self.dir/'launcher_config.py')
+        fake=importlib.util.module_from_spec(fake_spec);fake_spec.loader.exec_module(fake)
+        modules=patch.dict(sys.modules,{'launcher_config':fake});modules.start();self.addCleanup(modules.stop)
+        self.addCleanup(lambda: sys.path.remove(str(self.dir)) if str(self.dir) in sys.path else None)
 
     def test_imports_as_multi_frame_package(self):
         self.assertTrue(self.setup.MFG); self.assertEqual(self.setup.NAME, 'FreeFG')

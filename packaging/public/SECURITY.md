@@ -22,8 +22,10 @@ The installer runs as your user, without root. It edits selected game files, lau
 
 Downloads use pinned HTTPS URLs, sizes and SHA-256 hashes. Pinned dependency members are extracted by expected name and
 checked individually. The optional HelixSR download is verified as a complete archive; its extraction is restricted to
-regular files and directories beneath its release folder, with an extraction-size limit. The installer does not run
-downloaded setup scripts; game DLLs execute when the game runs.
+regular files and directories beneath its release folder, with an extraction-size limit. Prepare HLX runs the
+pinned archive’s build-only Python entry point under bubblewrap, with the host read-only and network disabled.
+Only its staging directory is writable. It uses local model inputs and checked shader compilers, never the upstream
+game installer or package-manager setup. Game DLLs execute when the game runs.
 
 ### The proxy
 

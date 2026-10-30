@@ -134,7 +134,8 @@
    "469bcfe59108f04f8b8cf45953e515f0a0cd24b00717be62b7dcf5c20430410d",
    "5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6",
    "0d73d5f359e40c137280d9ad10bd57acff6c6f5e9c104d8b9d80d76faf7cf258",
-   "1e8025628911495a35d40764bef69157a3d80ce0c3b67b19b2cf7e090ea1dc20"
+   "1e8025628911495a35d40764bef69157a3d80ce0c3b67b19b2cf7e090ea1dc20",
+   "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656"
   ]
  },
  "dlss": {
@@ -191,6 +192,58 @@
    "adapter": "helixsr-ffx-network-v1",
    "version": "2.0.0",
    "input": "helixsr"
+  }
+ },
+ "hlx": {
+  "format": 1,
+  "version": "3.1.0",
+  "folder": "HelixSR-3.1.0",
+  "archive": {
+   "url": "https://github.com/lonewolf0622/HelixSR/releases/download/v3.1.0/HelixSR-3.1.0.zip",
+   "sha256": "3a1b1ec8b26178cbec3a7bf56b78abf78e236b2062b4cff9cad21993d023bf75",
+   "file": "HelixSR-3.1.0.zip"
+  },
+  "model_inputs": {
+   "dlss": "be6e434a94ca32499515eb62ca0e6c274526055d568d0426e4c652dcdfb6ee6e",
+   "amd": "c33a287f3048bf02311cae430b6a977500b94ca7b315cd7bff751e6b03e483e3"
+  },
+  "compilers": {
+   "dxc2607": {
+    "sha256": "a1dfb116ba3eeae6a1582291b53a8e7bf65ad760676bd3194685c8f7367cd241",
+    "url": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip",
+    "file": "dxc2607.zip"
+   },
+   "dxc2609": {
+    "sha256": "ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1",
+    "url": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2609/dxc_2026_09_29.zip",
+    "file": "dxc2609.zip"
+   }
+  },
+  "providers": {
+   "hlx-dlss": {
+    "api": "dlss",
+    "entry": "helixsr.dll",
+    "files": {
+     "helixsr.dll": {
+      "source": "HelixSR/helixsr.dll",
+      "sha256": "4c89086fd6809e5d1b67fb31804d17cd6b88da318852f094334eaf704a4b58fd"
+     }
+    }
+   },
+   "hlx-fsr4": {
+    "api": "ffx",
+    "entry": "amd_fidelityfx_upscaler_dx12.dll",
+    "files": {
+     "amd_fidelityfx_upscaler_dx12.dll": {
+      "source": "HLX-FSR4/amd_fidelityfx_upscaler_dx12.dll",
+      "sha256": "b9f906ca669e444a9fc4d3727192a0d881c8e4c62557bf3a8063d2d694e806ae"
+     },
+     "amd_fidelityfx_upscaler_dx12.amd.dll": {
+      "source": "helixsr-scaler/OptiScaler/amd_fidelityfx_upscaler_dx12.amd.dll",
+      "sha256": "d0dcccc74a43c44ba435b7a369b456e0970d8a4464e4bd683119b374f2c9fb46"
+     }
+    }
+   }
   }
  }
 }

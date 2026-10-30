@@ -1,9 +1,25 @@
 # Troubleshooting
 
 Use **Status** for installed files and the last session; use **Check system** (`install.py doctor`) for host and
-HelixSR prerequisites. If a game update replaced a managed file, follow Status's instructions. An update normally
-requires Restore, then Install from the new release. If Restore refuses a changed file, keep the backup and resolve
+HelixSR prerequisites. If a game update replaced a managed file, follow Status's instructions. Use the new release’s **Update all** for compatible installations.
+For an interrupted update, retry Update or use Rollback. If Restore refuses a changed file, keep the backup and resolve
 the reported conflict before reinstalling.
+
+## Startup and provider checks
+
+A clean installation does not prove that the game submitted upscaler or frame-generation input. Separate launcher
+startup, game startup, upscaler creation, XeFG generation and display pacing when reporting a failure. On the tested
+October 29 builds, Deep Rock required DLSS plus DLSS FG; Deadzone required FSR Native with upscaler input.
+Hogwarts generated frames once but rewrote FG to Off at startup. Black Flag's DXGI loader failure, Tainted Grail's
+missing upscaler input and RDR2's Rockstar authentication error have no verified recipe fix in this release.
+
+HLX DLSS must log `network running`. A successful game launch or dispatch counter alongside `NOT RUNNING` or a
+red-frame placeholder is a failure. HLX FSR 4 must identify itself as the selected FFX provider; AMD fallback does
+not qualify it. Cyberpunk’s HLX FSR 4 HDR start faulted with the reactive-mask default; its scoped recipe uses
+`InitFlags.DisableReactiveMask=true`, also used for HLX DLSS. Explicit user values are preserved and reported.
+Mask-on quality equivalence and the underlying fault cause remain unqualified. A missing network requires preparation with the matching archive, not disabling these checks.
+Heroic launch failures before the game starts can be runner/environment problems. Keep its bundled runner updateable;
+this installer does not impose Legendary version holds. Preserve existing PATH and user wrapper settings.
 
 ## Logs
 

@@ -149,9 +149,11 @@ git config --system --add safe.directory <path-in-the-container>
 
 ## What this tree does not build
 
-- **OptiScaler:** DLL SHA-256 `b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656`, built from
-  `03db4f8692878e65748769ebe583c053cae96360`. The [fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-03db4f8)
-  supplies the DLL and matching source. Its `FORK.md` and `tools/bc250-build.py` describe the separate build.
+- **OptiScaler candidate:** DLL SHA-256 `5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617`, built from
+  `25db192b1c1ebf42ae7cd6615bc6288b39121c5b`, merging upstream `e7e3872d410f704479d94d318d68d163b6b58947`.
+  Supply this DLL and its matching `OptiScaler.ini` with `--optiscaler`; provide its git checkout with
+  `--optiscaler-source`. `FORK.md` and `tools/bc250-build.py` describe the separate build. The source companion and
+  locked recursive source archive identify the complete corresponding source. This candidate has no new binary release.
   OptiScaler is the only component CI may omit from its test package.
 - **Source companion without its inputs:** normal assembly needs a fork checkout named by `XEMFG_OPTISCALER_SOURCE`.
   Use `--no-source-companion` only for a local build that does not distribute the complete source companion.

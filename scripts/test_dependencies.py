@@ -459,6 +459,7 @@ class ShippedPinsTests(unittest.TestCase):
         merged = dict(self.pins['payload'], Files=dict(self.pins['payload']['Files'], **self.pins['dlss']['Files']))
         compatible=list(merged['CompatibleProxyHashes'])
         compatible.remove('5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6')
+        compatible.remove('b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656')
         merged['CompatibleProxyHashes']=compatible
         self.assertEqual(sha(json.dumps(merged, sort_keys=True).encode()), '50d352246f393ed9dfa24fb66f5edc3c46008c14c259e5ed64736f5200c76e8a')
         self.assertNotIn('nvngx_dlss.dll', self.pins['payload']['Files'])

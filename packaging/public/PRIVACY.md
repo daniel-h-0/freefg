@@ -43,18 +43,19 @@ identifier is sent. GitHub's privacy terms govern those requests.
 
 ## HelixSR (optional)
 
-[HelixSR 2.0.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project. FreeFG downloads its
-complete official archive on request, but does not run its setup or obtain NVIDIA files for it.
+[HelixSR 3.1.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project. On request,
+FreeFG downloads its complete official archive and Microsoft's shader compilers by pinned hash. The NVIDIA DLSS
+and AMD driver model inputs are local files selected by the user; this preparation route does not download them.
 
-You run `./helixsr-setup.sh --no-fg`. Under its own terms and consent prompt, that setup downloads NVIDIA's DLSS DLL,
-builds the network locally and removes the downloaded DLL. It can also obtain Python/numpy and Microsoft's DXC,
-using package-manager or portable-tool routes. Without `--no-fg`, it additionally obtains DLSS frame-generation/NGX
-components that FreeFG does not need.
+Prepare HLX runs the archive's unchanged build-only Python entry point with `--no-fg`. Bubblewrap mounts the host
+read-only, makes only the preparation directory writable and disables networking for the build. It uses existing
+Wine and Python/numpy; it does not install system packages or run Helix's game installer.
 
-HelixSR's setup keeps downloads under `~/.local/share/HelixSR` and built network data in its release folder.
-FreeFG copies the built upscaler into selected games and records its location in the download cache.
-`OptiScaler/helixsr.log` records HelixSR activity; Restore moves it into the installation backup. Network files remain
-local and must not be shared under HelixSR's terms. [Notices](NOTICE.md#helixsr).
+The archive-specific preparation cache is under `~/.cache/bc250-xefg-testers/hlx/` unless `XDG_CACHE_HOME` selects
+another cache root. A remembered prepared-folder path is local to that archive identity. FreeFG copies the checked
+model-bearing DLLs into each selected game's custom-provider folder. These files remain on the user's computer;
+no built model data is uploaded or included in a FreeFG release. Provider logs remain beside the installed DLLs.
+Legacy HelixSR 2.0.0 records retain their original-file and log recovery information. [Notices](NOTICE.md#helixsr).
 
 ## What the installer reads and writes on your computer
 

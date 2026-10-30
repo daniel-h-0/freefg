@@ -273,11 +273,13 @@ XeLL latency support and borderless mode for OptiScaler routes, and resets `Inte
 
 ### HelixSR
 
-HelixSR 2.0.0, by lonewolf0622, exposes NVIDIA's DLSS Model E network through the FidelityFX upscaler interface.
-FreeFG installs its locally built DLL as `OptiScaler/amd_fidelityfx_upscaler_dx12.dll` and selects
-`FSR.UpscalerIndex=0`. `helixsr.ini` disables HelixSR's own frame generation; its FG files are not copied.
+HelixSR 3.1.0, by lonewolf0622, provides distinct HLX DLSS (NGX) and HLX FSR 4 (FFX) upscalers.
+FreeFG places them under `OptiScaler/custom/hlx-dlss/dlss/` and `OptiScaler/custom/hlx-fsr4/ffx/`, and selects their
+custom folder names in `Upscalers.Dx12Upscaler`. The FFX provider keeps its checked AMD companion beside it.
+`helixsr.ini` disables Helix’s own frame generation; its FG files are not copied. Legacy HelixSR 2.0.0 used the
+main FidelityFX DLL slot; migration retains that owned file and its original backup until Restore.
 
-For Cyberpunk 2.5 with HelixSR, the recipe sets `InitFlags.DisableReactiveMask=true`. The per-upscaler recipe applies
+For Cyberpunk 2.5 with HLX DLSS or HLX FSR 4, the recipe sets `InitFlags.DisableReactiveMask=true`. The per-upscaler recipe applies
 only to unset/automatic values. Configure restores an owned value when switching to FSR 4 and preserves explicit
 pre-installation choices or later edits. The recipe is stored with the installation so switching still works if the
 launcher registration disappears. This workaround changes an upscaler input; it is not an image-equivalence claim.
@@ -297,13 +299,17 @@ binaries can require attention. [Installation and removal](README.md#restore-and
 
 In-place updates (`install.py update`, Setup's **Update all**) operate on a coherent FreeFG/Intel set and the
 selected compatible upscaler. `upscaler_updates.py` provides read-only adapters for pinned FidelityFX DLLs and the
-legacy HelixSR FidelityFX/network format. Adapters propose content and metadata; the shared transaction engine owns
+legacy HelixSR FidelityFX/network format. `hlx.py` validates complete prepared model files and describes separate
+custom NGX and FFX provider layouts. HLX DLSS retains its `helixsr.dll` filename to avoid the NGX file-redirection
+hook; renaming it `nvngx.dll` prevents it from reading its embedded network on the tested integration. Adapters propose content and metadata; the shared transaction engine owns
 all writes and recovery. Unknown provider formats are deferred. Core-only and upscaler-only updates use the same
-engine. A future NGX or HLX provider needs an explicit adapter, package pins and runtime qualification.
+engine. HLX preparation uses upstream’s build-only entry point inside a read-only host mount with network access
+disabled and only its staging directory writable. The qualified preparation replaces the shared cache atomically;
+games retain independent copies. No model-bearing output enters release artifacts.
 
 Update verifies current owned files, original backups, package hashes, integration compatibility and game idleness.
-It rechecks observed files after preparing dependencies. Changed core binaries block that game's update; a changed
-upscaler is deferred independently. The transaction saves old bytes, permissions, modification times and component
+It rechecks observed files after preparing dependencies. Changed owned binaries block the coupled transaction. An unavailable prepared provider can be deferred while
+compatible core changes proceed. The transaction saves old bytes, permissions, modification times and component
 metadata before recording a pending operation. Rollback restores that generation, preserves later settings edits and
 provider choices outside the update's scope, and refuses conflicting binary edits. Interrupted updates are undone;
 interrupted rollbacks finish before another update starts. Missing or damaged recovery data leaves the journal intact.
@@ -311,8 +317,14 @@ One completed generation is retained per game. This is per-game recovery, not an
 
 `manifest.json.update_contract` and the game record agree on format, layout and configuration versions. Legacy
 1.1.3.1/1.1.4/1.1.5 records are explicitly imported. Core version downgrades are refused; Rollback uses saved bytes.
-The game record carries an installation ID and component identities. Integration changes that need new OptiScaler
-files or launcher planning still require Restore/Install; this contract does not claim to migrate arbitrary layouts.
+The game record carries an installation ID and component identities. Format 2 supports integration DLL and loader
+migrations, additive INI defaults and token-aware launcher deltas. Per-file launcher locks coordinate updates to
+separate games sharing a config. Before runtime writes, the generation saves and verifies launcher snapshots and
+entry deltas. Recovery reverts only those entries, preserving other games and user additions; exact original bytes
+and metadata return when no later changes would be lost. Unknown layouts remain unsupported. Provider switches
+also create generations, so Rollback always means the latest completed update or switch. Explicit recipe refresh
+uses the same transaction for tested FG inputs and launcher arguments. Game settings are listed as manual steps;
+obsolete pending writes are marked inactive while their original ownership remains available to Restore.
 
 `freefg_library.py` maintains an optional, locked and atomically replaced index. Update all combines this index with
 Steam/Heroic/Lutris discovery; game records remain authoritative. Index failures do not invalidate a completed game

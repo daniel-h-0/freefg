@@ -423,34 +423,34 @@
   "optiscaler-fork": {
    "path": "OptiScaler-build",
    "env": "XEMFG_OPTISCALER",
-   "description": "OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll: OptiScaler master of 19 October 2026 (c2e44a8b) with three commits. Its source is the commit below with the submodules that commit pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which ran it. Until the fork's release is public, release/assemble.py reads the DLL from XEMFG_OPTISCALER and the source companion reads the fork's git checkout from XEMFG_OPTISCALER_SOURCE; release_fetch is the fetch group prepared for that release.",
+   "description": "OptiScaler fork candidate with independent custom HLX providers, retained path/INI/pacing fixes and upstream October 29 integration.",
    "source": {
-    "commit": "03db4f8692878e65748769ebe583c053cae96360",
-    "branch": "codex/freefg-nightly-20261025",
+    "commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
+    "branch": "codex/freefg-hlx-1.1.6",
     "upstream": "https://github.com/optiscaler/OptiScaler",
-    "upstream_base": "08e13adf55b3fd71a67071eac2e95973ac598df3",
+    "upstream_base": "e7e3872d410f704479d94d318d68d163b6b58947",
     "fixed_upstream": "f6db41dfa7bacb16ac50bd1e5787fdb44362da47",
-    "tree": "65fb869215201128d9468bb3316bb3af7b9223dc",
-    "tag": "bc250-03db4f8",
-    "tag_commit": "d191284afa25968f8ae709e70ccd7a8701003ec8",
+    "tree": "a2aef8d420832b6b76343652361285734c38a662",
+    "tag": "bc250-25db192",
+    "tag_commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
     "build_route": [
      "FORK.md",
      "tools/bc250-build.py"
     ],
-    "build": "tools/bc250-build.py --jobs 8: clang-cl/lld-link 23.1.3, MSVC 14.44.35207, SDK 10.0.26100.0; compile/link settings from the vcxproj",
+    "build": "tools/bc250-build.py --jobs 3: clang-cl/lld-link 23.1.4, MSVC 14.44.35207, SDK 10.0.26100.0",
     "source_in_work": "OptiScaler",
     "archive": {
-     "name": "OptiScaler-bc250-03db4f8-source.tar.xz",
-     "sha256": "94eba1f20ff40d983054fcda38ae974f8bc5f3ca3c8408519560c3cb5265d94b",
-     "bytes": 332634264,
-     "tar_sha256": "d93545fd96f73285f921c261bde9f5e12ccf87f22a0d869ccc4fc81a243d316b",
-     "tar_bytes": 892200960,
-     "members": 7135,
-     "files": 6387,
-     "files_sha256": "5b6676e3adfc0d7d61cda00c1aaa5f7eed4b5316664648058c5e8c193326c783",
-     "tag": "bc250-03db4f8",
-     "tag_commit": "d191284afa25968f8ae709e70ccd7a8701003ec8",
-     "commit": "03db4f8692878e65748769ebe583c053cae96360",
+     "name": "OptiScaler-bc250-25db192-source.tar.xz",
+     "sha256": "081d14d7eab796498969641f9d03c6e1c51be896d83f91fcf95b3db4c46f549f",
+     "bytes": 346989932,
+     "tar_sha256": "0d4b2180a2180e6a5c53b2fcceb567ba73985d0cbbd360d6cd0138209fec2811",
+     "tar_bytes": 979517440,
+     "members": 7247,
+     "files": 6491,
+     "files_sha256": "f43116d7ecabc58427a169480763c03351507d8e2903f992af7ced9cfaf2ed8f",
+     "tag": "bc250-25db192",
+     "tag_commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
+     "commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
      "bundled": [
       "external/FidelityFX-SDK",
       "external/FidelityFX-SDK-v2",
@@ -469,18 +469,24 @@
    },
    "files": {
     "OptiScaler.dll": {
-     "sha256": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656"
+     "sha256": "5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617"
+    },
+    "OptiScaler.ini": {
+     "sha256": "e08ac5e1de899bce37710ffe82f6dfc6e31edfa7febb11a8a9db4ac8dac41e95"
     }
    },
    "release_fetch": {
     "enabled": false,
     "about": "Prepared, not used yet: the fetch group \"optiscaler-fork\" for when the fork's release is public. Then move it to \"fetch\" with the placeholders filled and \"enabled\" and \"about\" removed; the work group's \"source\" record (commit, tree, tag, tag_commit, build_route, archive, ...) moves with it, as the group's \"source\" (the source companion and release/fork_source_archive.py read it there; its work-checkout notes may go). Then drop this work group, the OMITTABLE entry of release/ci/assemble_ci.py and BUILDING.md's note that the release tooling does not download the built DLL, and list the group in BUILDING.md. Its \"commit\" is source.tag_commit: after the tag moves, both change together (release/fork_source_archive.py, \"Moving the tag\"). [OPTISCALER-FORK-SOURCE-URL] is the fork's repository URL (the one FORK.md clones) and [OPTISCALER-FORK-TAG] its tag. release/test_release_tools.py checks that it pins the same files as this group, at the tag commit.",
     "repository": "[OPTISCALER-FORK-SOURCE-URL]",
-    "commit": "d191284afa25968f8ae709e70ccd7a8701003ec8",
+    "commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
     "url": "[OPTISCALER-FORK-SOURCE-URL]/releases/download/[OPTISCALER-FORK-TAG]/{path}",
     "files": {
      "OptiScaler.dll": {
-      "sha256": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656"
+      "sha256": "5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617"
+     },
+     "OptiScaler.ini": {
+      "sha256": "e08ac5e1de899bce37710ffe82f6dfc6e31edfa7febb11a8a9db4ac8dac41e95"
      }
     }
    }

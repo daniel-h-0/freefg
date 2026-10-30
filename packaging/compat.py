@@ -483,6 +483,7 @@ def decide(scan, data=None, ids=None, choice=None, ctx=None, accept=(), launcher
         manual.insert(0, 'In the game\'s graphics settings choose its upscaler (DLSS, FSR or XeSS: your chosen upscaler takes its place).')
     if verified and verified.get('note'):
         warnings.append('Known on BC-250: ' + verified['note'])
+    manual += list((verified or {}).get('manual_steps', []))
     manual += list((community or {}).get('manual_steps', []))
     # Refusals.
     found = refusals(scan, verified, community, launcher_conflicts, launchers, wiki, explicit=choice_source == 'user', setup=setup)
