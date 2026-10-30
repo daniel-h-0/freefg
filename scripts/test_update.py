@@ -523,6 +523,24 @@ class ReviewRegressionTests(UpdateFixture):
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
 
 class UpdateContractTests(UpdateFixture):
+    def test_preview_updates_to_final_and_blocks_downgrade_with_exact_rollback(self):
+        preview=self.newer({},name='freefg-1.2.0-preview',folder='preview',base=self.new)
+        final=self.newer({},name='freefg-1.2.0',folder='final',base=preview)
+        m.install(self.package,self.exe,route='opti');original=self.snapshot()
+        self.assertEqual(self.run_quiet(m.update,self.exe,preview)[0],'update')
+        self.assertEqual(self.record()['package'],'freefg-1.2.0-preview');before=self.snapshot()
+        self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.record()['package'],OLD);self.assertEqual(self.snapshot(),original)
+        self.assertEqual(self.run_quiet(m.update,self.exe,preview)[0],'update')
+        self.assertEqual(self.run_quiet(m.update,self.exe,final)[0],'update')
+        self.assertEqual(self.record()['package'],'freefg-1.2.0')
+        record=self.record()
+        self.assertEqual(self.run_quiet(m.update,self.exe,preview)[0],'blocked')
+        self.assertEqual(self.record(),record);self.assertEqual(self.snapshot(),before)
+        self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.record()['package'],'freefg-1.2.0-preview');self.assertEqual(self.snapshot(),before)
+        m.restore(self.exe);self.assertOriginal()
+
     def test_future_release_uses_contract_without_a_version_allowlist_edit(self):
         m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,self.new)
         before=self.record()['components']

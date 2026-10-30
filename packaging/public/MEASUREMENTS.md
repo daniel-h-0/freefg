@@ -7,6 +7,18 @@ The detailed [measurement record at the 1.1.6 release](https://github.com/daniel
 retains the older tables, individual runs, methods and exclusions summarized below. Figure data and scripts are in
 [`docs/data`](https://github.com/daniel-h-0/freefg/tree/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data).
 
+## Checks of 1.2.0-preview
+
+This prerelease changes Setup, compatibility planning and release-name handling. Its 97 runtime/profile files,
+OptiScaler DLL and runtime dependency pins remain identical to 1.1.6. It introduces no new performance claim or
+gameplay qualification.
+
+The combined candidate passed 553 installer tests, including eight real GTK tests; 16 installation-copy rehearsals
+and 16 historical release transitions covered update, exact rollback and Restore. Both packaged launchers and
+native interaction captures were checked. The preview adds ordering/display regressions: 555 installer tests pass,
+including an actual preview-to-final transition, downgrade refusal and exact rollback. The release-tool suite has
+121 passing tests and three public-tree exclusions. The existing game limitations below still apply.
+
 ## Checks of 1.1.6
 
 FreeFG's 97 runtime/profile payload files match 1.1.5. The integration uses OptiScaler fork `25db192b` (DLL

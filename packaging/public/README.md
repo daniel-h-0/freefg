@@ -8,8 +8,9 @@ The default is **2×**: one generated frame for each game-rendered frame. Genera
 the game's simulation rate. Optional generated-frame scaling can reduce cost, and a separate MFG Unlocker can enable
 3× or 4×. [Performance and test results](MEASUREMENTS.md).
 
-**1.2.0 candidate.** The redesigned library window and expanded compatibility planning are being qualified together.
-This branch is not a published release; the FreeFG runtime and dependency pins remain at 1.1.6.
+**1.2.0-preview.** A prerelease of the redesigned library window and reviewed wiki INI settings.
+The FreeFG runtime, OptiScaler and dependency pins remain at 1.1.6; the changes cover Setup and compatibility planning.
+Use the [stable release](https://github.com/daniel-h-0/freefg/releases/latest) if you prefer the released interface.
 
 ## Requirements
 
@@ -26,7 +27,7 @@ unless you explicitly accept the [per-game risk](COMPATIBILITY.md#anti-cheat).
 
 <a id="setup"></a>
 
-1. Extract the [latest release](https://github.com/daniel-h-0/freefg/releases/latest) and run `Start-freefg.sh` in
+1. Extract [1.2.0-preview](https://github.com/daniel-h-0/freefg/releases/tag/v1.2.0-preview) and run `Start-freefg.sh` in
    Desktop Mode.
 2. Choose **Add a Game**, pick an installed game or choose its rendering `.exe`, then open its page.
 3. Choose **Install…**, keep **Automatic** or select an input, and choose an upscaler. Read the verdict and close

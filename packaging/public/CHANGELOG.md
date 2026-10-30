@@ -4,8 +4,9 @@ Release summaries are below; [measurements](MEASUREMENTS.md) describe their spec
 [detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
 retains earlier release notes.
 
-## 1.2.0 candidate
+## 1.2.0-preview – 2026-10-30
 
+- Give the preview its own package identity and order it before final 1.2.0 for update/downgrade checks.
 - Replace Setup's chain of Zenity dialogs with a window built on GTK 4 and libadwaita 1.5+: the game library grouped by
   what needs attention, a page per game with its state and only the actions that state allows, and every change run
   as an `install.py` command with its progress, outcome and next steps in view. Zenity remains the fallback.
@@ -23,7 +24,7 @@ retains earlier release notes.
 - Refresh the bundled wiki to 30 October: 761 entries and 295 INI instructions. Verified Steam identities make the
   six existing promoted fixes and Ragnarök's negative FG evidence match reliably. Record the exact OptiScaler builds
   that own runtime fixes and show wiki requirements/test context. All 19 curated BC-250 rows are preserved.
-- Keep 1.1.6's FreeFG runtime, shaders, OptiScaler and dependency pins. This candidate changes Setup and compatibility
+- Keep 1.1.6's FreeFG runtime, shaders, OptiScaler and dependency pins. This prerelease changes Setup and compatibility
   planning; it does not add gameplay or image-quality qualification.
 
 ## 1.1.6 – 2026-10-30

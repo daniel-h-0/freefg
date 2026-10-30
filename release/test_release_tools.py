@@ -1129,7 +1129,8 @@ class PublicNameAssembly(unittest.TestCase):
         assemble = self.assemble
         names = json.loads((RELEASE_DIR / 'names.json').read_text())
         family = next(f for f in names['families'] if f['id'] == 'package-name')
-        cases = {'{slug}-0.1.0': ('lumen-pace-0.1.0', 'v0.1.0'),
+        cases = {'{slug}-1.2.0-preview': ('lumen-pace-1.2.0-preview', 'v1.2.0-preview'),
+                 '{slug}-0.1.0': ('lumen-pace-0.1.0', 'v0.1.0'),
                  '{slug}-1.1.3.1': ('lumen-pace-1.1.3.1', 'v1.1.3.1'),
                  '{slug}-0.1.0-2x': ('lumen-pace-0.1.0-2x', 'v0.1.0-2x'),
                  '{slug}-32-2x': ('lumen-pace-32-2x', 'v32-2x'), '{slug}-v1.2.3': ('lumen-pace-v1.2.3', 'v1.2.3'),

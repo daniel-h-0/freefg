@@ -1,6 +1,6 @@
 # Wiki settings API (format 1)
 
-This is the shared planner/installer contract for the FreeFG 1.2.0 candidate and
+This is the shared planner/installer contract for the FreeFG 1.2.0-preview and
 Proton integrations. It does not require or import a GUI. Runtime/shader/provider
 versions are unchanged by an INI-only application.
 
