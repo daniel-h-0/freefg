@@ -1097,7 +1097,10 @@ class WikiSettingsDialog(Adw.Dialog):
             else:
                 line.add_prefix(icon('dialog-information-symbolic', 'dim'))
             source = row.get('source') or {}
-            line.add_row(action_row('Source', source.get('title') or 'OptiScaler wiki'))
+            source_text = source.get('title') or 'OptiScaler wiki'
+            if source.get('wiki'):
+                source_text += '\nWiki snapshot: ' + str(source['wiki'])
+            line.add_row(action_row('Source', source_text))
             for url in source.get('pages') or []:
                 if isinstance(url, str) and url.startswith('https://github.com/optiscaler/OptiScaler/wiki/'):
                     source_row = action_row('Wiki page', url)
