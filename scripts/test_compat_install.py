@@ -661,3 +661,82 @@ class AntiCheatOverrideTests(CompatFixture):
         self.output(m.restore, self.exe)
         self.assertNotIn('risk_accepted', self.record())
         self.assertOriginal()
+
+
+from test_proxy_install import ProxyFixture
+
+
+class WikiPrefillInstallTests(ProxyFixture):
+    def setUp(self):
+        super().setUp()
+        self.ini_path = self.game / 'OptiScaler.ini'
+        text = self.ini_path.read_bytes() + b'\n; Wiki test preference\n[Hotfix]\nColorResourceBarrier=auto\n'
+        self.ini_path.write_bytes(text)
+        self.original['OptiScaler.ini'] = text
+        self.catalog = dict(schema=1, verified=[], leave_auto={}, backports={}, quirk_keys={}, wiki=[dict(
+            title='Test game', match={'gog':['123']}, pages=['https://example.invalid/wiki/Test'],
+            ini=[dict(key='Hotfix.ColorResourceBarrier', value='4')])])
+        self.write_catalog()
+        m.install(self.package, self.exe, route='opti')
+
+    def write_catalog(self):
+        from test_game_install import set_package_file
+        set_package_file(self.package, 'recipes/recipes.json', json.dumps(self.catalog).encode())
+
+    def selected(self):
+        plan = m.wiki_settings_plan(self.package, self.exe)
+        return plan, next(row for row in plan['rows'] if row['key']=='Hotfix.ColorResourceBarrier')
+
+    def test_prefill_writes_ini_and_rollback_is_exact(self):
+        before = self.ini_path.read_bytes()
+        plan, row = self.selected()
+        self.assertEqual(row['action'], 'prefill')
+        self.assertEqual(self.ini_path.read_bytes(), before)
+        prepared, launcher = list(self.prepared), self.config.read_bytes()
+        self.assertEqual(m.apply_wiki_settings(self.exe, [row['id']], package=self.package, expected=plan['digest']), 'update')
+        self.assertEqual(m.read_ini(self.ini_path.read_bytes())[('hotfix','colorresourcebarrier')], '4')
+        self.assertEqual(self.prepared, prepared)
+        self.assertEqual(self.config.read_bytes(), launcher)
+        self.assertTrue(self.record()['wiki_settings']['selected'])
+        m.rollback(self.exe)
+        self.assertEqual(self.ini_path.read_bytes(), before)
+        self.assertNotIn('wiki_settings', self.record())
+        m.restore(self.exe)
+        self.assertOriginal()
+
+    def test_unknown_condition_requires_confirmation_and_false_cannot_be_overridden(self):
+        self.catalog['wiki'][0]['ini'][0]['when'] = {'condition':'white screen occurs'}
+        self.write_catalog()
+        plan, row = self.selected()
+        self.assertEqual(row['action'], 'conditional')
+        with self.assertRaisesRegex(ValueError, 'confirm'):
+            m.apply_wiki_settings(self.exe, [row['id']], package=self.package, expected=plan['digest'])
+        m.apply_wiki_settings(self.exe, [row['id']], [row['id']], package=self.package, expected=plan['digest'])
+        m.rollback(self.exe)
+        self.catalog['wiki'][0]['ini'][0]['when'] = {'gpu':'NVIDIA'}
+        self.write_catalog()
+        plan, row = self.selected()
+        with self.assertRaisesRegex(ValueError, 'NVIDIA'):
+            m.apply_wiki_settings(self.exe, [row['id']], [row['id']], package=self.package, expected=plan['digest'])
+
+    def test_stale_preview_and_unsupported_key_keep_current_bytes(self):
+        plan, row = self.selected()
+        self.ini_path.write_bytes(m.patch_ini(self.ini_path.read_bytes(), {('Hotfix','ColorResourceBarrier'):'8'}))
+        before = self.ini_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, 'preview changed'):
+            m.apply_wiki_settings(self.exe, [row['id']], package=self.package, expected=plan['digest'])
+        self.assertEqual(self.ini_path.read_bytes(), before)
+        self.catalog['wiki'][0]['ini'].append(dict(key='Unknown.Key', value='1'))
+        self.write_catalog()
+        plan = m.wiki_settings_plan(self.package, self.exe)
+        unknown = next(row for row in plan['rows'] if row['key']=='Unknown.Key')
+        with self.assertRaisesRegex(ValueError, 'does not define'):
+            m.apply_wiki_settings(self.exe, [unknown['id']], package=self.package, expected=plan['digest'])
+        self.assertEqual(self.ini_path.read_bytes(), before)
+
+    def test_later_player_edit_survives_rollback(self):
+        plan, row = self.selected()
+        m.apply_wiki_settings(self.exe, [row['id']], package=self.package, expected=plan['digest'])
+        self.ini_path.write_bytes(m.patch_ini(self.ini_path.read_bytes(), {('Hotfix','ColorResourceBarrier'):'8'}))
+        m.rollback(self.exe)
+        self.assertEqual(m.read_ini(self.ini_path.read_bytes())[('hotfix','colorresourcebarrier')], '8')

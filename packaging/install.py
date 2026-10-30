@@ -1634,7 +1634,7 @@ LEGACY_UPDATE_TARGETS=frozenset(UPDATES_FROM)
 UPDATE_CONTRACT={'format':2,'layout':'game-local-xemfg-proxy','configuration':1}
 LEGACY_CONTRACT={'format':1,'layout':'game-local-xemfg-proxy','configuration':1}
 RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler','ini_changes','launchers',
-                'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input')
+                'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input','wiki_settings')
 # Generations kept for rollback: the release before the last update.
 GENERATIONS='generations'
 GENERATIONS_KEPT=1
@@ -1930,6 +1930,87 @@ def recipe_migration(package,root,record,ini):
     return patch_ini(ini,changes),metadata,notes
 
 
+
+def wiki_settings_plan(package, exe):
+    """Read-only, JSON-serializable INI proposals for a managed game (API format 1).
+
+    The GUI can display rows directly, initially unselected, and pass row IDs to
+    apply_wiki_settings. The digest binds the choice to the current context and
+    values. Runtime files, graphics quality files and saves are not changed here.
+    """
+    import compat, recipes
+    package, exe = Path(package), Path(exe)
+    root = exe.parent.resolve()
+    record = json.loads(safe(root, STATE + '/state.json').read_text())
+    if record.get('status') != 'installed' or record.get('pending_update'):
+        raise ValueError('Finish installation/recovery before reviewing wiki settings')
+    data = recipes.load(package / 'recipes/recipes.json')
+    if not data:
+        raise ValueError('This package has no compatibility catalogue')
+    ini = safe(root, 'OptiScaler.ini').read_bytes()
+    names, parsed = ini_names(ini), read_ini(ini)
+    ids = recipes.identity(exe, record.get('launchers', []))
+    verified, _, _, _ = recipes.match(data, ids)
+    provider = (record.get('upscaler') or {}).get('name', 'fsr4')
+    upscaler = 'helixsr' if provider in ('hlx-dlss', 'helixsr') else 'fsr4'
+    fg_input = 'native-xefg' if record.get('route') == 'native' else parsed.get(('framegen', 'fginput'), record.get('fg_input', 'upscaler'))
+    ctx = dict(compat.DEFAULT_CONTEXT, fg_input=fg_input, upscaler=upscaler,
+               fg_output=parsed.get(('framegen', 'fgoutput'), 'xefg'),
+               proxy=record.get('opti_owner', 'dxgi.dll'))
+    # Auto in the INI means the integration's selected value for these fields.
+    if ctx['fg_input'] == 'auto': ctx['fg_input'] = record.get('fg_input', 'upscaler')
+    if ctx['fg_output'] == 'auto': ctx['fg_output'] = 'xefg'
+    protected = dict((verified or {}).get('ini') or {})
+    protected.update((verified or {}).get('upscaler_ini', {}).get('helixsr' if provider == 'hlx-dlss' else provider, {}))
+    plan = compat.wiki_plan(data, ids, ctx, supported_keys=['.'.join(key) for key in names.values()],
+                            current={'.'.join(key): value for key, value in parsed.items()}, recipe_ini=protected)
+    return plan
+
+
+def _wiki_update_plan(package, root, record, selected, confirmed, expected):
+    import compat
+    if record.get('addon_entry') != PROXY_ENTRY or record.get('runtime') != 'xemfg':
+        raise ValueError('Wiki INI transactions require a current FreeFG proxy installation')
+    if record.get('update_contract', LEGACY_CONTRACT) not in (UPDATE_CONTRACT, LEGACY_CONTRACT):
+        raise ValueError('Unsupported installation contract; use its matching installer')
+    plan = wiki_settings_plan(package, Path(record.get('game') or root / 'unknown.exe'))
+    if expected != plan['digest']:
+        raise ValueError('Wiki settings preview changed; review the current plan before applying')
+    choice = compat.select_wiki_settings(plan, selected, confirmed)
+    changes = {tuple(key.split('.', 1)): value for key, value in choice['settings'].items()}
+    before = safe(root, 'OptiScaler.ini').read_bytes()
+    after = patch_ini(before, changes)
+    index = next((n for n, item in enumerate(record['files']) if item['path'] == 'OptiScaler.ini'), None)
+    if index is None:
+        raise ValueError('This installation does not own OptiScaler.ini')
+    item = record['files'][index]
+    action = dict(path='OptiScaler.ini', index=index, component='integration', kind='merge',
+                  old=item['after'], observed=digest(before), new=digest(after), data=after,
+                  mode=item['mode'], kept={}, setting_changes=[dict(section=section, key=key,
+                      before=read_ini(before).get((section.lower(), key.lower())), after=value)
+                      for (section, key), value in changes.items()])
+    return dict(status='update' if before != after else 'current', reason='Selected wiki values are already set.',
+                operation='wiki-settings', actions=[action] if before != after else [],
+                notes=['Selected wiki settings applied; runtime, provider and game configuration stay as installed.'],
+                source=record['package'], target=record['package'], max_factor=record.get('max_factor', 2), pins=None,
+                observed={'OptiScaler.ini': digest(before)}, component='integration', core=False, deferred=[],
+                metadata=dict(ini_changes=own_ini_changes(record, changes), wiki_settings=choice),
+                launcher_ops=[], config_paths={'OptiScaler.ini'}, core_paths=None)
+
+
+def apply_wiki_settings(exe, selected, confirmed=(), *, package=None, expected=None):
+    """Apply selected prefilled INI values through the normal recoverable generation.
+
+    expected is the digest of wiki_settings_plan displayed to the player.
+    confirmed contains only selected row IDs whose displayed conditions/match
+    were explicitly confirmed. Rollback/Restore retain their normal merge rules.
+    """
+    if not expected:
+        raise ValueError('Review wiki_settings_plan and supply its digest before applying')
+    return update(exe, package=package, _planner=lambda p, r, record:
+                  _wiki_update_plan(p, r, record, selected, confirmed, expected))
+
+
 def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None,upscaler=None,refresh_recipe=False):
     """What install.py update would change in the installation at root, read only: dict(status, reason, actions, notes,
     source, target, max_factor, pins). status: 'update' (apply actions; none when only the record names a new release),
@@ -2102,7 +2183,8 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
 def plan_lines(plan):
     """What an update plan changes, one line each."""
     if plan['status']!='update':return [plan['reason']]
-    lines=['Update '+str(plan['source'])+' → '+str(plan['target'])+':' if plan.get('core',True) else
+    lines=['Apply selected wiki INI settings:' if plan.get('operation')=='wiki-settings' else
+           'Update '+str(plan['source'])+' → '+str(plan['target'])+':' if plan.get('core',True) else
            'Update selected upscaler; FreeFG core stays '+str(plan['source'])+':']
     for component,label in COMPONENTS.items():
         counts=collections.Counter(a['kind'] for a in plan['actions'] if a['component']==component and a['kind']!='merge')
@@ -2303,7 +2385,7 @@ def settle_interrupted(root,record):
 
 @locked
 @launcher_locked
-def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None,loader=None,upscaler=None,refresh_recipe=False):
+def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None,loader=None,upscaler=None,refresh_recipe=False,_planner=None):
     """install.py update: replace the installed game's frame generation with this package's in place (update_plan says
     what changes), recoverably and without Restore. Returns the plan's status ('update' once applied)."""
     package=Path(package or Path(__file__).resolve().parent)
@@ -2314,7 +2396,7 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     if (record.get('pending_update') or {}).get('generation'):
         for line in settle_interrupted(root,record)[1]:print(line)
         expected_record=file_digest(state,'state.json')
-    plan=update_plan(package,root,record,component,helixsr_dir,loader,upscaler,refresh_recipe)
+    plan=_planner(package,root,record) if _planner else update_plan(package,root,record,component,helixsr_dir,loader,upscaler,refresh_recipe)
     if plan['status']!='update':
         if plan['status'] in ('current','pinned'):remember_installation(exe,record)
         print(plan['reason']);return plan['status']
@@ -2736,7 +2818,7 @@ def accepted_for(accept,exe):
     return out
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check','plan','update','rollback','pin','unpin','register','library','hlx']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check','plan','update','rollback','pin','unpin','register','library','hlx','wiki-plan','wiki-apply']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
     parser.add_argument('--factor',type=int,choices=[2,3,4])
     parser.add_argument('--resolution',choices=['output','scale','limit']);parser.add_argument('--percent',type=int);parser.add_argument('--limit',type=int,choices=[720,1080,1440,2160])
     parser.add_argument('--downscale',choices=['bilinear','area']);parser.add_argument('--upscale',choices=['bilinear','bicubic','lanczos2','fsr1'])
@@ -2770,7 +2852,14 @@ def main():
     parser.add_argument('--all',action='store_true',help='check: every installed Steam and Heroic game, one line each; plan, update: '
                         'every game with this build installed that a Steam, Heroic or Lutris entry starts (and the games named)')
     parser.add_argument('--report',action='store_true',help='check: also print a redacted report for a GitHub issue')
+    parser.add_argument('--wiki-setting', action='append', default=[], metavar='ID', help='wiki-apply: a selected row ID from wiki-plan')
+    parser.add_argument('--wiki-confirm', action='append', default=[], metavar='ID', help='wiki-apply: confirm a selected row’s displayed game/conditions')
+    parser.add_argument('--wiki-plan-digest', help='wiki-apply: digest of the preview shown before selection')
     args=parser.parse_args()
+    if (args.wiki_setting or args.wiki_confirm or args.wiki_plan_digest) and args.command != 'wiki-apply':
+        parser.error('Wiki selection options apply only to wiki-apply')
+    if args.command == 'wiki-apply' and (len(args.exe) != 1 or not args.wiki_setting or not args.wiki_plan_digest):
+        parser.error('wiki-apply needs one game, selected IDs and the preview digest')
     if args.refresh_recipe and args.command not in ('plan','update'):parser.error('--refresh-recipe applies to plan and update')
     if args.loader and args.command not in ('plan','update'):parser.error('--loader applies to plan and update')
     if args.command=='hlx':
@@ -2822,6 +2911,8 @@ def main():
             elif args.command=='rollback':rollback(exe.absolute())
             elif args.command in ('pin','unpin'):pin(exe.absolute(),args.command=='pin')
             elif args.command=='register':register_installation(exe.absolute())
+            elif args.command=='wiki-plan':print(json.dumps(wiki_settings_plan(Path(__file__).resolve().parent,exe.absolute()),indent=2))
+            elif args.command=='wiki-apply':apply_wiki_settings(exe.absolute(),args.wiki_setting,args.wiki_confirm,expected=args.wiki_plan_digest)
             elif args.command=='configure':configure(exe.absolute(),args.factor,args.resolution,args.percent,args.limit,args.downscale,args.upscale,
                                                      upscaler=args.upscaler,helixsr_dir=args.helixsr.absolute() if args.helixsr else None)
             elif args.command=='check':check(Path(__file__).resolve().parent,exe.absolute(),accepted_for(args.accept,exe),args.report)
