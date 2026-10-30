@@ -498,6 +498,11 @@ def main():
         raise SystemExit('quirks.json was not derived from the shipped OptiScaler build (sources.lock.json); run quirks2.py')
     ver = verified(local)
     apply_changes(ver, json.loads((HERE / 'verified-changes.json').read_text()))
+    # Runtime-qualified additions outside the historical host-library snapshot.
+    for path in sorted((HERE / 'verified').glob('*.json')):
+        entry = json.loads(path.read_text())
+        if entry['match'] not in [row['match'] for row in ver]:
+            ver.append(entry)
     leave_auto, backports, quirk_keys, commits = quirk_rules(quirks, {exe for v in ver for exe in v['match']['exe']}, a.optiscaler)
     readable, dropped = readable_keys(a.optiscaler), []
     wk = wiki(HERE / 'drafts', readable, dropped)

@@ -448,3 +448,7 @@ scripts/test_hlx_preparation.py
 
 docs/WIKI-SETTINGS-API.md
 research/recipes/utilization-review-20261030.json
+
+# GTA V Enhanced local runtime qualification and reproducible recipe input
+research/recipes/verified/gta-v-enhanced.json
+research/recipes/verified/gta-v-enhanced.md

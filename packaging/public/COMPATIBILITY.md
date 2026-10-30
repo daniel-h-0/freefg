@@ -6,10 +6,18 @@ game will generate correctly; use Check before installation and Status after a r
 
 ## Recipe observations
 
-The package has **19 curated BC-250 recipes**. Setup labels them **Verified on BC-250**, but their evidence ranges
+The package has **20 curated BC-250 recipes**. Setup labels them **Verified on BC-250**, but their evidence ranges
 from gameplay to installation-only or failed checks. Run **Check** for the matched recipe, observation and manual
 steps; check the running game for actual frame generation. The complete recorded observations are in
 [`recipes.json`](https://github.com/daniel-h-0/freefg/blob/main/packaging/recipes/recipes.json).
+
+### GTA V Enhanced
+
+The bundled OptiScaler fixes Social Club's auxiliary swapchain crash without disabling its overlay. Two short
+Story Mode starts on GE-Proton11-11 reached the bank prologue with sustained 2× generation, including a fresh
+start with XeFG enabled. Use OptiFG, select DLSS in GTA, and leave its own FG off. Factory wrapping stays at
+auto/false; remove any old Social Club DLL-disable override. The anti-cheat refusal below still applies.
+[Reproduction, fix and limits](https://github.com/daniel-h-0/freefg/blob/main/research/recipes/verified/gta-v-enhanced.md).
 
 ## Verdicts
 

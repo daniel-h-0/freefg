@@ -409,7 +409,7 @@ class VerifiedUnchangedTests(unittest.TestCase):
 
     def test_every_verified_recipe(self):
         data_ = r.load(ROOT/'packaging/recipes/recipes-runtime.json')
-        self.assertEqual(len(data_['verified']), 19)
+        self.assertEqual(len(data_['verified']), 20)
         for v in data_['verified']:
             m = v['match']
             game = dict(exe=m['exe'][0], steam=set(m.get('steam', [])), gog=set(m.get('gog', [])), epic=set(m.get('epic', [])),

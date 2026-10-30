@@ -1,0 +1,37 @@
+{
+ "title": "Grand Theft Auto V Enhanced",
+ "match": {
+  "steam": [
+   "3240220"
+  ],
+  "exe": [
+   "gta5_enhanced.exe"
+  ],
+  "title": [
+   "grand theft auto v enhanced"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {
+  "FrameGen.Enabled": "true"
+ },
+ "game_settings": [],
+ "launch_args": [],
+ "manual_steps": [
+  "Story Mode only, with BattlEye disabled using the game launcher option (-nobattleye).",
+  "Select DLSS in the game (Quality was tested); leave the game's frame generation off. FreeFG enables XeFG through OptiFG.",
+  "Use the bundled OptiScaler 273e8d4 or a descendant with the Social Club factory fix; leave DxgiFactoryWrapping at auto/false and remove any SocialClubD3D12Renderer DLL-disable override."
+ ],
+ "note": "GTA 1.0.1158.16, GE-Proton11-11, AMD FSR 4 RC12. The anti-cheat installation refusal still requires explicit per-game acceptance. The Social Club overlay stays available.",
+ "evidence": "gameplay",
+ "observed": "Story Mode bank prologue, movement and Social Club open/close; sustained 2.0 generated presents per game frame, including a fresh start with XeFG enabled",
+ "qualification": {
+  "date": "2026-10-30",
+  "optiscaler_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
+  "optiscaler_sha256": "044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87",
+  "record": "research/recipes/verified/gta-v-enhanced.md",
+  "limits": "Two successful short Story Mode starts; no Online, long-play, 3x/4x, HDR or pacing qualification."
+ }
+}

@@ -23,8 +23,10 @@ retains earlier release notes.
 - Refresh the bundled wiki to 30 October: 761 entries and 295 INI instructions. Verified Steam identities make the
   six existing promoted fixes and Ragnarök's negative FG evidence match reliably. Record the exact OptiScaler builds
   that own runtime fixes and show wiki requirements/test context. All 19 curated BC-250 rows are preserved.
-- Keep 1.1.6's FreeFG runtime, shaders, OptiScaler and dependency pins. This candidate changes Setup and compatibility
-  planning; it does not add gameplay or image-quality qualification.
+- Keep 1.1.6's FreeFG runtime, shaders and dependency pins. Update OptiScaler to isolate Social Club's auxiliary
+  swapchains and resolve zero descriptor dimensions for tiny-window checks. GTA V Enhanced has a Story Mode
+  recipe qualified at 2× on GE-Proton11-11; see COMPATIBILITY.md for settings and limits.
+- Stop queued Setup reads and suppress late callbacks after the window closes.
 
 ## 1.1.6 – 2026-10-30
 

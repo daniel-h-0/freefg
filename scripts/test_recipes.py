@@ -392,6 +392,22 @@ class RecipeInstallTests(unittest.TestCase):
         for name, data in self.original.items():
             self.assertEqual((self.game/name).read_bytes(), data)
 
+    def test_gta_recipe_enables_optifg_and_restores_originals(self):
+        catalog = r.load(Path(__file__).resolve().parents[1]/'packaging/recipes/recipes.json')
+        entry = copy.deepcopy(next(v for v in catalog['verified'] if '3240220' in v['match'].get('steam', [])))
+        entry['match'] = dict(exe=['game.exe'], steam=['4242'])
+        self.recipes(entry)
+        self.install_quietly(fg_input='upscaler')
+        ini = self.current_ini()
+        self.assertEqual(ini[('framegen', 'enabled')], 'true')
+        self.assertEqual(ini[('framegen', 'fginput')].lower(), 'upscaler')
+        self.assertEqual(ini[('framegen', 'fgoutput')].lower(), 'xefg')
+        self.assertNotEqual(ini.get(('spoofing', 'dxgifactorywrapping')), 'true')
+        self.assertNotIn('socialclub', self.options().lower())
+        self.assertEqual(self.renderer.read_bytes(), RENDERER)
+        self.restore_quietly()
+        self.assertOriginal()
+
     def test_install_applies_recipe_and_restore_reverts(self):
         self.m.install(self.package, self.exe, route='opti', fg_input='dlssg')
         ini = self.current_ini()
@@ -860,6 +876,25 @@ class CompactRecipeTests(unittest.TestCase):
             self.assertEqual(found[1]['title'], 'CONTROL Resonant')
             self.assertEqual(found[1]['fg_input'], 'dlssg')
 
+
+
+class GtaQualificationTests(unittest.TestCase):
+    def test_recipe_identity_preserves_anticheat_refusal_and_other_rows(self):
+        import compat
+        from test_compat import scan, ids
+        root = Path(__file__).resolve().parents[1]
+        data = r.load(root/'packaging/recipes/recipes.json')
+        entry = next(v for v in data['verified'] if '3240220' in v['match'].get('steam', []))
+        self.assertEqual(entry, json.loads((root/'research/recipes/verified/gta-v-enhanced.json').read_text()))
+        self.assertEqual(len(data['verified']), 20)
+        self.assertEqual(sum(len(w.get('promoted', [])) for w in data['wiki']), 6)
+        identity = ids('gta5_enhanced.exe', ('3240220',), ('grand theft auto v',))
+        verdict = compat.decide(scan(exe=dict(name='GTA5_Enhanced.exe'),
+            anticheat=[dict(name='BattlEye', evidence=['BattlEye/BEClient_x64.cfg'])]), data, identity)
+        self.assertTrue(any(item['code']=='anticheat' for item in verdict['blocking']))
+        self.assertEqual(verdict['fg_input'], 'upscaler')
+        self.assertNotIn(('Spoofing','DxgiFactoryWrapping'), verdict['ini'])
+        self.assertIsNone(r.match(data, ids('gta5.exe', ('271590',), ('grand theft auto v',)))[0])
 
 if __name__ == '__main__':
     unittest.main()
