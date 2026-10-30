@@ -1071,7 +1071,7 @@ class WikiSettingsDialog(Adw.Dialog):
         names = {'automatic': 'Reviewed fixes', 'prefill': 'Optional settings', 'conditional': 'Confirm before applying'}
         for row in rows:
             action = row['action']
-            already_set = row.get('current') is not None and str(row['current']) == str(row['value'])
+            already_set = action in names and row.get('current') is not None and str(row['current']) == str(row['value'])
             selectable = action in names and not already_set
             title = 'Already set' if already_set else names.get(action, 'Not offered for this installation')
             if title not in sections:
@@ -1119,7 +1119,8 @@ class WikiSettingsDialog(Adw.Dialog):
         ready = selected and all(token not in self.confirmations or self.confirmations[token].get_active()
                                  for token in selected)
         self.apply_button.set_sensitive(bool(ready))
-        self.apply_button.set_label('_Apply ' + str(len(selected)) + ' Setting' + ('s' if len(selected) != 1 else ''))
+        self.apply_button.set_label(('_Apply ' + str(len(selected)) + ' Setting' + ('s' if len(selected) != 1 else ''))
+                                    if selected else '_Apply Selected')
 
     def apply(self):
         selected = self.selected()
