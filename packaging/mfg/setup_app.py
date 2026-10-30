@@ -1094,6 +1094,7 @@ class WikiSettingsDialog(Adw.Dialog):
                          'Current: ' + current + '. ' + ('No change is needed.' if already_set else reason))
             if selectable:
                 check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
+                check.update_property([Gtk.AccessibleProperty.LABEL], [row['key'] + ' = ' + str(row['value'])])
                 self.choices[row['id']] = check
                 check.connect('toggled', lambda widget, line=line: (line.set_expanded(True) if widget.get_active() else None,
                                                                    self.update_state()))
@@ -1116,6 +1117,7 @@ class WikiSettingsDialog(Adw.Dialog):
             confirmations = row.get('confirmations') or []
             if selectable and confirmations:
                 confirm = Gtk.CheckButton(valign=Gtk.Align.CENTER)
+                confirm.update_property([Gtk.AccessibleProperty.LABEL], ['Confirm conditions for ' + row['key']])
                 confirmation = action_row('I checked that these conditions apply', '\n'.join(map(str, confirmations)))
                 confirmation.add_prefix(confirm)
                 confirmation.set_activatable_widget(confirm)
