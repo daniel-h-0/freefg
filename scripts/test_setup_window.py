@@ -363,7 +363,8 @@ class SetupWindow(UpdateFixture):
                      reason='Library wiring belongs to the installer', source=dict(title='Example Game', pages=[])),
                 dict(id='d', key='Hotfix.AlreadySet', value='true', current='true', action='prefill',
                      reason='Optional wiki setting', source=dict(title='Example Game', pages=[]))]
-        plan = dict(format=1, digest='a' * 64, rows=rows)
+        plan = dict(format=1, digest='a' * 64, rows=rows, requirements=[dict(
+            title='Fixture requirement', text='The wiki requires an extra runtime for this setting.', pages=[])])
         def script(window):
             yield lambda: window.loaded
             game = window.game_by_key(str(self.exe))
@@ -373,6 +374,14 @@ class SetupWindow(UpdateFixture):
                 dialog = self.dialog(window, setup_app.WikiSettingsDialog)
                 yield lambda: dialog.plan is not None
                 self.assertEqual(dialog.selected(), [])
+                def descendants(widget):
+                    yield widget
+                    child = widget.get_first_child()
+                    while child is not None:
+                        yield from descendants(child)
+                        child = child.get_next_sibling()
+                titles = [widget.get_title() for widget in descendants(dialog) if isinstance(widget, Adw.ActionRow)]
+                self.assertIn('Fixture requirement', titles)
                 self.assertFalse(dialog.apply_button.get_sensitive())
                 self.assertNotIn('c', dialog.choices)
                 self.assertNotIn('d', dialog.choices)

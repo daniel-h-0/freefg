@@ -80,7 +80,8 @@ Leave `LoadAsiPlugins` enabled for OptiPatcher. Restore does not remove third-pa
 In Setup's library window, open an installed game's page and choose **Review…** beside **Wiki settings**. This reads the bundled OptiScaler wiki
 catalogue and the game's current INI. Nothing is selected or written automatically by this review.
 
-Each suggestion shows its value, the current value, source page and conditions. Select the changes you want. A
+The review shows wiki requirements and runtime caveats first. Each suggestion includes its value, current value,
+source page, pinned wiki revision, reported test context and conditions. Select the changes you want. A
 suggestion based on a title-only match or an unknown condition also requires you to confirm the displayed facts.
 Settings already handled by a recipe or runtime fix, unsupported keys and known-inapplicable settings cannot be
 selected. Already-set values need no change.

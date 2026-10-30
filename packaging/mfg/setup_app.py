@@ -1067,6 +1067,19 @@ class WikiSettingsDialog(Adw.Dialog):
                         'Your selection is checked again before writing and can be rolled back.',
                         suffix=button('', self.reload, 'flat', icon_name='view-refresh-symbolic', tooltip='Refresh'))
         page.add(heading)
+        requirements = result.get('requirements') or []
+        if requirements:
+            caveats = group('Wiki requirements and caveats', 'Check these before selecting a setting. '
+                            'Applying INI values does not install another mod or runtime.')
+            for requirement in requirements:
+                entry = action_row(requirement.get('title') or 'Wiki requirement', requirement.get('text') or '',
+                                   'dialog-information-symbolic', 'neutral')
+                pages = [url for url in requirement.get('pages') or [] if isinstance(url, str) and
+                         url.startswith('https://github.com/optiscaler/OptiScaler/wiki/')]
+                if pages:
+                    entry.add_suffix(Gtk.LinkButton(uri=pages[0], label='Source', valign=Gtk.Align.CENTER))
+                caveats.add(entry)
+            page.add(caveats)
         rows = result.get('rows', [])
         if not rows:
             heading.add(action_row('No settings found for this game',
@@ -1106,6 +1119,13 @@ class WikiSettingsDialog(Adw.Dialog):
             if source.get('wiki'):
                 source_text += '\nWiki snapshot: ' + str(source['wiki'])
             line.add_row(action_row('Source', source_text))
+            tested = source.get('tested') or {}
+            if tested:
+                labels = {'os': 'OS', 'gpu': 'GPU', 'optiscaler': 'OptiScaler'}
+                context = '\n'.join(labels.get(str(key), str(key)) + ': ' +
+                                    (', '.join(map(str, value)) if isinstance(value, list) else str(value))
+                                    for key, value in tested.items())
+                line.add_row(action_row('Wiki-reported test context', context))
             for url in source.get('pages') or []:
                 if isinstance(url, str) and url.startswith('https://github.com/optiscaler/OptiScaler/wiki/'):
                     source_row = action_row('Wiki page', url)
