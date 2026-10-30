@@ -111,6 +111,7 @@ def layout(package, provider, library_root, explicit=None, current=None, root=No
     if provider == 'hlx-dlss':
         ini = (base / 'helixsr.ini').as_posix()
         metadata.update(ini=ini, log=(base / 'helixsr.log').as_posix())
+    else:metadata['log']=(base/'HLX_FSR.log').as_posix()
     return dict(component=provider, files=files, metadata=metadata, ini_changes=changes)
 
 

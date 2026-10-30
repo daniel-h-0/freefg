@@ -108,6 +108,18 @@ class HlxUpdates(UpdateFixture):
         status,_=self.select('hlx-fsr4');self.assertEqual(status,'blocked')
         self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
 
+    def test_restore_retains_runtime_log_evidence_and_removes_provider_directories(self):
+        self.install_old();self.select('hlx-fsr4')
+        log=self.game/self.record()['upscaler']['log'];log.write_bytes(b'own runtime active')
+        self.run_quiet(m.restore,self.exe)
+        self.assertFalse(log.exists());self.assertFalse(log.parent.exists())
+        self.assertEqual((self.game/m.STATE/'runtime-logs/HLX_FSR.log').read_bytes(),b'own runtime active')
+        self.assertOriginal()
+
+    def test_unowned_provider_logs_are_not_overwritten(self):
+        self.install_old();path=self.game/'OptiScaler/custom/hlx-fsr4/ffx/HLX_FSR.log';path.parent.mkdir(parents=True);path.write_bytes(b'original log')
+        before=self.snapshot();self.assertEqual(self.select('hlx-fsr4')[0],'blocked');self.assertEqual(self.snapshot(),before)
+
     def test_existing_unowned_provider_is_never_overwritten(self):
         self.install_old();path=self.game/self.dlss;path.parent.mkdir(parents=True);path.write_bytes(b'other mod')
         before=self.snapshot();self.assertEqual(self.select()[0],'blocked');self.assertEqual(self.snapshot(),before)

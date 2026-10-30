@@ -1143,6 +1143,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         modern_provider['metadata']['legacy_target']=fsr_target
         for name in modern_provider['files']:
             if safe(root,name).exists():raise ValueError('Provider target is already occupied: '+name)
+        if safe(root,modern_provider['metadata']['log']).exists():raise ValueError('Provider log already exists outside this installation: '+modern_provider['metadata']['log'])
         replacements.update(modern_provider['files'])
         if modern_provider['metadata'].get('ini'):
             name=modern_provider['metadata']['ini']
@@ -1289,12 +1290,15 @@ def restore(exe):
             target=safe(root,name);now=digest(target.read_bytes()) if target.exists() else None
             if now==change['after']:item['after']=change['after']
         record.pop('pending_update')
-    actions=[];preserve=[];kept=[];timestamps=[]
+    actions=[];preserve=[];kept=[];timestamps=[];provider_logs=[]
     for i,item in enumerate(record['files']):
         target=safe(root,item['path']);current=target.read_bytes() if target.exists() else None
         original=safe(state,'backups/'+str(i)).read_bytes() if item['before'] is not None else None
         if original is not None and digest(original)!=item['before']:raise ValueError('Backup checksum mismatch: '+item['path'])
         backup=original;now=digest(current) if current is not None else None
+        if now is not None and now==item['after']:
+            for tail,logname in [('custom/hlx-dlss/dlss/helixsr.dll','helixsr.log'),('custom/hlx-fsr4/ffx/'+DLL,'HLX_FSR.log')]:
+                if item['path'].endswith(tail):provider_logs.append((Path(item['path']).parent/logname).as_posix())
         if now==item['before']:
             # A switch or interrupted Restore may already have put the original
             # bytes back with a new timestamp. Restore metadata without rewriting.
@@ -1375,9 +1379,9 @@ def restore(exe):
     provider=record.get('upscaler') or {}
     if provider.get('name')=='helixsr':put_back_helixsr_log(root,state,provider,notes)
     elif provider.get('legacy_helixsr'):put_back_helixsr_log(root,state,provider['legacy_helixsr'],notes)
-    for relative in ('OptiScaler/custom/hlx-dlss/dlss/helixsr.log','OptiScaler/custom/hlx-fsr4/ffx/hlx-fsr4.log'):
+    for relative in provider_logs:
         log=log_path(root,relative)
-        if log is not None and log.is_file() and any(row['path'].startswith(str(Path(relative).parent)+'/') for row in record['files']):
+        if log is not None and log.is_file():
             write(state/'runtime-logs'/Path(relative).name,log.read_bytes());log.unlink()
     logs=[name for name in PROXY_LOGS if record.get('addon_entry')==PROXY_ENTRY and (root/name).is_file() and not (root/name).is_symlink()
           and not (displaced is not None and name in displaced and not (held/name).is_file())]
@@ -2014,6 +2018,9 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
                 if path not in {item['path'] for item in record['files']} and safe(root,path).exists():
                     return stop('blocked','Provider target already exists outside this installation: '+path)
                 desired[path]=(provider['component'],data)
+            log=provider['metadata'].get('log')
+            if log and safe(root,log).exists() and not any(Path(row['path']).parent==Path(log).parent for row in record['files']):
+                return stop('blocked','Provider log already exists outside this installation: '+log)
             out['config_paths'].update(provider.get('config_paths',[]))
             changes=dict(provider.get('ini_changes') or {})
             recipe_name='helixsr' if provider['metadata']['name']=='hlx-dlss' else provider['metadata']['name']
@@ -2587,9 +2594,9 @@ def status(exe):
     placed=[item['after'] for item in record['files'] if item['path']==upscaler['target']] if upscaler.get('target') else \
         [item['after'] for item in record['files'] if Path(item['path']).name.lower()==DLL and item['after'] in FSR4_BUILDS]
     print(upscaler_line(upscaler,placed[0] if len(placed)==1 else None))
-    if upscaler.get('name')=='helixsr':
+    if upscaler.get('name') in ('helixsr',*hlx.NAMES) and upscaler.get('log'):
         log=log_path(root,upscaler['log'])
-        print('HelixSR log: '+(str(log) if log is not None and log.is_file() else
+        print(hlx.NAMES.get(upscaler['name'],'HelixSR')+' log: '+(str(log) if log is not None and log.is_file() else
                                'not a regular file: '+upscaler['log'] if log is None else
                                'none yet (HelixSR writes '+upscaler['log']+' while the game runs)'))
     if record.get('launchers'):
