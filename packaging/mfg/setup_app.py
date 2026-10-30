@@ -1069,7 +1069,13 @@ class WikiSettingsDialog(Adw.Dialog):
                                    'The bundled catalogue has no matching INI suggestions.'))
         sections = {}
         names = {'automatic': 'Reviewed fixes', 'prefill': 'Optional settings', 'conditional': 'Confirm before applying'}
-        for row in rows:
+        def order(row):
+            if row['action'] not in names:
+                return 4
+            if row.get('current') is not None and str(row['current']) == str(row['value']):
+                return 3
+            return list(names).index(row['action'])
+        for row in sorted(rows, key=order):
             action = row['action']
             already_set = action in names and row.get('current') is not None and str(row['current']) == str(row['value'])
             selectable = action in names and not already_set
@@ -1078,8 +1084,10 @@ class WikiSettingsDialog(Adw.Dialog):
                 sections[title] = group(title)
                 page.add(sections[title])
             current = str(row.get('current') if row.get('current') is not None else 'not set')
+            reason = re.sub(r'^[A-Z][0-9]+:\s*', '', str(row.get('reason') or ''))
+            reason = re.sub(r' \([A-Z][0-9]+\)', '', reason)
             line = plain(Adw.ExpanderRow(), row['key'] + ' = ' + str(row['value']),
-                         'Current: ' + current + '. ' + ('No change is needed.' if already_set else row.get('reason', '')))
+                         'Current: ' + current + '. ' + ('No change is needed.' if already_set else reason))
             if selectable:
                 check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
                 self.choices[row['id']] = check

@@ -77,7 +77,7 @@ Leave `LoadAsiPlugins` enabled for OptiPatcher. Restore does not remove third-pa
 
 ## Wiki settings
 
-On an installed game's page, choose **Review…** beside **Wiki settings**. This reads the bundled OptiScaler wiki
+In Setup's library window, open an installed game's page and choose **Review…** beside **Wiki settings**. This reads the bundled OptiScaler wiki
 catalogue and the game's current INI. Nothing is selected or written automatically by this review.
 
 Each suggestion shows its value, the current value, source page and conditions. Select the changes you want. A
@@ -90,7 +90,7 @@ keys through the existing transaction. The installed release and runtime stay in
 applied selection; Restore retains its normal handling of original values and later edits. Wiki suggestions are
 community evidence, not per-game qualification on your hardware.
 
-The same interface is available to scripts:
+The command line also supports this review, including when using the Zenity fallback:
 
 ```sh
 python3 install.py wiki-plan GAME.exe
