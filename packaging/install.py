@@ -1855,6 +1855,11 @@ def provider_plan(package,root,record,pins,files,prepared=None,selection=None):
     if name in hlx.NAMES:
         plan=hlx.layout(package,name,library,prepared,current,root)
         plan['metadata']['legacy_target']=legacy
+        # The standard FFX slot becomes AMD's provider when legacy HelixSR moves to its own custom slot.
+        # Its former bytes remain in the generation and original-backup ledger for exact rollback/Restore.
+        amd=upscaler_updates.plan(package,dict(record,upscaler=dict(name='fsr4',target=legacy)),pins,files,installed=safe(root,legacy))
+        if amd.get('deferred'):raise ValueError(amd['deferred'])
+        plan['files'][legacy]=amd['data'] if amd['data'] is not None else Upstream(amd['dependency'],amd['sha256'])
         if current.get('name')=='helixsr':
             plan['metadata']['legacy_helixsr']=current
         elif current.get('legacy_helixsr'):

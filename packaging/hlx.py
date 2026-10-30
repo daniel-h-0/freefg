@@ -94,7 +94,7 @@ def layout(package, provider, library_root, explicit=None, current=None, root=No
     base = Path(library_root) / 'custom' / provider / descriptor['api']
     # A current portable install need not retain its preparation cache.
     data = None
-    if explicit is None and current and current.get('name') == provider and root is not None:
+    if explicit is None and current and root is not None:
         try:
             data = {name: member(root, (base / name).as_posix()).read_bytes() for name in descriptor['files']}
             if any(sha(data[name]) != entry['sha256'] for name, entry in descriptor['files'].items()):

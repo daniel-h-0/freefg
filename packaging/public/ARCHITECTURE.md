@@ -277,7 +277,9 @@ HelixSR 3.1.0, by lonewolf0622, provides distinct HLX DLSS (NGX) and HLX FSR 4 (
 FreeFG places them under `OptiScaler/custom/hlx-dlss/dlss/` and `OptiScaler/custom/hlx-fsr4/ffx/`, and selects their
 custom folder names in `Upscalers.Dx12Upscaler`. The FFX provider keeps its checked AMD companion beside it.
 `helixsr.ini` disables Helix’s own frame generation; its FG files are not copied. Legacy HelixSR 2.0.0 used the
-main FidelityFX DLL slot; migration retains that owned file and its original backup until Restore.
+main FidelityFX DLL slot; migration puts AMD FSR 4 in that slot. The previous Helix bytes remain in the rollback
+generation, and the original backup remains available to Restore. Previously installed custom providers can be
+selected again from their hash-checked game-local copies even after the preparation cache is removed.
 
 For Cyberpunk 2.5 with HLX DLSS or HLX FSR 4, the recipe sets `InitFlags.DisableReactiveMask=true`. The per-upscaler recipe applies
 only to unset/automatic values. Configure restores an owned value when switching to FSR 4 and preserves explicit

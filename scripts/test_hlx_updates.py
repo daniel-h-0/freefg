@@ -36,6 +36,7 @@ class HlxUpdates(UpdateFixture):
         status,_=self.run_quiet(m.update,self.exe,self.new,helixsr_dir=self.hlx_release)
         self.assertEqual(status,'update');self.assertEqual(self.record()['upscaler']['name'],'hlx-dlss')
         self.assertEqual(self.record()['upscaler']['legacy_helixsr'],old)
+        self.assertEqual((self.game/old['target']).read_bytes(),b'FSR')
         self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),before)
         self.run_quiet(m.update,self.exe,self.new,helixsr_dir=self.hlx_release)
         self.run_quiet(m.restore,self.exe);self.assertOriginal()
@@ -90,6 +91,15 @@ class HlxUpdates(UpdateFixture):
         status,_=self.run_quiet(m.update,self.exe,self.new)
         self.assertEqual(status,'current')
         m.restore(self.exe);self.assertOriginal()
+
+    def test_previously_installed_provider_can_be_selected_without_preparation_cache(self):
+        self.install_old();self.select()
+        self.run_quiet(m.configure,self.exe,upscaler='hlx-fsr4',package=self.new,helixsr_dir=self.hlx_release)
+        shutil.rmtree(self.hlx_release)
+        self.run_quiet(m.configure,self.exe,upscaler='hlx-dlss',package=self.new)
+        self.assertEqual(self.record()['upscaler']['name'],'hlx-dlss')
+        self.run_quiet(m.configure,self.exe,upscaler='hlx-fsr4',package=self.new)
+        self.assertEqual(self.record()['upscaler']['name'],'hlx-fsr4')
 
     def test_changed_companion_blocks_entire_transaction(self):
         self.install_old();self.select('hlx-fsr4')
