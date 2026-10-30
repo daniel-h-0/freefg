@@ -2,7 +2,7 @@
 
 Release changes since 0.9.0. Measurements describe the named release and test conditions, not every later build.
 
-## 1.1.7 candidate
+## 1.2.0 candidate
 
 - Replace Setup's chain of Zenity dialogs with a window built on GTK 4 and libadwaita 1.5+: the game library grouped by
   what needs attention, a page per game with its state and only the actions that state allows, and every change run
