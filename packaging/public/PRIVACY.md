@@ -6,7 +6,7 @@ also use local interfaces described below.
 
 ## What the installer downloads
 
-Downloads come from public GitHub locations and are verified by size and SHA-256. Pinned dependency members are
+Downloads come from public GitHub locations and are verified by SHA-256 and, when pinned, size. Pinned dependency members are
 extracted by name and checked individually. The optional HelixSR download is instead verified as a complete archive
 and safely extracted as described in [SECURITY.md](SECURITY.md#the-installer). Preview downloads the dependencies it
 needs for the proposed installation. The installer does not execute downloaded setup scripts; installed DLLs run later
@@ -29,11 +29,12 @@ verified before use. The table mirrors `dependencies.json`; automated checks det
 | FSR 4 upscaler DLL, BC-250 build RC12 (INT8), with its notices | every installation | https://github.com/daniel-h-0/bc250-fsr4-fork/releases/download/v4.0.0-rc12/bc250-fsr4-dll-4.0.0-rc12.zip | `646778a0d06c42bf3cdcc99f9396680f5cc4a33658b90c0889fd15751bfb800d` | 50,186,200 |
 | NVIDIA DLSS Super Resolution DLL 310.7.0 (`nvngx_dlss.dll`), unmodified | a fresh setup on a DLSS input, only when OptiScaler's own search finds no copy of the game's; `--dlss-helper yes` places it on any input ([NOTICE.md](NOTICE.md#nvidias-terms)) | https://raw.githubusercontent.com/NVIDIA/DLSS/a291cc7d2cc642a51566f3dfd5376f635cd1b284/lib/Windows_x86_64/rel/nvngx_dlss.dll | `be6e434a94ca32499515eb62ca0e6c274526055d568d0426e4c652dcdfb6ee6e` | 58,977,904 |
 | NVIDIA's licence for that DLL | with the DLL | https://raw.githubusercontent.com/NVIDIA/DLSS/a291cc7d2cc642a51566f3dfd5376f635cd1b284/LICENSE.txt | `21b5daec892b12bea692e66bc8fe45cf5902ccaf3a7b831e78050d8859881c37` | 27,176 |
-| HelixSR 2.0.0, its complete official release archive (a separate project by lonewolf0622, under its own licence) | only when you choose HelixSR (Setup, or `install.py helixsr`) and it is not on your computer yet | https://github.com/lonewolf0622/HelixSR/releases/download/v2.0.0/HelixSR-2.0.0.zip | `0d60686eddbb0abd680b27d12a088344b212464ebf0a2dc18d10387e1c817f52` | 136,997,025 |
+| HelixSR 2.0.0, its complete official release archive (a separate project by lonewolf0622, under its own licence) | only if the legacy `install.py helixsr` command requests 2.0.0 and it is not cached | https://github.com/lonewolf0622/HelixSR/releases/download/v2.0.0/HelixSR-2.0.0.zip | `0d60686eddbb0abd680b27d12a088344b212464ebf0a2dc18d10387e1c817f52` | 136,997,025 |
 
 Fallback sources provide identical pinned Intel files. Cold-cache totals are about 107 MB for a fresh setup or
-74 MB with supported OptiScaler already installed, plus 59 MB if the DLSS helper is needed. HelixSR adds a 137 MB
-archive, unpacked beneath `helixsr/` in the cache; its downloaded ZIP is then removed.
+74 MB with supported OptiScaler already installed, plus 59 MB if the DLSS helper is needed. The legacy 2.0.0
+command downloads a 137 MB archive, unpacked beneath `helixsr/` in the cache; its downloaded ZIP is then removed.
+HLX 3.1.0 preparation downloads a separate archive and compilers, as described below.
 
 ### What a download reveals
 
@@ -70,7 +71,8 @@ Legacy HelixSR 2.0.0 records retain their original-file and log recovery informa
 Discovery reads Steam library lists, app manifests, `appinfo.vdf`, Proton selections, launch options and local account
 `localconfig.vdf`/`shortcuts.vdf`; Heroic library/configuration caches; and Lutris game configuration. Native and Flatpak
 locations are recognised, though Flatpak launcher operation is not qualified. Update All Games and `plan --all` read every
-Steam, Heroic and Lutris launch entry's environment and the optional index to find installations; they write no launcher record. Install, Update and Register refresh index entries. No index is uploaded.
+Steam, Heroic and Lutris launch entry's environment and the optional index to find installations. Plan is read-only;
+an update can write owned launcher fields when its plan includes a migration. Install, Update and Register refresh index entries. No index is uploaded.
 
 Check reads executable/DLL headers, imports and relevant function-name strings; filenames; launcher metadata;
 GE-Proton's per-game fix; game settings/logs indicating the graphics API; and FreeFG logs for recorded

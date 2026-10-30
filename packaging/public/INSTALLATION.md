@@ -1,0 +1,96 @@
+# Installation and recovery
+
+Use Setup in the extracted release folder, or run `python3 install.py` there. **System Check** (`doctor`) checks host
+dependencies; a game’s page reports its compatibility without changing files or downloading dependencies.
+
+## Install a game
+
+1. In Desktop Mode run `Start-freefg.sh`, choose **Add a Game**, then select an installed Steam/Heroic game or
+   **Choose a Game Executable…**. For many Unreal games the rendering `.exe` is under `Binaries/Win64`.
+2. Open the game page and choose **Install…**. Keep **Automatic** or select an input, choose an upscaler and read
+   the verdict and manual steps. Accept any item under **Needs your OK** and close the game and launcher when prompted.
+3. Reopen the launcher. In the game, choose the upscaler input and frame-generation setting named by Setup:
+
+| Input | In-game setting |
+| --- | --- |
+| DLSS FG | Enable DLSS frame generation; Streamline 2 or newer is required. |
+| FSR 3.1/3.0 FG | Enable the game's FSR frame generation; HUD elements can be interpolated. |
+| OptiFG | Enable the selected upscaler and disable the game's own frame generation. |
+| Native XeSS FG | Enable the game's XeSS frame generation. |
+
+Use borderless or windowed mode: XeFG does not interpolate in exclusive fullscreen. The first start after install or
+an input change can take longer while shaders compile. For VRR, keep output below the display's refresh ceiling.
+
+Setup verifies dependencies, backs up replaced files and adds the runtime, configuration and launcher settings beside
+the rendering executable. It preserves existing launcher options and wrappers. Supported OptiScaler installations keep
+their loader filename; unknown DLLs, custom paths and other proxy mods can require manual integration. The installation
+record and original backups are in `.bc250-xefg-experimental`.
+
+Setup uses PyGObject, GTK 4 and libadwaita 1.5+. Without them it falls back to Zenity dialogs;
+`FREEFG_SETUP_UI=zenity ./Start-freefg.sh` selects those explicitly. In Zenity, choose **Add games**, **Install**
+and **Automatic per game**. An explicit input applies to every selected game in that interface.
+
+## Command line
+
+```sh
+python3 install.py doctor                 # host checks
+python3 install.py check GAME.exe        # offline verdict
+python3 install.py preview GAME.exe      # preview; may download dependencies
+python3 install.py install GAME.exe       # automatic input, AMD FSR 4
+python3 install.py status GAME.exe       # installed files and last session
+python3 install.py library               # discovered and registered installations
+python3 install.py plan GAME.exe         # preview an update
+python3 install.py update GAME.exe       # apply it
+python3 install.py rollback GAME.exe     # undo the most recent update or provider switch
+python3 install.py restore GAME.exe      # restore the original installation
+```
+
+`install` accepts `--fg-input dlssg|upscaler|fsrfg|fsrfg30`, `--route native`,
+`--upscaler fsr4|hlx-dlss|hlx-fsr4` and `--dlss-helper auto|no|yes`. Use `--help` for the full interface.
+[Preparing and changing upscalers](CONFIGURATION.md#upscalers).
+
+## Updates and recovery
+
+Extract the new release before updating. Setup’s sidebar lists games by state; each game’s page shows its provider,
+last-session logs and recovery actions. Choose **Update…** on a game page, or **Update All Games…** from the menu.
+Review the grouped plan before applying it. On the command line, run
+`python3 install.py plan --all` followed by `python3 install.py update --all` to apply the plan.
+
+Update all combines Steam, Heroic and Lutris discovery with the optional local index; it can find installations you
+did not select. Use a game’s **Update…** or name specific executables to limit the scope. Running, missing, blocked,
+pinned or deferred games are reported separately. Successful games remain updated; a nonzero update exit status
+signals deferred or failed work. There is no atomic transaction across games.
+
+Compatible 1.1.3.1, 1.1.4, 1.1.5 and 1.1.6 installations update in place. Updates cover the compatible FreeFG/Intel set,
+selected upscaler, OptiScaler integration and owned launcher fields while retaining user additions and original
+backups. Close launchers if the plan changes their entries. The **Upscalers Only…** menu action keeps the FreeFG core; the CLI
+supports `--component core|upscaler`. Unprepared providers can be deferred, and changed owned binaries block the
+coupled transaction. `--loader winmm.dll` on `plan` or `update` moves the loader and its Wine override together;
+an occupied name is refused.
+
+- **Keep this version** on a game page holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
+- **Register Existing Install…** in the menu adds an existing installation to the optional index. The index can be rebuilt; game files and recovery
+  do not depend on it.
+- **Rollback** restores the saved state before the most recent update **or provider switch**. Each game retains one
+  completed generation; later settings edits are preserved where possible, and conflicting binary edits are refused.
+- **Restore** removes owned files and launcher changes and restores originals, preserving later user edits where
+  possible. It reports conflicts and leaves backups and logs in a `.bc250-xefg-experimental-restored-…` folder.
+
+If an update is interrupted, retry Update or use Rollback. Use **Refresh Game Recipe…** for a gameplay-qualified input and
+launcher recipe; the equivalent is `plan GAME.exe --refresh-recipe`, then `update GAME.exe --refresh-recipe`. Game
+settings are manual and saves are not changed by refresh. For a custom input, use OptiScaler's menu and restart.
+
+FreeFG installs no background updater and does not download new FreeFG releases itself. A user-managed deployment
+job may invoke `install.py update --all` after extracting a verified release.
+
+## Uninstall and extras
+
+Restore each game, run any installed extra's `uninstall.sh`, then remove the extracted package and unneeded backups
+and cache. Downloaded files are normally under `~/.cache/bc250-xefg-testers`.
+
+The release offers two optional extras:
+
+- **gamescope-cap-sys-nice** grants scheduling priority; it requires sudo and affects nested-launch environments.
+- **steam-screensaver-in-game** suppresses Steam's screensaver during games through its local DevTools endpoint.
+
+Each extra includes its own install and removal instructions. [Privileges and local interfaces](SECURITY.md#what-runs-on-your-computer).

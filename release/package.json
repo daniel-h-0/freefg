@@ -123,7 +123,9 @@
     "BUILDING.md": "repo:packaging/public/BUILDING.md",
     "CHANGELOG.md": "repo:packaging/public/CHANGELOG.md",
     "CONTRIBUTING.md": "repo:packaging/public/CONTRIBUTING.md",
-    "SECURITY.md": "repo:packaging/public/SECURITY.md"
+    "SECURITY.md": "repo:packaging/public/SECURITY.md",
+    "INSTALLATION.md": "repo:packaging/public/INSTALLATION.md",
+    "CONFIGURATION.md": "repo:packaging/public/CONFIGURATION.md"
    }
   },
   "addon-intel-free-mfg": {

@@ -1,8 +1,7 @@
 # gamescope scheduling priority
 
 This optional extra grants gamescope `CAP_SYS_NICE`. Use it when `install.py doctor` or gamescope reports that the
-capability is missing. On the tested BC-250, it reduced contention between gamescope and a busy game; it does not
-resolve every source of uneven VRR timing.
+capability is missing. It can reduce contention between gamescope and a busy game.
 
 Run `./install.sh` and approve sudo. Restart Game Mode afterwards. The script records the original capability in
 `/var/lib/bc250-xemfg-gamescope-cap/previous` and, when using `/usr/bin/gamescope` on a pacman system, installs an update
