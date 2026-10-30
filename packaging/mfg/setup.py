@@ -99,13 +99,15 @@ def helixsr_ready(installer):
         dialog('--text-info','--width=1000','--height=520','--filename='+str(note))
     return False
 
-def hlx_ready(installer,provider):
+def hlx_ready(installer,provider,installed=False):
     try:installer.hlx.find(ROOT,provider);return []
     except (OSError,ValueError):pass
     choice=dialog('--list','--width=720','--height=270','--column=Action','--column=Description',
+        *(['Use game copies','Reuse checked provider files already owned by the selected games'] if installed else []),
         'Use prepared folder','Select an HLX release already built on this computer',
         'Prepare HLX','Build DLSS and FSR 4 once from local model inputs; no games are changed',
         '--text=HLX preparation is shared by every game. Built model files stay on this computer.')
+    if choice=='Use game copies':return []
     if choice=='Use prepared folder':
         folder=dialog('--file-selection','--directory','--title=Prepared HelixSR release folder')
         if not folder:return None
@@ -141,7 +143,7 @@ def select_library(installer,selected):
     return selected if choice is None else [Path(x) for x in choice.splitlines() if x]
 
 
-def choose_upscaler(installer,text):
+def choose_upscaler(installer,text,installed=False):
     """install.py arguments for the upscaler the user picks, or None (cancelled, or HelixSR not ready yet)."""
     modern=hasattr(installer,'hlx') and bool(installer.hlx.catalog(ROOT))
     rows=(['FSR 4','AMD FSR 4 BC-250 build','HLX DLSS','Helix DLSS network, prepared locally',
@@ -151,7 +153,7 @@ def choose_upscaler(installer,text):
     if choice=='FSR 4':return ['--upscaler','fsr4']
     if modern:
         provider={'HLX DLSS':'hlx-dlss','HLX FSR 4':'hlx-fsr4'}[choice]
-        extra=hlx_ready(installer,provider)
+        extra=hlx_ready(installer,provider,installed)
         return ['--upscaler',provider,*extra] if extra is not None else None
     return ['--upscaler','helixsr'] if helixsr_ready(installer) else None
 
@@ -337,7 +339,7 @@ def main():
                  'Update all':'update','Update upscalers':'update','Update selected':'update','Refresh recipe':'update','Rollback':'rollback','Register':'register','Pin':'pin','Unpin':'unpin'}[action]
         extra=update_scope
         if action=='Upscaler':
-            extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed):\n'+HELIXSR_ABOUT)
+            extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed):\n'+HELIXSR_ABOUT,installed=True)
             if not extra:continue
         if action=='Settings':
             selected_settings=dialog('--forms','--width=620','--separator=|',
