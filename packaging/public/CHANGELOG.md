@@ -2,6 +2,16 @@
 
 Release changes since 0.9.0. Measurements describe the named release and test conditions, not every later build.
 
+## Unreleased
+
+- Replace Setup's chain of Zenity dialogs with a window built on GTK 4 and libadwaita 1.5+: the game library grouped by
+  what needs attention, a page per game with its state and only the actions that state allows, and every change run
+  as an `install.py` command with its progress, outcome and next steps in view. Zenity remains the fallback.
+- Add games from the installed Steam and Heroic games with their rendering executable proposed; each is checked as
+  soon as it is listed. Install shows the verdict for the chosen input, and soft refusals are accepted per game.
+- Review every game's update plan, grouped by outcome, before one confirmation. A game's page checks its program files
+  and launch settings against the installation record and edits generated-frame settings in place.
+
 ## 1.1.6 – 2026-10-30
 
 - Update compatible installed games in place with Setup's **Update all** or `install.py update --all`; import

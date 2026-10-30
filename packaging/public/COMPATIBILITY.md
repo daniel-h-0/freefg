@@ -76,7 +76,8 @@ FreeFG loads DLLs into the game process. Anti-cheat software may refuse them or 
 offline mode. Check detects files; it cannot establish that anti-cheat is inactive. FreeFG does not hide itself,
 and Restore cannot undo a ban.
 
-The override is **per game**. In Setup, choose **Override anti-cheat refusal...**, read the warning, then type
+The override is **per game**. In Setup, choose **Override…** under **Install despite anti-cheat** on the game's page
+(in the Zenity dialogs, **Override anti-cheat refusal...**), read the warning, then type
 `I accept that my account may be banned` exactly. Cancel is the default. Other hard refusals still apply.
 
 ```sh

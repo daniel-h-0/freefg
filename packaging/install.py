@@ -1900,7 +1900,7 @@ def recipe_migration(package,root,record,ini):
     found=recipe_for(package,Path(record['game']))
     verified=found[1] if found else None
     if not verified or verified.get('evidence') not in ('gameplay','generates'):
-        raise ValueError('No gameplay-qualified recipe refresh is available for this game; use Check for its current limitations')
+        raise ValueError('No gameplay-qualified recipe refresh is available for this game; its compatibility check names its current limitations')
     rm=found[0];route=verified['route'];fg=verified.get('fg_input') or 'upscaler'
     changes={('FrameGen','Enabled'):'true' if route=='opti' else 'false',
              ('fakenvapi','UseFakenvapi'):'true' if route=='opti' else 'false'}
@@ -2708,7 +2708,7 @@ def helixsr_command(package,folder=None,download=None):
                 print(hlx.NAMES[provider]+' '+spec['version']+' ready: '+str(location))
             except (OSError,ValueError) as error:ready=False;print(str(error))
         if ready and folder:hlx.remember(package,folder)
-        if not ready:print('Use Setup → Upscaler → Prepare HLX, or install.py hlx --dlss-input FILE --amd-input FILE.')
+        if not ready:print('Use Prepare HLX with Setup’s upscalers, or install.py hlx --dlss-input FILE --amd-input FILE.')
         return 0 if ready else 1
     found=helixsr.find(package,explicit=folder)
     # Nothing usable on this computer: no release, or only one this installer does not know (another version, or a

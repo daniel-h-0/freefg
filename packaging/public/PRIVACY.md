@@ -69,14 +69,14 @@ Legacy HelixSR 2.0.0 records retain their original-file and log recovery informa
 
 Discovery reads Steam library lists, app manifests, `appinfo.vdf`, Proton selections, launch options and local account
 `localconfig.vdf`/`shortcuts.vdf`; Heroic library/configuration caches; and Lutris game configuration. Native and Flatpak
-locations are recognised, though Flatpak launcher operation is not qualified. Update all and `plan --all` read every
+locations are recognised, though Flatpak launcher operation is not qualified. Update All Games and `plan --all` read every
 Steam, Heroic and Lutris launch entry's environment and the optional index to find installations; they write no launcher record. Install, Update and Register refresh index entries. No index is uploaded.
 
 Check reads executable/DLL headers, imports and relevant function-name strings; filenames; launcher metadata;
 GE-Proton's per-game fix; game settings/logs indicating the graphics API; and FreeFG logs for recorded
 installations. It does not run game files, modify the game or contact external services.
 
-**Check system** reads PCI IDs, kernel/Proton versions, Vulkan queues, GPU memory/clocks and gamescope capabilities.
+**System Check** reads PCI IDs, kernel/Proton versions, Vulkan queues, GPU memory/clocks and gamescope capabilities.
 It also tests Steam's local DevTools port. It does not change system configuration.
 
 `check --report` prepares text for you to submit; it does not upload it. The report includes versions, game/store ID,

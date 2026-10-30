@@ -1,8 +1,10 @@
 # Troubleshooting
 
-Use **Status** for installed files and the last session; use **Check system** (`install.py doctor`) for host and
-HelixSR prerequisites. If a game update replaced a managed file, follow Status's instructions. Use the new release’s **Update all** for compatible installations.
-For an interrupted update, retry Update or use Rollback. If Restore refuses a changed file, keep the backup and resolve
+Use a game's **Installation details** (`install.py status`) for installed files and the last session; use
+**System Check** (`install.py doctor`) for host and HelixSR prerequisites. If a game update replaced a managed file,
+the game's page says so under **Health**; follow the installation details' instructions. Use the new release’s
+**Update All Games** for compatible installations. For an interrupted update, choose **Finish Update** or
+**Undo Update…** on the game's page (`install.py update` or `rollback`). If Restore refuses a changed file, keep the backup and resolve
 the reported conflict before reinstalling.
 
 ## Startup and provider checks
@@ -59,6 +61,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | `Existing OptiScaler must be a supported pinned build …` | Restore or update the game's OptiScaler first. |
 | `Cannot download …` | The first installation needs internet access, or the file already in `~/.cache/bc250-xefg-testers`. |
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |
+| Setup opens Zenity dialogs instead of its window, or its window misbehaves | The window needs PyGObject, GTK 4 and libadwaita 1.5 or newer (`python-gobject gtk4 libadwaita` on Arch-based systems); started from a terminal, Setup prints what is missing. `FREEFG_SETUP_UI=zenity ./Start-freefg.sh` chooses the dialogs. |
 | Setup does not find HelixSR | Run `install.py helixsr` for missing prerequisites. Discovery searches `HelixSR…` folders in home, Downloads and Applications. Elsewhere, pass `--helixsr /path/to/HelixSR-2.0.0` to `helixsr`, `install` or `configure`; the path is remembered. Only pinned 2.0.0 is supported. |
 | Cyberpunk 2.5 resets DLSS, HDR or graphics settings | Check the legacy settings entries [below](#cyberpunk-25-resets-settings). |
 

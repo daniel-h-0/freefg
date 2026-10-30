@@ -32,10 +32,10 @@ Four uncapped headless runs per condition after a warm-up; whiskers show 95% con
 | Hardware | AMD BC-250 (PCI ID `1002:13fe`). [Other GPUs are experimental](packaging/public/TROUBLESHOOTING.md#other-gpus). |
 | System | x86-64 Linux, Mesa RADV and Proton. Current checks use CachyOS and GE-Proton11-11; [test systems](packaging/public/MEASUREMENTS.md#test-system). |
 | Compositor | gamescope for automatic frame pacing. Current TV checks use 3.16.30. |
-| Setup | Python 3.11+, `bsdtar` (libarchive), and Zenity for the desktop interface. Internet access for uncached downloads. |
+| Setup | Python 3.11+ and `bsdtar` (libarchive). Setup's window uses PyGObject, GTK 4 and libadwaita 1.5+; without them, Setup uses Zenity dialogs. Internet access for uncached downloads. |
 | Game | A 64-bit DirectX 12 game with a supported input, registered in Steam, Heroic or Lutris, in an ASCII-only path. |
 
-Run **Check system** or `python3 install.py doctor` to inspect dependencies. A BC-250 driver with a compute queue
+Run **System Check** in Setup or `python3 install.py doctor` to inspect dependencies. A BC-250 driver with a compute queue
 also needs the matching kernel fixes; the dedicated queue is optional. Games with detected anti-cheat are refused
 unless you use the explicit [per-game risk override](packaging/public/COMPATIBILITY.md#anti-cheat).
 
@@ -44,11 +44,13 @@ unless you use the explicit [per-game risk override](packaging/public/COMPATIBIL
 ### Setup
 
 1. Extract the [release archive](https://github.com/daniel-h-0/freefg/releases/latest) and run `Start-freefg.sh`
-   in Desktop Mode.
-2. Choose **Add games** and select each rendering `.exe`. Unreal Engine games often use an executable under
+   in Desktop Mode. Setup opens on your game library; games that already have FreeFG are listed automatically.
+2. Choose **Add a Game** and pick the game from your installed Steam and Heroic games; Setup proposes its rendering
+   executable. **Choose a Game Executable…** adds any other `.exe`. Unreal Engine games often use an executable under
    `Binaries/Win64`, rather than the launcher in the game root.
-3. Choose **Install**, **Automatic per game**, and an upscaler. Read the verdict and any game-specific steps.
-   Close the selected games and their launchers when prompted.
+3. Setup checks the game without changing it. On the game's page, choose **Install…**, keep the **Automatic** input
+   or choose one, and choose an upscaler. Read the verdict and any game-specific steps, and accept any item under
+   **Needs your OK**. Close the game and its launcher when prompted.
 4. Reopen the launcher. In the game, select the upscaler input named by Setup and configure frame generation:
 
 | Input | In-game setting |
@@ -58,7 +60,9 @@ unless you use the explicit [per-game risk override](packaging/public/COMPATIBIL
 | OptiFG | The selected upscaler on, the game's own frame generation off. OptiFG derives FG inputs from upscaling. |
 | Native XeSS FG | The game's XeSS frame generation on. |
 
-An explicit input applies to every selected game; install games with different input requirements separately.
+Setup's window installs one game at a time, each with its own input. Without GTK 4 and libadwaita, Setup offers the
+same actions as Zenity dialogs (**Add games**, then **Install** and **Automatic per game**); there, an explicit input
+applies to every selected game, so install games with different input requirements separately.
 The first start after installation or an input change can take longer while shaders compile.
 
 ### Command line
@@ -88,12 +92,14 @@ other proxy mods can require manual integration. Check explains each refusal bef
 
 ## Upscaler: FSR 4 or HelixSR
 
-Choose **Upscaler** in Setup, then **FSR 4**, **HLX DLSS** or **HLX FSR 4**. AMD FSR 4 remains the default.
+Choose the upscaler when installing, or later with **Change…** beside **Upscaler** on the game's page: **FSR 4**,
+**HLX DLSS** or **HLX FSR 4**. AMD FSR 4 remains the default.
 HLX is a separate project by [lonewolf0622](https://github.com/lonewolf0622/HelixSR), under its own licence.
 FreeFG ships neither Helix's code nor its locally built model data. Frame generation remains FreeFG/XeFG;
 Helix's DLSS frame-generation files are never installed.
 
-For HLX, choose an already prepared official **HelixSR 3.1.0** folder, or **Prepare HLX**. Preparation downloads the
+For HLX, open **Upscalers…** in Setup's menu and choose an already prepared official **HelixSR 3.1.0** folder, or
+**Prepare HLX**. Preparation downloads the
 complete official archive and Microsoft shader compilers, verifies their hashes, and runs Helix's build-only Python
 entry point with networking disabled. It requires Wine, bubblewrap, Python numpy, and the local NVIDIA/AMD model
 inputs identified in `dependencies.json`: NVIDIA DLSS **310.7.0** and `amdxcffx64.dll` **2.4.0.4370** from
@@ -115,7 +121,7 @@ switch or update; **Restore** removes the installation and returns the original 
 
 ## Generated-frame scaling
 
-Close the game, open **Settings**, and choose **Generated frames**:
+Close the game, choose **Generated-frame size** under **Settings** on its page, then **Apply**:
 
 | Choice | Result |
 | --- | --- |
@@ -127,7 +133,7 @@ Reduced dimensions round down to even pixels, with a minimum of one. Match outpu
 inside its selected limit preserve odd dimensions. The game's output resolution, real frames, depth and motion-vector
 resources stay unchanged. The reduced result is enlarged only after generation.
 
-**Downscale** selects Bilinear or Area colour reduction. **Upscale** selects Bilinear, Bicubic (Catmull–Rom),
+**Downscale filter** selects Bilinear or Area colour reduction. **Upscale filter** selects Bilinear, Bicubic (Catmull–Rom),
 Lanczos2 or FSR1 (EASU, without RCAS sharpening). Bilinear is the default in both directions. These filters affect
 generated frames; they are separate from the game's FSR 4 or HelixSR upscaler. Scaling deliberately changes the image,
 including in Exact mode.
@@ -199,8 +205,9 @@ there so wave-size settings apply consistently. [Implementation](packaging/publi
 
 ## Restore and uninstall
 
-**Update:** extract the new package and choose **Update all** in Setup. Setup shows a plan, then updates every
-available, unpinned installation without a per-game Restore/Install cycle. The command-line equivalent is
+**Update:** extract the new package, start its Setup and choose **Review** on the update banner (or **Update All
+Games…** in the menu). Setup shows each game's plan, grouped by outcome, then updates every available, unpinned
+installation without a per-game Restore/Install cycle. The command-line equivalent is
 `python3 install.py plan --all`, followed by `python3 install.py update --all` (the latter applies immediately).
 Updates include FreeFG, Intel’s runtime, the selected upscaler and compatible OptiScaler integration files.
 Launcher migrations change only owned fields and preserve user additions. Close the games first; if the plan changes
@@ -208,13 +215,16 @@ launcher entries, close the affected launcher too. User settings and original ba
 unavailable or blocked game is reported separately while other games continue. **Rollback** returns one game to the
 state before its most recent update; **Restore** returns the original game files.
 
-Installations register automatically for later updates. **Register** adds an existing installation, and **Library**
-shows a selectable table with versions, providers, last-session logs and recovery status. Log evidence is separate
-from file integrity and does not certify gameplay or settings persistence. **Update selected** acts on the chosen rows. The optional local index can be deleted and rebuilt from launcher discovery or
-Register; each game retains its own runtime and recovery files. **Pin** holds a game and all its components at their
-current versions; **Unpin** resumes updates. CLI equivalents are `register`, `library`, `pin` and `unpin`.
+Installations register automatically for later updates. Setup's library lists each installation with its release,
+upscaler, last-session logs and recovery state; a game's page also checks its program files and launch settings
+against the installation record. Log evidence is separate from file integrity and does not certify gameplay or
+settings persistence. **Update…** on a game's page updates that game alone, and **Track** registers an installation
+Update All does not reach. The optional local index can be deleted and rebuilt from launcher discovery or
+Register; each game retains its own runtime and recovery files. **Keep this release** (Pin) holds a game and all its
+components at their current versions; turning it off (Unpin) resumes updates. CLI equivalents are `register`,
+`library`, `pin` and `unpin`.
 
-Setup’s **Update upscalers** updates each selected provider while keeping the FreeFG core. On the CLI,
+**Upscalers only** in Setup's update review updates each provider while keeping the FreeFG core. On the CLI,
 `--component core` updates FreeFG/Intel and their integration; `--component upscaler` updates the provider and any
 required integration. Incompatible or unprepared providers are deferred. Changed owned binaries block the coupled
 operation for that game. A missing preparation cache does not prevent checking an already-current portable install.
@@ -232,8 +242,7 @@ exit status reports deferred or failed work; successful games remain updated, wi
 **Change FG input:** use **Refresh recipe** for this release’s tested integration and launcher settings. The CLI is
 `plan GAME.exe --refresh-recipe`, then `update GAME.exe --refresh-recipe`. Only gameplay-qualified recipes are
 offered; the plan lists manual game settings and does not change quality or saves. For custom inputs, use OptiScaler’s
-menu, save and restart. Use **Upscaler** to switch providers without
-changing the FG input.
+menu, save and restart. Use **Change…** beside the upscaler to switch providers without changing the FG input.
 
 Restore puts back replaced files and removes files and launcher settings it added. It reverts recipe settings key by
 key while preserving later user edits. It reports changed game files that need attention rather than overwriting them.
@@ -283,7 +292,7 @@ The charts above describe the October 26 campaign with 1.1.3.1; scaling measurem
 
 ## Troubleshooting
 
-Start with **Status**, **Check system** and [TROUBLESHOOTING.md](packaging/public/TROUBLESHOOTING.md).
+Start with a game's **Installation details**, Setup's **System Check** and [TROUBLESHOOTING.md](packaging/public/TROUBLESHOOTING.md).
 
 ## Credits and licences
 

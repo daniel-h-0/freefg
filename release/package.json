@@ -47,10 +47,12 @@
  },
  "components": {
   "installer": {
-   "description": "Installer, Setup front end, launcher configuration, recipes, the compatibility check (compat.py, gamescan.py) and dependency pins (one line per file)",
+   "description": "Installer, Setup front end (its GTK window and Zenity dialogs), launcher configuration, recipes, the compatibility check (compat.py, gamescan.py) and dependency pins (one line per file)",
    "files": {
     "install.py": "repo:packaging/install.py",
     "setup.py": "repo:packaging/mfg/setup.py",
+    "setup_app.py": "repo:packaging/mfg/setup_app.py",
+    "setup_model.py": "repo:packaging/mfg/setup_model.py",
     "launcher_config.py": "repo:packaging/launcher_config.py",
     "steam_config.py": "repo:packaging/steam_config.py",
     "recipes.py": "repo:packaging/recipes.py",
@@ -337,6 +339,8 @@
   "test_mfg_install",
   "test_launcher_config",
   "test_setup_front_end",
+  "test_setup_app",
+  "test_setup_window",
   "test_recipes",
   "test_dependencies",
   "test_screensaver_extra",
