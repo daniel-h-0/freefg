@@ -6,7 +6,12 @@ AMD FSR 4, HLX DLSS or HLX FSR 4 upscaling.
 
 The default is **2×**: one generated frame for each game-rendered frame. Generated frames improve smoothness, not
 the game's simulation rate. Optional generated-frame scaling can reduce cost, and a separate MFG Unlocker can enable
-3× or 4×. [Performance and test results](MEASUREMENTS.md).
+3× or 4×.
+
+![Cyberpunk 2.5 game and output FPS and added frame cost for Intel and FreeFG at 2×, 3× and 4×, in SDR and HDR10.](https://raw.githubusercontent.com/daniel-h-0/freefg/5de9a40317ff07511c69c006bad22b36d3250f03/docs/assets/cyberpunk-helixsr-fps.svg)
+
+Cyberpunk 2.5 on one BC-250, FreeFG 1.1.3.1, HelixSR Quality at 1440p; four headless runs per condition. Higher
+factors require MFG Unlocker. [Methods, data and limitations](MEASUREMENTS.md#cyberpunk-25-with-helixsr).
 
 ## Requirements
 
