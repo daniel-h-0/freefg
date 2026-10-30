@@ -270,7 +270,7 @@ class SetupWindow(UpdateFixture):
         def script(window):
             yield lambda: window.loaded and window.providers is not None
             game = setup_app.model.Game(self.other, title='Fixture game')
-            for cancel in (True, False, "close"):
+            for cancel in (True, False, "close", "provider"):
                 window.install(game)
                 dialog = self.dialog(window, setup_app.InstallDialog)
                 yield lambda: not dialog.checking
@@ -280,7 +280,11 @@ class SetupWindow(UpdateFixture):
                     dialog.install()
                     self.assertTrue(dialog.install_pending)
                     callback = reader.call_args.kwargs['done']
-                    if cancel == "close":
+                    if cancel == "provider":
+                        dialog.providers = [*dialog.providers, setup_app.model.Provider('fixture-ready','Fixture provider','ready')]
+                        dialog.choose_provider('fixture-ready')
+                        self.assertIsNone(dialog.blocked())
+                    elif cancel == "close":
                         dialog.close()
                     elif cancel:
                         dialog.cancel()

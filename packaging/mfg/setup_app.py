@@ -748,9 +748,9 @@ class InstallDialog(Adw.Dialog):
         if self.cancelled or self.install_pending or self.blocked() is not None:
             return
         self.install_pending = True
-        generation = self.generation
+        generation, choice = self.generation, self.choice()
         self.install_button.set_sensitive(False)
-        self.window.reader.call(self.ctx.blockers, self.ctx.installer, [self.game.exe], True, done=lambda names: self.closed_check(names, generation),
+        self.window.reader.call(self.ctx.blockers, self.ctx.installer, [self.game.exe], True, done=lambda names: self.closed_check(names, generation, choice),
                                 failed=lambda error: self.check_failed(error))
 
     def check_failed(self, error):
@@ -761,12 +761,16 @@ class InstallDialog(Adw.Dialog):
         self.banner.set_revealed(True)
         self.update_state()
 
-    def closed_check(self, names, generation=None):
+    def closed_check(self, names, generation=None, selection=None):
         self.install_pending = False
         if self.cancelled:
             return
         self.update_state()
         if (generation is not None and generation != self.generation) or self.blocked() is not None:
+            return
+        if selection is not None and selection != self.choice():
+            self.banner.set_title('Your choices changed. Review them and choose Install again.')
+            self.banner.set_revealed(True)
             return
         if names:
             self.banner.set_title('Close ' + model.joined(names) + ' first. A running launcher can overwrite the launch '
