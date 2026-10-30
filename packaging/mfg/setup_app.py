@@ -999,6 +999,144 @@ class UpdateDialog(Adw.Dialog):
                    success=f'{len(steps)} games updated' if many else f'{steps[0].title} is updated')
 
 
+# ------------------------------------------------------------------------------------------------- wiki INI review
+class WikiSettingsDialog(Adw.Dialog):
+    """Read and select source-backed INI suggestions; the installer validates the plan again before writing."""
+
+    def __init__(self, window, game):
+        super().__init__(title='Wiki Settings', content_width=730, content_height=740)
+        self.window, self.game = window, game
+        self.plan = None
+        self.choices = {}
+        self.confirmations = {}
+        self.generation = 0
+        self.closed = False
+        self.connect('closed', lambda *_: setattr(self, 'closed', True))
+        view = Adw.ToolbarView()
+        header = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
+        header.pack_start(button('_Cancel', self.close))
+        self.apply_button = button('_Apply Selected', self.apply, 'suggested-action')
+        self.apply_button.set_sensitive(False)
+        header.pack_end(self.apply_button)
+        header.set_title_widget(Adw.WindowTitle(title='Wiki Settings', subtitle=game.title))
+        view.add_top_bar(header)
+        self.stack = Gtk.Stack()
+        self.loading = Adw.StatusPage(title='Reading wiki settings…',
+                                      description='Using the catalogue in this package. Nothing is changed.',
+                                      icon_name='view-refresh-symbolic')
+        self.stack.add_named(self.loading, 'loading')
+        view.set_content(self.stack)
+        self.set_child(view)
+        self.reload()
+
+    def reload(self):
+        self.generation += 1
+        generation = self.generation
+        self.apply_button.set_sensitive(False)
+        self.stack.set_visible_child_name('loading')
+        self.window.reader.call(model.wiki_settings_plan, self.window.ctx, self.game,
+                                done=lambda result: self.loaded(generation, result),
+                                failed=lambda error: self.failed(generation, error))
+
+    def failed(self, generation, error):
+        if self.closed or generation != self.generation:
+            return
+        page = Adw.StatusPage(title='Settings could not be read', description=esc(str(error)),
+                             icon_name='dialog-warning-symbolic')
+        page.set_child(button('_Try Again', self.reload, 'pill'))
+        self.replace_page(page)
+
+    def replace_page(self, page):
+        old = self.stack.get_child_by_name('review')
+        if old is not None:
+            self.stack.remove(old)
+        self.stack.add_named(page, 'review')
+        self.stack.set_visible_child_name('review')
+
+    def loaded(self, generation, result):
+        if self.closed or generation != self.generation:
+            return
+        self.plan, self.choices, self.confirmations = result, {}, {}
+        page = Adw.PreferencesPage()
+        heading = group('OptiScaler settings from the wiki',
+                        'Select only settings you want to apply. Review the source and any conditions first. '
+                        'Your selection is checked again before writing and can be rolled back.',
+                        suffix=button('', self.reload, 'flat', icon_name='view-refresh-symbolic', tooltip='Refresh'))
+        page.add(heading)
+        rows = result.get('rows', [])
+        if not rows:
+            heading.add(action_row('No settings found for this game',
+                                   'The bundled catalogue has no matching INI suggestions.'))
+        sections = {}
+        names = {'automatic': 'Reviewed fixes', 'prefill': 'Optional settings', 'conditional': 'Confirm before applying'}
+        for row in rows:
+            action = row['action']
+            already_set = row.get('current') is not None and str(row['current']) == str(row['value'])
+            selectable = action in names and not already_set
+            title = 'Already set' if already_set else names.get(action, 'Not offered for this installation')
+            if title not in sections:
+                sections[title] = group(title)
+                page.add(sections[title])
+            current = str(row.get('current') if row.get('current') is not None else 'not set')
+            line = plain(Adw.ExpanderRow(), row['key'] + ' = ' + str(row['value']),
+                         'Current: ' + current + '. ' + ('No change is needed.' if already_set else row.get('reason', '')))
+            if selectable:
+                check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
+                self.choices[row['id']] = check
+                check.connect('toggled', lambda widget, line=line: (line.set_expanded(True) if widget.get_active() else None,
+                                                                   self.update_state()))
+                line.add_prefix(check)
+            else:
+                line.add_prefix(icon('dialog-information-symbolic', 'dim'))
+            source = row.get('source') or {}
+            line.add_row(action_row('Source', source.get('title') or 'OptiScaler wiki'))
+            for url in source.get('pages') or []:
+                if isinstance(url, str) and url.startswith('https://github.com/optiscaler/OptiScaler/wiki/'):
+                    source_row = action_row('Wiki page', url)
+                    source_row.add_suffix(Gtk.LinkButton(uri=url, label='Open', valign=Gtk.Align.CENTER))
+                    line.add_row(source_row)
+            when = row.get('when') or {}
+            if when:
+                line.add_row(action_row('Applies when', '\n'.join(str(k) + ': ' + str(v) for k, v in when.items())))
+            confirmations = row.get('confirmations') or []
+            if selectable and confirmations:
+                confirm = Gtk.CheckButton(valign=Gtk.Align.CENTER)
+                confirmation = action_row('I checked that these conditions apply', '\n'.join(map(str, confirmations)))
+                confirmation.add_prefix(confirm)
+                confirmation.set_activatable_widget(confirm)
+                confirm.connect('toggled', lambda *_: self.update_state())
+                self.confirmations[row['id']] = confirm
+                line.add_row(confirmation)
+            sections[title].add(line)
+        self.replace_page(page)
+        self.update_state()
+
+    def selected(self):
+        return [token for token, check in self.choices.items() if check.get_active()]
+
+    def update_state(self):
+        selected = self.selected()
+        ready = selected and all(token not in self.confirmations or self.confirmations[token].get_active()
+                                 for token in selected)
+        self.apply_button.set_sensitive(bool(ready))
+        self.apply_button.set_label('_Apply ' + str(len(selected)) + ' Setting' + ('s' if len(selected) != 1 else ''))
+
+    def apply(self):
+        selected = self.selected()
+        if self.closed or not selected or any(token in self.confirmations and not self.confirmations[token].get_active()
+                                              for token in selected):
+            return
+        confirmed = [token for token in selected if token in self.confirmations]
+        args = model.wiki_settings_args(self.game, self.plan, selected, confirmed)
+        game, window = self.game, self.window
+        self.close()
+        window.when_closed([game], False, lambda: window.run(
+            'Applying Wiki Settings', [Step(game.title, args, game)],
+            working='Applying selected settings to ' + game.title,
+            success='Wiki settings applied to ' + game.title,
+            next_steps=['Start the game to check the result. Roll Back undoes this change.']))
+
+
 # ------------------------------------------------------------------------------------------------- upscalers and HLX
 class UpscalersDialog(Adw.Dialog):
     """The upscalers this package installs and whether each is ready on this computer; HLX is prepared here once for
@@ -1935,6 +2073,9 @@ class Window(Adw.ApplicationWindow):
             [Step(game.title, ['configure', str(game.exe), *args], game)],
             'Settings saved. They apply the next time the game starts.', game, 'Settings were not saved'))
 
+    def review_wiki(self, game):
+        WikiSettingsDialog(self, game).present(self)
+
     def change_upscaler(self, game):
         UpscalerDialog(self, game).present(self)
 
@@ -2239,6 +2380,11 @@ class GamePage(Adw.NavigationPage):
                                 'settings stay manual. Shows the plan first.')
             recipe.add_suffix(button('_Preview…', lambda: self.window.update_game(game, refresh=True), 'flat'))
             updates.add(recipe)
+        if hasattr(ctx.installer, 'wiki_settings_plan'):
+            wiki = action_row('Wiki settings', 'Review additional OptiScaler INI suggestions and their conditions before '
+                              'applying. Each selected change can be rolled back.')
+            wiki.add_suffix(button('_Review…', lambda: self.window.review_wiki(game), 'flat'))
+            updates.add(wiki)
         if not game.tracked and self.state in ('installed', 'update', 'pinned'):
             track = action_row('Not in Update All', 'No launcher entry or library record leads Update All here.',
                                'dialog-information-symbolic', 'dim')

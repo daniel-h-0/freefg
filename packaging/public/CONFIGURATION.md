@@ -74,3 +74,28 @@ With the unlocker's own model, only seven of 13 programs were replaced in the te
 To remove it, delete its `.asi` and `RTXMFG-*` files, saving `RTXMFG-Universal.json` if wanted, and return to 2×.
 Leave `LoadAsiPlugins` enabled for OptiPatcher. Restore does not remove third-party files it did not install.
 [Mechanism](ARCHITECTURE.md#another-mod-on-intels-runtime) · [Measurements](MEASUREMENTS.md).
+
+## Wiki settings
+
+On an installed game's page, choose **Review…** beside **Wiki settings**. This reads the bundled OptiScaler wiki
+catalogue and the game's current INI. Nothing is selected or written automatically by this review.
+
+Each suggestion shows its value, the current value, source page and conditions. Select the changes you want. A
+suggestion based on a title-only match or an unknown condition also requires you to confirm the displayed facts.
+Settings already handled by a recipe or runtime fix, unsupported keys and known-inapplicable settings cannot be
+selected. Already-set values need no change.
+
+**Apply Selected** checks that the plan and current values still match, then writes only the selected OptiScaler INI
+keys through the existing transaction. The installed release and runtime stay in place. **Roll Back** undoes the last
+applied selection; Restore retains its normal handling of original values and later edits. Wiki suggestions are
+community evidence, not per-game qualification on your hardware.
+
+The same interface is available to scripts:
+
+```sh
+python3 install.py wiki-plan GAME.exe
+python3 install.py wiki-apply GAME.exe --wiki-plan-digest DIGEST --wiki-setting ROW_ID
+```
+
+Use the digest and row IDs from the current JSON plan. Add `--wiki-confirm ROW_ID` only for a selected row whose
+identity/conditions you have checked. A stale plan is refused; review it again instead of reusing old IDs blindly.

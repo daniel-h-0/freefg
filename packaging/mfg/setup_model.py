@@ -838,6 +838,22 @@ def game_providers(ctx, game, prepared):
     return result
 
 
+def wiki_settings_plan(ctx, game):
+    """The shared installer planner, with the current record and INI context; reads only."""
+    plan = ctx.installer.wiki_settings_plan(ctx.root, game.exe)
+    if not isinstance(plan, dict) or plan.get('format') != 1 or not isinstance(plan.get('rows'), list) or not re.fullmatch(
+            r'[0-9a-f]{64}', str(plan.get('digest') or '')):
+        raise ValueError('This package returned an unsupported wiki settings plan')
+    return plan
+
+
+def wiki_settings_args(game, plan, selected, confirmed):
+    """Send only explicitly selected rows and confirmations, bound to the displayed plan."""
+    return ['wiki-apply', str(game.exe), '--wiki-plan-digest', plan['digest'],
+            *[part for token in selected for part in ('--wiki-setting', token)],
+            *[part for token in confirmed for part in ('--wiki-confirm', token)]]
+
+
 def hlx_requirements(which=None, run=subprocess.run):
     """[(what, present, how to get it)] that Prepare HLX needs besides the two model inputs (hlx.prepare)."""
     import shutil

@@ -349,5 +349,43 @@ class SetupWindow(UpdateFixture):
         self.drive(script)
 
 
+    def test_wiki_review_starts_unselected_and_requires_condition_confirmation(self):
+        rows = [dict(id='a', key='Hotfix.Example', value='true', current='auto', action='prefill',
+                     reason='Optional wiki setting', source=dict(title='Example Game', pages=[])),
+                dict(id='b', key='FrameGen.Example', value='false', current='auto', action='conditional',
+                     reason='Confirm the renderer', confirmations=['The game uses the listed renderer'],
+                     source=dict(title='Example Game', pages=[])),
+                dict(id='c', key='Libraries.DLL', value='example.dll', current='auto', action='advice',
+                     reason='Library wiring belongs to the installer', source=dict(title='Example Game', pages=[])),
+                dict(id='d', key='Hotfix.AlreadySet', value='true', current='true', action='prefill',
+                     reason='Optional wiki setting', source=dict(title='Example Game', pages=[]))]
+        plan = dict(format=1, digest='a' * 64, rows=rows)
+        def script(window):
+            yield lambda: window.loaded
+            game = window.game_by_key(str(self.exe))
+            before = self.snapshot()
+            with patch.object(setup_app.model, 'wiki_settings_plan', return_value=plan):
+                window.review_wiki(game)
+                dialog = self.dialog(window, setup_app.WikiSettingsDialog)
+                yield lambda: dialog.plan is not None
+                self.assertEqual(dialog.selected(), [])
+                self.assertFalse(dialog.apply_button.get_sensitive())
+                self.assertNotIn('c', dialog.choices)
+                self.assertNotIn('d', dialog.choices)
+                dialog.choices['b'].set_active(True)
+                self.assertFalse(dialog.apply_button.get_sensitive())
+                dialog.confirmations['b'].set_active(True)
+                self.assertTrue(dialog.apply_button.get_sensitive())
+                with patch.object(window, 'when_closed', side_effect=lambda games, launchers, then: then()), \
+                        patch.object(window, 'run') as run:
+                    dialog.apply()
+                    run.assert_called_once()
+                    steps = run.call_args.args[1]
+                    self.assertEqual(steps[0].args, ['wiki-apply', str(game.exe), '--wiki-plan-digest', 'a' * 64,
+                                                   '--wiki-setting', 'b', '--wiki-confirm', 'b'])
+                self.assertEqual(self.snapshot(), before)
+        self.drive(script)
+
+
 if __name__ == '__main__':
     unittest.main()
