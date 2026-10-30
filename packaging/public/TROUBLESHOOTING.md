@@ -7,19 +7,16 @@ the reported conflict before reinstalling.
 
 ## Startup and provider checks
 
-A clean installation does not prove that the game submitted upscaler or frame-generation input. Separate launcher
-startup, game startup, upscaler creation, XeFG generation and display pacing when reporting a failure. On the tested
-October 29 builds, Deep Rock required DLSS plus DLSS FG; Deadzone required FSR Native with upscaler input.
-Hogwarts generated frames once but rewrote FG to Off at startup. Black Flag's DXGI loader failure, Tainted Grail's
-missing upscaler input and RDR2's Rockstar authentication error have no verified recipe fix in this release.
+A successful launch does not establish upscaler operation or frame generation. Check the current session's logs:
 
-HLX DLSS must log `network running`. A successful game launch or dispatch counter alongside `NOT RUNNING` or a
-red-frame placeholder is a failure. HLX FSR 4 must identify itself as the selected FFX provider; AMD fallback does
-not qualify it. Cyberpunk’s HLX FSR 4 HDR start faulted with the reactive-mask default; its scoped recipe uses
-`InitFlags.DisableReactiveMask=true`, also used for HLX DLSS. Explicit user values are preserved and reported.
-Mask-on quality equivalence and the underlying fault cause remain unqualified. A missing network requires preparation with the matching archive, not disabling these checks.
-Heroic launch failures before the game starts can be runner/environment problems. Keep its bundled runner updateable;
-this installer does not impose Legendary version holds. Preserve existing PATH and user wrapper settings.
+- HLX DLSS must report `network running` in its `helixsr.log`. `NOT RUNNING` or a red-frame placeholder indicates failure.
+- HLX FSR 4 must report `own runtime active` in `HLX_FSR.log`; selecting the provider does not rule out AMD fallback.
+- `MFG_STATUS XeFG generates` in `BC250-MFG.log` reports generated frames from the SDK. Initialization alone is not enough.
+
+<a id="cyberpunk-25-with-helixsr-stops-at-the-first-rendered-frames"></a>
+
+For Cyberpunk 2.5, the scoped HLX recipe disables the reactive mask after an HDR fault with HLX FSR 4's default.
+Its cause and the mask's image-quality effect remain unresolved; explicit user values are preserved.
 
 ## Logs
 
@@ -52,15 +49,14 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | --- | --- |
 | Frame generation adds fewer frames than expected | See [below](#frame-generation-adds-little). |
 | Only real frames are shown; the frame rate does not go up | Turn the game's frame generation on (DLSS FG and FSR FG inputs); make sure the game is not in exclusive fullscreen; check `BC250-MFG.log` and `BC250-XeFG-fast.log`. |
-| Uneven pacing or VRR flicker | Give gamescope realtime priority ([Extras](README.md#extras)); rule out Steam's screensaver (below); stay below the refresh rate; check the `BC250_PACE` lines. |
+| Uneven pacing or VRR flicker | Give gamescope realtime priority ([Extras](INSTALLATION.md#uninstall-and-extras)); rule out Steam's screensaver (below); stay below the refresh rate; check the `BC250_PACE` lines. |
 | Bursts of VRR flicker after some idle minutes, in long cutscenes or with a game left running | Check Steam's screensaver. On the tested client it rendered behind games and periodically consumed GPU time. Set its timeout to **Never** or use the `steam-screensaver-in-game` extra. |
 | The first start after installing (or reinstalling) loads for longer | Setup normally creates a private vkd3d-proton cache; the first start fills it. See [shader-cache behavior](#shader-cache-behavior). |
 | A game installed despite its anti-cheat does not start, or reports tampering | Restore the game; anti-cheat may be refusing the injected DLLs. See [anti-cheat risks](COMPATIBILITY.md#anti-cheat). |
 | `Existing OptiScaler must be a supported pinned build …` | Restore or update the game's OptiScaler first. |
 | `Cannot download …` | The first installation needs internet access, or the file already in `~/.cache/bc250-xefg-testers`. |
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |
-| Setup does not find HelixSR | Run `install.py helixsr` for missing prerequisites. Discovery searches `HelixSR…` folders in home, Downloads and Applications. Elsewhere, pass `--helixsr /path/to/HelixSR-2.0.0` to `helixsr`, `install` or `configure`; the path is remembered. Only pinned 2.0.0 is supported. |
-| Cyberpunk 2.5 resets DLSS, HDR or graphics settings | Check the legacy settings entries [below](#cyberpunk-25-resets-settings). |
+| Setup does not find HLX | Prepare HelixSR 3.1.0 once, select a matching prepared folder with `--helixsr`, or reuse a checked game-local provider. See [upscalers](CONFIGURATION.md#upscalers). |
 
 ## Shader-cache behavior
 
@@ -69,28 +65,10 @@ An explicit `VKD3D_SHADER_CACHE_PATH` (including `0`, which disables caching) is
 long for vkd3d-proton, Setup leaves the game's cache settings in place and reports that exception.
 [Why a new cache is used](MEASUREMENTS.md#shader-caches).
 
-## Cyberpunk 2.5 with HelixSR stops at the first rendered frames
+<a id="cyberpunk-25-resets-settings"></a>
 
-The 1.1.3.1 recipe sets `[InitFlags] DisableReactiveMask=true` only when HelixSR is selected. Repeated checks passed
-with this input disabled; restoring it reproduced the early GPU fault, including on a control without FreeFG. The
-underlying cause is unresolved. Disabling the mask removes one temporal-reconstruction input; equal image quality
-has not been established. Setup preserves explicit user settings, so check this key if you already set it to `false`.
-Switching back to FSR 4 through Configure returns a recipe-owned value to its original setting.
-
-## Cyberpunk 2.5 resets settings
-
-An older `UserSettings.json` (schema 140) reset to defaults in our 2.5 checks, including DLSS Auto, SDR and ray tracing.
-Updating two legacy control entries allowed the game to load the profile and save schema 152. Back up the file before
-editing it:
-
-- `InputSchemesMode`: replace the old `UI-Settings-Interface-InputScheme…` names with `Legacy`, `Agile` or `Alternative`
-  in its value and list of choices, preserving the selected mode.
-- Move the `SteeringSensitivity` option from `/controls` to `/controls/vehicle`, preserving its numeric value.
-
-The file is under `AppData/Local/CD Projekt Red/Cyberpunk 2077` in the game's Proton user folder. Check the settings
-after the game saves them: the controller zoom range and HDR paper-white units also changed. In these checks the game
-wrote a 0–2 paper-white value instead of the old nits value. Recheck HDR calibration in the game. The 1.1.3.1 recipe and
-performance checks use the current schema, DLSS upscaling input and DLSS FG input to XeFG.
+[Earlier troubleshooting notes](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/TROUBLESHOOTING.md#cyberpunk-25-resets-settings)
+are retained with the 1.1.6 record.
 
 ## Frame generation adds little
 
@@ -100,7 +78,7 @@ session's logs; a fast log can remain from an earlier run.
 | Installation's input | `BC250-MFG.log` | `BC250-XeFG-fast.log` | Meaning | What to do |
 | --- | --- | --- | --- | --- |
 | any | `FAST_OWNER` | 13 lines that start with `REPLACE` | All 13 replacement programs are active. | If gains remain small, check the factor, frame caps and refresh limit. |
-| OptiScaler | `FAST_OWNER` | 7 lines that start with `REPLACE` | MFG Unlocker's own model: FreeFG's shaders run on part of the network, at every frame count. | Set `XeFGModel=default` under `[XeFG]` in `OptiScaler.ini` ([README](README.md#3-and-4-with-mfg-unlocker)). |
+| OptiScaler | `FAST_OWNER` | 7 lines that start with `REPLACE` | MFG Unlocker's own model: FreeFG's shaders run on part of the network, at every frame count. | Set `XeFGModel=default` under `[XeFG]` in `OptiScaler.ini` ([Configuration](CONFIGURATION.md#3-and-4-with-mfg-unlocker)). |
 | native XeSS FG (or the game's XeSS FG chosen in the game) | `FAST_SKIP beside another module …`, no `FAST_OWNER` or `CONTEXT_CALLER` | none or earlier | The game's own XeSS frame generation beside MFG Unlocker: FreeFG does not accelerate it. | Use OptiScaler's frame generation (install with an OptiScaler input), or remove MFG Unlocker for 2×. |
 | any | `FAST_ASIDE …` | `FAST_ASIDE …` | FreeFG stepped aside during the session ([Logs](#logs)). | Use MFG Unlocker 1.6.0 with `XeFGModel=default`, or remove the other mod. |
 | any other case | no `FAST_OWNER` | none or earlier | `BC250_XEFG_DISABLE=1`, or the reason in a `FAST_FALLBACK` or `FAST_SKIP` line ([Logs](#logs)). | Remove `BC250_XEFG_DISABLE` from the launch options, or act on that line. |
@@ -112,7 +90,7 @@ has `FAST_COEXIST` lines, and on an OptiScaler input a `FAST_SKIP` line for the 
 **Status** shows the installation's input.
 
 FreeFG defaults to full output size. To reduce generation cost, choose a scale or resolution limit in
-[Settings](README.md#generated-frame-scaling), then restart the game. Status reports actual dimensions: a request
+[Settings](CONFIGURATION.md#generated-frame-scaling), then restart the game. Status reports actual dimensions: a request
 alone does not prove scaling was active. `FREEFG_SCALE fallback:` explains an observed unsupported layout.
 
 ## Environment variables

@@ -6,32 +6,10 @@ game will generate correctly; use Check before installation and Status after a r
 
 ## Recipe observations
 
-The package contains **19 curated BC-250 recipes**. The UI calls these **Verified on BC-250**, but their evidence
-varies: some were played, some reached a menu, some were only installed, and two record generation failures.
-The observations below are not a promise that every current game build, upscaler and frame count works.
-
-Most rows describe earlier private integrations at 2×. `FreeFG` identifies public-build checks; `2.0` is the
-observed output/game-frame ratio. Current release checks are in [MEASUREMENTS.md](MEASUREMENTS.md).
-
-| Game | Input the recipe picks | Observed |
-| --- | --- | --- |
-| CONTROL Resonant | DLSS FG (turns the game's DLSS frame generation on) | 2.0 |
-| Crimson Desert | FSR 3.1 FG (turns the game's frame generation on) | played at 2× |
-| Cyberpunk 2077 2.5 | DLSS FG (DLSS upscaling input; native Anti-Lag 2 off) | FreeFG 1.1.3.1: HelixSR Quality, reactive mask off, benchmark at 2.0 in SDR and HDR10 (headless). Earlier versions used native XeSS FG. |
-| Dead as Disco | FSR 3.1 FG (`FrameGenerationMode=FSR`) | 2.0 |
-| Echo Point Nova | OptiFG | FreeFG 1.1.3.1: HelixSR menu starts at 2×/3×/4×; exact Restore. |
-| Kingdom Come: Deliverance II | OptiFG | 2.0 in gameplay |
-| RoboCop: Rogue City | DLSS FG (the game's DLSS upscaling and frame generation) | 2.0 |
-| System Shock | OptiFG, `-dx12` | 2.0 at start-up |
-| The Invincible | OptiFG, `-dx12` | 2.0 in gameplay |
-| VOIN | OptiFG, `-dx12` | 2.0 |
-| Witchfire | DLSS FG (turns the game's `DLSS_FG` on) | 2.0; played at 2× |
-| Deadzone: Rogue | FSR 3.1 FG | does not generate yet |
-| Deep Rock Galactic | DLSS FG, `-dx12` | did not generate: choose an upscaler (DLSS / DLSS FG) once in the game's own Video menu |
-
-Recipes with installation evidence but no recorded generation check: Assassin's Creed Black Flag Resynced (native XeSS FG), Hogwarts Legacy (DLSS FG,
-turns the game's DLSS frame generation on), Red Dead Redemption 2 (OptiFG), Tainted Grail: The Fall of Avalon (OptiFG,
-`-force-d3d12`), Thymesia (OptiFG, `-dx12`), TRYP FPV (OptiFG, `-dx12`).
+The package has **19 curated BC-250 recipes**. Setup labels them **Verified on BC-250**, but their evidence ranges
+from gameplay to installation-only or failed checks. Run **Check** for the matched recipe, observation and manual
+steps; check the running game for actual frame generation. The complete recorded observations are in
+[`recipes.json`](https://github.com/daniel-h-0/freefg/blob/main/packaging/recipes/recipes.json).
 
 ## Verdicts
 
@@ -39,7 +17,7 @@ Check and Install produce an offline verdict before dependency downloads or game
 
 | Verdict | Meaning |
 | --- | --- |
-| Verified on BC-250 | A curated recipe supplies the input/settings. Read its recorded observation above. |
+| Verified on BC-250 | A curated recipe supplies the input/settings; Check shows the recorded observation. |
 | Community-reported on BC-250 | A reviewed user report, not reproduced by a maintainer. |
 | Automatic, guided by the OptiScaler wiki | Detection is supplemented by one of 758 imported wiki entries. Most reports concern Windows and other GPUs. |
 | Automatic (no recipe) | Detection found a DirectX 12 input; in-game behavior is unverified. |

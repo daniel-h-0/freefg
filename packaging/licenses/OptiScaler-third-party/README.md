@@ -9,12 +9,13 @@ reserved.
 
 ## Build and provenance
 
-This index covers DLL `b3602882…`, source `03db4f86` (OptiScaler fork tag `bc250-03db4f8`). The October 25 build's
-compiler dependency records and link inputs were checked against the earlier audit. The third-party component set
-is unchanged; Vulkan-Headers advanced to 1.4.350, with identical licence text.
+This index covers DLL `5c7dd0f3…`, source `25db192b` (fork tag `bc250-25db192`). The October 29 build's
+dependency records and source changes were checked against the October 25 audit. The compiled third-party folder
+set and static libraries remain the same; the ImGui Vulkan backend has a seven-line change. The changed
+FidelityFX-SDK-v2 submodule is not in the dependency records.
 
-`PROVENANCE.json` in this directory records the current DLL, the earlier audit, and each notice's source URL, commit
-and SHA-256. The licence files are copied verbatim.
+The source-tree [PROVENANCE.json](https://github.com/daniel-h-0/freefg/blob/main/packaging/licenses/OptiScaler-third-party/PROVENANCE.json)
+records the builds and each notice's source URL, commit and SHA-256. Licence files are copied verbatim.
 
 ## Components
 

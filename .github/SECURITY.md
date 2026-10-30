@@ -21,7 +21,7 @@ respond and take a release down on a credible request.
 The installer runs as your user, without root. It edits selected game files, launcher entries and recipe settings;
 [PRIVACY.md](../packaging/public/PRIVACY.md) lists its reads, writes and downloads.
 
-Downloads use pinned HTTPS URLs, sizes and SHA-256 hashes. Pinned dependency members are extracted by expected name and
+Downloads use pinned HTTPS URLs and SHA-256 hashes; sizes are checked when pinned. Pinned dependency members are extracted by expected name and
 checked individually. The optional HelixSR download is verified as a complete archive; its extraction is restricted to
 regular files and directories beneath its release folder, with an extraction-size limit. Prepare HLX runs the
 pinned archive’s build-only Python entry point under bubblewrap, with the host read-only and network disabled.

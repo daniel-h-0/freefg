@@ -296,6 +296,8 @@ packaging/extras/steam-screensaver-in-game/uninstall.sh
 # documents' read-only checker (host paths, the old name, placeholders, links, PRIVACY.md against dependencies.json).
 # README.md, LICENSE, NOTICE.md, SECURITY.md and CONTRIBUTING.md are also the sources of the repository's top files.
 packaging/public/README.md
+packaging/public/INSTALLATION.md
+packaging/public/CONFIGURATION.md
 packaging/public/NOTICE.md
 packaging/public/PRIVACY.md
 packaging/public/ARCHITECTURE.md
