@@ -19,12 +19,12 @@ it is not a tested recipe.
   "manual_steps": ["Choose DLSS in Video > Upscaling."],
   "known_problems": [{"input": "dlssg", "text": "DLSS FG input gives a black screen"}],
   "reports": [
-    {"issue": 123, "freefg": "1.1.3.1", "package_sha256": "...", "proton": "GE-Proton11-11", "mesa": "...", "kernel": "...",
+    {"issue": 123, "freefg": "1.1.6", "package_sha256": "...", "proton": "GE-Proton11-11", "mesa": "...", "kernel": "...",
      "gamescope": "...", "hdr": false, "vrr": true, "resolution": "2560x1440", "upscaler_mode": "Performance",
-     "ratio": 2.0, "minutes": 30, "starts": 3, "restore_checked": true, "date": "2026-10-25"}
+     "ratio": 2.0, "minutes": 30, "starts": 3, "restore_checked": true, "date": "2026-10-30"}
   ],
   "reviewed_by": "maintainer handle",
-  "reviewed": "2026-10-26"
+  "reviewed": "2026-10-30"
 }
 ```
 

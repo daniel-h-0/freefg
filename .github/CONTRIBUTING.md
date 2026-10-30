@@ -39,7 +39,7 @@ include repeated starts, generated-frame confirmation and before/after file and 
 
 ### What a recipe may set
 
-The [community schema](../research/recipes/community/README.md) and `check_community()` in
+The [community schema](https://github.com/daniel-h-0/freefg/blob/main/research/recipes/community/README.md) and `check_community()` in
 `research/recipes/build_recipes.py` are the reference. They permit supported FG inputs, DX12 launch switches,
 readable OptiScaler keys and specific game-setting edits. They reject installer-owned keys, unsupported FG outputs,
 spoofing/Reflex/quality overrides and conflicts with OptiScaler's own game fix. Game FG inputs need an enabling setting

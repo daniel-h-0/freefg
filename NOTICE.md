@@ -46,7 +46,7 @@ release is taken down.
   titles, tested versions, inputs, settings and their stated conditions, launch options, proxy names, the compatibility
   list's verdict, and links to the pages. No page text is copied. Setup labels these lines "OptiScaler wiki (community
   reports)" and links the page. Credit belongs to the wiki's contributors and to the game reporters named on its pages;
-- the list of OptiScaler's built-in game fixes, from the shipped fork `03db4f86` and upstream `08e13adf`.
+- the snapshot of OptiScaler's built-in game fixes from fork `03db4f86` and upstream `08e13adf`.
 
 ### The shader profile
 
@@ -71,14 +71,13 @@ are recognised separately and undergo the remaining checks. This is a content ch
 
 ## OptiScaler source
 
-The bundled GPL-3.0 DLL is built from commit `03db4f8692878e65748769ebe583c053cae96360`, based on upstream
-`08e13adf55b3fd71a67071eac2e95973ac598df3` (25 October 2026). Its SHA-256 is
-`b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656`.
+The bundled GPL-3.0 DLL is built from fork commit `25db192b1c1ebf42ae7cd6615bc6288b39121c5b`, incorporating
+upstream `e7e3872d410f704479d94d318d68d163b6b58947` (29 October 2026). Its SHA-256 is
+`5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617`.
 
-The [fork release `bc250-03db4f8`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-03db4f8) provides the DLL
-and matching source archive. The tag includes build documentation at `d191284a`; `SOURCE.md` in the FreeFG archive
-identifies its source companion and build route. Available submodules are bundled; Intel's XeSS SDK is a separately
-fetched, pinned input.
+The [fork release `bc250-25db192`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-25db192) provides the
+DLL and matching recursive source archive. `SOURCE.md` in the FreeFG archive identifies the source companion and
+build route. Available submodules are bundled; Intel's XeSS SDK is a separately fetched, pinned input.
 
 The fork retains loader-first Streamline locking, automatic menu saving, Linux cross-build support, independent
 XeSS/XeFG/XeLL paths and adaptive 3×/4× game-frame starts. It is not an official OptiScaler release.
@@ -108,7 +107,7 @@ Intel's name is used here only to identify its software, not to endorse or promo
 
 NVIDIA's licence says that the DLSS SDK is "licensed for you to develop applications only for their use in systems with
 NVIDIA GPUs". The BC-250 has an AMD GPU. On it, OptiScaler handles a game's DLSS calls itself and needs `nvngx_dlss.dll`
-only to be present for its DLSS inputs; NVIDIA's DLSS does not run.
+as a presence-only helper for some DLSS inputs. HLX DLSS separately uses a locally prepared network derived from NVIDIA's DLL; see [HelixSR](#helixsr).
 
 When the installer places the file:
 
@@ -153,7 +152,7 @@ retain Intel's terms. Its in-memory changes to Intel's runtime are also relevant
 
 FreeFG contains no MFG Unlocker code and does not read, hook or patch that module. It detects hooks on Intel's
 runtime and substitutes its own shaders where Intel's programs remain. Setup writes `XeFGModel=default` when unset;
-only MFG Unlocker reads that setting. [Setup and limitations](README.md#3-and-4-with-mfg-unlocker).
+only MFG Unlocker reads that setting. [Setup and limitations](packaging/public/CONFIGURATION.md#3-and-4-with-mfg-unlocker).
 
 ## Build inputs (not shipped)
 

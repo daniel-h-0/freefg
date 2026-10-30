@@ -1,8 +1,6 @@
 # Suppress Steam's screensaver during games
 
-In the tested September 2026 Steam Game Mode client, the screensaver continued rendering behind games. Its periodic
-cross-fades consumed GPU time and caused bursts of uneven VRR refresh. Long cutscenes and idle gameplay could trigger
-it.
+Steam's screensaver can render behind a game and consume GPU time, causing uneven pacing.
 
 You can set the screensaver timeout to **Never** in Steam settings, or use this helper to suppress it only while a game
 runs and restore your timeout afterwards.

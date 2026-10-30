@@ -145,7 +145,7 @@ ordinary FreeFG acceleration continues. The F4Q shadow diagnostic also retains f
 
 Settings apply at process startup. Logs distinguish requested settings from actual scaling decisions. Layout changes
 after a scaled graph has begun remain consistency errors; the observation gate is not a guarantee for an arbitrary
-modified runtime. [Controls](README.md#generated-frame-scaling).
+modified runtime. [Controls](CONFIGURATION.md#generated-frame-scaling).
 
 ## The shader profile
 
@@ -165,7 +165,7 @@ The installed `BC250-XeFG/shaders/` directory has **93 files**:
 
 The 83 shaders are compiled from the supplied HLSL, including AMD's MIT-licensed EASU implementation: 81 use shader
 model 6.6 and two use 6.9. The shipped wave table has 173 entries; the dispatch-scale table has 11. [Rebuild instructions](BUILDING.md#the-shader-profile) and
-[per-file recipes](../../release/profile/ORIGIN.md).
+[per-file recipes](https://github.com/daniel-h-0/freefg/blob/main/release/profile/ORIGIN.md).
 
 ### Exact arithmetic
 
@@ -281,10 +281,8 @@ main FidelityFX DLL slot; migration puts AMD FSR 4 in that slot. The previous He
 generation, and the original backup remains available to Restore. Previously installed custom providers can be
 selected again from their hash-checked game-local copies even after the preparation cache is removed.
 
-For Cyberpunk 2.5 with HLX DLSS or HLX FSR 4, the recipe sets `InitFlags.DisableReactiveMask=true`. The per-upscaler recipe applies
-only to unset/automatic values. Configure restores an owned value when switching to FSR 4 and preserves explicit
-pre-installation choices or later edits. The recipe is stored with the installation so switching still works if the
-launcher registration disappears. This workaround changes an upscaler input; it is not an image-equivalence claim.
+Per-upscaler recipe settings apply only to unset or installer-owned values. Switching providers restores owned
+values where appropriate and preserves explicit or later user edits.
 
 ## The installer
 
@@ -297,7 +295,7 @@ cache settings above. It preserves existing options and wrappers. Supported stor
 
 Upscaler switches record a pending operation so Restore can recover from interruption. Edited `helixsr.ini` values
 are retained for later use. Restore reverts owned files and settings while preserving subsequent user edits; changed
-binaries can require attention. [Installation and removal](README.md#restore-and-uninstall).
+binaries can require attention. [Installation and removal](INSTALLATION.md#updates-and-recovery).
 
 In-place updates (`install.py update`, Setup's **Update all**) operate on a coherent FreeFG/Intel set and the
 selected compatible upscaler. `upscaler_updates.py` provides read-only adapters for pinned FidelityFX DLLs and the
@@ -366,7 +364,7 @@ apply to that distinction.
 | --- | --- |
 | CPU module | No FreeFG hooks or patches in Intel's module; calls use its exports. |
 | GPU work | Recognised pipelines, selected convolutions, coefficient layouts, scratch bindings and dispatch counts are replaced or extended as described above. |
-| Vulkan compilation | Wave-size requests for the 142 listed programs on the BC-250. |
+| Vulkan compilation | Wave-size requests for entries in the 173-entry table on the BC-250. |
 | Presentation | Output frames are delayed and released in order. OptiScaler separately adjusts some 3×/4× game-frame starts. |
 | Frame-count limit | Unchanged by FreeFG; higher factors require a separate tool. |
 
