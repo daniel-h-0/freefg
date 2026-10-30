@@ -55,11 +55,11 @@ CSS = '''
 '''
 
 STATE_ICONS = {'recovery': ('dialog-error-symbolic', 'error'), 'attention': ('dialog-warning-symbolic', 'warning'),
-               'unavailable': ('action-unavailable-symbolic', 'dim'), 'update': ('software-update-available-symbolic', 'accent'),
-               'outdated': ('dialog-warning-symbolic', 'warning'), 'newer': ('emblem-ok-symbolic', 'dim'),
-               'pinned': ('changes-prevent-symbolic', 'dim'), 'installed': ('emblem-ok-symbolic', 'success'),
+               'unavailable': ('action-unavailable-symbolic', 'dim'), 'update': ('view-refresh-symbolic', 'accent'),
+               'outdated': ('dialog-warning-symbolic', 'warning'), 'newer': ('object-select-symbolic', 'dim'),
+               'pinned': ('changes-prevent-symbolic', 'dim'), 'installed': ('object-select-symbolic', 'success'),
                'available': ('applications-games-symbolic', 'dim')}
-LEVEL_ICONS = {'success': 'emblem-ok-symbolic', 'accent': 'software-update-available-symbolic',
+LEVEL_ICONS = {'success': 'object-select-symbolic', 'accent': 'view-refresh-symbolic',
                'warning': 'dialog-warning-symbolic', 'error': 'dialog-error-symbolic', 'neutral': 'dialog-information-symbolic',
                'dim': 'action-unavailable-symbolic'}
 DOCTOR_LEVELS = {'OK': 'success', 'WARN': 'warning', 'INFO': 'neutral'}
@@ -458,7 +458,7 @@ class OperationDialog(Adw.Dialog):
                 if result.returncode is None:
                     row = action_row(result.step.title, 'Not started (stopped)', 'action-unavailable-symbolic', 'dim')
                 elif result.ok:
-                    row = action_row(result.step.title, self.done_line(result), 'emblem-ok-symbolic', 'success')
+                    row = action_row(result.step.title, self.done_line(result), 'object-select-symbolic', 'success')
                 else:
                     row = action_row(result.step.title, model.failure_reason(result.lines), 'dialog-warning-symbolic', 'warning')
                 listing.append(row)
@@ -960,9 +960,9 @@ class UpdateDialog(Adw.Dialog):
             for item in members:
                 level = {'update': 'accent', 'running': 'warning', 'attention': 'dim' if declined else 'warning',
                          'pinned': 'dim', 'current': 'success'}[key]
-                icon_name = {'update': 'software-update-available-symbolic', 'running': 'media-playback-start-symbolic',
+                icon_name = {'update': 'view-refresh-symbolic', 'running': 'media-playback-start-symbolic',
                              'attention': 'dialog-information-symbolic' if declined else 'dialog-warning-symbolic',
-                             'pinned': 'changes-prevent-symbolic', 'current': 'emblem-ok-symbolic'}[key]
+                             'pinned': 'changes-prevent-symbolic', 'current': 'object-select-symbolic'}[key]
                 if item.changes or item.notes:
                     row = plain(Adw.ExpanderRow(), item.title, model.plan_reason(item, ctx))
                     row.add_prefix(icon(icon_name, level))
@@ -1031,7 +1031,7 @@ class UpscalersDialog(Adw.Dialog):
         for provider in providers:
             row = action_row(provider.label, provider.detail if not provider.ready or provider.id == 'fsr4' else
                              provider.detail + (' · ' + provider.folder if provider.folder else ''),
-                             'emblem-ok-symbolic' if provider.ready else 'dialog-warning-symbolic',
+                             'object-select-symbolic' if provider.ready else 'dialog-warning-symbolic',
                              'success' if provider.ready else 'warning')
             row.add_suffix(badge('Ready', 'success') if provider.ready else badge('Not prepared', 'warning'))
             listing.add(row)
@@ -1141,7 +1141,7 @@ class PrepareDialog(Adw.Dialog):
     def requirements(self, found):
         self.missing = [what for what, present, _ in found if not present]
         for what, present, how in found:
-            row = action_row(what, 'Installed' if present else how, 'emblem-ok-symbolic' if present else 'dialog-error-symbolic',
+            row = action_row(what, 'Installed' if present else how, 'object-select-symbolic' if present else 'dialog-error-symbolic',
                              'success' if present else 'error')
             self.needs.add(row)
         self.update_state()
@@ -1540,7 +1540,7 @@ class Window(Adw.ApplicationWindow):
         self.games = games
         self.fill_list()
         updates = sum(1 for game in games if model.state(game, self.ctx) == 'update')
-        self.banner.set_title(f'{updates} game{"s" if updates != 1 else ""} can be updated to {self.ctx.version}')
+        self.banner.set_title(f'{updates} game{"s have" if updates != 1 else " has"} an update to review')
         self.banner.set_revealed(updates > 0)
         selected = self.game_by_key(self.selected_key)
         if selected is not None:
@@ -1673,9 +1673,9 @@ class Window(Adw.ApplicationWindow):
             listing = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
             listing.add_css_class('boxed-list')
             listing.append(action_row(f'{len(installed)} game{"s" if len(installed) != 1 else ""} with {self.ctx.name}',
-                                      None, 'emblem-ok-symbolic', 'success' if installed else 'dim'))
+                                      None, 'object-select-symbolic', 'success' if installed else 'dim'))
             row = action_row(f'{len(updates)} update{"s" if len(updates) != 1 else ""} available' if updates else
-                             'No release upgrades found', None, 'software-update-available-symbolic',
+                             'No release upgrades found', None, 'view-refresh-symbolic',
                              'accent' if updates else 'dim')
             row.add_suffix(button('_Review…' if updates else '_Check…', self.update_all, 'flat'))
             listing.append(row)
@@ -2123,7 +2123,7 @@ class GamePage(Adw.NavigationPage):
                                         '. A game update or another tool replaced them: restore, then install again.')
         else:
             self.files_row.set_subtitle('As installed')
-        self.files_icon.add_named(icon('dialog-warning-symbolic' if changed else 'emblem-ok-symbolic',
+        self.files_icon.add_named(icon('dialog-warning-symbolic' if changed else 'object-select-symbolic',
                                        'warning' if changed else 'success'), 'done')
         self.files_icon.set_visible_child_name('done')
         launchers = found['launchers']
@@ -2131,7 +2131,7 @@ class GamePage(Adw.NavigationPage):
         if launchers:
             self.launch_row.set_subtitle(', '.join(name + (' · as installed' if same else ' · changed since installation')
                                                    for name, same in launchers))
-        self.launch_icon.add_named(icon('emblem-ok-symbolic' if ok else 'dialog-warning-symbolic',
+        self.launch_icon.add_named(icon('object-select-symbolic' if ok else 'dialog-warning-symbolic',
                                         ('success' if ok else 'warning') if launchers else 'dim'), 'done')
         self.launch_icon.set_visible_child_name('done')
 
@@ -2225,7 +2225,7 @@ class GamePage(Adw.NavigationPage):
         updates = group('Updates')
         if self.state == 'update':
             row = action_row(f'Update to {ctx.version}', f'From {model.version(record.get("package"))}. Shows the plan first.',
-                             'software-update-available-symbolic', 'accent')
+                             'view-refresh-symbolic', 'accent')
             row.add_suffix(button('_Update…', lambda: self.window.update_game(game), 'flat'))
             updates.add(row)
         pin = plain(Adw.SwitchRow(), 'Keep this release',
