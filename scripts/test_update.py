@@ -299,6 +299,55 @@ class UpdateTests(UpdateFixture):
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),CHANGES['payload/libxess_fg.dll']);self.assertEqual(self.record()['package'],NEW)
         with self.assertRaisesRegex(ValueError,'No update to roll back'):m.rollback(self.exe)
 
+class GenerationKindTests(UpdateFixture):
+    """Wiki INI settings applied after an update keep the way back to the release before it: one generation is kept per
+    kind (a release or upscaler change, wiki INI settings), and Rollback undoes the newest and names it."""
+    def setUp(self):
+        super().setUp()
+        catalog=json.dumps(dict(schema=1,verified=[],leave_auto={},backports={},quirk_keys={},wiki=[dict(
+            title='Test game',match={'gog':['123']},pages=[],ini=[dict(key='Hotfix.ColorResourceBarrier',value='4'),
+                                                                   dict(key='Hotfix.MotionVectorResourceBarrier',value='8')])])).encode()
+        for package in (self.package,self.new):set_package_file(package,'recipes/recipes.json',catalog)
+        self.ini=self.game/'OptiScaler.ini'
+        self.ini.write_bytes(self.ini.read_bytes()+b'[Hotfix]\r\nColorResourceBarrier=auto\r\nMotionVectorResourceBarrier=auto\r\n')
+        self.original['OptiScaler.ini']=self.ini.read_bytes()
+    def apply(self,key):
+        plan=m.wiki_settings_plan(self.new,self.exe);row=next(row for row in plan['rows'] if row['key']==key)
+        return self.run_quiet(m.apply_wiki_settings,self.exe,[row['id']],package=self.new,expected=plan['digest'])
+    def hotfix(self):
+        return {k:v for (s,k),v in m.read_ini(self.ini.read_bytes()).items() if s=='hotfix'}
+
+    def test_wiki_settings_after_an_update_keep_the_way_back(self):
+        m.install(self.package,self.exe,route='opti');original=self.snapshot()
+        self.run_quiet(m.update,self.exe,self.new);updated=self.snapshot()
+        self.apply('Hotfix.ColorResourceBarrier');first=self.snapshot()
+        self.apply('Hotfix.MotionVectorResourceBarrier')
+        # The newest of each kind: the update, and the second wiki apply (it replaced the first).
+        self.assertEqual([(g['kind'],g['from'],g['to']) for g in self.record()['generations']],[('release',OLD,NEW),('settings',NEW,NEW)])
+        self.assertEqual(self.record()['generations'][1]['settings'],{'Hotfix.MotionVectorResourceBarrier':'8'})
+        self.assertEqual(len(list((self.game/m.STATE/m.GENERATIONS).iterdir())),2)
+        _,out=self.run_quiet(m.status,self.exe)
+        self.assertIn('install.py rollback undoes the wiki INI settings applied on',out);self.assertIn('After that, install.py rollback undoes the update from '+OLD,out)
+        _,out=self.run_quiet(m.rollback,self.exe)
+        self.assertIn('Rolled back the wiki INI settings applied on',out);self.assertIn('(Hotfix.MotionVectorResourceBarrier=8): 1 file put back',out)
+        self.assertIn('install.py rollback can still undo the update from '+OLD,out)
+        self.assertEqual(self.snapshot(),first);self.assertEqual(self.hotfix(),{'colorresourcebarrier':'4','motionvectorresourcebarrier':'auto'})
+        _,out=self.run_quiet(m.rollback,self.exe)
+        self.assertIn('Rolled back from '+NEW+' to '+OLD,out);self.assertEqual(self.record()['package'],OLD)
+        # Back on the earlier release; the first wiki value (its generation replaced) stays, as a later edit would.
+        self.assertEqual(self.hotfix(),{'colorresourcebarrier':'4','motionvectorresourcebarrier':'auto'})
+        self.assertEqual({k:v for k,v in self.snapshot().items() if k!='OptiScaler.ini'},{k:v for k,v in original.items() if k!='OptiScaler.ini'})
+        with self.assertRaisesRegex(ValueError,'No update to roll back'):m.rollback(self.exe)
+        m.restore(self.exe);self.assertOriginal()
+
+    def test_an_update_after_wiki_settings_rolls_back_first(self):
+        m.install(self.package,self.exe,route='opti');self.apply('Hotfix.ColorResourceBarrier');applied=self.snapshot()
+        self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual([g['kind'] for g in self.record()['generations']],['settings','release'])
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),applied);self.assertEqual(self.record()['package'],OLD)
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.hotfix(),{'colorresourcebarrier':'auto','motionvectorresourcebarrier':'auto'})
+        m.restore(self.exe);self.assertOriginal()
+
 class FsrModelMigrationTests(UpdateFixture):
     """An installation of an earlier build set OptiScaler's FSR 4 model override by its old name, FSR.Fsr4ForceModel=2: the
     update moves it to Fsr4GpuSupport, keeps what the user chose, and Rollback and Restore stay exact."""

@@ -1800,7 +1800,9 @@ UPDATE_CONTRACT={'format':2,'layout':'game-local-xemfg-proxy','configuration':1}
 LEGACY_CONTRACT={'format':1,'layout':'game-local-xemfg-proxy','configuration':1}
 RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler','ini_changes','launchers','manual_launch',
                 'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input','wiki_settings')
-# Generations kept for rollback: the release before the last update.
+# Generations kept for rollback: the newest GENERATIONS_KEPT of each slot (generation_slot). A release update and an
+# upscaler change share one; wiki INI settings have their own, so applying them never deletes the way back to the
+# release before the last update. Rollback undoes the newest operation of all.
 GENERATIONS='generations'
 GENERATIONS_KEPT=1
 # The add-on's files beside the executable (the rest are under BC250-XeFG/), and the settings files whose values are the user's.
@@ -2545,11 +2547,27 @@ def reset_vkd3d_cache(state,record,paths):
         else:child.unlink()
     return True
 
+def generation_slot(entry):
+    """The slot of an entry of record['generations'] (its kind: release, provider or settings; entries of earlier builds
+    have none): 'settings' for wiki INI settings, 'release' for a release update or an upscaler change."""
+    return 'settings' if entry.get('kind')=='settings' else 'release'
+
+def generation_text(entry):
+    """What rolling back the generation of an entry of record['generations'] undoes, in words."""
+    when=str(entry.get('at') or '')[:10]
+    if entry.get('kind')=='settings':
+        return 'the wiki INI settings applied on '+when+' ('+', '.join(k+'='+str(v) for k,v in (entry.get('settings') or {}).items())+')'
+    if entry.get('kind')=='provider':
+        return 'the upscaler change of '+when+(' (back to '+UPSCALERS.get(entry['upscaler'],entry['upscaler'])+')' if entry.get('upscaler') else '')
+    return 'the update from '+str(entry.get('from'))+' ('+when+')'
+
 def prune_generations(state,record):
-    """Only the newest GENERATIONS_KEPT generations the record names stay; every other generation folder is deleted (also
-    one an interrupted update left half written). The record is saved first."""
-    history=record.get('generations') or []
-    del history[:max(0,len(history)-GENERATIONS_KEPT)]
+    """Only the newest GENERATIONS_KEPT generations of each slot (generation_slot) the record names stay; every other
+    generation folder is deleted (also one an interrupted update left half written). The record is saved first."""
+    history=record.get('generations') or [];newest={}
+    for entry in reversed(history):newest.setdefault(generation_slot(entry),[]).append(entry['id'])
+    keep={name for names in newest.values() for name in names[:GENERATIONS_KEPT]}
+    history[:]=[entry for entry in history if entry['id'] in keep]
     save_record(state,record);sync_folder(state)
     keep={item['id'] for item in history};folder=state/GENERATIONS
     for child in sorted(folder.iterdir()) if folder.is_dir() and not folder.is_symlink() else []:
@@ -2651,7 +2669,7 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
                             applied=applied,
                             mode=stat.S_IMODE(target.stat().st_mode) if data is not None else action['mode'],
                             mtime_ns=target.stat().st_mtime_ns if data is not None else None))
-    previous=dict(package=record.get('package'),max_factor=record.get('max_factor'))
+    previous=dict(package=record.get('package'),max_factor=record.get('max_factor'));provider_before=(record.get('upscaler') or {}).get('name')
     external=[]
     for n,(path,before,after) in enumerate(launcher_migrations.prepare_apply(plan['launcher_ops'])):
         relative='external/'+str(n);write(staging/relative,before,0o600)
@@ -2710,7 +2728,12 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     record['update_contract']=dict(UPDATE_CONTRACT)
     core_manifest=digest((package/'manifest.json').read_bytes()) if plan['core'] else (record.get('components') or {}).get('core',{}).get('manifest_sha256')
     record['components']=component_state(record,core_manifest,plan['core_paths'])
-    record.setdefault('generations',[]).append(dict(id=generation,**{'from':previous['package']},to=plan['target'],at=time.strftime('%Y-%m-%dT%H:%M:%S%z')))
+    # The kind of operation (generation_slot): wiki INI settings name their values, an upscaler change the provider before.
+    kind='settings' if plan.get('operation')=='wiki-settings' else 'release' if plan['core'] else 'provider'
+    entry=dict(id=generation,**{'from':previous['package']},to=plan['target'],at=time.strftime('%Y-%m-%dT%H:%M:%S%z'),kind=kind)
+    if kind=='settings':entry['settings']=dict(plan['metadata']['wiki_settings']['settings'])
+    if kind=='provider':entry['upscaler']=provider_before
+    record.setdefault('generations',[]).append(entry)
     prune_generations(state,record)
     remember_installation(exe,record)
     if (record.get('upscaler') or {}).get('name') in hlx.NAMES:remember_prepared(package,helixsr_dir)
@@ -2762,10 +2785,12 @@ def rollback_generation(root,record,generation):
     restore_release_metadata(record,generation)
     history=record.get('generations') or []
     if not history or history[-1]['id']!=generation['id']:raise ValueError('Rollback generation does not match history')
-    history.pop();prune_generations(state,record)
+    entry=history.pop();prune_generations(state,record)
     remember_installation(Path(record['game']),record)
-    print('Rolled back from '+str(generation['to']['package'])+' to '+str(generation['from']['package'])+': '+str(len(actions))+' file'+('s' if len(actions)!=1 else '')+
-          ' put back as they were. Launch the game as before.')
+    what=('Rolled back '+generation_text(entry) if entry.get('kind') in ('settings','provider') else
+          'Rolled back from '+str(generation['to']['package'])+' to '+str(generation['from']['package']))
+    print(what+': '+str(len(actions))+' file'+('s' if len(actions)!=1 else '')+' put back as they were. Launch the game as before.')
+    if history:print('install.py rollback can still undo '+generation_text(history[-1])+'.')
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
     if 'manual_launch' in (generation.get('metadata_after') or {}) and record.get('manual_launch'):
         for line in manual_launch_lines('set the game’s launch settings back to those listed below (in Setup: under Installer output).',record['manual_launch']):print(line)
@@ -2871,8 +2896,11 @@ def status(exe):
         print('An update was interrupted: run install.py update again, or install.py rollback.' if record['pending_update'].get('generation') else
               'An update by an earlier build was interrupted: use Restore.')
     if record.get('generations') and record['status']=='installed':
-        last=record['generations'][-1]
-        print('Updated in place from '+str(last['from'])+' ('+str(last['at'])[:10]+'); install.py rollback returns to it.')
+        # What Rollback undoes, newest first (one kept per slot: a release or upscaler change, and wiki INI settings).
+        for n,entry in enumerate(reversed(record['generations'])):
+            if n:print('After that, install.py rollback undoes '+generation_text(entry)+'.')
+            elif entry.get('kind') in ('settings','provider'):print('install.py rollback undoes '+generation_text(entry)+'.')
+            else:print('Updated in place from '+str(entry['from'])+' ('+str(entry['at'])[:10]+'); install.py rollback returns to it.')
     if record.get('update_pin') and record['status']=='installed':
         print('Pinned to '+str(record['update_pin'].get('package'))+': install.py update leaves it as it is (install.py unpin).')
     if record['status']=='prepared':print('The installation was interrupted after saving backups: use Restore, then Install again.')
