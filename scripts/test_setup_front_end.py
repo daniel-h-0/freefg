@@ -315,23 +315,25 @@ class SetupFrontEnd(unittest.TestCase):
         self.assertEqual(run[3:], ['install', str(game), '--route', 'opti', '--fg-input', 'upscaler', '--upscaler', 'fsr4',
                                    '--accept', 'no-input=' + str(game), '--accept-anticheat-risk=' + str(game), '--confirm-anticheat-risk', sentence])
 
-    def scripted(self, answers, installer=None):
+    def scripted(self, answers, installer=None, returncode=0):
         """Run Setup's menu on scripted zenity answers, with a fake installer or none (load_installer fails); returns
-        (zenity calls, install.py runs). install.py runs (subprocess.run or Popen) take no answer; nothing may open a
-        network connection."""
+        (zenity calls, install.py runs). install.py runs (subprocess.run or Popen) take no answer and end with returncode;
+        nothing may open a network connection. self.shown: the texts the text-info dialogs showed."""
         from unittest import mock
         import socket
-        answers = iter(answers); calls = []; runs = []
+        answers = iter(answers); calls = []; runs = []; self.shown = []
         def run(args, **kw):
             if args[0] == sys.executable:
                 runs.append(args); return mock.Mock(returncode=0)
             calls.append(args); code, out = next(answers)
+            if '--text-info' in args:
+                self.shown += [Path(a.split('=', 1)[1]).read_text() for a in args if a.startswith('--filename=')]
             return mock.Mock(returncode=code, stdout=out)
         class Process:
             def __init__(self, args, **kw):
                 runs.append(args)
             def wait(self):
-                return 0
+                return returncode
             def communicate(self, *a, **k):
                 return b'', b''
         def no_network(*a, **k):
@@ -444,6 +446,59 @@ class SetupFrontEnd(unittest.TestCase):
         for run in runs:
             self.assertEqual(run[run.index('--component')+1], 'upscaler')
             self.assertIn(str(game / 'A.exe'), run)
+
+    def test_a_refusal_says_that_nothing_was_changed(self):
+        # install.py's exit status 3: refused before anything changed (a running game, a refusal), which the closing
+        # note says instead of pointing at interrupted updates.
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        for code, words in ((3, 'Nothing was changed in the games named above'), (1, 'Some games could not complete')):
+            self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Rollback'), (0, ''), (1, '')],
+                          self.library_installer([]), returncode=code)
+            self.assertIn(words, self.shown[-1])
+
+    def test_a_window_toolkit_that_does_not_load_leaves_the_dialogs(self):
+        # gi's RepositoryError is an Exception of its own (neither ImportError nor ValueError): the dialogs are Setup.
+        import io
+        from unittest import mock
+        (self.dir / 'setup_app.py').write_text("class RepositoryError(Exception):\n    pass\n"
+                                               "raise RepositoryError('Typelib file for namespace Adw does not load')\n")
+        (self.dir / 'setup_model.py').write_text('')
+        with mock.patch.dict(sys.modules), mock.patch.dict('os.environ', {'FREEFG_SETUP_UI': ''}), \
+                mock.patch('sys.stderr', io.StringIO()) as err:
+            sys.modules.pop('setup_app', None); sys.modules.pop('setup_model', None)
+            self.assertIsNone(self.setup.desktop_app(None, None))
+        self.assertIn('RepositoryError', err.getvalue())
+
+    def wiki_installer(self, rows):
+        class Installer:
+            def wiki_settings_plan(self, root, exe):
+                return dict(format=1, digest='c' * 64, rows=rows)
+            def idle(self, root):
+                pass
+        return Installer()
+
+    def test_wiki_settings_checklist_applies_the_rows_chosen(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        rows = [dict(id='r1', key='Hotfix.A', value='1', current=None, action='prefill', reason='Optional'),
+                dict(id='r2', key='FrameGen.B', value='2', current='auto', action='conditional', reason='Confirm first',
+                     confirmations=['The game renders with DirectX 12']),
+                dict(id='r3', key='Hotfix.C', value='1', current='1', action='prefill', reason='Already set'),
+                dict(id='r4', key='Libraries.X', value='y', current=None, action='advice', reason='Not offered'),
+                dict(id='r5', key='hotfix.a', value='2', current=None, action='prefill', reason='Another value')]
+        start = [(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Wiki settings')]
+        calls, runs = self.scripted(start + [(0, 'r1\nr2'), (0, ''), (0, ''), (1, '')], self.wiki_installer(rows))
+        checklist = next(c for c in calls if '--checklist' in c)
+        self.assertIn('r1', checklist); self.assertIn('Hotfix.A = 1', checklist)
+        self.assertNotIn('r3', checklist); self.assertNotIn('r4', checklist)  # already set, or not offered
+        question = next(c for c in calls if '--question' in c)
+        self.assertTrue(any('FrameGen.B: The game renders with DirectX 12' in a for a in question))
+        self.assertEqual([r[3:] for r in runs], [['wiki-apply', str(game / 'Game.exe'), '--wiki-plan-digest', 'c' * 64,
+                                                  '--wiki-setting', 'r1', '--wiki-setting', 'r2', '--wiki-confirm', 'r2']])
+        # Two values for one setting, the conditions not confirmed, or nothing chosen: nothing runs.
+        for answers in ([(0, 'r1\nr5'), (0, '')], [(0, 'r2'), (1, '')], [(1, '')]):
+            calls, runs = self.scripted(start + answers + [(1, '')], self.wiki_installer(rows))
+            self.assertEqual(runs, [], answers)
+        self.assertEqual(self.scripted(start + [(0, '')] + [(1, '')], self.wiki_installer([]))[1], [])
 
     def test_rollback_runs_on_the_selected_games(self):
         game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
