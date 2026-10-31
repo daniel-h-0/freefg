@@ -1,0 +1,34 @@
+{
+ "title": "Witchfire",
+ "match": {
+  "exe": [
+   "witchfire-win64-shipping.exe"
+  ],
+  "steam": [
+   "3156770"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "dlssg",
+ "ini": {
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [
+  {
+   "file": "AppData/Local/Witchfire/Saved/Config/WindowsNoEditor/GameUserSettings.ini",
+   "base": "steamuser",
+   "format": "ini-replace",
+   "section": null,
+   "values": {
+    "DLSS_FG": "True"
+   },
+   "why": "DLSS FG input needs the game's DLSS FG on",
+   "requires_fg_input": "dlssg"
+  }
+ ],
+ "launch_args": [],
+ "note": "DLSS FG input; the game's DLSS_FG setting is turned on.",
+ "evidence": "gameplay",
+ "observed": "2.0; played at 2x"
+}

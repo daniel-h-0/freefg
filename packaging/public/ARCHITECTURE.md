@@ -20,7 +20,7 @@ beside it as `bc250_xefg_original.dll`.
 
 ### Exports
 
-The proxy preserves Intel runtime 1.3.1.78's **57 exports and ordinals**: 49 forward directly and eight are wrapped.
+The proxy preserves Intel runtime 1.3.1.78's **57 exports and ordinals**. The 24 that Intel's headers declare are the proxy's own: eight are wrapped, sixteen check and load the runtime beside the proxy, then tail-call it. The 26 unnamed and 7 undeclared exports forward directly; if a forwarder has already loaded another copy of the runtime, the proxy refuses to use either.
 Four additional exports provide FreeFG's settings/initialisation interface.
 
 | Wrapped calls | Work before or after forwarding |
@@ -113,7 +113,9 @@ its own model left seven replaceable programs in the tested Cyberpunk route.
 For a hooked context, an unsupported model census, missing coefficient set or premature network work triggers
 `FAST_ASIDE`. Forwarding tables revert to pass-through behavior, replacement pipelines are rebound to Intel's
 originals, and network checks stop for that context. Resources remain alive until destruction because previously
-recorded GPU work may still use them. Other runtime consistency checks can still terminate the process.
+recorded GPU work may still use them. Without another mod, a failed model census while a context is set up (before any
+frame, with generated-frame scaling off) steps aside the same way; Intel's originals are then created from the pipeline
+cache. Other runtime consistency checks can still terminate the process.
 
 ## Generated-frame scaling
 
@@ -194,7 +196,7 @@ layer. The evidence supports the tested cases, not equivalence for every input.
 | `BC250_XEFG_F4Q2=0` / `F4Q2=0` | Disable the three F4Q2 encoders and their FP16 forms; other F4Q paths remain enabled. |
 | `BC250_XEFG_F4Q_SHADOW=1` | Diagnostic: base kernels produce output while F(4×4) kernels run alongside for comparison. FP16 alternatives are disabled. Adds GPU work. |
 
-File settings belong under `[BC250]` in `BC250-XeFG/settings.ini`; environment variables take precedence. The fast log
+File settings belong under `[BC250]` in `BC250-XeFG/settings.ini` beside the game's `.exe`, or in the file `BC250_XEFG_SETTINGS` names; environment variables take precedence. The fast log
 records effective choices as `F4Q_CONFIG`, `F4Q2_CONFIG`, `F4Q3_CONFIG` and `FP16_CONFIG`. Diagnostic `F4Q_COUNT` lines
 contain comparison counts, not tensor contents.
 
@@ -222,7 +224,7 @@ Status and Check report the last session's mode from `FP16_CONFIG`; this is not 
 `libxefg_wave.so` runs below vkd3d-proton. Launcher settings enable the layer and select its wave table. Automatic
 pacing is enabled when gamescope's environment is present; explicit pacing outside gamescope is unqualified.
 
-### Present pacing (gamescope only)
+### Present pacing (Wine games under gamescope)
 
 The layer waits for rendered frames, then spaces their release using a moving output-period estimate. After late
 frames it adds a bounded jitter margin, which decays when timing settles.
@@ -236,10 +238,12 @@ frames it adds a bounded jitter margin, which decays when timing settles.
 Presents use a reserved compute queue when available, otherwise the application's queue under a lock. On stock
 gamescope, a short series of X-property changes wakes the compositor after a ready frame is released.
 
-The layer creates a `0600` shared-memory page in `/dev/shm`; the proxy updates it. Generation within the last 250 ms
-activates holding. With a healthy signal and no generation, presents pass through. If the page is unavailable or no
-heartbeat arrives within three seconds, the fallback holds every present. `BC250_XEFG_PACE=0` disables pacing;
-`=1` forces holding. An older signal producer with no factor field retains the 5 ms margin ceiling.
+The layer creates a `0600` shared-memory page in `/dev/shm`; the proxy updates it. Until the proxy's first heartbeat,
+presents and acquires go straight to the driver, so launchers, a game before its XeFG context and processes without the
+proxy are not paced. After it, generation within the last 250 ms activates holding; with no generation, presents pass
+through. Native programs that inherit a game's environment (a nested gamescope, a native launcher) are never paced.
+`BC250_XEFG_PACE=0` disables pacing; `=1` forces holding of every present. An older signal producer with no factor
+field retains the 5 ms margin ceiling.
 
 These bounds are scheduling controls, not measured end-to-end latency. [TV evidence and remaining stalls](MEASUREMENTS.md#checks-of-113).
 
@@ -306,8 +310,9 @@ legacy HelixSR FidelityFX/network format. `hlx.py` validates complete prepared m
 custom NGX and FFX provider layouts. HLX DLSS retains its `helixsr.dll` filename to avoid the NGX file-redirection
 hook; renaming it `nvngx.dll` prevents it from reading its embedded network on the tested integration. Adapters propose content and metadata; the shared transaction engine owns
 all writes and recovery. Unknown provider formats are deferred. Core-only and upscaler-only updates use the same
-engine. HLX preparation uses upstream’s build-only entry point inside a read-only host mount with network access
-disabled and only its staging directory writable. The qualified preparation replaces the shared cache atomically;
+engine. HLX preparation runs upstream’s build-only entry point in a bubblewrap sandbox ([SECURITY.md](SECURITY.md#the-installer)):
+no network, the host read-only, the home folder and session sockets hidden, only its staging directory writable. The
+qualified preparation replaces the shared cache atomically;
 games retain independent copies. No model-bearing output enters release artifacts.
 
 Update verifies current owned files, original backups, package hashes, integration compatibility and game idleness.
@@ -316,16 +321,17 @@ compatible core changes proceed. The transaction saves old bytes, permissions, m
 metadata before recording a pending operation. Rollback restores that generation, preserves later settings edits and
 provider choices outside the update's scope, and refuses conflicting binary edits. Interrupted updates are undone;
 interrupted rollbacks finish before another update starts. Missing or damaged recovery data leaves the journal intact.
-One completed generation is retained per game. This is per-game recovery, not an atomic transaction across a library.
+One completed generation of each kind is retained per game: an update or provider switch, and wiki INI settings.
+Rollback undoes the newest. This is per-game recovery, not an atomic transaction across a library.
 
 `manifest.json.update_contract` and the game record agree on format, layout and configuration versions. Legacy
 1.1.3.1/1.1.4/1.1.5 records are explicitly imported. Core version downgrades are refused; Rollback uses saved bytes.
 The game record carries an installation ID and component identities. Format 2 supports integration DLL and loader
-migrations, additive INI defaults and token-aware launcher deltas. Per-file launcher locks coordinate updates to
-separate games sharing a config. Before runtime writes, the generation saves and verifies launcher snapshots and
+migrations, additive INI defaults and token-aware launcher deltas. Per-file launcher locks coordinate installs and
+updates of separate games sharing a config. Before runtime writes, the generation saves and verifies launcher snapshots and
 entry deltas. Recovery reverts only those entries, preserving other games and user additions; exact original bytes
-and metadata return when no later changes would be lost. Unknown layouts remain unsupported. Provider switches
-also create generations, so Rollback always means the latest completed update or switch. Explicit recipe refresh
+and metadata return when no later changes would be lost. Unknown layouts remain unsupported. Provider switches and
+wiki INI settings also create generations, so Rollback always undoes the latest completed operation. Explicit recipe refresh
 uses the same transaction for tested FG inputs and launcher arguments. Game settings are listed as manual steps;
 obsolete pending writes are marked inactive while their original ownership remains available to Restore.
 

@@ -11,6 +11,10 @@ from pathlib import Path
 FORMAT = 1
 
 
+class Busy(ValueError):
+    """Another process holds the index lock: nothing was changed; retry later."""
+
+
 def location(home=None):
     if home is not None:
         return Path(home) / '.local/share/freefg/library.json'
@@ -20,10 +24,9 @@ def location(home=None):
         if not path.is_absolute():
             raise ValueError('FREEFG_LIBRARY must name an absolute index file')
         return path
-    root = Path(os.environ.get('XDG_DATA_HOME') or Path.home() / '.local/share')
-    if not root.is_absolute():
-        raise ValueError('XDG_DATA_HOME must be absolute')
-    return root / 'freefg/library.json'
+    # The XDG Base Directory specification: a relative path in XDG_DATA_HOME is invalid and is ignored.
+    root = Path(os.environ.get('XDG_DATA_HOME') or '.')
+    return (root if root.is_absolute() else Path.home() / '.local/share') / 'freefg/library.json'
 
 
 def load(home=None):
@@ -70,7 +73,7 @@ def _change(callback, home=None):
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
-            raise ValueError('Another process is updating the FreeFG library index; retry registration later') from error
+            raise Busy('Another process is updating the FreeFG library index; retry registration later') from error
         value = load(home)
         if callback(value['games']):
             _write(path, value)

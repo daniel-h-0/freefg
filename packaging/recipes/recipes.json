@@ -2,21 +2,170 @@
   "schema": 1,
   "generated_by": "research/recipes/build_recipes.py",
   "sources": {
-    "optiscaler_pinned": "273e8d449763d0e9e051dee831dc42badcd15d00",
+    "optiscaler_pinned": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
     "optiscaler_upstream": "e7e3872d410f704479d94d318d68d163b6b58947",
+    "optiscaler_compatible_commits": [
+      "03db4f8692878e65748769ebe583c053cae96360",
+      "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
+      "273e8d449763d0e9e051dee831dc42badcd15d00",
+      "ba0dedb4681875a1a0b88a35385d5aeb91db4063"
+    ],
     "wiki": "5f927893bba46d8bf8f9754a9b295e094944cc00 (2026-10-29)",
     "wiki_url": "https://github.com/optiscaler/OptiScaler/wiki/",
     "host": "maintainers' BC-250 library, 2026-09-29",
     "runtime_triage": "BC-250 gameplay and launcher observations, 2026-10-29; scope recorded per recipe; GTA V Enhanced short Story Mode qualification, 2026-10-30",
-    "optiscaler_compatible_commits": [
-      "03db4f8692878e65748769ebe583c053cae96360",
-      "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
-      "273e8d449763d0e9e051dee831dc42badcd15d00"
-    ],
     "steam_identity_review": "2026-10-30; official store API, source URLs per entry"
   },
   "rules": "research/recipes/RULES.md",
   "verified": [
+    {
+      "title": "Assassin's Creed Black Flag Resynced",
+      "match": {
+        "exe": [
+          "acblackflag.exe"
+        ],
+        "steam": [
+          "3751950"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "native",
+      "fg_input": null,
+      "ini": {
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [],
+      "note": "The tested DXGI loader route stopped at DX12 error 0x80004004. Removing the loader allowed gameplay but lost OptiScaler upscaling and did not confirm FG. Alternate loader selection requires a fresh game check.",
+      "evidence": "installed",
+      "observed": "DXGI loader caused DX12 startup error on tested build; bypass reached gameplay without confirmed FG, October 29, 2026"
+    },
+    {
+      "title": "CONTROL Resonant",
+      "match": {
+        "exe": [
+          "controlresonant.exe"
+        ],
+        "steam": [
+          "3669870"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "FrameGen.FTInput": "2",
+        "FrameGen.AllowedFrameAhead": "2",
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [
+        {
+          "file": "AppData/Local/Remedy/CONTROLResonant/renderer.ini",
+          "base": "steamuser",
+          "format": "json",
+          "section": null,
+          "values": {
+            "m_eDLSSFGMode": 1
+          },
+          "why": "hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS FG is on",
+          "requires_fg_input": "dlssg"
+        }
+      ],
+      "launch_args": [],
+      "note": "Hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS Frame Generation is on: DLSS FG input plus m_eDLSSFGMode 1 in renderer.ini (created by the game on first start).",
+      "evidence": "generates",
+      "observed": "2.0 presents per game frame"
+    },
+    {
+      "title": "Crimson Desert",
+      "match": {
+        "exe": [
+          "crimsondesert.exe"
+        ],
+        "steam": [
+          "3321460"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "fsrfg",
+      "ini": {
+        "Inputs.EnableDlssInputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [
+        {
+          "file": "AppData/Local/Pearl Abyss/CD/save/user_engine_option_save.xml",
+          "base": "steamuser",
+          "format": "xml-option",
+          "section": null,
+          "values": {
+            "_enableFrameGeneration": "True"
+          },
+          "why": null,
+          "requires_fg_input": "fsrfg"
+        }
+      ],
+      "launch_args": [],
+      "note": "FSR 3.1 FG input with the game's frame generation on (native Anti-Lag 2), although the game also ships XeSS FG.",
+      "evidence": "gameplay",
+      "observed": "played at 2x"
+    },
+    {
+      "title": "Cyberpunk 2077",
+      "match": {
+        "exe": [
+          "cyberpunk2077.exe"
+        ],
+        "gog": [
+          "1423049311"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "Inputs.EnableDlssInputs": "true",
+        "Spoofing.Dxgi": "false",
+        "Inputs.EnableXeSSInputs": "false",
+        "Libraries.XeSSPath": ".\\libxess.dll",
+        "Hotfix.RestoreComputeSignature": "true",
+        "Hotfix.RestoreGraphicSignature": "true",
+        "Hotfix.ExtendedStateRestore": "true"
+      },
+      "game_settings": [
+        {
+          "file": "AppData/Local/CD Projekt Red/Cyberpunk 2077/UserSettings.json",
+          "base": "steamuser",
+          "format": "json-options",
+          "section": null,
+          "values": {
+            "ResolutionScaling": "DLSS",
+            "FrameGeneration": "DLSS",
+            "XESS_FrameGeneration": false,
+            "FSR3_FrameGeneration": false,
+            "DLSSFrameGen": true,
+            "WindowMode": "BorderlessWindowed",
+            "FSR_AntiLag2Mode": "Disabled",
+            "ReflexMode": "Enabled"
+          },
+          "why": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
+          "requires_fg_input": "dlssg"
+        }
+      ],
+      "launch_args": [],
+      "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved. HLX FSR 4 HDR also requires the tested reactive-mask-off workaround: the default produced a GPU page fault during startup. This changes an upscaler input; mask-on quality equivalence is unqualified.",
+      "evidence": "generates",
+      "observed": "2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10",
+      "upscaler_ini": {
+        "helixsr": {
+          "InitFlags.DisableReactiveMask": "true"
+        },
+        "hlx-fsr4": {
+          "InitFlags.DisableReactiveMask": "true"
+        }
+      }
+    },
     {
       "title": "Dead as Disco",
       "match": {
@@ -77,6 +226,33 @@
       ]
     },
     {
+      "title": "Deep Rock Galactic",
+      "match": {
+        "exe": [
+          "fsd-win64-shipping.exe"
+        ],
+        "steam": [
+          "548430"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart. An unselected reward screen can prevent reaching gameplay.",
+      "evidence": "gameplay",
+      "observed": "Sustained 2× generated presents in the Space Rig after a fresh restart, October 29, 2026",
+      "manual_steps": [
+        "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart."
+      ]
+    },
+    {
       "title": "Echo Point Nova",
       "match": {
         "exe": [
@@ -111,6 +287,76 @@
       "observed": "2.0"
     },
     {
+      "title": "Grand Theft Auto V Enhanced",
+      "match": {
+        "steam": [
+          "3240220"
+        ],
+        "exe": [
+          "gta5_enhanced.exe"
+        ],
+        "title": [
+          "grand theft auto v enhanced"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "FrameGen.Enabled": "true",
+        "BC250.RequireArgument": "-nobattleye"
+      },
+      "game_settings": [],
+      "launch_args": [],
+      "required_args": [
+        "-nobattleye"
+      ],
+      "manual_steps": [
+        "Story Mode only, with BattlEye disabled using the game launcher option (-nobattleye).",
+        "Restore FreeFG before playing GTA Online: without -nobattleye, OptiScaler stays inactive (RequireArgument), but its DLL still loads beside BattlEye.",
+        "Select DLSS in the game (Quality was tested); leave the game's frame generation off. FreeFG enables XeFG through OptiFG.",
+        "Use the bundled OptiScaler ba0dedb or a descendant (Social Club factory fix, RequireArgument); leave DxgiFactoryWrapping at auto/false and remove any SocialClubD3D12Renderer DLL-disable override."
+      ],
+      "note": "GTA 1.0.1158.16, GE-Proton11-11, AMD FSR 4 RC12. The anti-cheat installation refusal still requires explicit per-game acceptance. The Social Club overlay stays available.",
+      "evidence": "gameplay",
+      "observed": "Story Mode bank prologue, movement and Social Club open/close; sustained 2.0 generated presents per game frame, including a fresh start with XeFG enabled and starts with RequireArgument unset and set to -nobattleye",
+      "qualification": {
+        "date": "2026-10-31",
+        "optiscaler_commit": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
+        "optiscaler_sha256": "e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b",
+        "record": "research/recipes/verified/gta-v-enhanced.md",
+        "limits": "Short Story Mode starts: two with OptiScaler 273e8d4 (October 30), two with ba0dedb (October 31: RequireArgument unset, and set to -nobattleye). Only GTA5_Enhanced.exe loads OptiScaler on the Steam route, with -nobattleye on its command line. A start without -nobattleye (BattlEye), Online, long play, 3x/4x, HDR and pacing were not tested."
+      }
+    },
+    {
+      "title": "Hogwarts Legacy",
+      "match": {
+        "exe": [
+          "hogwartslegacy.exe"
+        ],
+        "epic": [
+          "fa4240e57a3c46b39f169041b7811293"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "Inputs.EnableDlssInputs": "true",
+        "Spoofing.Dxgi": "false",
+        "Hotfix.DisableOverlays": "true"
+      },
+      "game_settings": [],
+      "launch_args": [],
+      "note": "The game can reset DLSS FG to Off on startup. One gameplay run generated 2×, but setting persistence is unresolved. Check the menu after restarting; installation integrity alone does not confirm FG.",
+      "evidence": "gameplay",
+      "observed": "2× in opening gameplay with DLSS Quality and DLSS FG; repeat-launch persistence unresolved, October 29, 2026",
+      "pending_verification": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
+      "manual_steps": [
+        "Select DLSS Quality and DLSS Frame Generation in the game, then verify both after restarting. The tested game rewrote FG to Off; do not assume the saved setting took effect."
+      ]
+    },
+    {
       "title": "Kingdom Come: Deliverance II",
       "match": {
         "exe": [
@@ -132,6 +378,29 @@
       "note": "OptiFG input; HUDLimit 1 is kept for the OptiScaler menu's HUDFix toggle (HUDFix itself stays off).",
       "evidence": "gameplay",
       "observed": "2.0 in gameplay"
+    },
+    {
+      "title": "Red Dead Redemption 2",
+      "match": {
+        "exe": [
+          "rdr2.exe"
+        ],
+        "epic": [
+          "Heather"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "Inputs.EnableDlssInputs": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [],
+      "note": "The tested launch stopped at Rockstar authentication error 2 even directly through Heroic. Resolve launcher authentication before diagnosing FreeFG.",
+      "evidence": "installed",
+      "observed": "Rockstar authentication error 2 prevented game qualification, October 29, 2026"
     },
     {
       "title": "RoboCop: Rogue City",
@@ -171,6 +440,30 @@
       "observed": "2.0"
     },
     {
+      "title": "System Shock",
+      "match": {
+        "exe": [
+          "systemreshock-win64-shipping.exe"
+        ],
+        "steam": [
+          "482400"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "Spoofing.Dxgi": "true"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": "DX12 via -dx12 (the default DX11 path does not reach the upscaler).",
+      "evidence": "startup",
+      "observed": "2.0 at start-up"
+    },
+    {
       "title": "Tainted Grail: The Fall of Avalon",
       "match": {
         "exe": [
@@ -191,6 +484,88 @@
       "note": "FSR, DLSS and DXGI-spoof trials supplied no upscaler input on the tested build. No verified recipe fix. Preserve saves and graphics preferences during diagnosis.",
       "evidence": "fails",
       "observed": "No upscaler creation or generated frames in the tested gameplay, October 29, 2026"
+    },
+    {
+      "title": "The Invincible",
+      "match": {
+        "exe": [
+          "theinvincible-win64-shipping.exe"
+        ],
+        "steam": [
+          "731040"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {},
+      "game_settings": [
+        {
+          "file": "AppData/Local/TheInvincible/Saved/Config/WindowsNoEditor/Engine.ini",
+          "base": "steamuser",
+          "format": "ini",
+          "section": "SystemSettings",
+          "values": {
+            "r.NGX.DLSS.DilateMotionVectors": "0"
+          },
+          "why": null,
+          "requires_fg_input": null
+        }
+      ],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": null,
+      "evidence": "gameplay",
+      "observed": "2.0 in gameplay"
+    },
+    {
+      "title": "Thymesia",
+      "match": {
+        "exe": [
+          "plagueproject-win64-shipping.exe"
+        ],
+        "steam": [
+          "1343240"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": "Needs an in-game resolution scale above 100% for the upscaler to run; DX12 via -dx12.",
+      "evidence": "installed",
+      "observed": "installed; generation not checked"
+    },
+    {
+      "title": "TRYP FPV",
+      "match": {
+        "exe": [
+          "trypfpv-win64-shipping.exe"
+        ],
+        "steam": [
+          "1881200"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "XeFG.HighResMV": "true"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": null,
+      "evidence": "installed",
+      "observed": "installed; generation not checked"
     },
     {
       "title": "VOIN",
@@ -247,377 +622,6 @@
       "note": "DLSS FG input; the game's DLSS_FG setting is turned on.",
       "evidence": "gameplay",
       "observed": "2.0; played at 2x"
-    },
-    {
-      "title": "Crimson Desert",
-      "match": {
-        "exe": [
-          "crimsondesert.exe"
-        ],
-        "steam": [
-          "3321460"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "fsrfg",
-      "ini": {
-        "Inputs.EnableDlssInputs": "false",
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [
-        {
-          "file": "AppData/Local/Pearl Abyss/CD/save/user_engine_option_save.xml",
-          "base": "steamuser",
-          "format": "xml-option",
-          "section": null,
-          "values": {
-            "_enableFrameGeneration": "True"
-          },
-          "why": null,
-          "requires_fg_input": "fsrfg"
-        }
-      ],
-      "launch_args": [],
-      "note": "FSR 3.1 FG input with the game's frame generation on (native Anti-Lag 2), although the game also ships XeSS FG.",
-      "evidence": "gameplay",
-      "observed": "played at 2x"
-    },
-    {
-      "title": "Deep Rock Galactic",
-      "match": {
-        "exe": [
-          "fsd-win64-shipping.exe"
-        ],
-        "steam": [
-          "548430"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart. An unselected reward screen can prevent reaching gameplay.",
-      "evidence": "gameplay",
-      "observed": "Sustained 2× generated presents in the Space Rig after a fresh restart, October 29, 2026",
-      "manual_steps": [
-        "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart."
-      ]
-    },
-    {
-      "title": "The Invincible",
-      "match": {
-        "exe": [
-          "theinvincible-win64-shipping.exe"
-        ],
-        "steam": [
-          "731040"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {},
-      "game_settings": [
-        {
-          "file": "AppData/Local/TheInvincible/Saved/Config/WindowsNoEditor/Engine.ini",
-          "base": "steamuser",
-          "format": "ini",
-          "section": "SystemSettings",
-          "values": {
-            "r.NGX.DLSS.DilateMotionVectors": "0"
-          },
-          "why": null,
-          "requires_fg_input": null
-        }
-      ],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": null,
-      "evidence": "gameplay",
-      "observed": "2.0 in gameplay"
-    },
-    {
-      "title": "TRYP FPV",
-      "match": {
-        "exe": [
-          "trypfpv-win64-shipping.exe"
-        ],
-        "steam": [
-          "1881200"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "XeFG.HighResMV": "true"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": null,
-      "evidence": "installed",
-      "observed": "installed; generation not checked"
-    },
-    {
-      "title": "Cyberpunk 2077",
-      "match": {
-        "exe": [
-          "cyberpunk2077.exe"
-        ],
-        "gog": [
-          "1423049311"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "Inputs.EnableDlssInputs": "true",
-        "Spoofing.Dxgi": "false",
-        "Inputs.EnableXeSSInputs": "false",
-        "Libraries.XeSSPath": ".\\libxess.dll",
-        "Hotfix.RestoreComputeSignature": "true",
-        "Hotfix.RestoreGraphicSignature": "true",
-        "Hotfix.ExtendedStateRestore": "true"
-      },
-      "game_settings": [
-        {
-          "file": "AppData/Local/CD Projekt Red/Cyberpunk 2077/UserSettings.json",
-          "base": "steamuser",
-          "format": "json-options",
-          "section": null,
-          "values": {
-            "ResolutionScaling": "DLSS",
-            "FrameGeneration": "DLSS",
-            "XESS_FrameGeneration": false,
-            "FSR3_FrameGeneration": false,
-            "DLSSFrameGen": true,
-            "WindowMode": "BorderlessWindowed",
-            "FSR_AntiLag2Mode": "Disabled",
-            "ReflexMode": "Enabled"
-          },
-          "why": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
-          "requires_fg_input": "dlssg"
-        }
-      ],
-      "launch_args": [],
-      "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved. HLX FSR 4 HDR also requires the tested reactive-mask-off workaround: the default produced a GPU page fault during startup. This changes an upscaler input; mask-on quality equivalence is unqualified.",
-      "evidence": "generates",
-      "observed": "2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10",
-      "upscaler_ini": {
-        "helixsr": {
-          "InitFlags.DisableReactiveMask": "true"
-        },
-        "hlx-fsr4": {
-          "InitFlags.DisableReactiveMask": "true"
-        }
-      }
-    },
-    {
-      "title": "Hogwarts Legacy",
-      "match": {
-        "exe": [
-          "hogwartslegacy.exe"
-        ],
-        "epic": [
-          "fa4240e57a3c46b39f169041b7811293"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "Inputs.EnableDlssInputs": "true",
-        "Spoofing.Dxgi": "false",
-        "Hotfix.DisableOverlays": "true"
-      },
-      "game_settings": [],
-      "launch_args": [],
-      "note": "The game can reset DLSS FG to Off on startup. One gameplay run generated 2×, but setting persistence is unresolved. Check the menu after restarting; installation integrity alone does not confirm FG.",
-      "evidence": "gameplay",
-      "observed": "2× in opening gameplay with DLSS Quality and DLSS FG; repeat-launch persistence unresolved, October 29, 2026",
-      "pending_verification": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
-      "manual_steps": [
-        "Select DLSS Quality and DLSS Frame Generation in the game, then verify both after restarting. The tested game rewrote FG to Off; do not assume the saved setting took effect."
-      ]
-    },
-    {
-      "title": "Red Dead Redemption 2",
-      "match": {
-        "exe": [
-          "rdr2.exe"
-        ],
-        "epic": [
-          "Heather"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "Inputs.EnableDlssInputs": "true",
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [],
-      "note": "The tested launch stopped at Rockstar authentication error 2 even directly through Heroic. Resolve launcher authentication before diagnosing FreeFG.",
-      "evidence": "installed",
-      "observed": "Rockstar authentication error 2 prevented game qualification, October 29, 2026"
-    },
-    {
-      "title": "Assassin's Creed Black Flag Resynced",
-      "match": {
-        "exe": [
-          "acblackflag.exe"
-        ],
-        "steam": [
-          "3751950"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "native",
-      "fg_input": null,
-      "ini": {
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [],
-      "note": "The tested DXGI loader route stopped at DX12 error 0x80004004. Removing the loader allowed gameplay but lost OptiScaler upscaling and did not confirm FG. Alternate loader selection requires a fresh game check.",
-      "evidence": "installed",
-      "observed": "DXGI loader caused DX12 startup error on tested build; bypass reached gameplay without confirmed FG, October 29, 2026"
-    },
-    {
-      "title": "System Shock",
-      "match": {
-        "exe": [
-          "systemreshock-win64-shipping.exe"
-        ],
-        "steam": [
-          "482400"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "Spoofing.Dxgi": "true"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": "DX12 via -dx12 (the default DX11 path does not reach the upscaler).",
-      "evidence": "startup",
-      "observed": "2.0 at start-up"
-    },
-    {
-      "title": "Thymesia",
-      "match": {
-        "exe": [
-          "plagueproject-win64-shipping.exe"
-        ],
-        "steam": [
-          "1343240"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": "Needs an in-game resolution scale above 100% for the upscaler to run; DX12 via -dx12.",
-      "evidence": "installed",
-      "observed": "installed; generation not checked"
-    },
-    {
-      "title": "CONTROL Resonant",
-      "match": {
-        "exe": [
-          "controlresonant.exe"
-        ],
-        "steam": [
-          "3669870"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "FrameGen.FTInput": "2",
-        "FrameGen.AllowedFrameAhead": "2",
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [
-        {
-          "file": "AppData/Local/Remedy/CONTROLResonant/renderer.ini",
-          "base": "steamuser",
-          "format": "json",
-          "section": null,
-          "values": {
-            "m_eDLSSFGMode": 1
-          },
-          "why": "hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS FG is on",
-          "requires_fg_input": "dlssg"
-        }
-      ],
-      "launch_args": [],
-      "note": "Hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS Frame Generation is on: DLSS FG input plus m_eDLSSFGMode 1 in renderer.ini (created by the game on first start).",
-      "evidence": "generates",
-      "observed": "2.0 presents per game frame"
-    },
-    {
-      "title": "Grand Theft Auto V Enhanced",
-      "match": {
-        "steam": [
-          "3240220"
-        ],
-        "exe": [
-          "gta5_enhanced.exe"
-        ],
-        "title": [
-          "grand theft auto v enhanced"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "FrameGen.Enabled": "true"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-nobattleye"
-      ],
-      "manual_steps": [
-        "Story Mode only, with BattlEye disabled using the game launcher option (-nobattleye).",
-        "Select DLSS in the game (Quality was tested); leave the game's frame generation off. FreeFG enables XeFG through OptiFG.",
-        "Use the bundled OptiScaler 273e8d4 or a descendant with the Social Club factory fix; leave DxgiFactoryWrapping at auto/false and remove any SocialClubD3D12Renderer DLL-disable override."
-      ],
-      "note": "GTA 1.0.1158.16, GE-Proton11-11, AMD FSR 4 RC12. The anti-cheat installation refusal still requires explicit per-game acceptance. The Social Club overlay stays available.",
-      "evidence": "gameplay",
-      "observed": "Story Mode bank prologue, movement and Social Club open/close; sustained 2.0 generated presents per game frame, including a fresh start with XeFG enabled",
-      "qualification": {
-        "date": "2026-10-30",
-        "optiscaler_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
-        "optiscaler_sha256": "044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87",
-        "record": "research/recipes/verified/gta-v-enhanced.md",
-        "limits": "Two successful short Story Mode starts; no Online, long-play, 3x/4x, HDR or pacing qualification."
-      }
     }
   ],
   "community": [],
@@ -1957,9 +1961,6 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-force-d3d12"
-      ],
       "proxy": [
         "dxgi.dll"
       ],
@@ -2101,6 +2102,9 @@
       "title": "Alan Wake Remastered",
       "match": {
         "title": [
+          "alan wake remastered"
+        ],
+        "alias": [
           "alan wake"
         ]
       },
@@ -4670,6 +4674,9 @@
       "title": "Conan Exiles Enhanced",
       "match": {
         "title": [
+          "conan exiles enhanced"
+        ],
+        "alias": [
           "conan exiles"
         ]
       },
@@ -4759,6 +4766,9 @@
       "title": "CONTROL Ultimate Edition",
       "match": {
         "title": [
+          "control ultimate edition"
+        ],
+        "alias": [
           "control"
         ]
       },
@@ -5177,6 +5187,9 @@
       "title": "Crysis 2 Remastered",
       "match": {
         "title": [
+          "crysis 2 remastered"
+        ],
+        "alias": [
           "crysis 2"
         ]
       },
@@ -5193,6 +5206,9 @@
       "title": "Crysis 3 Remastered",
       "match": {
         "title": [
+          "crysis 3 remastered"
+        ],
+        "alias": [
           "crysis 3"
         ]
       },
@@ -5227,6 +5243,9 @@
       "title": "Crysis Remastered",
       "match": {
         "title": [
+          "crysis remastered"
+        ],
+        "alias": [
           "crysis"
         ]
       },
@@ -5958,6 +5977,9 @@
       "title": "Death Stranding: Director’s Cut",
       "match": {
         "title": [
+          "death stranding directors cut"
+        ],
+        "alias": [
           "death stranding"
         ]
       },
@@ -6566,21 +6588,6 @@
       "compat": "working"
     },
     {
-      "title": "DirectX 11 with DirectX 12 upscalers (general)",
-      "match": {
-        "title": [
-          "directx 11 with directx 12 upscalers"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1
-      }
-    },
-    {
       "title": "Dishonored 2",
       "match": {
         "title": [
@@ -6632,22 +6639,6 @@
         "menu": 1
       },
       "compat": "working"
-    },
-    {
-      "title": "Display Resolution Motion Vectors (general)",
-      "match": {
-        "title": [
-          "display resolution motion vectors"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1
-      }
     },
     {
       "title": "Dolmen",
@@ -7957,29 +7948,6 @@
       "compat": "working"
     },
     {
-      "title": "Exposure texture (general)",
-      "match": {
-        "title": [
-          "exposure texture"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "InitFlags.AutoExposure",
-          "value": "true"
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "menu": 1
-      }
-    },
-    {
       "title": "F.I.S.T.: Forged In Shadow Torch",
       "match": {
         "title": [
@@ -8201,24 +8169,6 @@
         "xess"
       ],
       "compat": "working"
-    },
-    {
-      "title": "Fakenvapi (general)",
-      "match": {
-        "title": [
-          "fakenvapi"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Fakenvapi"
-      ],
-      "counts": {
-        "game-setting": 2,
-        "other-mod": 1,
-        "ini": 2,
-        "issue": 1
-      }
     },
     {
       "title": "Far Cry 5",
@@ -8554,8 +8504,14 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "proxy": [
         "dxgi.dll",
@@ -8604,6 +8560,17 @@
       "upscaler_inputs": [
         "dlss"
       ],
+      "ini": [
+        {
+          "key": "FSR.FsrAgilitySDKUpgrade",
+          "value": "true",
+          "when": {
+            "upscaler_input": "fsr31_12",
+            "symptom": "startup crash",
+            "required_file": "D3D12_Optiscaler/D3D12Core.dll"
+          }
+        }
+      ],
       "proxy": [
         "winmm.dll",
         "winhttp.dll"
@@ -8618,17 +8585,6 @@
       },
       "compat": "working",
       "optipatcher": true,
-      "ini": [
-        {
-          "key": "FSR.FsrAgilitySDKUpgrade",
-          "value": "true",
-          "when": {
-            "upscaler_input": "fsr31_12",
-            "symptom": "startup crash",
-            "required_file": "D3D12_Optiscaler/D3D12Core.dll"
-          }
-        }
-      ],
       "requirements": [
         "The FSR3.1/DX12 startup workaround requires a D3D12_Optiscaler folder containing D3D12Core.dll; the INI value alone is insufficient."
       ]
@@ -8976,8 +8932,14 @@
       "launch_args": [
         "-dx12"
       ],
-      "other_launch_args": [
-        "-dx12"
+      "launch": [
+        {
+          "text": "-dx12",
+          "kind": "args",
+          "when": {
+            "upscaler_input": "fsr3"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -9171,57 +9133,6 @@
       "compat": "working"
     },
     {
-      "title": "Frame generation options (general)",
-      "match": {
-        "title": [
-          "frame generation options"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Frame-Generation-Options"
-      ],
-      "fg_advice": [
-        {
-          "advice": "prefer",
-          "input": "dlssg",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        },
-        {
-          "advice": "works",
-          "input": "fsrfg",
-          "when": {
-            "condition": "game has native FG"
-          }
-        },
-        {
-          "advice": "works",
-          "input": "nukems",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        },
-        {
-          "advice": "avoid",
-          "input": "upscaler",
-          "when": {
-            "condition": "game has native FG"
-          }
-        }
-      ],
-      "counts": {
-        "game-setting": 13,
-        "fg-input": 4,
-        "issue": 9,
-        "menu": 4,
-        "other-mod": 2,
-        "upscaler-input": 1,
-        "engine-ini": 1
-      }
-    },
-    {
       "title": "Frostpunk 2",
       "match": {
         "title": [
@@ -9297,88 +9208,6 @@
       },
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "FSR4 (general)",
-      "match": {
-        "title": [
-          "fsr4"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/FSR4-Compatibility-List"
-      ],
-      "ini": [
-        {
-          "key": "FSR.FsrAgilitySDKUpgrade",
-          "value": "true",
-          "when": {
-            "os": "windows 10"
-          }
-        },
-        {
-          "key": "FSR.FsrNonLinearColorSpace",
-          "value": "true",
-          "when": {
-            "upscaler": "fsr4",
-            "preset": "ultra quality"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 4,
-        "menu": 2,
-        "ini": 3,
-        "game-setting": 3,
-        "other-mod": 1
-      }
-    },
-    {
-      "title": "FSR4 on Linux (general)",
-      "match": {
-        "title": [
-          "fsr4 on linux"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/FSR4-Compatibility-List"
-      ],
-      "other_launch_args": [
-        "PROTON_FSR4_UPGRADE=1"
-      ],
-      "counts": {
-        "game-setting": 9,
-        "launch": 1
-      }
-    },
-    {
-      "title": "FSR4 shimmering on Unreal Engine DX11 (general)",
-      "match": {
-        "title": [
-          "fsr4 shimmering on unreal engine dx11"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/FSR4-Compatibility-List"
-      ],
-      "ini": [
-        {
-          "key": "InitFlags.DisplayResolution",
-          "value": "false",
-          "when": {
-            "scaling": "native AA (1.0)"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "engine-ini": 1,
-        "game-setting": 1,
-        "ini": 1
-      }
     },
     {
       "title": "Funko Fusion",
@@ -9461,13 +9290,6 @@
       "pages": [
         "https://github.com/optiscaler/OptiScaler/wiki/Gears-of-War-E%E2%80%90Day"
       ],
-      "compat": "working",
-      "optipatcher": true,
-      "upscaler_inputs": [
-        "dlss",
-        "fsr4",
-        "xess"
-      ],
       "tested": {
         "optiscaler": [
           "0.9.5"
@@ -9479,12 +9301,19 @@
           "9070XT"
         ]
       },
-      "proxy": [
-        "d3d12.dll"
+      "upscaler_inputs": [
+        "dlss",
+        "fsr4",
+        "xess"
       ],
       "fg_inputs": [
         "dlssg"
       ],
+      "proxy": [
+        "d3d12.dll"
+      ],
+      "compat": "working",
+      "optipatcher": true,
       "requirements": [
         "The wiki describes an offline-only installation with anti-cheat disabled. This catalogue does not disable or bypass anti-cheat.",
         "XeFG startup fixes require OptiScaler 0.9.5 or v10; changing an INI alone does not supply those code fixes."
@@ -9510,6 +9339,9 @@
       "title": "Ghost of Tsushima DIRECTOR'S CUT",
       "match": {
         "title": [
+          "ghost of tsushima directors cut"
+        ],
+        "alias": [
           "ghost of tsushima"
         ],
         "exe": [
@@ -9562,9 +9394,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-unlockReflexOptions",
-        "-disallowDLSSGOffInMenu"
+      "launch": [
+        {
+          "text": "-unlockReflexOptions",
+          "kind": "args"
+        },
+        {
+          "text": "-disallowDLSSGOffInMenu",
+          "kind": "args"
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -9963,7 +9801,10 @@
       "title": "Grand Theft Auto III - The Definitive Edition",
       "match": {
         "title": [
-          "grand theft auto 3 the"
+          "grand theft auto 3 the definitive edition"
+        ],
+        "alias": [
+          "grand theft auto 3"
         ]
       },
       "status": "wiki-reported",
@@ -9996,9 +9837,6 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-dx12"
-      ],
       "proxy": [
         "d3d12.dll"
       ],
@@ -10014,6 +9852,9 @@
       "title": "Grand Theft Auto III – Definitive Edition",
       "match": {
         "title": [
+          "grand theft auto 3 definitive edition"
+        ],
+        "alias": [
           "grand theft auto 3"
         ]
       },
@@ -10044,6 +9885,9 @@
       "title": "Grand Theft Auto V Enhanced",
       "match": {
         "title": [
+          "grand theft auto v enhanced"
+        ],
+        "alias": [
           "grand theft auto v"
         ]
       },
@@ -10106,7 +9950,10 @@
       "title": "Grand Theft Auto: San Andreas - The Definitive Edition",
       "match": {
         "title": [
-          "grand theft auto san andreas the"
+          "grand theft auto san andreas the definitive edition"
+        ],
+        "alias": [
+          "grand theft auto san andreas"
         ]
       },
       "status": "wiki-reported",
@@ -10139,9 +9986,6 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-dx12"
-      ],
       "proxy": [
         "d3d12.dll"
       ],
@@ -10157,6 +10001,9 @@
       "title": "Grand Theft Auto: San Andreas – Definitive Edition",
       "match": {
         "title": [
+          "grand theft auto san andreas definitive edition"
+        ],
+        "alias": [
           "grand theft auto san andreas"
         ]
       },
@@ -10187,7 +10034,10 @@
       "title": "Grand Theft Auto: Vice City - The Definitive Edition",
       "match": {
         "title": [
-          "grand theft auto vice city the"
+          "grand theft auto vice city the definitive edition"
+        ],
+        "alias": [
+          "grand theft auto vice city"
         ]
       },
       "status": "wiki-reported",
@@ -10220,9 +10070,6 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-dx12"
-      ],
       "proxy": [
         "d3d12.dll"
       ],
@@ -10238,6 +10085,9 @@
       "title": "Grand Theft Auto: Vice City – Definitive Edition",
       "match": {
         "title": [
+          "grand theft auto vice city definitive edition"
+        ],
+        "alias": [
           "grand theft auto vice city"
         ]
       },
@@ -10263,23 +10113,6 @@
       },
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "Graphical corruption and crashes (general)",
-      "match": {
-        "title": [
-          "graphical corruption and crashes"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 2,
-        "ini": 1,
-        "other-mod": 1
-      }
     },
     {
       "title": "GreedFall - The Dying World",
@@ -11072,6 +10905,9 @@
       "title": "Horizon Forbidden West Complete Edition",
       "match": {
         "title": [
+          "horizon forbidden west complete edition"
+        ],
+        "alias": [
           "horizon forbidden west"
         ],
         "exe": [
@@ -11107,8 +10943,11 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-unlockReflexOptions"
+      "launch": [
+        {
+          "text": "-unlockReflexOptions",
+          "kind": "args"
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -11127,6 +10966,9 @@
       "title": "Horizon Zero Dawn Complete Edition",
       "match": {
         "title": [
+          "horizon zero dawn complete edition"
+        ],
+        "alias": [
           "horizon zero dawn"
         ]
       },
@@ -11188,8 +11030,11 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-unlockReflexOptions"
+      "launch": [
+        {
+          "text": "-unlockReflexOptions",
+          "kind": "args"
+        }
       ],
       "proxy": [
         "dxgi.dll",
@@ -11268,6 +11113,9 @@
       "title": "HZD Remastered",
       "match": {
         "title": [
+          "hzd remastered"
+        ],
+        "alias": [
           "hzd"
         ]
       },
@@ -11655,33 +11503,6 @@
         "upscaler-input": 1
       },
       "compat": "working"
-    },
-    {
-      "title": "Intel Arc spoofing issues (general)",
-      "match": {
-        "title": [
-          "intel arc spoofing issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Spoofing.Dxgi",
-          "value": "false",
-          "when": {
-            "gpu": "intel arc"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "upscaler-input": 2,
-        "other-mod": 1
-      }
     },
     {
       "title": "Into the Dead: Our Darkest Days",
@@ -12210,22 +12031,6 @@
       "compat": "working"
     },
     {
-      "title": "Known Issues: crashes and injectors (general)",
-      "match": {
-        "title": [
-          "known issues crashes and injectors"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 4,
-        "ini": 2
-      }
-    },
-    {
       "title": "Kunitsu-Gami: Path of the Goddess",
       "match": {
         "title": [
@@ -12351,22 +12156,6 @@
       ],
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "Legacy in-game menu (general)",
-      "match": {
-        "title": [
-          "legacy in game menu"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "game-setting": 1,
-        "issue": 2
-      }
     },
     {
       "title": "LEGO Batman : Legacy of the Dark Knight",
@@ -13384,8 +13173,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-forceReflexMarkers"
+      "launch": [
+        {
+          "text": "-forceReflexMarkers",
+          "kind": "args",
+          "when": {
+            "gpu": "amd/intel",
+            "fg_input": "dlssg"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -13504,6 +13300,9 @@
       "title": "Marvel’s Spider-Man Remastered",
       "match": {
         "title": [
+          "marvels spider man remastered"
+        ],
+        "alias": [
           "marvels spider man"
         ],
         "exe": [
@@ -13571,8 +13370,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-forceReflexMarkers"
+      "launch": [
+        {
+          "text": "-forceReflexMarkers",
+          "kind": "args",
+          "when": {
+            "fg_input": "dlssg",
+            "gpu": "amd/intel"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -13856,6 +13662,9 @@
       "title": "Metro Exodus Enhanced Edition",
       "match": {
         "title": [
+          "metro exodus enhanced edition"
+        ],
+        "alias": [
           "metro exodus"
         ],
         "exe": [
@@ -13949,7 +13758,6 @@
       "pages": [
         "https://github.com/optiscaler/OptiScaler/wiki/METRO-Redux"
       ],
-      "compat": "working",
       "tested": {
         "optiscaler": [
           "0.9.5"
@@ -13961,9 +13769,6 @@
           "9070XT"
         ]
       },
-      "proxy": [
-        "d3d12.dll"
-      ],
       "upscaler_inputs": [
         "dlss",
         "fsr31"
@@ -13984,6 +13789,10 @@
           }
         }
       ],
+      "proxy": [
+        "d3d12.dll"
+      ],
+      "compat": "working",
       "requirements": [
         "The game’s internal DX12 interop breaks upscaler timing, including OptiFG.",
         "Metro 2033 Redux may need the upscaler toggled again in game settings."
@@ -14546,8 +14355,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "counts": {
         "launch": 1,
@@ -14947,7 +14762,10 @@
       "title": "Nioh 2: The Complete Edition",
       "match": {
         "title": [
-          "nioh 2 the"
+          "nioh 2 the complete edition"
+        ],
+        "alias": [
+          "nioh 2"
         ]
       },
       "status": "wiki-reported",
@@ -15228,8 +15046,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx12"
+      "launch": [
+        {
+          "text": "-dx12",
+          "kind": "args",
+          "when": {
+            "condition": "DLSS input doesn't work"
+          }
+        }
       ],
       "counts": {
         "launch": 1
@@ -15423,71 +15247,6 @@
       "compat": "working"
     },
     {
-      "title": "OptiFG (general)",
-      "match": {
-        "title": [
-          "optifg"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/OptiFG"
-      ],
-      "fg_advice": [
-        {
-          "advice": "avoid",
-          "input": "upscaler",
-          "when": {
-            "condition": "game has working native FG"
-          }
-        },
-        {
-          "advice": "prefer",
-          "input": "dlssg",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        },
-        {
-          "advice": "prefer",
-          "input": "nukems",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        }
-      ],
-      "ini": [
-        {
-          "key": "OptiFG.HUDFix",
-          "value": "true"
-        }
-      ],
-      "counts": {
-        "issue": 7,
-        "fg-input": 3,
-        "upscaler-input": 1,
-        "ini": 10,
-        "other-mod": 2,
-        "menu": 8,
-        "game-setting": 4
-      }
-    },
-    {
-      "title": "OptiFG HUDfix incompatible games (general)",
-      "match": {
-        "title": [
-          "optifg hudfix incompatible games"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Hudfix-incompatible"
-      ],
-      "counts": {
-        "issue": 2
-      }
-    },
-    {
       "title": "Orbit.Industries",
       "match": {
         "title": [
@@ -15539,22 +15298,6 @@
       "compat": "working"
     },
     {
-      "title": "Output Scaling greyed out (general)",
-      "match": {
-        "title": [
-          "output scaling greyed out"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1,
-        "engine-ini": 1
-      }
-    },
-    {
       "title": "Outriders",
       "match": {
         "title": [
@@ -15602,33 +15345,6 @@
         "issue": 1
       },
       "compat": "working"
-    },
-    {
-      "title": "Overlay does not open (general)",
-      "match": {
-        "title": [
-          "overlay does not open"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Menu.ShortcutKey",
-          "value": "0x24",
-          "when": {
-            "condition": "Opti splash message shows but overlay does not open with Insert"
-          }
-        }
-      ],
-      "counts": {
-        "game-setting": 4,
-        "issue": 1,
-        "other-mod": 2,
-        "ini": 1
-      }
     },
     {
       "title": "Pacific Drive",
@@ -16006,22 +15722,6 @@
         "fsr4"
       ],
       "compat": "working"
-    },
-    {
-      "title": "Performance issues (general)",
-      "match": {
-        "title": [
-          "performance issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 2,
-        "other-mod": 1
-      }
     },
     {
       "title": "Persona 5 Royal",
@@ -16525,8 +16225,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "counts": {
         "launch": 1
@@ -16553,6 +16259,9 @@
       "title": "Q.U.B.E. 10th Anniversary",
       "match": {
         "title": [
+          "q u b e 10th anniversary"
+        ],
+        "alias": [
           "q u b e 10th"
         ]
       },
@@ -16804,8 +16513,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-forceReflexMarkers"
+      "launch": [
+        {
+          "text": "-forceReflexMarkers",
+          "kind": "args",
+          "when": {
+            "fg_input": "dlssg",
+            "gpu": "amd/intel"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -17099,6 +16815,9 @@
       "title": "Redeemer Enhanced Edition",
       "match": {
         "title": [
+          "redeemer enhanced edition"
+        ],
+        "alias": [
           "redeemer"
         ]
       },
@@ -17173,6 +16892,9 @@
       "title": "Redout Enhanced Edition",
       "match": {
         "title": [
+          "redout enhanced edition"
+        ],
+        "alias": [
           "redout"
         ]
       },
@@ -17183,8 +16905,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "counts": {
         "launch": 1
@@ -17657,29 +17385,6 @@
       "compat": "working"
     },
     {
-      "title": "Resource Barriers (general)",
-      "match": {
-        "title": [
-          "resource barriers"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Hotfix.ColorResourceBarrier",
-          "value": "4"
-        }
-      ],
-      "counts": {
-        "issue": 2,
-        "ini": 1,
-        "menu": 1
-      }
-    },
-    {
       "title": "Returnal",
       "match": {
         "title": [
@@ -17956,13 +17661,13 @@
       "pages": [
         "https://github.com/optiscaler/OptiScaler/wiki/Compatibility-List"
       ],
-      "compat": "working",
-      "optipatcher": true,
       "upscaler_inputs": [
         "dlss",
         "fsr31",
         "xess"
-      ]
+      ],
+      "compat": "working",
+      "optipatcher": true
     },
     {
       "title": "Riven (2024)",
@@ -18960,32 +18665,6 @@
       "optipatcher": true
     },
     {
-      "title": "Shader compilation error on Linux (general)",
-      "match": {
-        "title": [
-          "shader compilation error on linux"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Hotfix.UsePrecompiledShaders",
-          "value": "true",
-          "when": {
-            "os": "linux"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "other-mod": 1
-      }
-    },
-    {
       "title": "Shadow of the Tomb Raider",
       "match": {
         "title": [
@@ -19929,6 +19608,9 @@
       "title": "STALKER: Call of Prypiat Enhanced Edition",
       "match": {
         "title": [
+          "stalker call of prypiat enhanced edition"
+        ],
+        "alias": [
           "stalker call of prypiat"
         ]
       },
@@ -19949,6 +19631,9 @@
       "title": "STALKER: Clear Sky Enhanced Edition",
       "match": {
         "title": [
+          "stalker clear sky enhanced edition"
+        ],
+        "alias": [
           "stalker clear sky"
         ]
       },
@@ -19969,6 +19654,9 @@
       "title": "STALKER: Shadow of Chornobyl Enhanced Edition",
       "match": {
         "title": [
+          "stalker shadow of chornobyl enhanced edition"
+        ],
+        "alias": [
           "stalker shadow of chornobyl"
         ]
       },
@@ -21443,6 +21131,9 @@
       "title": "The Elder Scrolls IV: Oblivion Remastered",
       "match": {
         "title": [
+          "the elder scrolls iv oblivion remastered"
+        ],
+        "alias": [
           "the elder scrolls iv oblivion"
         ]
       },
@@ -21762,6 +21453,9 @@
       "title": "The Last of Us Part II Remastered",
       "match": {
         "title": [
+          "the last of us part 2 remastered"
+        ],
+        "alias": [
           "the last of us part 2"
         ]
       },
@@ -21810,9 +21504,14 @@
           "value": "dlssg"
         }
       ],
-      "other_launch_args": [
-        "-unlockreflexoptions",
-        "-disallowdlssgoffinmenu"
+      "launch": [
+        {
+          "text": "-unlockreflexoptions",
+          "kind": "args",
+          "when": {
+            "gpu": "amd/intel"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -22408,6 +22107,9 @@
       "title": "The Sinking City Remastered",
       "match": {
         "title": [
+          "the sinking city remastered"
+        ],
+        "alias": [
           "the sinking city"
         ]
       },
@@ -23437,22 +23139,6 @@
       "compat": "working"
     },
     {
-      "title": "Unreal Engine (general)",
-      "match": {
-        "title": [
-          "unreal engine"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Unreal-Engine-Tweaks"
-      ],
-      "counts": {
-        "game-setting": 2,
-        "engine-ini": 13
-      }
-    },
-    {
       "title": "Until Dawn",
       "match": {
         "title": [
@@ -23480,23 +23166,6 @@
       },
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "Upscale Ratio Override issues (general)",
-      "match": {
-        "title": [
-          "upscale ratio override issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "game-setting": 1
-      }
     },
     {
       "title": "Valkyrie Elysium",
@@ -24516,7 +24185,7 @@
         "title": [
           "wuthering waves"
         ],
-        "exe": [
+        "generic_exe": [
           "client-win64-shipping.exe",
           "client-wingdk-shipping.exe"
         ]
@@ -24662,23 +24331,6 @@
       "compat": "working"
     },
     {
-      "title": "XeSS issues (general)",
-      "match": {
-        "title": [
-          "xess issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 2,
-        "upscaler-input": 1,
-        "ini": 3
-      }
-    },
-    {
       "title": "Xuan-Yuan Sword VII",
       "match": {
         "title": [
@@ -24720,8 +24372,11 @@
           }
         }
       ],
-      "other_launch_args": [
-        "force-d3d12"
+      "launch": [
+        {
+          "text": "force-d3d12",
+          "kind": "args"
+        }
       ],
       "counts": {
         "ini": 1,
@@ -24807,16 +24462,23 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-use-d3d12",
-        "\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Zenless Zone Zero\\games\\ZenlessZoneZero Game\\ZenlessZoneZero.exe\"",
-        "%command%",
-        "DXVK_CONFIG_FILE=dxvk.conf",
-        "WINEDLLOVERRIDES=\"d3d12=n,b\"",
-        "bash",
-        "-c",
-        "exec \"${@/HYP.exe/games\\/ZenlessZoneZero Game\\/ZenlessZoneZero.exe}\"",
-        "--"
+      "launch": [
+        {
+          "text": "-use-d3d12",
+          "kind": "args",
+          "when": {
+            "os": "windows",
+            "launcher": "official"
+          }
+        },
+        {
+          "text": "\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Zenless Zone Zero\\games\\ZenlessZoneZero Game\\ZenlessZoneZero.exe\" -use-d3d12 %command%",
+          "kind": "wrapper",
+          "when": {
+            "os": "windows",
+            "launcher": "steam"
+          }
+        }
       ],
       "proxy": [
         "d3d12.dll",
@@ -25724,6 +25386,366 @@
         "Hooks.earlyhooking",
         "Hooks.hookoriginalnvngxonly",
         "Hooks.usentdllhooks",
+        "Hotfix.checkforupdate",
+        "Hotfix.colormaskresourcebarrier",
+        "Hotfix.colorresourcebarrier",
+        "Hotfix.created3d12deviceforluma",
+        "Hotfix.depthresourcebarrier",
+        "Hotfix.disableoverlays",
+        "Hotfix.exposureresourcebarrier",
+        "Hotfix.extendedstaterestore",
+        "Hotfix.manualinputpolling",
+        "Hotfix.motionvectorresourcebarrier",
+        "Hotfix.outputresourcebarrier",
+        "Hotfix.preferdedicatedgpu",
+        "Hotfix.preferfirstdedicatedgpu",
+        "Hotfix.restorecomputesignature",
+        "Hotfix.restoregraphicsignature",
+        "Hotfix.roundinternalresolution",
+        "Hotfix.simulatewaitableobject",
+        "Hotfix.skipfirstframes",
+        "Hotfix.useprecompiledshaders",
+        "InitFlags.autoexposure",
+        "InitFlags.depthinverted",
+        "InitFlags.disablereactivemask",
+        "InitFlags.displayresolution",
+        "InitFlags.dynamicresolution",
+        "InitFlags.hdr",
+        "InitFlags.jittercancellation",
+        "Inputs.enabledlssinputs",
+        "Inputs.enableffxinputs",
+        "Inputs.enablefsr2inputs",
+        "Inputs.enablefsr3inputs",
+        "Inputs.enablehotswapping",
+        "Inputs.enablexessinputs",
+        "Inputs.fsr2pattern",
+        "Inputs.fsr3pattern",
+        "Inputs.useffxinputs",
+        "Inputs.usefsr2dx11inputs",
+        "Inputs.usefsr2inputs",
+        "Inputs.usefsr2vulkaninputs",
+        "Inputs.usefsr3inputs",
+        "Libraries.ffxdx12fgpath",
+        "Libraries.ffxdx12path",
+        "Libraries.ffxdx12rcpath",
+        "Libraries.ffxdx12rrpath",
+        "Libraries.ffxdx12srpath",
+        "Libraries.ffxvkfgpath",
+        "Libraries.ffxvkpath",
+        "Libraries.ffxvksrpath",
+        "Libraries.nvapipath",
+        "Libraries.nvngxdlsspath",
+        "Libraries.nvngxfeaturepath",
+        "Libraries.nvngxpath",
+        "Libraries.optidllpath",
+        "Libraries.xefgpath",
+        "Libraries.xellpath",
+        "Libraries.xessdx11path",
+        "Libraries.xesspath",
+        "Log.logasync",
+        "Log.logasyncthreads",
+        "Log.logfilename",
+        "Log.loglevel",
+        "Log.logtoconsole",
+        "Log.logtodebug",
+        "Log.logtofile",
+        "Log.logtongx",
+        "Log.openconsole",
+        "Log.singlefile",
+        "Magnifier.bordersize",
+        "Magnifier.cursoroffsetx",
+        "Magnifier.cursoroffsety",
+        "Magnifier.enabled",
+        "Magnifier.size",
+        "Magnifier.staticposx",
+        "Magnifier.staticposy",
+        "Magnifier.zoomfactor",
+        "Menu.accentcolorb",
+        "Menu.accentcolorg",
+        "Menu.accentcolorr",
+        "Menu.bgcolora",
+        "Menu.bgcolorb",
+        "Menu.bgcolorg",
+        "Menu.bgcolorr",
+        "Menu.blur",
+        "Menu.blurstrength",
+        "Menu.disablesplash",
+        "Menu.extendedlimits",
+        "Menu.fgshortcutkey",
+        "Menu.fontsize",
+        "Menu.fpscycleshortcutkey",
+        "Menu.fpsoverlayalpha",
+        "Menu.fpsoverlaybgcolor",
+        "Menu.fpsoverlaycompactlabels",
+        "Menu.fpsoverlayfont",
+        "Menu.fpsoverlayfontsize",
+        "Menu.fpsoverlayfpsrow",
+        "Menu.fpsoverlaygraphcolor",
+        "Menu.fpsoverlaygraphheight",
+        "Menu.fpsoverlayhideaverages",
+        "Menu.fpsoverlayhorizontal",
+        "Menu.fpsoverlaylabelcolor",
+        "Menu.fpsoverlaylabelscale",
+        "Menu.fpsoverlayletterspacing",
+        "Menu.fpsoverlaypos",
+        "Menu.fpsoverlayposx",
+        "Menu.fpsoverlayposy",
+        "Menu.fpsoverlayrounding",
+        "Menu.fpsoverlayrows",
+        "Menu.fpsoverlayrowspacing",
+        "Menu.fpsoverlayshadow",
+        "Menu.fpsoverlayshadowcolor",
+        "Menu.fpsoverlayshadowstrength",
+        "Menu.fpsoverlayshowratio",
+        "Menu.fpsoverlaytype",
+        "Menu.fpsoverlayupdateinterval",
+        "Menu.fpsoverlayvaluecolor",
+        "Menu.fpsoverlayvaluescale",
+        "Menu.fpsscale",
+        "Menu.fpsshortcutkey",
+        "Menu.height",
+        "Menu.lighttheme",
+        "Menu.overlaymenu",
+        "Menu.overlaysusetheme",
+        "Menu.rounding",
+        "Menu.scale",
+        "Menu.shortcutkey",
+        "Menu.showfps",
+        "Menu.ttffontpath",
+        "Menu.usehqfont",
+        "Mipmap.mipmapbiasfixedoverride",
+        "Mipmap.mipmapbiasoverride",
+        "Mipmap.mipmapbiasoverrideall",
+        "Mipmap.mipmapbiasscaleoverride",
+        "NvApi.disableflipmetering",
+        "NvApi.disableota",
+        "NvngxFG.disablehudless",
+        "NvngxFG.dispatchflags",
+        "NvngxFG.makedepthcopy",
+        "NvngxFG.showdebug",
+        "OptiFG.alwayscapturefsrfgswapchain",
+        "OptiFG.alwaystrackheaps",
+        "OptiFG.depthscalemax",
+        "OptiFG.disablehudfix",
+        "OptiFG.enabledepthscale",
+        "OptiFG.hudfix",
+        "OptiFG.hudfixdisabledi",
+        "OptiFG.hudfixdisabledii",
+        "OptiFG.hudfixdisabledispatch",
+        "OptiFG.hudfixdisableom",
+        "OptiFG.hudfixdisablertv",
+        "OptiFG.hudfixdisablescr",
+        "OptiFG.hudfixdisablesgr",
+        "OptiFG.hudfixdisablesrv",
+        "OptiFG.hudfixdisableuav",
+        "OptiFG.hudfixdontuseswapchainbuffers",
+        "OptiFG.hudfixextended",
+        "OptiFG.hudfiximmediate",
+        "OptiFG.hudfixpersistentbindings",
+        "OptiFG.hudfixrelaxedresolutioncheck",
+        "OptiFG.hudfixuitexture",
+        "OptiFG.hudfixuiunblend",
+        "OptiFG.hudlimit",
+        "OptiFG.makedepthcopy",
+        "OptiFG.makemvcopy",
+        "OptiFG.resourceblocking",
+        "OptiFG.resourceflip",
+        "OptiFG.resourceflipoffset",
+        "OptiFG.useshards",
+        "OutputScaling.downscaler",
+        "OutputScaling.enabled",
+        "OutputScaling.multiplier",
+        "Plugins.lateasipluginsdelay",
+        "Plugins.loadasiplugins",
+        "Plugins.loadcustomamdxc64onrdna2",
+        "Plugins.loadreshade",
+        "Plugins.loadspecialk",
+        "Plugins.path",
+        "ProcessFilter.processexclusionlist",
+        "ProcessFilter.targetprocessname",
+        "QualityOverrides.qualityratiobalanced",
+        "QualityOverrides.qualityratiodlaa",
+        "QualityOverrides.qualityratiooverrideenabled",
+        "QualityOverrides.qualityratioperformance",
+        "QualityOverrides.qualityratioquality",
+        "QualityOverrides.qualityratioultraperformance",
+        "QualityOverrides.qualityratioultraquality",
+        "Sharpness.overridesharpness",
+        "Sharpness.shader",
+        "Sharpness.sharpness",
+        "Spoofing.d3dfeaturelevel",
+        "Spoofing.dxgi",
+        "Spoofing.dxgiblacklist",
+        "Spoofing.dxgifactorywrapping",
+        "Spoofing.dxgivram",
+        "Spoofing.registry",
+        "Spoofing.registrydriver",
+        "Spoofing.spoofeddeviceid",
+        "Spoofing.spoofedgpuname",
+        "Spoofing.spoofedvendorid",
+        "Spoofing.spoofhags",
+        "Spoofing.streamlinespoofing",
+        "Spoofing.targetdeviceid",
+        "Spoofing.targetvendorid",
+        "Spoofing.ueintelatomics",
+        "Spoofing.user32",
+        "Spoofing.vulkan",
+        "Spoofing.vulkanextensionspoofing",
+        "Spoofing.vulkanvram",
+        "UpscaleRatio.upscaleratiooverrideenabled",
+        "UpscaleRatio.upscaleratiooverridevalue",
+        "Upscalers.dx11upscaler",
+        "Upscalers.dx12upscaler",
+        "Upscalers.vulkanupscaler",
+        "V-Sync.forcevsync",
+        "V-Sync.overridevsync",
+        "V-Sync.syncinterval",
+        "XeFG.debugview",
+        "XeFG.depthinverted",
+        "XeFG.dynamicallow1x",
+        "XeFG.dynamicmfg",
+        "XeFG.forceborderless",
+        "XeFG.frameratetargetdmfg",
+        "XeFG.highresmv",
+        "XeFG.ignoreinitchecks",
+        "XeFG.interpolationcount",
+        "XeFG.jitteredmv",
+        "XeFG.overrideinterpolationcount",
+        "XeFG.roundingdmfg",
+        "XeFG.targetascapdmfg",
+        "XeFG.uicomposition",
+        "XeSS.buildpipelines",
+        "XeSS.createheaps",
+        "XeSS.networkmodel",
+        "fakenvapi.forcelatencyflex",
+        "fakenvapi.forcereflex",
+        "fakenvapi.forcexell",
+        "fakenvapi.latencyflexmode",
+        "fakenvapi.lowlatencyinput",
+        "fakenvapi.lowlatencyoutput",
+        "fakenvapi.usefakenvapi"
+      ]
+    },
+    "ba0dedb4681875a1a0b88a35385d5aeb91db4063": {
+      "dll_sha256": "e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b",
+      "ini_sha256": "060d8fcfb1374f69dfbe4df6b22fed30d6349b97e9b5f6272cad9f494c440cb8",
+      "keys": [
+        "Anisotropy.anisotropyoverride",
+        "Anisotropy.modifycomparison",
+        "Anisotropy.modifyminmax",
+        "Anisotropy.skippointfilter",
+        "BC250.requireargument",
+        "CAS.contrast",
+        "CAS.contrastenabled",
+        "CAS.daclampoutput",
+        "CAS.dadepthbias",
+        "CAS.dadepthscale",
+        "CAS.enabled",
+        "CAS.motionscalelimit",
+        "CAS.motionsharpness",
+        "CAS.motionsharpnessenabled",
+        "CAS.motionthreshold",
+        "CAS.sharpenerdebug",
+        "DLSS.enabled",
+        "DLSS.renderpresetbalanced",
+        "DLSS.renderpresetdlaa",
+        "DLSS.renderpresetforall",
+        "DLSS.renderpresetoverride",
+        "DLSS.renderpresetperformance",
+        "DLSS.renderpresetquality",
+        "DLSS.renderpresetultraperformance",
+        "DLSS.renderpresetultraquality",
+        "DLSS.usegenericappidwithdlss",
+        "DLSSD.renderpresetbalanced",
+        "DLSSD.renderpresetdlaa",
+        "DLSSD.renderpresetforall",
+        "DLSSD.renderpresetoverride",
+        "DLSSD.renderpresetperformance",
+        "DLSSD.renderpresetquality",
+        "DLSSD.renderpresetultraperformance",
+        "DLSSD.renderpresetultraquality",
+        "DLSSG.forcedmfg",
+        "DLSSG.frameratetargetdmfg",
+        "DLSSG.interpolationcount",
+        "DLSSG.overrideforcedmfg",
+        "DLSSG.overrideinterpolationcount",
+        "DLSSG.usegamesreflexmarkers",
+        "DRS.drsmaxoverrideenabled",
+        "DRS.drsminoverrideenabled",
+        "Dx11withDx12.dontusentshared",
+        "Dx11withDx12.usedelayedinit",
+        "FSR.accaddperframe",
+        "FSR.camerafar",
+        "FSR.cameranear",
+        "FSR.debugview",
+        "FSR.dlssreactivemaskbias",
+        "FSR.fgindex",
+        "FSR.fsr4donotloadamdxc64",
+        "FSR.fsr4enablewatermark",
+        "FSR.fsr4gpusupport",
+        "FSR.fsr4model",
+        "FSR.fsr4preset",
+        "FSR.fsragilitysdkupgrade",
+        "FSR.fsrnonlinearcolorspace",
+        "FSR.fsrnonlinearpq",
+        "FSR.fsrnonlinearsrgb",
+        "FSR.horizontalfov",
+        "FSR.mindisoccacc",
+        "FSR.reactivescale",
+        "FSR.shadingscale",
+        "FSR.upscalerindex",
+        "FSR.usefsrinputvalues",
+        "FSR.usereactivemaskfortransparency",
+        "FSR.velocityfactor",
+        "FSR.verticalfov",
+        "FSRFG.allowasync",
+        "FSRFG.debugpacinglines",
+        "FSRFG.debugresetlines",
+        "FSRFG.debugtearlines",
+        "FSRFG.disableflipmetering",
+        "FSRFG.enablewatermark",
+        "FSRFG.fpthybridspin",
+        "FSRFG.fpthybridspintime",
+        "FSRFG.fptsafetymargininms",
+        "FSRFG.fptvariancefactor",
+        "FSRFG.fptwaitforsingleobjectonfence",
+        "FSRFG.framepacingtuning",
+        "FSRFG.usemutexforswapchain",
+        "FSRFGInputs.skipconfigforhudless",
+        "FSRFGInputs.skipdispatchforhudless",
+        "FrameGen.allowedframeahead",
+        "FrameGen.debugview",
+        "FrameGen.depthvalidnow",
+        "FrameGen.disablehudless",
+        "FrameGen.disableui",
+        "FrameGen.drawuioverfg",
+        "FrameGen.enabled",
+        "FrameGen.fginput",
+        "FrameGen.fgnvngxreplacement",
+        "FrameGen.fgoutput",
+        "FrameGen.ftinput",
+        "FrameGen.hudcutoff",
+        "FrameGen.hudlessvalidnow",
+        "FrameGen.modifybufferstate",
+        "FrameGen.modifyscindex",
+        "FrameGen.onlyacceptfirsthudless",
+        "FrameGen.preserveswapchain",
+        "FrameGen.rectheight",
+        "FrameGen.rectleft",
+        "FrameGen.recttop",
+        "FrameGen.rectwidth",
+        "FrameGen.skipreset",
+        "FrameGen.skipresizebuffers",
+        "FrameGen.uipremultipliedalpha",
+        "FrameGen.velocityvalidnow",
+        "Framerate.frameratelimit",
+        "HDR.forcehdr",
+        "HDR.skipcolorspace",
+        "HDR.usehdr10",
+        "Hooks.earlyhooking",
+        "Hooks.hookoriginalnvngxonly",
+        "Hooks.usentdllhooks",
+        "Hotfix.auxiliarydxgifactorymodules",
         "Hotfix.checkforupdate",
         "Hotfix.colormaskresourcebarrier",
         "Hotfix.colorresourcebarrier",

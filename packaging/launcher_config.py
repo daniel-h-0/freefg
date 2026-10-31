@@ -98,83 +98,155 @@ def vkd3d_cache_fits(folder, program, margin=16):
     return len(longest) + margin <= VKD3D_PATH_LIMIT
 
 
-def _with_member(value, member):
-    """A vkd3d-proton list value (members separated by ',' or ';') with member at its end, unless it has it already."""
-    if member in re.split(r'[,;]', value):
-        return value
-    return value + (',' if value and value[-1] not in ',;' else '') + member
+# The launch contract: what an installation does to the variables of the game's launcher entry, as data (contract()),
+# so the launcher writers, their migrations and undo, the manual settings and integration.json (install.py contract) share
+# one definition. Operations, applied in order (apply_contract()):
+#   replace        var = value; with when 'unset' only where var has no value (a user's own value, 0 included, stays)
+#   prepend        value first in the sep-separated list, which loses empty and repeated members
+#   append-member  value last in the sep-separated list unless already a member. With split (further characters that
+#                  separate members, as vkd3d-proton reads them) the list stays as written; otherwise it loses empty and
+#                  repeated members
+#   dll-override   Wine DLL overrides: value's sep-separated name=setting entries after the variable's other entries,
+#                  from which the DLLs value names are taken out
+#   remove         var deleted
+# unless {VAR: value}: the operation is skipped where VAR holds that value.
+CONTRACT_OPS = ('replace', 'prepend', 'append-member', 'dll-override', 'remove')
+# Variables of earlier builds whose settings the shipped add-on keeps in its own files: it still reads them from the
+# environment (fast_trial.h, flow_cap.h), where a stale value would change what it does, so every installation takes
+# them out.
+OWNED_ELSEWHERE = ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP')
 
 
-def environment(root, owner, current, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
-    """Retain the wrapper's fast path using ordinary launcher environment fields.
+def contract(root, owner, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
+    """The launch contract's operations for an installation in root (the game folder; a placeholder path such as
+    Path('{game}') gives its general form), with owner as OptiScaler's loader module. It is the same on either route.
 
     runtime 'xemfg' loads the multi-frame loader (version.dll) and its addon; runtime 'xemfg-proxy' is the add-on as a
-    libxess_fg.dll proxy (no loader, 2x), with its shader profile beside it in BC250-XeFG/; runtime 'xefg' is Intel's
-    own 2x frame generation with the BC250 proxy, whose files sit under OptiScaler/ on the OptiScaler route. extra: further
+    libxess_fg.dll proxy (no loader, 2x), with its shader profile beside it in BC250-XeFG/. (The 2x builds before 0.9.0,
+    runtime 'xefg', set themselves up with a wrapper script, which steam_options() and plan() take out.) extra: further
     variables the installation sets (PROTONFIXES_DISABLE=1 after an accepted protonfix-api refusal); Restore takes them
     out like the others. vkd3d_cache: the installation's vkd3d-proton cache folder; given, vkd3d-proton gets it as its
     cache path (unless the user set one: kept, as is VKD3D_SHADER_CACHE_PATH=0) and does not use shader module
     identifiers (IDENTIFIER_EXTENSION, added to the user's VKD3D_DISABLE_EXTENSIONS)."""
-    if not isinstance(current, dict) or any(not isinstance(key, str) or not KEY.fullmatch(key)
-           or not isinstance(value, str) or '\0' in value for key, value in current.items()):
-        raise ValueError('Launcher environment keys and values must be strings with valid names')
-    result = dict(current)
-    overrides = current.get('WINEDLLOVERRIDES', '')
-    required = {owner.removesuffix('.dll').lower()} | ({'version'} if runtime == 'xemfg' else set())
-    pieces = []
-    for part in overrides.split(';'):
-        if not part:
-            continue
-        if '=' not in part:
-            raise ValueError('Unrecognized Wine override: '+part)
-        names, value = part.split('=', 1)
-        kept = [n for n in names.split(',') if n.lower().removesuffix('.dll') not in required]
-        if kept:
-            pieces.append(','.join(kept)+'='+value)
-    pieces.extend(n+'=n,b' for n in sorted(required))
-    result['WINEDLLOVERRIDES'] = ';'.join(pieces)
-    base = root/'OptiScaler' if runtime == 'xefg' and route == 'opti' else root
-    for key, first, separator in (
-        ('VK_LAYER_PATH', str(base/'BC250-XeFG/layer'), ':'),
-        ('VK_INSTANCE_LAYERS', 'VK_LAYER_BC250_xefg_wave', ':'),
-    ):
-        result[key] = separator.join(dict.fromkeys([first, *filter(None, current.get(key, '').split(separator))]))
-    result['XEFG_WAVE_CONFIG'] = str(root/'OptiScaler/plugins/BC250-XeFG/shaders/waves.txt' if runtime == 'xemfg'
-                                     else base/'BC250-XeFG/shaders/waves.txt')
-    if current.get('BC250_XEFG_NO_STAGGERED_SUBMIT') != '0':
-        result['VKD3D_CONFIG'] = ','.join(dict.fromkeys([
-            *filter(None, current.get('VKD3D_CONFIG', '').split(',')), 'no_staggered_submit']))
+    if runtime not in ('xemfg', 'xemfg-proxy'):
+        raise ValueError('Unknown add-on runtime: '+str(runtime))
+    loaders = sorted({owner.removesuffix('.dll').lower()} | ({'version'} if runtime == 'xemfg' else set()))
+    ops = [dict(var='WINEDLLOVERRIDES', op='dll-override', value=';'.join(name+'=n,b' for name in loaders), sep=';'),
+           dict(var='VK_LAYER_PATH', op='prepend', value=str(root/'BC250-XeFG/layer'), sep=':'),
+           dict(var='VK_INSTANCE_LAYERS', op='prepend', value='VK_LAYER_BC250_xefg_wave', sep=':'),
+           dict(var='XEFG_WAVE_CONFIG', op='replace', value=str(root/'OptiScaler/plugins/BC250-XeFG/shaders/waves.txt'
+                                                                 if runtime == 'xemfg' else root/'BC250-XeFG/shaders/waves.txt')),
+           dict(var='VKD3D_CONFIG', op='append-member', value='no_staggered_submit', sep=',',
+                unless={'BC250_XEFG_NO_STAGGERED_SUBMIT': '0'})]
     if vkd3d_cache is not None:
-        result['VKD3D_DISABLE_EXTENSIONS'] = _with_member(current.get('VKD3D_DISABLE_EXTENSIONS', ''), IDENTIFIER_EXTENSION)
-        if not current.get('VKD3D_SHADER_CACHE_PATH'):
-            result['VKD3D_SHADER_CACHE_PATH'] = str(vkd3d_cache)
-    for key, value in (extra or {}).items():
-        if not KEY.fullmatch(key) or not isinstance(value, str) or '\0' in value:
-            raise ValueError('Invalid launcher environment setting: '+str(key))
-        result[key] = value
-    if runtime in ('xemfg', 'xemfg-proxy'):
-        # The installed addon owns its local verified payload and saved settings.
-        for key in ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP'):
-            result.pop(key, None)
-    else:
-        # The proxy accelerates only the OptiScaler-owned context on that route; a user's XEFG_FLOW_CAP=1 (1080p
-        # generated frames) is kept.
-        result.pop('XEFG_GAME_PROFILE', None)
-        if route == 'opti':
-            result['BC250_XEFG_OWNER_MODULE'] = owner
+        ops += [dict(var='VKD3D_DISABLE_EXTENSIONS', op='append-member', value=IDENTIFIER_EXTENSION, sep=',', split=';'),
+                dict(var='VKD3D_SHADER_CACHE_PATH', op='replace', value=str(vkd3d_cache), when='unset')]
+    ops += [dict(var=key, op='replace', value=value) for key, value in (extra or {}).items()]
+    # The installed addon owns its local verified payload and saved settings.
+    return ops + [dict(var=key, op='remove') for key in OWNED_ELSEWHERE]
+
+
+def apply_contract(current, ops):
+    """current (a launcher entry's variables) with the launch contract's operations applied, in order."""
+    result = dict(current)
+    for op in ops:
+        var, kind, value, sep = op['var'], op['op'], op.get('value'), op.get('sep')
+        if kind == 'remove':
+            result.pop(var, None)
+            continue
+        if any(result.get(key) == held for key, held in (op.get('unless') or {}).items()) or \
+                (op.get('when') == 'unset' and result.get(var)):
+            continue
+        now = result.get(var, '')
+        if kind == 'replace':
+            if not KEY.fullmatch(var) or not isinstance(value, str) or '\0' in value:
+                raise ValueError('Invalid launcher environment setting: '+str(var))
+            result[var] = value
+        elif kind == 'prepend':
+            result[var] = sep.join(dict.fromkeys([value, *filter(None, now.split(sep))]))
+        elif kind == 'append-member' and op.get('split'):
+            separators = sep + op['split']
+            if value not in re.split('[' + re.escape(separators) + ']', now):
+                now += (sep if now and now[-1] not in separators else '') + value
+            result[var] = now
+        elif kind == 'append-member':
+            result[var] = sep.join(dict.fromkeys([*filter(None, now.split(sep)), value]))
+        elif kind == 'dll-override':
+            entries = value.split(sep)
+            names = {entry.split('=', 1)[0] for entry in entries}
+            pieces = []
+            for part in now.split(sep):
+                if not part:
+                    continue
+                if '=' not in part:
+                    raise ValueError('Unrecognized Wine override: '+part)
+                dlls, setting = part.split('=', 1)
+                kept = [n for n in dlls.split(',') if n.lower().removesuffix('.dll') not in names]
+                if kept:
+                    pieces.append(','.join(kept)+'='+setting)
+            result[var] = sep.join([*pieces, *entries])
         else:
-            result.pop('BC250_XEFG_OWNER_MODULE', None)
+            raise ValueError('Unknown launch contract operation: '+str(kind))
     return result
 
 
+def environment(root, owner, current, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
+    """Retain the wrapper's fast path using ordinary launcher environment fields: current with the launch contract of
+    contract() (same arguments) applied."""
+    if not isinstance(current, dict) or any(not isinstance(key, str) or not KEY.fullmatch(key)
+           or not isinstance(value, str) or '\0' in value for key, value in current.items()):
+        raise ValueError('Launcher environment keys and values must be strings with valid names')
+    return apply_contract(current, contract(root, owner, runtime, route, extra, vkd3d_cache))
+
+
 API_ARGS = {'-dx11', '-d3d11', '-dx12', '-d3d12', '-force-d3d11', '-force-d3d12', '-vulkan', '-force-vulkan'}
+# Godot's graphics-API switch is this option and its value (gamescan: --rendering-driver d3d12).
+API_OPTION = '--rendering-driver'
 
 
-def with_args(tokens, args):
-    """Game arguments from a recipe (a DX12 switch), unless the user already chose a graphics API."""
-    if not args or any(t.lower() in API_ARGS for t in tokens):
-        return tokens
-    return tokens + [a for a in args if a not in tokens]
+def split_args(args, required=()):
+    """(graphics-API switch, arguments the game always needs) of a game's launch arguments: an API_ARGS word, or
+    API_OPTION with its value, is the switch; every other word is always needed (records and recipes before
+    required_args kept GTA V Enhanced's -nobattleye among them). required: further arguments the game always needs."""
+    api, needed, words = [], [], list(args)
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word.lower() == API_OPTION:
+            api += words[index:index+2]
+            index += 1
+        elif word.lower() in API_ARGS:
+            api.append(word)
+        else:
+            needed.append(word)
+        index += 1
+    return api, list(dict.fromkeys([*needed, *required]))
+
+
+def chooses_api(tokens):
+    """Whether launch arguments already choose a graphics API."""
+    return any(t.lower() in API_ARGS or t.lower() == API_OPTION for t in tokens)
+
+
+def with_args(tokens, args, required=()):
+    """tokens (the user's game arguments) with a recipe's: its graphics-API switch unless the user already chose a
+    graphics API, then the arguments the game always needs (required, and args' other words: split_args), each once."""
+    api, needed = split_args(args, required)
+    out = list(tokens)
+    if api and not chooses_api(tokens):
+        out += [a for a in api if a not in out]
+    return out + [a for a in needed if a not in out]
+
+
+def added_to(text, args, required=()):
+    """Argument text (Heroic's launcherArgs, a Steam entry's options) with what with_args() adds appended in shell
+    quoting. The user's own text stays as written, so a ~ or the quoting in it keeps its meaning; with nothing to add,
+    text is returned as it is (None too)."""
+    tokens = shlex.split(text or '')
+    added = with_args(tokens, args, required)[len(tokens):]
+    if not added:
+        return text
+    return ' '.join([*([text.rstrip()] if (text or '').strip() else []), *map(shlex.quote, added)])
 
 
 # One shell word: quoted or unquoted parts, no unquoted whitespace.
@@ -232,8 +304,8 @@ def _join_steam(env, rest, written=None):
     return ' '.join([*(key+'='+spelled(key, val) for key, val in env.items()), *([rest] if rest else [])])
 
 
-def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
-    """Transform ordinary launch options; never execute shell text while editing."""
+def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, required=()):
+    """Transform ordinary launch options; never execute shell text while editing. args, required: with_args()."""
     current, rest, written = split_steam(value)
     # Wrappers of earlier wrapper-based installs (either layout; the lib2x/XeFG route's lives under OptiScaler/).
     rest = _drop_words(rest, [str(root/'BC250-XeFG/run.sh'), str(root/'OptiScaler/BC250-XeFG/run.sh')])
@@ -251,7 +323,7 @@ def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), ex
     if any(';' in token for token in tokens):
         raise ValueError('Shell commands in Steam launch options need explicit reconciliation')
     env = environment(root, owner, current, runtime, route, extra_env, vkd3d_cache)
-    added = with_args(tokens, args)[len(tokens):]
+    added = with_args(tokens, args, required)[len(tokens):]
     return _join_steam(env, ' '.join([rest, *map(shlex.quote, added)]), written)
 
 
@@ -571,19 +643,41 @@ def _ge_variables(env):
     return sorted(str(k) for k, v in env.items() if GE_UPSCALER.fullmatch(str(k)) and str(v).strip() not in ('', '0'))
 
 
-def conflicts(exe, targets, environ=None):
+def lutris_arguments(data):
+    """The game arguments of a Lutris game file (game: args), split as Lutris splits them; [] when it has none."""
+    from vendor import yaml
+    doc = yaml.safe_load(data)
+    game = doc.get('game') if isinstance(doc, dict) else None
+    value = game.get('args') if isinstance(game, dict) else None
+    try:
+        return shlex.split(value) if isinstance(value, str) else []
+    except ValueError:
+        return []
+
+
+def conflicts(exe, targets, environ=None, required=()):
     """Refusals that the launcher entries of exe call for, found before anything is downloaded or written:
     [dict(code, kind, text, way)]. shared-entry: an entry already loads an installation from another folder (two
     installations on one entry cannot both be restored exactly). ge-optiscaler: GE-Proton is told to place its own
-    OptiScaler or upscaler DLLs (in the entry, or in environ: the environment Setup runs in). An entry that cannot be
-    read is left to plan(), which reports it."""
+    OptiScaler or upscaler DLLs (in the entry, or in environ: the environment Setup runs in). required-args: a Lutris
+    entry lacks an argument the game always needs (required; Lutris's game arguments are not managed here, and a game
+    started without it would run as the recipe was never qualified, GTA V Enhanced with BattlEye on). An entry that
+    cannot be read is left to plan(), which reports it."""
     root = Path(exe).parent.resolve()
     found = []
     for target in targets:
         try:
-            env = entry_environment(target, Path(target['path']).read_bytes())
+            data = Path(target['path']).read_bytes()
+            env = entry_environment(target, data)
+            missing = [a for a in required if a not in lutris_arguments(data)] if target['launcher'] == 'lutris' else []
         except Exception:  # noqa: BLE001 - plan() reports an unreadable entry
             continue
+        if missing:
+            found.append(dict(code='required-args', kind='hard',
+                              text='This game needs the game argument' + ('s ' if len(missing) > 1 else ' ') + ' '.join(missing) +
+                                   ', and this installer does not edit Lutris\'s game arguments.',
+                              way='In Lutris, add ' + ' '.join(missing) + ' to the game\'s Arguments (Configure, Game options) '
+                                  'first.'))
         others = sorted({str(r) for r in layer_roots(env) if r.resolve() != root})
         if others:
             found.append(dict(code='shared-entry', kind='hard',
@@ -607,17 +701,21 @@ def conflicts(exe, targets, environ=None):
     return list(unique.values())
 
 
-def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, manual=False):
+def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, manual=False,
+         required=()):
+    """The launcher operations of an installation: each entry's fields before and after. args: the graphics-API switch
+    (added where the user's options choose no API); required: arguments the game always needs (always added; with_args)."""
     targets = discover(exe, home)
     if not targets:
         # manual: the user accepted the no-launcher refusal and sets manual_settings() in a launcher this module does not edit.
         if manual:
             return []
         raise ValueError('No launcher entry found for this executable. Add the game to Steam, Heroic or Lutris first.')
-    require_stopped(t['launcher'] for t in targets)
+    # Planning only reads: whoever writes checks that the launchers are closed (apply; install before and just after
+    # its downloads), so a preview works while a launcher runs.
     root = exe.parent.resolve()
     # The checks Install also runs before its downloads (compat.preflight); here they guard every other caller.
-    for refusal in conflicts(exe, targets):
+    for refusal in conflicts(exe, targets, required=split_args(args, required)[1]):
         raise ValueError(f'{refusal["text"]} {refusal["way"]} [{refusal["code"]}]')
     # Wrappers of earlier wrapper-based installs (either layout) give way to the launcher fields.
     wrappers = {str(root/'BC250-XeFG/run.sh'), str(root/'OptiScaler/BC250-XeFG/run.sh')}
@@ -626,15 +724,15 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
         path = Path(target['path'])
         if path.is_symlink() or not path.is_file():
             raise ValueError('Expected a regular launcher configuration: '+str(path))
-        if args and target['launcher'] == 'heroic':
-            target = dict(target, args=list(args))
+        if (args or required) and target['launcher'] == 'heroic':
+            target = dict(target, args=[*args, *required])
         data = path.read_bytes()
         before = fields(target, data)
         if target['launcher'] == 'steam' and target.get('format') != 'shortcuts':
             target = dict(target, created_app=not Document(data).has_object(APP+[target['id']]))
         if target['launcher'] == 'steam':
             after = {'LaunchOptions': steam_options(before['LaunchOptions'] or '', root, owner, runtime, route, args, extra_env,
-                                                    vkd3d_cache)}
+                                                    vkd3d_cache, required)}
         elif target['launcher'] == 'heroic':
             entries = before['enviromentOptions'] or []
             current = {e['key']: e['value'] for e in entries}
@@ -644,8 +742,7 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
                                             environment(root, owner, current, runtime, route, extra_env, vkd3d_cache).items()],
                          wrapperOptions=[r for r in (before['wrapperOptions'] or []) if r.get('exe') not in wrappers])
             if 'launcherArgs' in before:
-                tokens = with_args(shlex.split(before['launcherArgs'] or ''), args)
-                after['launcherArgs'] = shlex.join(tokens) if tokens else before['launcherArgs']
+                after['launcherArgs'] = added_to(before['launcherArgs'], args, required)
         else:
             prefix = before['prefix_command'] or ''
             # Remove only this installation's old wrapper, preserving other tools.
@@ -656,26 +753,141 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
     return operations
 
 
-def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
+# The format of manual_settings(): 1 adds required_args, remove, merge and notes to the env and args of the first
+# manual installations (no format), which stay valid.
+MANUAL_FORMAT = 1
+# Without its own vkd3d-proton cache folder (the path is too long for vkd3d-proton's file names), an installation sets
+# neither cache setting (install.py).
+CACHE_PATH_NOTE = ('Game folder path too long for vkd3d-proton’s cache file names: its shader cache stays the game’s own, '
+                   'and wave sizes apply only to pipelines Mesa’s cache does not already hold.')
+
+
+def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, required=(), notes=()):
     """The launch settings a new launcher entry would get from plan(), for a launcher this module does not edit (an
-    accepted no-launcher refusal): dict(env, args). The user sets them; the installation records them, and Status, Update
-    and Restore show them again."""
-    return dict(env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=list(args))
+    accepted no-launcher refusal): dict(format, env, args, required_args, remove, merge, notes). env: the variables, as a
+    new entry gets them; args: the graphics-API switch, for a launcher whose arguments choose no API; required_args:
+    arguments the game always needs; remove: variables to delete where the launcher sets them; merge: the launch
+    contract's operations on env's variables (contract()), how each combines with a value the launcher already has;
+    notes: what else the user should know (CACHE_PATH_NOTE). The user sets them; the installation records them, and
+    Status, Update and Restore show them again."""
+    ops = contract(root, owner, runtime, route, extra_env, vkd3d_cache)
+    api, needed = split_args(args, required)
+    return dict(format=MANUAL_FORMAT, env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=api,
+                required_args=needed, remove=[op['var'] for op in ops if op['op'] == 'remove'],
+                merge=[op for op in ops if op['op'] != 'remove'], notes=list(notes))
 
 
 def manual_lines(settings):
     """manual_settings() as the user copies them: one KEY=value per line, quoted as a shell reads it (launchers that take
-    a command line, Faugus's launch arguments among them, read them so), then the game's arguments."""
+    a command line, Faugus's launch arguments among them, read them so), then the game's arguments (manual_args)."""
     lines = [key + '=' + shlex.quote(value) for key, value in settings['env'].items()]
-    if settings.get('args'):
-        lines.append('Game arguments (after the .exe): ' + shlex.join(settings['args']))
+    if manual_args(settings):
+        lines.append('Game arguments (after the .exe): ' + shlex.join(manual_args(settings)))
+    return lines
+
+
+def manual_args(settings):
+    """The game arguments of manual_settings(): the graphics-API switch (args; skip it where the user's launcher already
+    chooses an API), then the arguments the game always needs (required_args, and any other word of args: settings
+    recorded before required_args kept them there)."""
+    api, needed = split_args(settings.get('args') or [], settings.get('required_args') or [])
+    return api + [a for a in needed if a not in api]
+
+
+def manual_effect(settings):
+    """What a launcher keeps of manual_settings(): its variables and the game's arguments (manual_args). Two settings
+    with the same effect differ only in how a record states them."""
+    return dict(settings.get('env') or {}), manual_args(settings)
+
+
+def manual_removals(settings):
+    """Variables to delete from the game's launch settings where present: FreeFG takes them out of the launchers it edits,
+    and a stale value would change what the add-on does."""
+    return list(settings.get('remove') or [])
+
+
+def manual_env_table(settings):
+    """manual_settings() as rows of a launcher's environment table (Heroic, Lutris, Faugus): (KEY, value), unquoted."""
+    return list(settings['env'].items())
+
+
+def manual_steam_line(settings):
+    """manual_settings() as one launch-options line in Steam's form: assignments, %command%, then the game's arguments."""
+    return _join_steam(dict(settings['env']), ' '.join(['%command%', *map(shlex.quote, manual_args(settings))]))
+
+
+def manual_merge_lines(settings):
+    """How each variable of manual_settings() combines with a value the launcher already sets (its merge operations), one
+    line each; none for a variable whose value simply replaces the launcher's, and none for settings recorded without
+    merge."""
+    lines = []
+    for op in settings.get('merge') or []:
+        var, kind, value, sep = op['var'], op['op'], op.get('value'), op.get('sep')
+        unless = ''.join(', unless ' + key + '=' + held + ' is set' for key, held in (op.get('unless') or {}).items())
+        if kind == 'dll-override':
+            names = ', '.join(entry.split('=', 1)[0] for entry in value.split(sep))
+            lines.append(f'{var}: keep your entries without any for {names}, then add {value} (entries separated by {sep})')
+        elif kind == 'prepend':
+            lines.append(f'{var}: {value} first, then yours (separated by {sep})')
+        elif kind == 'append-member':
+            lines.append(f'{var}: add {value} to yours (separated by {sep}){unless}')
+        elif kind == 'replace' and op.get('when') == 'unset':
+            lines.append(f'{var}: keep yours where you set one (0 included)')
+    return lines
+
+
+def manual_guide(settings):
+    """What a reader without Setup's window needs besides manual_lines(): the Steam form, the values a table of variables
+    takes without quotes, the API switch to leave out, the variables to delete, how to combine with the launcher's own
+    values and the notes. Lines without indentation; a sub-line starts with two spaces."""
+    lines = ['As one launch-options line (Steam’s form): ' + manual_steam_line(settings)]
+    quoted = [(key, value) for key, value in manual_env_table(settings) if shlex.quote(value) != value]
+    if quoted:
+        lines += ['In a table of variables (name, value), without the quotes:'] + ['  ' + key + ': ' + value for key, value in quoted]
+    api = split_args(settings.get('args') or [])[0]
+    if api:
+        lines.append('Leave out ' + shlex.join(api) + ' where the game’s arguments already choose a graphics API.')
+    if manual_removals(settings):
+        lines.append('Delete where present: ' + ', '.join(manual_removals(settings)))
+    merge = manual_merge_lines(settings)
+    if merge:
+        lines += ['Where the launcher already sets one of these, combine them:'] + ['  ' + line for line in merge]
+    return lines + list(settings.get('notes') or [])
+
+
+def manual_change_lines(before, after):
+    """What changes in the user's launcher from manual_settings() before to after: a line per variable that changes,
+    appears or goes, then the game's arguments; none when the effect is the same (manual_effect)."""
+    (old, old_args), (new, new_args) = manual_effect(before), manual_effect(after)
+    lines = []
+    for key in dict.fromkeys([*new, *old]):
+        if key not in old:
+            lines.append('Add ' + key + '=' + shlex.quote(new[key]))
+        elif key not in new:
+            lines.append('Delete ' + key + '=' + shlex.quote(old[key]))
+        elif old[key] != new[key]:
+            lines.append('Replace ' + key + '=' + shlex.quote(old[key]) + ' with ' + key + '=' + shlex.quote(new[key]))
+    if old_args != new_args:
+        lines.append('Game arguments: ' + (shlex.join(old_args) or 'none') + ' → ' + (shlex.join(new_args) or 'none'))
+    return lines
+
+
+def manual_delete_lines(settings):
+    """What to take out of a variable the user combined with their own value (merge), at Restore: the part manual_settings()
+    added, a line each (a variable set whole goes, as its line in manual_lines() says)."""
+    lines = []
+    for op in settings.get('merge') or []:
+        if op['op'] in ('dll-override', 'prepend', 'append-member'):
+            lines.append(op['var'] + ': ' + op['value'])
+        elif op['op'] == 'replace' and op.get('when') == 'unset':
+            lines.append(op['var'] + ': only where it is ' + op['value'])
     return lines
 
 
 def added_args(operations):
     """Game arguments the planned launcher fields add (Steam LaunchOptions after %command%, Heroic launcherArgs), in
-    order and once each: with_args adds none where the user's options already choose a graphics API, and Lutris's
-    arguments are not managed."""
+    order and once each: with_args adds no API switch where the user's options already choose a graphics API, and
+    Lutris's arguments are not managed (plan() refuses an entry that lacks a required one)."""
     added = []
     for row in operations:
         if row['launcher'] == 'steam':

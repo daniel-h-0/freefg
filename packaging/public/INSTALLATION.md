@@ -32,17 +32,30 @@ and **Automatic per game**. An explicit input applies to every selected game in 
 
 ## Other launchers
 
-Setup writes its launch settings into the game's Steam, Heroic or Lutris entry. A game that only another launcher
-starts (Faugus, Bottles, umu-run or a script) gets the soft refusal `no-launcher`. Accept it under **Needs your OK**
-(Zenity: **Install anyway**; command line: `--accept no-launcher`). Setup then installs the files as usual, changes no
-launcher entry and prints the environment variables, and any game arguments, to add to that launcher; in Setup's window
-they are under **Installer output**. In Faugus, put the `KEY=value` lines under **Launch Arguments**; on a command line,
-put them before the command; where a launcher takes each name and value separately, leave out the quotes around a
-value. Faugus's global environment variables override a game's own, so keep `WINEDLLOVERRIDES` out of them.
+Setup writes its launch settings into the game's Steam, Heroic or Lutris entry. It adds a recipe's graphics-API switch
+only where the game's arguments choose no API, and arguments the game needs always (GTA V Enhanced: `-nobattleye`).
+It does not edit Lutris's game arguments: add such an argument there first, or the install is refused (`required-args`).
 
-Status shows the settings again, an update or Rollback that changes them prints the new values, and Restore lists them
-for removal. Setup cannot check that launcher for GE-Proton's `PROTON_USE_OPTISCALER` or `PROTON_*_UPGRADE`; leave them
-unset for the game. Game settings a recipe would write into the Proton prefix stay pending: set them in the game.
+A game that only another launcher starts (Faugus, Bottles, umu-run or a script) gets the soft refusal `no-launcher`.
+Accept it under **Needs your OK** (Zenity: **Install anyway**; command line: `--accept no-launcher`). Setup then
+installs the files as usual, changes no launcher entry and prints the launch settings to add to that launcher; in
+Setup's window they open ready to copy (later: the game's **Launch settings** row, **Show…**). They come as:
+
+- `KEY=value` lines, then the game arguments. In Faugus, put the lines under **Launch Arguments**; on a command line,
+  put them before the command.
+- One launch-options line in Steam's form (`KEY=value … %command% arguments`).
+- The values a table of variables takes without their quotes, where a launcher takes each name and value separately.
+- Variables to delete where present, and how to combine a variable the launcher already sets (keep your other Wine
+  overrides, put FreeFG's layer first, add a list member).
+
+Faugus's global environment variables override a game's own, so keep `WINEDLLOVERRIDES` out of them. Status shows the
+settings again and says whether the last session ran with them (`added by you` once the logs show OptiScaler, the
+proxy and a frame-generation context; else `not yet confirmed`). An update or Rollback that changes them names each
+value to replace, and Restore names what to remove. Update all finds such a game through the local index;
+`install.py register GAME.exe` adds it again if the index was lost. Setup cannot check that launcher for GE-Proton's
+`PROTON_USE_OPTISCALER` or `PROTON_*_UPGRADE`; leave them unset for the game. Game settings a recipe would write into
+the Proton prefix stay pending: set them in the game. For integrators, the release folder's `integration.json`
+(`python3 install.py contract --json`) states the same settings, OptiScaler.ini keys and file layout as data.
 
 ## Command line
 
@@ -55,7 +68,7 @@ python3 install.py status GAME.exe       # installed files and last session
 python3 install.py library               # discovered and registered installations
 python3 install.py plan GAME.exe         # preview an update
 python3 install.py update GAME.exe       # apply it
-python3 install.py rollback GAME.exe     # undo the most recent update or provider switch
+python3 install.py rollback GAME.exe     # undo the most recent update, provider switch or wiki settings
 python3 install.py restore GAME.exe      # restore the original installation
 ```
 
@@ -68,12 +81,14 @@ python3 install.py restore GAME.exe      # restore the original installation
 Extract the new release before updating. Setup’s sidebar lists games by state; each game’s page shows its provider,
 last-session logs and recovery actions. Choose **Update…** on a game page, or **Update All Games…** from the menu.
 Review the grouped plan before applying it. On the command line, run
-`python3 install.py plan --all` followed by `python3 install.py update --all` to apply the plan.
+`python3 install.py plan --all` followed by `python3 install.py update --all --expect-plan DIGEST`, with the digest the
+plan printed: the update changes nothing if any game's plan differs from the one shown.
 
 Update all combines Steam, Heroic and Lutris discovery with the optional local index; it can find installations you
 did not select. Use a game’s **Update…** or name specific executables to limit the scope. Running, missing, blocked,
-pinned or deferred games are reported separately. Successful games remain updated; a nonzero update exit status
-signals deferred or failed work. There is no atomic transaction across games.
+pinned or deferred games are reported separately. Successful games remain updated. The exit status is 3 when a game
+needs attention first (blocked, running) and none failed, 1 for failed or deferred work. There is no atomic transaction
+across games.
 
 Compatible 1.1.3.1, 1.1.4, 1.1.5 and 1.1.6 installations update in place. Updates cover the compatible FreeFG/Intel set,
 selected upscaler, OptiScaler integration and owned launcher fields while retaining user additions and original
@@ -85,8 +100,10 @@ an occupied name is refused.
 - **Keep this release** on a game page holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
 - **Track** on an untracked installation’s page adds that installation to the optional index. The index can be rebuilt; game files and recovery
   do not depend on it.
-- **Rollback** restores the saved state before the most recent update **or provider switch**. Each game retains one
-  completed generation; later settings edits are preserved where possible, and conflicting binary edits are refused.
+- **Rollback** restores the saved state before the most recent update, **provider switch or wiki settings**. Each game
+  retains one completed generation of each kind (an update or switch, wiki settings), so wiki settings applied after an
+  update keep the way back to the release before it; later settings edits are preserved where possible, and
+  conflicting binary edits are refused.
 - **Restore** removes owned files and launcher changes and restores originals, preserving later user edits where
   possible. It reports conflicts and leaves backups and logs in a `.bc250-xefg-experimental-restored-…` folder.
 

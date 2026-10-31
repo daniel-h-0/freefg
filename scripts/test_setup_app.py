@@ -183,6 +183,87 @@ class Words(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             py_compile.compile(str(REPO / 'packaging/mfg/setup_app.py'), cfile=str(Path(temporary) / 'app.pyc'), doraise=True)
 
+    def test_events_are_read_and_the_text_is_the_fallback(self):
+        line = lambda **fields: model.EVENT_PREFIX + json.dumps(dict(v=1, **fields))
+        self.assertEqual(model.parse_event(line(type='outcome', exe='/g/A.exe', result='install')),
+                         dict(v=1, type='outcome', exe='/g/A.exe', result='install'))
+        for other in ('Installed.', model.EVENT_PREFIX + '{not json', model.EVENT_PREFIX + '[1]',
+                      model.EVENT_PREFIX + json.dumps(dict(v=2, type='step', text='x')), model.EVENT_PREFIX + '{"v": 1}'):
+            self.assertIsNone(model.parse_event(other), other)
+        # The installer's lines as an installer without events prints them: Setup reads them as before.
+        lines = [('out', 'Frame-generation input: OptiFG (Automatic)'), ('out', 'Upscaler: FSR 4 (BC-250 build RC12).'),
+                 ('out', 'In game: open OptiScaler with Insert.'), ('out', 'Game setting pending: x (start the game once)')]
+        plain = model.outcome(lines)
+        self.assertEqual((plain['result'], plain['manual']), (None, []))
+        self.assertEqual(plain['changed'], ['Frame-generation input: OptiFG (Automatic)', 'Upscaler: FSR 4 (BC-250 build RC12).'])
+        self.assertEqual(plain['steps'], ['In game: open OptiScaler with Insert.', 'Game setting pending: x (start the game once)'])
+        # With events, each type the installer sends replaces the reading of its lines; a type it sends none of does not.
+        settings = dict(env={'WINEDLLOVERRIDES': 'dxgi=n,b'}, args=['-dx12'])
+        events = [dict(v=1, type='changed', text='OptiScaler.ini: 3 settings'), dict(v=1, type='step', where='game', text='open OptiScaler with Insert.'),
+                  dict(v=1, type='step', where='launcher', text='In your launcher: add the settings.'),
+                  dict(v=1, type='step', where='setting', text='Game setting pending: y'),
+                  dict(v=1, type='manual', action='set', settings=settings), dict(v=1, type='manual', action='set', settings=dict(env=[])),
+                  dict(v=1, type='manual', action='erase', settings=settings), dict(v=1, type='outcome', exe='/g/A.exe', result='install')]
+        found = model.outcome(lines, events)
+        self.assertEqual(found['result'], 'install')
+        self.assertEqual(found['changed'], ['OptiScaler.ini: 3 settings'])
+        self.assertEqual(found['steps'], ['In game: open OptiScaler with Insert.', 'In your launcher: add the settings.', 'Game setting pending: y'])
+        self.assertEqual(found['manual'], [('set', settings)])  # malformed settings and unknown actions are not shown
+        only_outcome = model.outcome(lines, [dict(v=1, type='outcome', exe='/g/A.exe', result='install')])
+        self.assertEqual((only_outcome['changed'], only_outcome['steps']), (plain['changed'], plain['steps']))
+
+    def test_commands_ask_for_events_where_the_installer_prints_them(self):
+        ctx = context(REPO / 'packaging')
+        command = ctx.command(['install', '/g/A.exe', '--route', 'auto'])
+        self.assertEqual(command[3:], ['install', '/g/A.exe', '--route', 'auto', '--events'])  # last: never among the games
+        older = context(REPO / 'packaging', installer=Mock(spec=['STATE']))
+        self.assertEqual(older.command(['status', '/g/A.exe'])[3:], ['status', '/g/A.exe'])
+
+    def test_launch_forms_come_from_the_launcher_helpers(self):
+        import launcher_config
+        settings = dict(env={'WINEDLLOVERRIDES': 'dxgi=n,b', 'VK_LAYER_PATH': '/games/My Game/BC250-XeFG/layer'}, args=['-dx12'],
+                        required_args=['-nobattleye'], remove=['XEFG_GAME_PROFILE'])
+        forms = model.launch_forms(settings)
+        self.assertEqual(forms['line'], launcher_config.manual_steam_line(settings))
+        self.assertEqual(forms['table'], list(settings['env'].items()))
+        self.assertEqual((forms['args'], forms['remove'], forms['merge']), (['-dx12', '-nobattleye'], ['XEFG_GAME_PROFILE'], False))
+        self.assertEqual(forms['text'], launcher_config.manual_lines(settings))
+        self.assertTrue(model.launch_forms(dict(settings, merge=[dict(var='VK_LAYER_PATH', op='prepend', value='x', sep=':')]))['merge'])
+        self.assertIsNone(model.launch_forms(dict(args=[])))
+        self.assertEqual(model.manual_settings(dict(manual_launch=settings)), settings)
+        self.assertIsNone(model.manual_settings(dict(manual_launch=settings, launchers=[dict(launcher='steam')])))
+        self.assertIsNone(model.manual_settings(dict(manual_launch=dict(env='x'))))
+
+    def test_manual_activation_is_the_installers_reading(self):
+        record = dict(status='installed', manual_launch=dict(env={'A': '1'}, args=[]))
+        reading = Mock(return_value=(False, 'Not yet confirmed: no session since installation.'))
+        ctx = context(REPO / 'packaging', installer=Mock(manual_activation=reading))
+        self.assertEqual(model.manual_activation(ctx, record, {'found': False}), (False, 'Not yet confirmed: no session since installation.'))
+        reading.assert_called_once_with(record, {'found': False})
+        self.assertIsNone(model.manual_activation(ctx, dict(record, manual_launch=None), None))  # a launcher installation
+        self.assertIsNone(model.manual_activation(context(REPO / 'packaging', installer=Mock(spec=['STATE'])), record, None))
+        reading.side_effect = ValueError('unreadable log')
+        self.assertIsNone(model.manual_activation(ctx, record, None))
+
+    def test_wiki_rows_that_set_one_key_are_rivals(self):
+        rows = [dict(id='a', key='FrameGen.Mode', value='1'), dict(id='b', key='framegen.mode', value='2'),
+                dict(id='c', key='FrameGen.Mode', value='1'), dict(id='d', key='Hotfix.Other', value='1')]
+        self.assertEqual(model.wiki_rivals(rows), {'a': ['b'], 'b': ['a', 'c'], 'c': ['b'], 'd': []})
+
+    def test_rollback_words_name_what_it_undoes(self):
+        release = dict(kind='release', release='freefg-1.1.4', settings=[], upscaler=None, missing=False)
+        self.assertEqual(model.change_words(release)[0], 'Roll back to 1.1.4')
+        self.assertEqual(model.change_words(release)[2], 'Roll back to 1.1.4?')
+        wiki = dict(release, kind='settings', settings=[('Hotfix.ColorResourceBarrier', '4')])
+        self.assertEqual(model.change_words(wiki)[0], 'Undo wiki settings (Hotfix.ColorResourceBarrier = 4)')
+        self.assertIn('Hotfix.ColorResourceBarrier = 4', model.change_words(wiki)[3])
+        many = dict(wiki, settings=[(f'K.{n}', str(n)) for n in range(5)])
+        self.assertEqual(model.change_words(many)[0], 'Undo wiki settings (K.0 = 0, K.1 = 1, K.2 = 2 and 2 more)')
+        provider = dict(release, kind='provider', upscaler='FSR 4')
+        self.assertEqual(model.change_words(provider)[:3], ('Undo the upscaler switch', 'Back to FSR 4, byte for byte. Your settings are kept.',
+                                                            'Undo the upscaler switch?'))
+        self.assertIsNone(model.change_words(dict(release, missing=True))[2])
+
 
 class Installations(UpdateFixture):
     """Real installations of the fixture's release OLD, seen by Setup running from the package of release NEW."""
@@ -254,7 +335,68 @@ class Installations(UpdateFixture):
         self.assertEqual(model.integrity(self.ctx, game)['changed'], [])
         (self.game / 'libxess_fg.dll').write_bytes(b'another tool')
         self.assertEqual(model.integrity(self.ctx, game)['changed'], ['libxess_fg.dll'])
-        self.assertEqual(model.integrity(self.ctx, game)['launchers'], [('Heroic', True)])
+        self.assertEqual(model.integrity(self.ctx, game)['launchers'], [('Heroic', 'installed')])
+
+    def test_integrity_names_each_launcher_entry_state(self):
+        # A removed entry is not found (not "changed"); a launcher file of another shape is a finding, never a check
+        # that does not end (Health's spinner).
+        game = self.load()
+        doc = json.loads(self.config.read_text())
+        states = []
+        for change in (lambda d: d['123']['enviromentOptions'].append(dict(key='MY_OWN', value='1')), lambda d: d.pop('123'),
+                       lambda d: d.__setitem__('123', [])):
+            data = json.loads(json.dumps(doc)); change(data); self.config.write_text(json.dumps(data))
+            states.append(model.integrity(self.ctx, game)['launchers'])
+        self.config.write_text('{"123": ')
+        states.append(model.integrity(self.ctx, game)['launchers'])
+        self.config.unlink()
+        states.append(model.integrity(self.ctx, game)['launchers'])
+        self.assertEqual(states, [[('Heroic', 'changed')], [('Heroic', 'missing')], [('Heroic', 'unreadable')],
+                                  [('Heroic', 'unreadable')], [('Heroic', 'missing')]])
+        lutris = self.root / 'lutris.yml'
+        for text in ('system: {env: [', '- a list\n'):
+            lutris.write_text(text)
+            game.record['launchers'] = [dict(launcher='lutris', path=str(lutris), after={})]
+            self.assertEqual(model.integrity(self.ctx, game)['launchers'], [('Lutris', 'unreadable')], text)
+
+    def test_hlx_reuse_check_ends_without_a_record(self):
+        # The page was drawn before a Restore or a removed record: the dialog shows the shared preparation, no error.
+        game = self.load()
+        unprepared = [model.Provider('hlx-fsr4', 'HLX FSR 4', 'local', state='unprepared')]
+        with patch.object(m.hlx, 'catalog', return_value=dict(version='3.1.0', providers={})):
+            self.state_file().unlink()
+            self.assertEqual(model.game_providers(self.ctx, game, unprepared), unprepared)
+
+    def test_launch_settings_of_a_manual_installation_come_from_events_or_the_record(self):
+        m.restore(self.exe); self.config.unlink()
+        self.run_quiet(m.install, self.package, self.exe, route='opti', accept=('no-launcher',))
+        settings = self.record()['manual_launch']
+        printed = [('out', line) for line in m.manual_launch_lines('set these.', settings)]
+        # An installer without manual events: its step in the player's launcher, and the record names the settings.
+        for command, action in (('install', 'set'), ('restore', 'remove'), ('update', 'replace'), ('rollback', 'replace')):
+            found = model.command_outcome(self.ctx, [command, str(self.exe)], printed)
+            self.assertEqual(found['manual'], [(action, settings)], command)
+        self.assertEqual(model.command_outcome(self.ctx, ['install', str(self.exe)], [('out', 'Installed.')])['manual'], [])
+        self.assertEqual(model.command_outcome(self.ctx, ['hlx', '--dlss-input', 'x'], printed)['manual'], [])
+        # Manual events are the installer's word, also when they name none.
+        event = dict(v=1, type='manual', action='replace', settings=dict(settings, env={'WINEDLLOVERRIDES': 'winmm=n,b'}))
+        self.assertEqual(model.command_outcome(self.ctx, ['update', str(self.exe)], printed, [event])['manual'],
+                         [('replace', event['settings'])])
+        game = self.load()
+        self.assertEqual(model.manual_settings(game.record), settings)
+        # The installer's own reading of the last session (install.manual_activation), as Status prints it.
+        self.assertEqual(game.activation, (False, 'Not yet confirmed: no session since installation shows them. Start the game '
+                                                  'with them and frame generation on.'))
+
+    def test_plan_digest_reaches_the_update_where_the_installer_checks_it(self):
+        game = self.load()
+        self.assertIsNone(model.plan_game(self.ctx, game).digest)
+        with patch.object(m, 'plan_digest', create=True, return_value='ab' * 32) as digest:
+            item = model.plan_game(self.ctx, game)
+        self.assertEqual(digest.call_args.args[0]['status'], 'update')
+        self.assertEqual(model.update_args(self.exe, expect=item.digest)[2:], ['--expect-plan', 'ab' * 32])
+        with patch.object(m, 'plan_digest', create=True, return_value='not a digest'):
+            self.assertIsNone(model.plan_game(self.ctx, game).digest)
 
     def test_update_plan_lists_changes_and_running_games(self):
         game = self.load()
@@ -295,6 +437,65 @@ class Installations(UpdateFixture):
         self.assertEqual([g.exe for g in games], [self.exe])
 
 
+class Changes(UpdateFixture):
+    """What Rollback would undo, read from the saved generations of real updates (model.last_change)."""
+    def setUp(self):
+        super().setUp()
+        from test_game_install import set_package_file
+        set_package_file(self.package, 'opti/OptiScaler.dll', b'custom OptiScaler old')
+        set_package_file(self.new, 'opti/OptiScaler.dll', b'custom OptiScaler new')
+        self.ctx = context(self.new)
+
+    def change(self):
+        return model.load_game(self.ctx, self.exe, titles={}).change
+
+    def test_an_update_to_another_release(self):
+        m.install(self.package, self.exe, route='opti')
+        self.assertIsNone(self.change())
+        self.run_quiet(m.update, self.exe, self.new)
+        change = self.change()
+        self.assertEqual((change['kind'], change['release'], change['to'], change['launch'], change['launch_changed'],
+                          change['missing']), ('release', OLD, NEW, None, None, False))
+        self.assertEqual(model.change_words(change)[0], 'Roll back to 1.1.4')
+        # Its saved files gone, Rollback cannot run: the page says so instead of offering it.
+        import shutil
+        shutil.rmtree(self.game / m.STATE / m.GENERATIONS)
+        self.assertTrue(self.change()['missing'])
+        self.assertIn('Restore', model.change_words(self.change())[1])
+
+    def test_an_update_that_changes_the_launch_settings_of_a_manual_installation(self):
+        self.config.unlink()
+        self.run_quiet(m.install, self.package, self.exe, route='opti', accept=('no-launcher',))
+        before = self.record()['manual_launch']
+        self.run_quiet(m.update, self.exe, self.new, loader='winmm.dll')
+        change = self.change()
+        self.assertEqual(change['launch'], before)  # what Rollback sets back, shown in its confirmation
+        self.assertEqual(change['launch_changed']['to'], NEW)
+        self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'], 'winmm=n,b')
+
+    def test_kinds_an_installer_records_and_those_read_from_the_generation(self):
+        m.install(self.package, self.exe, route='opti')
+        self.run_quiet(m.update, self.exe, self.new)
+        record = self.record()
+        state = self.game / m.STATE
+        path = state / m.GENERATIONS / record['generations'][-1]['id'] / 'generation.json'
+        saved = json.loads(path.read_text())
+        # A provider switch keeps the release; wiki settings name what they set; a kind the installer records wins.
+        for after, entry, kind in (({'upscaler': {'name': 'hlx-dlss'}}, dict(to=OLD), 'provider'),
+                                   ({'wiki_settings': {'settings': {'Hotfix.ColorResourceBarrier': '4'}}}, dict(to=OLD), 'settings'),
+                                   ({}, dict(to=OLD), 'change'), ({}, dict(kind='ini'), 'settings'), ({}, dict(kind='provider'), 'provider')):
+            path.write_text(json.dumps(dict(saved, metadata_before=dict(saved['metadata_before'], upscaler={'name': 'fsr4'}),
+                                            metadata_after=after)))
+            # Entries of earlier builds record no kind: Setup works it out from the generation (this installer's own
+            # kind is dropped here, so the derivation is what is tested).
+            plain = {k: v for k, v in record['generations'][-1].items() if k != 'kind'}
+            self.state_file().write_text(json.dumps(dict(record, generations=[dict(plain, **entry)])))
+            change = self.change()
+            self.assertEqual(change['kind'], kind, after)
+        self.assertEqual(change['upscaler'], 'FSR 4')
+
+    def state_file(self):
+        return self.exe.parent / m.STATE / 'state.json'
 
 
 class ReviewRegressions(UpdateFixture):

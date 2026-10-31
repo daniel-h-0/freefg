@@ -116,6 +116,8 @@ FORK_GROUP = 'optiscaler-fork'
 # The OptiScaler fork group in the public lock: this description, and its source record without these maintainers'
 # notes (evidence files that are not exported, the work checkout, the build the private testers shipped before).
 PUBLIC_FORK = {
+    # the group under "fetch" (the fork's release, fetched by pinned hash) keeps its own description, which names no
+    # private note; these apply to the group while it is under "work"
     'description': 'OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll: OptiScaler master of 19 October '
                    '2026 (c2e44a8b) with three commits. Its source is the commit below with the submodules that commit '
                    'pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which '
@@ -443,10 +445,13 @@ def public_lock(lock):
     profile['files'] = {name: entry for name, entry in files.items() if entry['origin'] == 'own'}
     profile.update(PUBLIC_PROFILE)
     report = dict(dropped_groups=dropped, dropped_profile_files=len(files) - len(profile['files']))
-    fork = work.get(FORK_GROUP)
+    fork, fetched = work.get(FORK_GROUP), False
+    if fork is None and FORK_GROUP in out.get('fetch', {}):
+        fork, fetched = out['fetch'][FORK_GROUP], True
     if fork is not None:
-        fork['description'] = PUBLIC_FORK['description']
-        fork['path'] = PUBLIC_FORK['path']
+        if not fetched:
+            fork['description'] = PUBLIC_FORK['description']
+            fork['path'] = PUBLIC_FORK['path']
         source = fork.get('source', {})
         if 'source_in_work' in source:
             source['source_in_work'] = PUBLIC_FORK['source_in_work']

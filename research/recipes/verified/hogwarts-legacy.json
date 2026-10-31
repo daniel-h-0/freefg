@@ -1,0 +1,28 @@
+{
+ "title": "Hogwarts Legacy",
+ "match": {
+  "exe": [
+   "hogwartslegacy.exe"
+  ],
+  "epic": [
+   "fa4240e57a3c46b39f169041b7811293"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "dlssg",
+ "ini": {
+  "Inputs.EnableDlssInputs": "true",
+  "Spoofing.Dxgi": "false",
+  "Hotfix.DisableOverlays": "true"
+ },
+ "game_settings": [],
+ "launch_args": [],
+ "note": "The game can reset DLSS FG to Off on startup. One gameplay run generated 2×, but setting persistence is unresolved. Check the menu after restarting; installation integrity alone does not confirm FG.",
+ "evidence": "gameplay",
+ "observed": "2× in opening gameplay with DLSS Quality and DLSS FG; repeat-launch persistence unresolved, October 29, 2026",
+ "pending_verification": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
+ "manual_steps": [
+  "Select DLSS Quality and DLSS Frame Generation in the game, then verify both after restarting. The tested game rewrote FG to Off; do not assume the saved setting took effect."
+ ]
+}

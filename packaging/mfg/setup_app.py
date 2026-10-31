@@ -10,7 +10,9 @@ anything that is hard to undo.
 """
 import concurrent.futures
 import os
+import queue
 import re
+import shlex
 import subprocess
 import threading
 import traceback
@@ -52,6 +54,18 @@ CSS = '''
 .step-number { font-weight: 800; min-width: 22px; opacity: 0.6; }
 .path { font-family: monospace; font-size: 0.86em; }
 .dim { opacity: 0.6; }
+row.mono-row .title, row.mono-row .subtitle, row.mono-value .subtitle { font-family: monospace; }
+.mono-text { font-family: monospace; font-size: 0.9em; padding: 8px 10px; }
+'''
+# In the light style the badges' text is darker than libadwaita's standalone colours, which are tuned against the
+# window's background, not against a badge's tint: small text needs a contrast of 4.5:1 (WCAG AA). The dark style's
+# light text on a dark tint already has it. Added only while the light style is in use (Application.style_changed).
+LIGHT_CSS = '''
+.badge.accent { color: mix(@accent_color, black, 0.3); }
+.badge.success { color: mix(@success_color, black, 0.3); }
+.badge.warning { color: mix(@warning_color, black, 0.3); }
+.badge.error { color: mix(@error_color, black, 0.3); }
+.badge.dim { color: alpha(currentColor, 0.85); }
 '''
 
 STATE_ICONS = {'recovery': ('dialog-error-symbolic', 'error'), 'attention': ('dialog-warning-symbolic', 'warning'),
@@ -142,6 +156,8 @@ def button(text, callback, *styles, icon_name=None, tooltip=None):
     widget = Gtk.Button(valign=Gtk.Align.CENTER)
     if icon_name and not text:
         widget.set_icon_name(icon_name)
+        # Only an icon: screen readers name the button by what its tooltip says.
+        widget.update_property([Gtk.AccessibleProperty.LABEL], [tooltip or icon_name])
     elif icon_name:
         widget.set_child(Adw.ButtonContent(icon_name=icon_name, label=text, use_underline=True))
     else:
@@ -230,28 +246,181 @@ def copy_text(widget, text):
     widget.get_clipboard().set(text)
 
 
+def menu_button(icon_name, menu, tooltip, primary=False):
+    widget = Gtk.MenuButton(icon_name=icon_name, menu_model=menu, primary=primary, tooltip_text=tooltip)
+    widget.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+    return widget
+
+
+def copy_button(window, text, what):
+    """An icon button that copies text to the clipboard and says so (what: 'Launch options', ...)."""
+    return button('', lambda: (copy_text(window, text), window.toast(what + ' copied')), 'flat',
+                  icon_name='edit-copy-symbolic', tooltip='Copy ' + what[:1].lower() + what[1:])
+
+
+# ------------------------------------------------------------------------------------------------- manual launch settings
+# A manual event's action (or keep: the game's page) as the heading and the sentence above the settings.
+LAUNCH_HEADINGS = {
+    'set': ('Launch settings to add', 'No launcher entry starts this game, so Setup changed none. Add these in the launcher '
+                                      'you start it from (Faugus, Bottles, Lutris, a script…): as one line, or as names '
+                                      'and values.'),
+    'replace': ('Launch line changed', 'Replace the launch settings you added for this game with these.'),
+    'remove': ('Launch settings to remove', 'Setup did not write them, so it cannot remove them: delete these from the '
+                                            'launcher you start the game from.'),
+    'keep': ('Launch settings', 'Keep these in the launcher you start the game from (Faugus, Bottles, Lutris, a script…). '
+                                'Setup does not edit that launcher.')}
+# The step Setup lists for them, pointing at the settings it shows above its steps (the installer's own step points at
+# its output).
+LAUNCH_STEPS = {'set': 'Add the launch settings above to the launcher you start the game from, then start the game there.',
+                'replace': 'Replace the launch settings in your launcher with those above.',
+                'remove': 'Delete the launch settings above from your launcher.'}
+
+
+def launch_groups(window, settings, action='keep', title=None):
+    """Launch settings (a manual_launch record's) for a launcher Setup does not edit, ready to copy: one line in Steam's
+    form, the names and values for a launcher's table, the game's arguments, what to delete where present, and the
+    installer's own text (launcher_config's helpers). action: set, replace or remove (a manual event's), or keep."""
+    heading, description = LAUNCH_HEADINGS[action]
+    main = group(heading + (' · ' + title if title else ''), description)
+    forms = model.launch_forms(settings)
+    if forms is None:
+        main.add(action_row('Setup cannot show these settings', 'Installation Details prints them.', 'dialog-warning-symbolic',
+                            'warning'))
+        return [main]
+    line = plain(Adw.ActionRow(), 'Launch options (%command% stands for the game)', forms['line'])
+    line.add_css_class('mono-value')
+    line.set_subtitle_selectable(True)
+    line.add_suffix(copy_button(window, forms['line'], 'Launch options'))
+    main.add(line)
+    table = plain(Adw.ExpanderRow(), 'Environment variables',
+                  f'{len(forms["table"])} names and values, for a launcher’s table of variables')
+    # Copied all at once they are shell assignments, one per line: what a script or Faugus's launch arguments read.
+    table.add_suffix(copy_button(window, '\n'.join(k + '=' + shlex.quote(v) for k, v in forms['table']), 'Variables'))
+    for name, value in forms['table']:
+        row = plain(Adw.ActionRow(), name, value or '(empty)')
+        row.add_css_class('mono-row')
+        row.set_title_selectable(True)
+        row.set_subtitle_selectable(True)
+        row.add_suffix(copy_button(window, value, 'Value of ' + name))
+        table.add_row(row)
+    table.set_expanded(action in ('set', 'replace'))
+    main.add(table)
+    if forms['args']:
+        args = shlex.join(forms['args'])
+        row = plain(Adw.ActionRow(), 'Game arguments (after the .exe)', args)
+        row.add_css_class('mono-value')
+        row.set_subtitle_selectable(True)
+        row.add_suffix(copy_button(window, args, 'Game arguments'))
+        main.add(row)
+    if forms['remove']:
+        row = action_row('Delete these where present', ', '.join(forms['remove']), 'dialog-warning-symbolic', 'warning')
+        row.add_css_class('mono-value')
+        main.add(row)
+    if forms['merge']:
+        main.add(action_row('Some values join your own', 'Where your launcher already sets one of these variables, combine '
+                            'them as the installer’s text below says.', 'dialog-information-symbolic', 'dim'))
+    for note in settings.get('notes') or []:  # such as a game folder path too long for vkd3d-proton's own shader cache
+        main.add(action_row('Note', str(note), 'dialog-information-symbolic', 'dim'))
+    text = '\n'.join(forms['text'])
+    printed = plain(Adw.ExpanderRow(), 'As the installer prints it')
+    printed.add_suffix(copy_button(window, text, 'Installer text'))
+    printed.add_row(text_label(text, ['mono-text'], wrap=True, selectable=True))
+    main.add(printed)
+    return [main]
+
+
+def launch_text(window, settings):
+    """The launch settings as the installer prints them, selectable and with a Copy button, for a confirmation."""
+    forms = model.launch_forms(settings)
+    text = '\n'.join(forms['text']) if forms else '\n'.join(k + '=' + v for k, v in settings['env'].items())
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    box.append(text_label(text, ['mono-text', 'card'], wrap=True, selectable=True))
+    copy = button('_Copy', lambda: (copy_text(window, text), window.toast('Launch settings copied')), 'flat',
+                  icon_name='edit-copy-symbolic')
+    copy.set_halign(Gtk.Align.END)
+    box.append(copy)
+    return box
+
+
 # ------------------------------------------------------------------------------------------------- work off the window
 class Reader:
     """Runs the model's reads off the window's thread, one at a time (the installer's module is not written for
     threads), and hands each result back on the window's thread. probe runs the system check, a process of its own,
-    beside them."""
+    beside them. Nothing here keeps Setup running once its window is closed: the threads are daemons, close() ends the
+    processes reads started through run(), and a read still running ends with Setup (reads change nothing)."""
 
     def __init__(self):
         self.closed = False
-        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='setup-read')
-        self.probes = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='setup-probe')
+        self.lock = threading.Lock()
+        self.processes = set()
+        self.queues = {False: queue.SimpleQueue(), True: queue.SimpleQueue()}
+        self.threads = [threading.Thread(target=self._work, args=(self.queues[probe],), daemon=True,
+                                         name='setup-probe' if probe else 'setup-read') for probe in (False, True)]
+        for thread in self.threads:
+            thread.start()
 
     def call(self, function, *args, done=None, failed=None, probe=False):
         if self.closed:
             return None
-        future = (self.probes if probe else self.pool).submit(function, *args)
+        future = concurrent.futures.Future()
         future.add_done_callback(lambda f: GLib.idle_add(self._deliver, f, done, failed))
+        self.queues[probe].put((future, function, args))
         return future
 
+    def run(self, args, timeout=None, capture_output=False, **options):
+        """subprocess.run for a read's own process (the system check, the numpy check), which close() ends."""
+        if capture_output:
+            options.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        with self.lock:
+            if self.closed:
+                raise OSError('Setup is closing')
+            process = subprocess.Popen(args, **options)
+            self.processes.add(process)
+        try:
+            out, err = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise
+        finally:
+            with self.lock:
+                self.processes.discard(process)
+        return subprocess.CompletedProcess(args, process.returncode, out, err)
+
     def close(self, wait=False):
-        self.closed = True
-        self.pool.shutdown(wait=wait, cancel_futures=True)
-        self.probes.shutdown(wait=wait, cancel_futures=True)
+        """No more deliveries; reads not started are cancelled, processes started by run() end. wait: until the reads
+        running now have returned (tests remove the files they read)."""
+        with self.lock:
+            self.closed = True
+            processes = list(self.processes)
+        for process in processes:
+            try:
+                process.kill()
+            except OSError:
+                pass
+        for jobs in self.queues.values():
+            jobs.put(None)
+        if wait:
+            for thread in self.threads:
+                thread.join()
+
+    def _work(self, jobs):
+        while True:
+            job = jobs.get()
+            if job is None:
+                return
+            future, function, args = job
+            if self.closed:
+                future.cancel()
+                continue
+            if not future.set_running_or_notify_cancel():
+                continue
+            try:
+                result = function(*args)
+            except BaseException as error:  # noqa: BLE001 - handed to the window as the read's failure
+                future.set_exception(error)
+            else:
+                future.set_result(result)
 
     def _deliver(self, future, done, failed):
         if self.closed:
@@ -279,24 +448,37 @@ class Step:
 
 @dataclass
 class Result:
+    """One command's end: its exit status (None: not started), its ordinary output [(stream, line)], its events
+    (install.py --events) and what Setup reads from them (model.command_outcome)."""
     step: Step
     returncode: int = None
     lines: list = field(default_factory=list)
+    events: list = field(default_factory=list)
+    outcome: dict = None
 
     @property
     def ok(self):
         return self.returncode == 0
 
+    @property
+    def refused(self):
+        """The installer refused before changing anything (a running game, a held lock, a refusal): not a failure."""
+        return self.returncode == model.REFUSED
+
 
 class Operation:
     """install.py commands one after another, each in its own process, their output handed to the window as it comes.
-    stop() lets the command running finish and skips the rest: the installer's transactions are never cut short."""
+    stop() lets the command running finish and skips the rest: the installer's transactions are never cut short.
+    Callbacks run on the window's thread in the order things happened; output lines arrive in batches (on_lines), so a
+    command that prints thousands of lines never floods the window with a callback each."""
 
-    def __init__(self, ctx, steps, on_line=None, on_step=None, on_done=None):
+    def __init__(self, ctx, steps, on_lines=None, on_step=None, on_done=None):
         self.ctx, self.steps = ctx, steps
-        self.on_line, self.on_step, self.on_done = on_line, on_step, on_done
+        self.on_lines, self.on_step, self.on_done = on_lines, on_step, on_done
         self.stopping = False
         self.running = False
+        self.lock = threading.Lock()
+        self.pending, self.scheduled = [], False
 
     def start(self):
         self.running = True
@@ -305,9 +487,31 @@ class Operation:
     def stop(self):
         self.stopping = True
 
-    def _post(self, callback, *args):
-        if callback is not None:
-            GLib.idle_add(lambda: (callback(*args), GLib.SOURCE_REMOVE)[1])
+    def _post(self, kind, *args):
+        """Queue a callback for the window's thread: one idle callback delivers everything queued since the last."""
+        with self.lock:
+            self.pending.append((kind, args))
+            if self.scheduled:
+                return
+            self.scheduled = True
+        GLib.idle_add(self._flush)
+
+    def _flush(self):
+        with self.lock:
+            pending, self.pending, self.scheduled = self.pending, [], False
+        batch = []
+        for kind, args in [*pending, (None, ())]:
+            if kind == 'line' and (not batch or batch[0][0] == args[0]):
+                batch.append(args)
+                continue
+            if batch and self.on_lines is not None:
+                self.on_lines(batch[0][0], [(stream, line) for _, stream, line in batch])
+            batch = [args] if kind == 'line' else []
+            if kind == 'step' and self.on_step is not None:
+                self.on_step(*args)
+            elif kind == 'done' and self.on_done is not None:
+                self.on_done(*args)
+        return GLib.SOURCE_REMOVE
 
     def _run(self):
         results = []
@@ -317,21 +521,28 @@ class Operation:
             results.append(result)
             if self.stopping:
                 continue
-            self._post(self.on_step, index, step)
+            self._post('step', index, step)
             try:
                 process = subprocess.Popen(self.ctx.command(step.args), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace',
                                            env=environment)
             except OSError as error:
                 result.returncode, result.lines = 1, [('err', 'Setup could not start the installer: ' + str(error))]
-                self._post(self.on_line, index, 'err', result.lines[0][1])
+                self._post('line', index, 'err', result.lines[0][1])
+                result.outcome = model.outcome(result.lines)
                 continue
 
             def pump(stream, name):
                 for line in stream:
                     line = line.rstrip('\n')
+                    if name == 'out' and line.startswith(model.EVENT_PREFIX):
+                        # The installer's event lines are for Setup to read, never shown among its output.
+                        found = model.parse_event(line)
+                        if found is not None:
+                            result.events.append(found)
+                        continue
                     result.lines.append((name, line))
-                    self._post(self.on_line, index, name, line)
+                    self._post('line', index, name, line)
             with process:  # closes its pipes once both are read
                 readers = [threading.Thread(target=pump, args=(process.stdout, 'out'), daemon=True),
                            threading.Thread(target=pump, args=(process.stderr, 'err'), daemon=True)]
@@ -340,8 +551,13 @@ class Operation:
                 for reader in readers:
                     reader.join()
                 result.returncode = process.wait()
+            try:
+                result.outcome = model.command_outcome(self.ctx, step.args if step.game is not None else [],
+                                                       result.lines, result.events)
+            except Exception:  # noqa: BLE001 - the record read for launch settings is optional; the output is not
+                result.outcome = model.outcome(result.lines, result.events)
         self.running = False
-        self._post(self.on_done, results)
+        self._post('done', results)
 
 
 # ------------------------------------------------------------------------------------------------- the operation dialog
@@ -396,7 +612,7 @@ class OperationDialog(Adw.Dialog):
         view.add_bottom_bar(bottom)
         self.set_child(view)
         self.pulse = GLib.timeout_add(120, self._pulse)
-        self.operation = Operation(window.ctx, steps, self._line, self._step, self._done)
+        self.operation = Operation(window.ctx, steps, self._lines, self._step, self._done)
         window.busy(True)
 
     def start(self):
@@ -414,10 +630,11 @@ class OperationDialog(Adw.Dialog):
             self.progress.set_text(f'{index + 1} of {len(self.steps)}: {step.title}')
         append_text(self.log, ('\n' if index else '') + '— ' + step.title + ' —\n')
 
-    def _line(self, index, stream, line):
-        append_text(self.log, line + '\n')
-        if line.strip():
-            self.detail_label.set_text(line.strip())
+    def _lines(self, index, lines):
+        append_text(self.log, ''.join(line + '\n' for _, line in lines))
+        last = next((line.strip() for _, line in reversed(lines) if line.strip()), None)
+        if last:
+            self.detail_label.set_text(last)
 
     def stop(self):
         self.operation.stop()
@@ -440,21 +657,25 @@ class OperationDialog(Adw.Dialog):
         self.done_button.grab_focus()
         self.progress.set_visible(False)
         ran = [r for r in results if r.returncode is not None]
-        failed = [r for r in ran if not r.ok]
-        skipped = [r for r in results if r.returncode is None]
-        if not failed and not skipped:
+        done = [r for r in ran if r.ok]
+        failed = [r for r in ran if not r.ok and not r.refused]
+        refused = [r for r in ran if r.refused]
+        if len(done) == len(results):
             level, title = 'success', self.success
-        elif len(failed) == len(results):
+        elif failed and not done:
             level, title = 'error', ('That did not complete' if len(results) == 1 else 'None of these completed')
+        elif not done:
+            # Refused (a running game, a refusal) or stopped before it began: nothing changed, which is no failure.
+            level, title = 'warning', 'Nothing was changed'
         else:
-            level, title = 'warning', f'{len(ran) - len(failed)} of {len(results)} completed'
+            level, title = 'warning', f'{len(done)} of {len(results)} completed'
         image = self.status_icon.get_child_by_name('done')
         image.set_from_icon_name(LEVEL_ICONS[level])
         tint(image, level)
         self.status_icon.set_visible_child_name('done')
         self.title_label.set_text(title)
-        if failed and len(results) == 1:
-            self.detail_label.set_text(model.failure_reason(failed[0].lines))
+        if (failed or refused) and len(results) == 1:
+            self.detail_label.set_text(model.failure_reason((failed or refused)[0].lines))
             self.detail_label.set_ellipsize(Pango.EllipsizeMode.NONE)
             self.detail_label.set_wrap(True)
             self.detail_label.remove_css_class('dim-label')
@@ -468,11 +689,14 @@ class OperationDialog(Adw.Dialog):
                     row = action_row(result.step.title, 'Not started (stopped)', 'action-unavailable-symbolic', 'dim')
                 elif result.ok:
                     row = action_row(result.step.title, self.done_line(result), 'object-select-symbolic', 'success')
-                else:
+                elif result.refused:
                     row = action_row(result.step.title, model.failure_reason(result.lines), 'dialog-warning-symbolic', 'warning')
+                else:
+                    row = action_row(result.step.title, model.failure_reason(result.lines), 'dialog-error-symbolic', 'error')
                 listing.append(row)
             self.outcome.append(listing)
-        changes = model.summary_lines(ran[0].lines)[:8] if len(results) == 1 and ran and not failed else []
+        outcomes = {id(r): r.outcome or model.outcome(r.lines, r.events) for r in ran}
+        changes = outcomes[id(done[0])]['changed'][:8] if len(results) == 1 and done else []
         if changes:
             self.outcome.append(text_label('What changed', ['heading']))
             listing = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
@@ -480,9 +704,18 @@ class OperationDialog(Adw.Dialog):
             for line in changes:
                 listing.append(plain(Adw.ActionRow(), line))
             self.outcome.append(listing)
+        # Launch settings for a launcher Setup does not edit, ready to copy; Setup's own step points at them in place of
+        # the installer's, which points at its output.
+        manual = [(r, action, settings) for r in done for action, settings in outcomes[id(r)]['manual']]
+        for result, action, settings in manual:
+            for widget in launch_groups(self.window, settings, action, result.step.title if len(results) > 1 else None):
+                self.outcome.append(widget)
         steps = []
         if not failed:
-            steps = list(dict.fromkeys([*self.extra_steps, *[s for r in ran for s in model.next_steps(r.lines)]]))
+            shown = {id(r) for r, _, _ in manual}
+            steps = list(dict.fromkeys([*[LAUNCH_STEPS[action] for _, action, _ in manual], *self.extra_steps,
+                                        *[s for r in done for s in outcomes[id(r)]['steps']
+                                          if not (id(r) in shown and s.startswith(model.STEP_PREFIX['launcher']))]]))
         if steps:
             self.outcome.append(text_label('Your next steps', ['heading']))
             listing = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
@@ -498,6 +731,10 @@ class OperationDialog(Adw.Dialog):
 
     @staticmethod
     def done_line(result):
+        # An update that found nothing to do (another Setup or the command line got there first) says so.
+        found = (result.outcome or {}).get('result')
+        if found in ('current', 'pinned'):
+            return {'current': 'Already up to date', 'pinned': 'Pinned: left as it is'}[found]
         for _, line in reversed(result.lines):
             found = re.match(r'Updated to (\S+)\.(?:\s|$)', line.strip())
             if found:
@@ -530,11 +767,11 @@ class TextDialog(Adw.Dialog):
         view.set_content(box)
         self.set_child(view)
         self.lines = []
-        Operation(window.ctx, [Step(title, args)], on_line=self._line, on_done=self._done).start()
+        Operation(window.ctx, [Step(title, args)], on_lines=self._lines, on_done=self._done).start()
 
-    def _line(self, index, stream, line):
-        self.lines.append(line)
-        append_text(self.view, line + '\n')
+    def _lines(self, index, lines):
+        self.lines += [line for _, line in lines]
+        append_text(self.view, ''.join(line + '\n' for _, line in lines))
 
     def _done(self, results):
         self.copy_button.set_sensitive(True)
@@ -542,6 +779,24 @@ class TextDialog(Adw.Dialog):
     def copy(self):
         copy_text(self, '\n'.join(self.lines).strip() + '\n')
         self.window.toast('Copied')
+
+
+# ------------------------------------------------------------------------------------------------- launch settings
+class LaunchDialog(Adw.Dialog):
+    """The launch settings of an installation without a launcher entry, ready to copy into the launcher the player starts
+    the game from (the game's page: Show…)."""
+
+    def __init__(self, window, game, settings):
+        super().__init__(title='Launch Settings', content_width=700, content_height=620)
+        view = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        header.set_title_widget(Adw.WindowTitle(title='Launch Settings', subtitle=game.title))
+        view.add_top_bar(header)
+        page = Adw.PreferencesPage()
+        for widget in launch_groups(window, settings, 'keep'):
+            page.add(widget)
+        view.set_content(page)
+        self.set_child(view)
 
 
 # ------------------------------------------------------------------------------------------------- install
@@ -567,7 +822,8 @@ class InstallDialog(Adw.Dialog):
         header.pack_end(self.install_button)
         header.set_title_widget(Adw.WindowTitle(title='Install ' + self.ctx.name, subtitle=game.title))
         view.add_top_bar(header)
-        self.banner = Adw.Banner(button_label='_Check Again', revealed=False)
+        # Plain text: the installer's messages and game names are not markup.
+        self.banner = Adw.Banner(button_label='_Check Again', revealed=False, use_markup=False)
         self.banner.connect('button-clicked', lambda *_: self.install())
         view.add_top_bar(self.banner)
         page = Adw.PreferencesPage()
@@ -578,6 +834,17 @@ class InstallDialog(Adw.Dialog):
         self.soft_group.set_visible(False)
         self.soft_rows = []
         page.add(self.soft_group)
+        # A game no launcher entry starts (the no-launcher refusal): what accepting it means, before the player does.
+        self.manual_group = group('Without a launcher entry', 'No Steam, Heroic or Lutris entry starts this game. Accepted '
+                                                              'under “Needs your OK”, Install changes no launcher entry:')
+        self.manual_group.add(action_row('You add the launch settings', 'After installing, Setup shows them ready to copy: '
+                                         'one line, or names and values for a launcher’s table (Faugus, Bottles, Lutris, a '
+                                         'script…). The game’s page shows them again.', 'edit-copy-symbolic', 'dim'))
+        self.manual_group.add(action_row('You keep them up to date', 'Setup neither edits nor checks that launcher. When an '
+                                         'update changes the settings, Setup shows the new ones; Restore shows what to delete.',
+                                         'dialog-information-symbolic', 'dim'))
+        self.manual_group.set_visible(False)
+        page.add(self.manual_group)
         self.risk_group = group('Anti-cheat')
         self.risk_group.set_visible(bool(risk_sentence))
         if risk_sentence:
@@ -604,14 +871,15 @@ class InstallDialog(Adw.Dialog):
         self.steps_rows = []
         page.add(self.steps_group)
         changes = group('What Setup changes')
-        about = plain(Adw.ExpanderRow(), 'Files, launch settings and downloads',
-                      'Every replaced file is backed up; Restore returns them.')
-        about.add_row(plain(Adw.ActionRow(), 'The first installation downloads checked upstream files: AMD FSR 4 and '
-                            'Intel’s XeFG runtime. A fresh OptiScaler setup also fetches OptiScaler and OptiPatcher, and '
-                            'NVIDIA’s DLSS helper only for a DLSS input where OptiScaler finds no copy of the game’s own.'))
-        about.add_row(plain(Adw.ActionRow(), 'Setup configures the game’s launch settings in Steam, Heroic or Lutris and '
-                            'keeps your own launch options. Close the game and its launcher before installing.'))
-        changes.add(about)
+        self.changes_row = plain(Adw.ExpanderRow(), 'Files, launch settings and downloads',
+                                 'Every replaced file is backed up; Restore returns them.')
+        self.changes_row.add_row(plain(Adw.ActionRow(), 'The first installation downloads checked upstream files: AMD FSR 4 '
+                                       'and Intel’s XeFG runtime. A fresh OptiScaler setup also fetches OptiScaler and '
+                                       'OptiPatcher, and NVIDIA’s DLSS helper only for a DLSS input where OptiScaler finds '
+                                       'no copy of the game’s own.'))
+        self.launcher_change = plain(Adw.ActionRow(), '')
+        self.changes_row.add_row(self.launcher_change)
+        changes.add(self.changes_row)
         page.add(changes)
         self.hint = bar_text(classes=['dim-label'])
         hint_box = Gtk.Box(margin_top=8, margin_bottom=10, margin_start=16, margin_end=16)
@@ -642,8 +910,10 @@ class InstallDialog(Adw.Dialog):
         generation = self.generation
         self.update_state()
         risk = ['anticheat'] if self.risk_sentence else []
+        # A check that fails is no verdict: Install still checks the game itself, as the command line does.
         self.window.reader.call(model.check_game, self.ctx, self.game.exe, self.input_id, risk,
-                                done=lambda verdict: self.checked(generation, verdict))
+                                done=lambda verdict: self.checked(generation, verdict),
+                                failed=lambda error: self.checked(generation, None))
 
     def checked(self, generation, verdict):
         if generation != self.generation:
@@ -674,6 +944,7 @@ class InstallDialog(Adw.Dialog):
             self.soft_group.add(row)
             self.soft_rows.append(row)
         self.soft_group.set_visible(bool(self.soft_rows))
+        self.manual_group.set_visible(any(r['code'] == 'no-launcher' for r in model.refusals(verdict, 'soft')))
         for row in self.steps_rows:
             self.steps_group.remove(row)
         self.steps_rows = numbered((verdict or {}).get('manual_steps') or [])
@@ -744,10 +1015,26 @@ class InstallDialog(Adw.Dialog):
             return provider.label + ' is not prepared on this computer yet: choose Prepare… or another upscaler.'
         return None
 
+    @property
+    def manual(self):
+        """The no-launcher refusal accepted: Install changes no launcher entry, the player adds the launch settings."""
+        return self.accepted.get('no-launcher', False) and \
+            any(r['code'] == 'no-launcher' for r in model.refusals(self.verdict, 'soft'))
+
     def update_state(self):
-        reason = self.blocked()
+        reason, manual = self.blocked(), self.manual
         self.install_button.set_sensitive(reason is None and not self.install_pending)
-        self.hint.set_text(reason or ('Setup checks again that the game and its launcher are closed, then installs.'))
+        self.hint.set_text(reason or ('Setup checks again that the game is closed, then installs.' if manual else
+                                      'Setup checks again that the game and its launcher are closed, then installs.'))
+        self.changes_row.set_title('Files and downloads' if manual else 'Files, launch settings and downloads')
+        self.launcher_change.set_title('No launcher entry is changed: after installing, add the launch settings Setup '
+                                       'shows to the launcher you start the game from. Close the game before installing.'
+                                       if manual else
+                                       'Setup configures the game’s launch settings in Steam, Heroic or Lutris and keeps '
+                                       'your own launch options. Close the game and its launcher before installing.')
+        self.steps_group.set_description(esc('Add the launch settings Setup shows after installing, then start the game. '
+                                             'In the game:' if manual else
+                                             'Reopen your launcher and play normally. In the game:'))
 
     def choice(self):
         accept = [r['code'] for r in model.refusals(self.verdict, 'soft') if self.accepted.get(r['code'])]
@@ -759,7 +1046,9 @@ class InstallDialog(Adw.Dialog):
         self.install_pending = True
         generation, choice = self.generation, self.choice()
         self.install_button.set_sensitive(False)
-        self.window.reader.call(self.ctx.blockers, self.ctx.installer, [self.game.exe], True, done=lambda names: self.closed_check(names, generation, choice),
+        # Launchers matter only where Setup writes into them: none for a game without a launcher entry.
+        self.window.reader.call(self.ctx.blockers, self.ctx.installer, [self.game.exe], not self.manual,
+                                done=lambda names: self.closed_check(names, generation, choice),
                                 failed=lambda error: self.check_failed(error))
 
     def check_failed(self, error):
@@ -782,8 +1071,8 @@ class InstallDialog(Adw.Dialog):
             self.banner.set_revealed(True)
             return
         if names:
-            self.banner.set_title('Close ' + model.joined(names) + ' first. A running launcher can overwrite the launch '
-                                  'settings Setup writes.')
+            self.banner.set_title('Close ' + model.joined(names) + ' first.' + ('' if self.manual else ' A running launcher '
+                                  'can overwrite the launch settings Setup writes.'))
             self.banner.set_revealed(True)
             return
         self.banner.set_revealed(False)
@@ -865,8 +1154,10 @@ class UpscalerDialog(Adw.Dialog):
             return
         self.provider_generation += 1
         generation = self.provider_generation
+        # Without the game's own checked copies (its record unreadable or gone), the shared preparation is what counts.
         self.window.reader.call(model.game_providers, self.window.ctx, self.game, providers,
-                                done=lambda found: self.local_providers(generation, found))
+                                done=lambda found: self.local_providers(generation, found),
+                                failed=lambda error: self.local_providers(generation, list(providers)))
 
     def local_providers(self, generation, providers):
         if generation != self.provider_generation:
@@ -889,7 +1180,7 @@ class UpscalerDialog(Adw.Dialog):
             return
         game, window = self.game, self.window
         self.close()
-        window.when_closed([game], False, lambda: window.run(
+        window.request([game], False, lambda: window.run(
             'Switching Upscaler', [Step(game.title, ['configure', str(game.exe), '--upscaler', provider.id], game)],
             working=f'Switching {game.title} to {provider.label}', success=f'{game.title} now uses {provider.label}'))
 
@@ -953,7 +1244,21 @@ class UpdateDialog(Adw.Dialog):
 
         def work():
             return [model.plan_game(ctx, game, component, refresh) for game in games]
-        self.window.reader.call(work, done=lambda items: self.show(generation, items))
+        self.window.reader.call(work, done=lambda items: self.show(generation, items),
+                                failed=lambda error: self.failed(generation, error))
+
+    def failed(self, generation, error):
+        if generation != self.generation:
+            return
+        self.items = []
+        if self.page is not None:
+            self.stack.remove(self.page)
+        self.page = Adw.StatusPage(title='The plan could not be read', description=esc(str(error)),
+                                   icon_name='dialog-warning-symbolic')
+        self.page.set_child(button('_Try Again', self.plan, 'pill'))
+        self.stack.add_named(self.page, 'review')
+        self.stack.set_visible_child_name('review')
+        self.update_button.set_label('Nothing to Update')
 
     def show(self, generation, items):
         if generation != self.generation:
@@ -999,8 +1304,9 @@ class UpdateDialog(Adw.Dialog):
 
     def update(self):
         games = {game.key: game for game in self.games}
-        steps = [Step(item.title, model.update_args(item.exe, self.component, self.refresh), games.get(str(item.exe)))
-                 for item in self.items if item.status == 'update']
+        # Each update runs the plan shown here: the installer refuses one that changed since (where it checks).
+        steps = [Step(item.title, model.update_args(item.exe, self.component, self.refresh, item.digest),
+                      games.get(str(item.exe))) for item in self.items if item.status == 'update']
         if not steps:
             return
         window, many = self.window, len(steps) > 1
@@ -1023,6 +1329,7 @@ class WikiSettingsDialog(Adw.Dialog):
         self.plan = None
         self.choices = {}
         self.confirmations = {}
+        self.rivals = {}
         self.generation = 0
         self.closed = False
         self.connect('closed', lambda *_: setattr(self, 'closed', True))
@@ -1102,9 +1409,14 @@ class WikiSettingsDialog(Adw.Dialog):
             if row.get('current') is not None and str(row['current']) == str(row['value']):
                 return 3
             return list(names).index(row['action'])
+
+        def settled(row):
+            return row['action'] in names and row.get('current') is not None and str(row['current']) == str(row['value'])
+        # One value per setting: of the entries that set a key to different values, one can be selected at a time.
+        self.rivals = model.wiki_rivals([row for row in rows if row['action'] in names and not settled(row)])
         for row in sorted(rows, key=order):
             action = row['action']
-            already_set = action in names and row.get('current') is not None and str(row['current']) == str(row['value'])
+            already_set = settled(row)
             selectable = action in names and not already_set
             title = 'Already set' if already_set else names.get(action, 'Not offered for this installation')
             if title not in sections:
@@ -1113,14 +1425,15 @@ class WikiSettingsDialog(Adw.Dialog):
             current = str(row.get('current') if row.get('current') is not None else 'not set')
             reason = re.sub(r'^[A-Z][0-9]+:\s*', '', str(row.get('reason') or ''))
             reason = re.sub(r' \([A-Z][0-9]+\)', '', reason)
+            if self.rivals.get(row['id']):
+                reason += ' Another entry suggests a different value for this setting: selecting one clears the other.'
             line = plain(Adw.ExpanderRow(), row['key'] + ' = ' + str(row['value']),
                          'Current: ' + current + '. ' + ('No change is needed.' if already_set else reason))
             if selectable:
                 check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
                 check.update_property([Gtk.AccessibleProperty.LABEL], [row['key'] + ' = ' + str(row['value'])])
                 self.choices[row['id']] = check
-                check.connect('toggled', lambda widget, line=line: (line.set_expanded(True) if widget.get_active() else None,
-                                                                   self.update_state()))
+                check.connect('toggled', lambda widget, line=line, token=row['id']: self.toggled(widget, line, token))
                 line.add_prefix(check)
             else:
                 line.add_prefix(icon('dialog-information-symbolic', 'dim'))
@@ -1143,7 +1456,7 @@ class WikiSettingsDialog(Adw.Dialog):
                     line.add_row(source_row)
             when = row.get('when') or {}
             if when:
-                line.add_row(action_row('Applies when', '\n'.join(str(k) + ': ' + str(v) for k, v in when.items())))
+                line.add_row(action_row('Applies when', '\n'.join(model.condition_lines(when))))
             confirmations = row.get('confirmations') or []
             if selectable and confirmations:
                 confirm = Gtk.CheckButton(valign=Gtk.Align.CENTER)
@@ -1160,6 +1473,14 @@ class WikiSettingsDialog(Adw.Dialog):
 
     def selected(self):
         return [token for token, check in self.choices.items() if check.get_active()]
+
+    def toggled(self, check, line, token):
+        if check.get_active():
+            line.set_expanded(True)
+            for other in self.rivals.get(token, []):
+                if other in self.choices and self.choices[other].get_active():
+                    self.choices[other].set_active(False)
+        self.update_state()
 
     def update_state(self):
         selected = self.selected()
@@ -1178,7 +1499,7 @@ class WikiSettingsDialog(Adw.Dialog):
         args = model.wiki_settings_args(self.game, self.plan, selected, confirmed)
         game, window = self.game, self.window
         self.close()
-        window.when_closed([game], False, lambda: window.run(
+        window.request([game], False, lambda: window.run(
             'Applying Wiki Settings', [Step(game.title, args, game)],
             working='Applying selected settings to ' + game.title,
             success='Wiki settings applied to ' + game.title,
@@ -1320,7 +1641,7 @@ class PrepareDialog(Adw.Dialog):
         page.add(self.needs)
         view.set_content(page)
         self.set_child(view)
-        window.reader.call(model.hlx_requirements, done=self.requirements, probe=True,
+        window.reader.call(model.hlx_requirements, None, window.reader.run, done=self.requirements, probe=True,
                            failed=lambda error: self.needs.add(action_row('Setup could not check what the build needs',
                                                                           str(error), 'dialog-error-symbolic', 'error')))
 
@@ -1540,6 +1861,10 @@ class BrowseDialog(Adw.Dialog):
 class GameRow(Gtk.ListBoxRow):
     def __init__(self, game, ctx):
         super().__init__()
+        self.show(game, ctx)
+
+    def show(self, game, ctx):
+        """Draw the row for game in place: the row keeps its position, the keyboard focus and the selection."""
         self.game = game
         self.section = model.section(game, ctx)
         box = Gtk.Box(spacing=12, margin_top=7, margin_bottom=7, margin_start=4, margin_end=4)
@@ -1570,6 +1895,10 @@ class Window(Adw.ApplicationWindow):
         self.providers_listeners, self.system_listeners = [], []
         self.selected_key, self.selecting, self.loaded = None, False, False
         self.operations = 0
+        # Games with a change asked for or running (one at a time per game), the Keep this release position asked for
+        # while a pin runs, and settings edited but not applied yet: all three outlive the game's page, which every
+        # refresh draws again.
+        self.pending, self.pin_intent, self.drafts = set(), {}, {}
         self.set_default_size(1180, 780)
         self.set_size_request(360, 480)
         self.toasts = Adw.ToastOverlay()
@@ -1609,7 +1938,7 @@ class Window(Adw.ApplicationWindow):
         add_menu = Gio.Menu()
         add_menu.append('Choose from Steam and Heroic…', 'win.browse')
         add_menu.append('Choose a Game Executable…', 'win.add-exe')
-        header.pack_start(Gtk.MenuButton(icon_name='list-add-symbolic', menu_model=add_menu, tooltip_text='Add a Game'))
+        header.pack_start(menu_button('list-add-symbolic', add_menu, 'Add a Game'))
         menu = Gio.Menu()
         actions = Gio.Menu()
         actions.append('Update All Games…', 'win.update-all')
@@ -1620,13 +1949,13 @@ class Window(Adw.ApplicationWindow):
         other.append('Refresh', 'win.refresh')
         other.append('About ' + self.ctx.name, 'win.about')
         menu.append_section(None, other)
-        header.pack_end(Gtk.MenuButton(icon_name='open-menu-symbolic', menu_model=menu, primary=True, tooltip_text='Main Menu'))
+        header.pack_end(menu_button('open-menu-symbolic', menu, 'Main Menu', primary=True))
         header.set_title_widget(Adw.WindowTitle(title=self.ctx.name, subtitle=self.ctx.version))
         view.add_top_bar(header)
         self.search = Gtk.SearchEntry(placeholder_text='Search games', margin_start=10, margin_end=10, margin_bottom=6)
         self.search.connect('search-changed', lambda *_: (self.list.invalidate_filter(), self.list.invalidate_headers()))
         view.add_top_bar(self.search)
-        self.banner = Adw.Banner(button_label='_Review', revealed=False)
+        self.banner = Adw.Banner(button_label='_Review', revealed=False, use_markup=False)
         self.banner.connect('button-clicked', lambda *_: self.update_all())
         view.add_top_bar(self.banner)
         self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
@@ -1739,18 +2068,47 @@ class Window(Adw.ApplicationWindow):
                 self.check_game(game)
 
     def fill_list(self):
+        """Show self.games in the list, changing only the rows that changed: rows are drawn again in place, moved or
+        added where needed, so the list keeps its scroll position and the keyboard focus (a list rebuilt for every
+        verdict loses both, and costs the square of the number of games)."""
         self.selecting = True
-        self.list.remove_all()
+        rows, child = {}, self.list.get_first_child()
+        while child is not None:
+            if isinstance(child, GameRow):
+                rows[child.game.key] = child
+            child = child.get_next_sibling()
+        keys = {game.key for game in self.games}
+        for key in [key for key in rows if key not in keys]:
+            self.list.remove(rows.pop(key))
         selected = None
-        for game in self.games:
-            row = GameRow(game, self.ctx)
-            self.list.append(row)
+        for index, game in enumerate(self.games):
+            row = rows.get(game.key)
+            if row is None:
+                row = GameRow(game, self.ctx)
+                self.list.insert(row, index)
+            else:
+                if self.list.get_row_at_index(index) is not row:
+                    self.list.remove(row)
+                    self.list.insert(row, index)
+                row.show(game, self.ctx)
             if game.key == self.selected_key:
                 selected = row
-        if selected is not None:
+        if selected is None:
+            self.list.unselect_all()
+        elif self.list.get_selected_row() is not selected:
             self.list.select_row(selected)
+        self.list.invalidate_headers()
+        self.list.invalidate_filter()
         self.selecting = False
         self.list_stack.set_visible_child_name('list' if self.games else 'empty')
+
+    def row_for(self, key):
+        child = self.list.get_first_child()
+        while child is not None:
+            if isinstance(child, GameRow) and child.game.key == key:
+                return child
+            child = child.get_next_sibling()
+        return None
 
     def game_by_key(self, key):
         if key is None:
@@ -1764,7 +2122,9 @@ class Window(Adw.ApplicationWindow):
 
     def check_game(self, game):
         key = game.key
-        self.reader.call(model.check_game, self.ctx, game.exe, done=lambda verdict: self.game_checked(key, verdict))
+        # A check that fails is no verdict ('Not checked'): the row's spinner stops either way.
+        self.reader.call(model.check_game, self.ctx, game.exe, done=lambda verdict: self.game_checked(key, verdict),
+                         failed=lambda error: self.game_checked(key, None))
 
     def game_checked(self, key, verdict):
         self.verdicts[key] = verdict
@@ -1772,7 +2132,10 @@ class Window(Adw.ApplicationWindow):
         if game is None:
             return
         game.verdict, game.checked = verdict, True
-        self.fill_list()
+        # Only its row changes (a verdict never moves a game to another section).
+        row = self.row_for(game.key)
+        if row is not None:
+            row.show(game, self.ctx)
         if self.selected_key == key:
             self.show_game(game)
 
@@ -1805,7 +2168,10 @@ class Window(Adw.ApplicationWindow):
     def check_system(self):
         self.system_icon.set_visible_child_name('busy')
         self.system_label.set_text('Checking…')
-        self.reader.call(model.system_checks, self.ctx, done=self.system_checked, probe=True)
+        # The check runs in a process of its own (reader.run), which closing Setup ends.
+        self.reader.call(model.system_checks, self.ctx, self.reader.run, done=self.system_checked, probe=True,
+                         failed=lambda error: self.system_checked([('WARN', 'System check', 'The check did not run: ' +
+                                                                     str(error))]))
 
     def system_checked(self, rows):
         self.system = rows
@@ -1822,7 +2188,9 @@ class Window(Adw.ApplicationWindow):
             self.split.set_content(self.overview_page())
 
     def check_providers(self):
-        self.reader.call(model.providers, self.ctx, done=self.providers_checked)
+        # Dialogs wait for this answer: a check that fails still gives one (FSR 4, which needs no preparation).
+        self.reader.call(model.providers, self.ctx, done=self.providers_checked,
+                         failed=lambda error: self.providers_checked([model.built_in_provider()]))
 
     def providers_checked(self, providers):
         self.providers = providers
@@ -1891,13 +2259,17 @@ class Window(Adw.ApplicationWindow):
         self.split.set_content(page)
         if game.installed and game.integrity is None and game.present:
             key = game.key
-            self.reader.call(model.integrity, self.ctx, game, done=lambda found: self.integrity_checked(key, found))
+            # A check that fails says so on the page (kept only for this page: the next one checks again).
+            self.reader.call(model.integrity, self.ctx, game, done=lambda found: self.integrity_checked(key, found),
+                             failed=lambda error: self.integrity_checked(key, dict(error=str(error) or type(error).__name__)))
 
     def integrity_checked(self, key, found):
-        self.integrity[key] = found
+        if 'error' not in found:
+            self.integrity[key] = found
         game = self.game_by_key(key)
         if game is not None:
-            game.integrity = found
+            if 'error' not in found:
+                game.integrity = found
             if self.selected_key == key:
                 content = self.split.get_content()
                 if isinstance(content, GamePage) and content.game.key == key:
@@ -1920,13 +2292,15 @@ class Window(Adw.ApplicationWindow):
     def run(self, title, steps, working, success, next_steps=(), on_finished=None):
         """Run install.py steps in an operation dialog, then read the games they changed again."""
         def finished(results):
+            self.release([step.game for step in steps])
             self.changed([step.game for step in steps])
             if on_finished is not None:
                 on_finished(results)
         OperationDialog(self, title, steps, working, success, next_steps, finished).start()
 
-    def quietly(self, steps, success, game, failed_title):
-        """A quick change (pin, track, settings): a toast when it worked, the installer's reason when it did not."""
+    def quietly(self, steps, success, game, failed_title, then=None):
+        """A quick change (pin, track, settings): a toast when it worked, the installer's reason when it did not. Then the
+        game is released and read again, or then(ok) goes on with a change that is not over yet."""
         def done(results):
             self.busy(False)
             result = results[0]
@@ -1936,13 +2310,53 @@ class Window(Adw.ApplicationWindow):
                 alert = Adw.AlertDialog(heading=failed_title, body=model.failure_reason(result.lines))
                 alert.add_response('close', '_Close')
                 alert.present(self)
-            self.changed([game])
+            if then is not None:
+                then(result.ok)
+            else:
+                self.release([game])
+                self.changed([game])
         self.busy(True)
         Operation(self.ctx, steps, on_done=done).start()
 
-    def when_closed(self, games, launchers, then):
+    def claim(self, games):
+        """Mark games as changing: one change at a time per game (a second click on Apply, Roll Back or a switch while
+        the first runs would start a second install.py). False, with a toast, when one already is."""
+        busy = [game for game in games if game is not None and game.key in self.pending]
+        if busy:
+            self.toast('Setup is already changing ' + model.joined(game.title for game in busy) + '.')
+            return False
+        self.pending.update(game.key for game in games if game is not None)
+        return True
+
+    def release(self, games):
+        for game in games:
+            if game is not None:
+                self.pending.discard(game.key)
+
+    def redraw(self, games):
+        """Draw the page of a shown game again without reading anything: after a change was asked for and not made."""
+        content = self.split.get_content()
+        for game in games:
+            if game is not None and isinstance(content, GamePage) and content.game.key == game.key:
+                current = self.game_by_key(game.key)
+                if current is not None:
+                    self.show_game(current)
+
+    def request(self, games, launchers, then):
+        """then() for a change of games once they (and their launchers, for launcher edits) are closed, one change at a
+        time per game; nothing when the player goes back. Returns False when one of the games is changing already."""
+        if not self.claim(games):
+            return False
+
+        def cancelled():
+            self.release(games)
+            self.redraw(games)
+        self.when_closed(games, launchers, then, cancelled)
+        return True
+
+    def when_closed(self, games, launchers, then, cancelled=None):
         """then() once the games (and their launchers, for launcher edits) are closed; asks until they are or the player
-        goes back."""
+        goes back (cancelled())."""
         def checked(names):
             if not names:
                 then()
@@ -1955,17 +2369,23 @@ class Window(Adw.ApplicationWindow):
             alert.set_response_appearance('again', Adw.ResponseAppearance.SUGGESTED)
             alert.set_default_response('again')
             alert.set_close_response('back')
-            alert.connect('response', lambda _a, response: response == 'again' and self.when_closed(games, launchers, then))
+            alert.connect('response', lambda _a, response: self.when_closed(games, launchers, then, cancelled)
+                          if response == 'again' else cancelled is not None and cancelled())
             alert.present(self)
+
         def failed(error):
             alert = Adw.AlertDialog(heading='Could not check running processes', body=str(error))
             alert.add_response('close', '_Close')
             alert.present(self)
+            if cancelled is not None:
+                cancelled()
         self.reader.call(self.ctx.blockers, self.ctx.installer, [g.exe for g in games], launchers, done=checked,
                          failed=failed)
 
-    def confirm(self, heading, body, label, then, destructive=False):
+    def confirm(self, heading, body, label, then, destructive=False, extra=None):
         alert = Adw.AlertDialog(heading=heading, body=body)
+        if extra is not None:
+            alert.set_extra_child(extra)
         alert.add_response('cancel', '_Cancel')
         alert.add_response('go', label)
         alert.set_response_appearance('go', Adw.ResponseAppearance.DESTRUCTIVE if destructive else
@@ -2078,50 +2498,107 @@ class Window(Adw.ApplicationWindow):
                      scope=not refresh).present(self)
 
     def finish_update(self, game):
-        self.when_closed([game], False, lambda: self.run(
+        self.request([game], False, lambda: self.run(
             'Finishing Update', [Step(game.title, ['update', str(game.exe)], game)],
             working=f'Finishing the interrupted update of {game.title}', success=f'{game.title} is updated'))
 
     def rollback(self, game, interrupted=False):
-        record = game.record or {}
-        target = model.version((record.get('generations') or [{}])[-1].get('from')) if record.get('generations') else None
-        heading = 'Undo the interrupted update?' if interrupted else f'Roll back to {target}?'
-        body = ('The game returns to the release before the update.' if interrupted else
-                f'{game.title} returns to {target}, the release before its last update or upscaler switch, byte for byte. '
-                'Your settings are kept.')
-        self.confirm(heading, body, '_Roll Back', lambda: self.when_closed([game], False, lambda: self.run(
+        """Roll Back asks first, naming what it undoes (model.last_change): a release, an upscaler switch, wiki settings;
+        for launch settings the player keeps in their own launcher, the ones to set back."""
+        change, extra = None if interrupted else game.change, None
+        if interrupted:
+            heading, body = 'Undo the interrupted update?', 'The game returns to the release before the update.'
+        elif change and not change.get('missing'):
+            heading, body = model.change_words(change)[2:]
+            body = body.replace('{game}', game.title)
+            if change.get('launch'):
+                body += '\n\nThe launch settings you added go back to those before this change: set these in your launcher.'
+                extra = launch_text(self, change['launch'])
+        else:
+            record = game.record or {}
+            target = model.version((record.get('generations') or [{}])[-1].get('from')) if record.get('generations') else None
+            heading = f'Roll back to {target}?'
+            body = (f'{game.title} returns to {target}, the release before its last update or upscaler switch, byte for '
+                    'byte. Your settings are kept.')
+        self.confirm(heading, body, '_Roll Back', lambda: self.request([game], False, lambda: self.run(
             'Rolling Back', [Step(game.title, ['rollback', str(game.exe)], game)],
-            working=f'Rolling back {game.title}', success=f'{game.title} is rolled back')))
+            working=f'Rolling back {game.title}', success=f'{game.title} is rolled back')), extra=extra)
 
     def restore(self, game):
-        self.confirm(f'Restore the original files of {game.title}?',
-                     f'This removes {self.ctx.name} from the game: its files, its launch settings and its private shader '
-                     f'cache. The backup folder {getattr(self.ctx.installer, "STATE", "")} and its logs stay in the game '
-                     'folder. You can install again later.', '_Restore',
-                     lambda: self.when_closed([game], True, lambda: self.run(
+        manual = model.manual_settings(game.record)
+        state = getattr(self.ctx.installer, 'STATE', '')
+        if manual is None:
+            body = (f'This removes {self.ctx.name} from the game: its files, its launch settings and its private shader '
+                    f'cache. The backup folder {state} and its logs stay in the game folder. You can install again later.')
+        else:
+            # Setup never wrote the settings the player added in their own launcher: it says which to delete.
+            body = (f'This removes {self.ctx.name} from the game: its files and its private shader cache. Setup did not '
+                    f'write the launch settings you added, so it cannot remove them: delete these from your launcher. '
+                    f'The backup folder {state} and its logs stay in the game folder. You can install again later.')
+        self.confirm(f'Restore the original files of {game.title}?', body, '_Restore',
+                     lambda: self.request([game], manual is None, lambda: self.run(
                          'Restoring', [Step(game.title, ['restore', str(game.exe)], game)],
                          working=f'Restoring the original files of {game.title}',
                          success=f'{game.title} has its original files back',
                          next_steps=[] if (game.record or {}).get('manual_launch') else ['Reopen your launcher and play normally.'])),
-                     destructive=True)
+                     destructive=True, extra=launch_text(self, manual) if manual is not None else None)
 
     def set_pin(self, game, on):
-        release = model.version((game.record or {}).get('package'))
-        self.quietly([Step(game.title, ['pin' if on else 'unpin', str(game.exe)], game)],
-                     f'{game.title} stays on {release}' if on else f'{game.title} receives updates again', game,
-                     'Pin did not change' if on else 'Unpin did not change')
+        """Keep this release (install.py pin or unpin), one change at a time: the position asked for last is compared
+        with the record as it is on disk when the change before it ends, so only a real change runs."""
+        if game.key in self.pin_intent:
+            self.pin_intent[game.key] = on
+            return
+        if not self.claim([game]):
+            self.redraw([game])  # another change of this game runs: the switch shows the record again
+            return
+        self.pin_intent[game.key] = on
+        self.pin_next(game)
+
+    def pin_next(self, game, tries=0):
+        key = game.key
+
+        def fresh(record):
+            record = record if isinstance(record, dict) else {}
+            want = self.pin_intent.get(key)
+            if want is None or want == bool(record.get('update_pin')) or record.get('status') != 'installed' or tries > 1:
+                self.pin_done(game)
+                return
+            release = model.version(record.get('package'))
+            self.quietly([Step(game.title, ['pin' if want else 'unpin', str(game.exe)], game)],
+                         f'{game.title} stays on {release}' if want else f'{game.title} receives updates again', game,
+                         'Pin did not change' if want else 'Unpin did not change',
+                         then=lambda ok: self.pin_next(game, tries + 1) if ok else self.pin_done(game))
+        self.reader.call(model.read_record, self.ctx.installer, game.exe, done=fresh,
+                         failed=lambda error: self.pin_done(game))
+
+    def pin_done(self, game):
+        self.pin_intent.pop(game.key, None)
+        self.release([game])
+        self.changed([game])
 
     def track(self, game):
-        self.quietly([Step(game.title, ['register', str(game.exe)], game)], f'Update All now includes {game.title}', game,
-                     'Setup could not track this installation')
+        if self.claim([game]):
+            self.quietly([Step(game.title, ['register', str(game.exe)], game)], f'Update All now includes {game.title}',
+                         game, 'Setup could not track this installation')
 
     def apply_settings(self, game, before, after):
+        """configure with what changed, once the game is closed and no other change of it runs. Returns whether it was
+        asked for."""
         args = model.settings_args(before, after)
         if not args:
-            return
-        self.when_closed([game], False, lambda: self.quietly(
+            return False
+        return self.request([game], False, lambda: self.quietly(
             [Step(game.title, ['configure', str(game.exe), *args], game)],
-            'Settings saved. They apply the next time the game starts.', game, 'Settings were not saved'))
+            'Settings saved. They apply the next time the game starts.', game, 'Settings were not saved',
+            then=lambda ok: self.settings_saved(game, ok)))
+
+    def settings_saved(self, game, ok):
+        # Saved, the edits are the game's settings; not saved, they stay on its page to apply again.
+        if ok:
+            self.drafts.pop(game.key, None)
+        self.release([game])
+        self.changed([game])
 
     def review_wiki(self, game):
         WikiSettingsDialog(self, game).present(self)
@@ -2177,7 +2654,7 @@ class GamePage(Adw.NavigationPage):
             menu.append('Installation Details…', 'game.details')
         if game.added and self.state in ('available', 'unavailable'):
             menu.append('Remove from List', 'game.forget')
-        header.pack_end(Gtk.MenuButton(icon_name='view-more-symbolic', menu_model=menu, tooltip_text='More'))
+        header.pack_end(menu_button('view-more-symbolic', menu, 'More'))
         view.add_top_bar(header)
         self.page = Adw.PreferencesPage()
         self.build()
@@ -2292,20 +2769,56 @@ class GamePage(Adw.NavigationPage):
         self.files_row = action_row('Program files', 'Checking…')
         self.files_row.add_prefix(self.files_icon)
         health.add(self.files_row)
-        self.launch_icon = Gtk.Stack()
-        self.launch_icon.add_named(spinner(), 'busy')
-        self.launch_row = action_row('Launch settings', ', '.join(
-            str(t.get('launcher', '')).capitalize() for t in record.get('launchers') or []) or 'None recorded')
-        self.launch_row.add_prefix(self.launch_icon)
-        health.add(self.launch_row)
+        self.manual = model.manual_settings(record)
+        if self.manual is not None:
+            health.add(self.manual_row())
+        else:
+            self.launch_icon = Gtk.Stack()
+            self.launch_icon.add_named(spinner(), 'busy')
+            self.launch_row = action_row('Launch settings', ', '.join(
+                str(t.get('launcher', '')).capitalize() for t in record.get('launchers') or []) or 'None recorded')
+            self.launch_row.add_prefix(self.launch_icon)
+            health.add(self.launch_row)
         for line in ctx.installer.risk_lines(record) if hasattr(ctx.installer, 'risk_lines') else []:
             health.add(action_row(line, 'Restore ends the override.', 'dialog-warning-symbolic', 'error'))
         self.page.add(health)
         if game.integrity is not None:
             self.show_integrity(game.integrity)
 
+    def manual_row(self):
+        """Health's row for launch settings the player keeps in a launcher Setup does not edit: added by them, whether the
+        installer's reading of the last session confirms them (model.manual_activation, shown as it reads), or that the
+        last update changed them; Show… has them ready to copy."""
+        game, change = self.game, self.game.change or {}
+        changed, activation = change.get('launch_changed'), game.activation
+        if changed:
+            title, level = 'Launch line changed', 'warning'
+            text = (f'The update to {model.version(changed["to"])}' + (f' on {changed["at"]}' if changed.get('at') else '') +
+                    ' changed the launch settings you added: if you have not yet, replace them in your launcher.')
+        elif activation is None:
+            title, level, text = 'Launch settings', 'dim', 'Manual: added by you. Setup does not check launchers it does not edit.'
+        elif activation[0]:
+            title, level = 'Launch settings', 'success'
+            text = 'Manual: added by you' + ('\n' + activation[1] if activation[1] else '')
+        else:
+            title, level = 'Launch settings', 'warning'
+            text = activation[1] if activation[1].casefold().startswith('not yet confirmed') else \
+                'Not yet confirmed' + ('\n' + activation[1] if activation[1] else '')
+        row = action_row(title, text, LEVEL_ICONS[level], level)
+        row.add_suffix(button('_Show…', lambda: LaunchDialog(self.window, game, self.manual).present(self.window), 'flat'))
+        return row
+
     def show_integrity(self, found):
         if not hasattr(self, 'files_row') or self.files_icon.get_child_by_name('done') is not None:
+            return
+        if 'error' in found:
+            # The check did not end normally: say so instead of a spinner that never stops.
+            self.files_row.set_subtitle('Could not be checked: ' + found['error'])
+            self.files_icon.add_named(icon('dialog-warning-symbolic', 'warning'), 'done')
+            self.files_icon.set_visible_child_name('done')
+            if self.manual is None:
+                self.launch_icon.add_named(icon('dialog-warning-symbolic', 'warning'), 'done')
+                self.launch_icon.set_visible_child_name('done')
             return
         changed = found['changed']
         if changed:
@@ -2317,11 +2830,13 @@ class GamePage(Adw.NavigationPage):
         self.files_icon.add_named(icon('dialog-warning-symbolic' if changed else 'object-select-symbolic',
                                        'warning' if changed else 'success'), 'done')
         self.files_icon.set_visible_child_name('done')
+        if self.manual is not None:
+            return
         launchers = found['launchers']
-        ok = all(same for _, same in launchers)
+        ok = all(state == 'installed' for _, state in launchers)
         if launchers:
-            self.launch_row.set_subtitle(', '.join(name + (' · as installed' if same else ' · changed since installation')
-                                                   for name, same in launchers))
+            self.launch_row.set_subtitle(', '.join(name + ' · ' + model.LAUNCHER_STATES.get(state, state)
+                                                   for name, state in launchers))
         self.launch_icon.add_named(icon('object-select-symbolic' if ok else 'dialog-warning-symbolic',
                                         ('success' if ok else 'warning') if launchers else 'dim'), 'done')
         self.launch_icon.set_visible_child_name('done')
@@ -2332,6 +2847,8 @@ class GamePage(Adw.NavigationPage):
         if not game.settings or not (support['scaling'] or len(support['factors']) > 1):
             return
         self.before = game.settings
+        # Edits not applied yet (window.drafts) come back when a refresh draws this page again.
+        shown = model.Settings(**{**vars(game.settings), **self.window.drafts.get(game.key, {})})
         self.apply_button = button('_Apply', self.apply, 'suggested-action')
         self.revert_button = button('', self.revert, 'flat', icon_name='edit-undo-symbolic', tooltip='Revert')
         actions = Gtk.Box(spacing=6)
@@ -2344,8 +2861,8 @@ class GamePage(Adw.NavigationPage):
         if len(support['factors']) > 1:
             self.factor_row = plain(Adw.ComboRow(), 'Frame generation')
             self.factor_row.set_model(Gtk.StringList.new([f'{n}×' for n in support['factors']]))
-            self.factor_row.set_selected(max(0, support['factors'].index(game.settings.factor)
-                                             if game.settings.factor in support['factors'] else 0))
+            self.factor_row.set_selected(max(0, support['factors'].index(shown.factor)
+                                             if shown.factor in support['factors'] else 0))
             self.factors = support['factors']
             self.factor_row.connect('notify::selected', lambda *_: self.edited())
             self.settings_group.add(self.factor_row)
@@ -2354,25 +2871,25 @@ class GamePage(Adw.NavigationPage):
             self.size_row = plain(Adw.ComboRow(), 'Generated-frame size',
                                   'Only generated frames are scaled. Match output keeps full resolution.')
             self.size_row.set_model(Gtk.StringList.new([label for _, label in model.SIZES]))
-            self.size_row.set_selected([key for key, _ in model.SIZES].index(game.settings.size))
+            self.size_row.set_selected([key for key, _ in model.SIZES].index(shown.size))
             self.size_row.connect('notify::selected', lambda *_: self.edited())
             self.settings_group.add(self.size_row)
             self.scale_row = plain(Adw.SpinRow.new_with_range(50, 100, 1), 'Scale', 'Width and height, % of the output')
-            self.scale_row.set_value(game.settings.percent)
+            self.scale_row.set_value(shown.percent)
             self.scale_row.connect('notify::value', lambda *_: self.edited())
             self.settings_group.add(self.scale_row)
             downs = model.DOWNSCALE if support['area'] else model.DOWNSCALE[:1]
             self.downs = [key for key, _ in downs]
             self.down_row = plain(Adw.ComboRow(), 'Downscale filter')
             self.down_row.set_model(Gtk.StringList.new([label for _, label in downs]))
-            self.down_row.set_selected(self.downs.index(game.settings.downscale) if game.settings.downscale in self.downs else 0)
+            self.down_row.set_selected(self.downs.index(shown.downscale) if shown.downscale in self.downs else 0)
             self.down_row.connect('notify::selected', lambda *_: self.edited())
             self.settings_group.add(self.down_row)
             ups = model.UPSCALE if support['upscale'] else model.UPSCALE[:1]
             self.ups = [key for key, _ in ups]
             self.up_row = plain(Adw.ComboRow(), 'Upscale filter')
             self.up_row.set_model(Gtk.StringList.new([label for _, label in ups]))
-            self.up_row.set_selected(self.ups.index(game.settings.upscale) if game.settings.upscale in self.ups else 0)
+            self.up_row.set_selected(self.ups.index(shown.upscale) if shown.upscale in self.ups else 0)
             self.up_row.connect('notify::selected', lambda *_: self.edited())
             self.settings_group.add(self.up_row)
         self.page.add(self.settings_group)
@@ -2394,8 +2911,17 @@ class GamePage(Adw.NavigationPage):
         if self.scale_row is not None:
             self.scale_row.set_visible(after.size == 'scale')
         changed = bool(model.settings_args(self.before, after))
+        if changed:
+            self.window.drafts[self.game.key] = {name: value for name, value in vars(after).items()
+                                                 if value != getattr(self.before, name)}
+        else:
+            self.window.drafts.pop(self.game.key, None)
+        # While a change of this game runs, Apply waits for it (one configure at a time).
+        busy = self.game.key in self.window.pending
         self.apply_button.set_visible(changed)
         self.revert_button.set_visible(changed)
+        self.apply_button.set_sensitive(not busy)
+        self.revert_button.set_sensitive(not busy)
 
     def revert(self):
         before = self.before
@@ -2409,7 +2935,11 @@ class GamePage(Adw.NavigationPage):
         self.edited()
 
     def apply(self):
-        self.window.apply_settings(self.game, self.before, self.chosen())
+        if self.game.key in self.window.pending:
+            return
+        if self.window.apply_settings(self.game, self.before, self.chosen()):
+            self.apply_button.set_sensitive(False)
+            self.revert_button.set_sensitive(False)
 
     def updates(self):
         game, ctx, record = self.game, self.ctx, self.game.record or {}
@@ -2421,9 +2951,16 @@ class GamePage(Adw.NavigationPage):
             updates.add(row)
         pin = plain(Adw.SwitchRow(), 'Keep this release',
                     f'Update All leaves this game on {model.version(record.get("package"))}.')
-        pin.set_active(bool(record.get('update_pin')))
-        pin.connect('notify::active', lambda row, _p: row.get_active() != bool(record.get('update_pin')) and
-                    self.window.set_pin(game, row.get_active()))
+        # While pin or unpin runs the switch shows the position asked for and waits; the window compares that position
+        # with the record as it is then (set_pin).
+        pin.set_active(self.window.pin_intent.get(game.key, bool(record.get('update_pin'))))
+        pin.set_sensitive(game.key not in self.window.pending)
+
+        def pinned(row, _param):
+            row.set_sensitive(False)
+            self.window.set_pin(game, row.get_active())
+        pin.connect('notify::active', pinned)
+        self.pin_row = pin
         updates.add(pin)
         if self.state in ('installed', 'update'):
             recipe = action_row('Refresh recipe', 'Apply the latest tested input and launcher recipe in place; game '
@@ -2447,12 +2984,18 @@ class GamePage(Adw.NavigationPage):
         recovery = group('Recovery')
         generations = record.get('generations') or []
         if generations and self.state != 'recovery':
-            row = action_row('Roll back', f'Return to {model.version(generations[-1].get("from"))}, the release before the '
-                             'last update or upscaler switch.')
-            row.add_suffix(button('_Roll Back…', lambda: self.window.rollback(game), 'flat'))
+            # Named by what Rollback undoes: a release, an upscaler switch or wiki settings (model.last_change).
+            title, text = model.change_words(game.change)[:2] if game.change else \
+                ('Roll back', f'Return to {model.version(generations[-1].get("from"))}, the release before the last update '
+                              'or upscaler switch.')
+            row = action_row(title, text)
+            back = button('_Roll Back…', lambda: self.window.rollback(game), 'flat')
+            back.set_sensitive(not (game.change or {}).get('missing'))
+            row.add_suffix(back)
             recovery.add(row)
-        restore = action_row('Restore original files', f'Removes {self.ctx.name} from this game: its files, launch settings '
-                             'and private shader cache. Backups and logs stay in the game folder.')
+        restore = action_row('Restore original files', f'Removes {self.ctx.name} from this game: its files, ' +
+                             ('the launch settings it wrote ' if model.manual_settings(record) is None else '') +
+                             'and its private shader cache. Backups and logs stay in the game folder.')
         restore.add_suffix(button('_Restore…', lambda: self.window.restore(game), 'flat', 'error'))
         recovery.add(restore)
         self.page.add(recovery)
@@ -2500,12 +3043,24 @@ class Application(Adw.Application):
                 provider.load_from_string(CSS)
                 Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
                                                           Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+                self.light = Gtk.CssProvider()
+                self.light.load_from_string(LIGHT_CSS)
+                self.style_manager = Adw.StyleManager.get_default()
+                self.style_manager.connect('notify::dark', lambda *_: self.style_changed())
+                self.style_changed()
                 self.window = Window(self, self.ctx)
             except Exception as error:  # noqa: BLE001 - setup.py falls back to its dialogs
                 self.failure = error
                 self.quit()
                 return
         self.window.present()
+
+    def style_changed(self):
+        """LIGHT_CSS while the light style is in use (it follows the desktop's preference as it changes)."""
+        display = Gdk.Display.get_default()
+        Gtk.StyleContext.remove_provider_for_display(display, self.light)
+        if not self.style_manager.get_dark():
+            Gtk.StyleContext.add_provider_for_display(display, self.light, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
 
 
 class StartupError(RuntimeError):

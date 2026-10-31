@@ -23,9 +23,12 @@ The installer runs as your user, without root. It edits selected game files, lau
 Downloads use pinned HTTPS URLs and SHA-256 hashes; sizes are checked when pinned. Pinned dependency members are extracted by expected name and
 checked individually. The optional HelixSR download is verified as a complete archive; its extraction is restricted to
 regular files and directories beneath its release folder, with an extraction-size limit. Prepare HLX runs the
-pinned archive’s build-only Python entry point under bubblewrap, with the host read-only and network disabled.
-Only its staging directory is writable. It uses local model inputs and checked shader compilers, never the upstream
-game installer or package-manager setup. Game DLLs execute when the game runs.
+pinned archive’s build-only Python entry point under bubblewrap: in namespaces and a session of its own (no network,
+no other processes, no terminal input), with an empty environment but for its build settings and the host read-only.
+Your home folder, /tmp, the session’s runtime folder (D-Bus, PipeWire, Wayland and agent sockets) and the system bus
+are hidden from it, except the files the build reads. Only its staging directory is writable. It uses local model
+inputs and checked shader compilers, never the upstream game installer or package-manager setup. Game DLLs execute
+when the game runs.
 
 ### The proxy
 

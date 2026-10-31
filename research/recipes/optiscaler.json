@@ -1,0 +1,2079 @@
+{
+  "about": "The OptiScaler builds a package may carry and what the catalogue knows about them: the pinned commit (the fork build every package ships), the upstream commit backports are checked against, the commits whose INI keys and quirk effects match the pinned one, each build's DLL and OptiScaler.ini digests, the INI keys each OptiScaler.ini defines (once per digest), and the quirk tables of the pinned build.",
+  "pinned": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
+  "upstream": "e7e3872d410f704479d94d318d68d163b6b58947",
+  "compatible_commits": [
+    "03db4f8692878e65748769ebe583c053cae96360",
+    "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
+    "273e8d449763d0e9e051dee831dc42badcd15d00",
+    "ba0dedb4681875a1a0b88a35385d5aeb91db4063"
+  ],
+  "builds": {
+    "03db4f8692878e65748769ebe583c053cae96360": {
+      "dll_sha256": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656",
+      "ini_sha256": "54493b7795f92e2b2ef063815f62bb29e983716a27b524d19b27d5ddc473caac"
+    },
+    "25db192b1c1ebf42ae7cd6615bc6288b39121c5b": {
+      "dll_sha256": "5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617",
+      "ini_sha256": "e08ac5e1de899bce37710ffe82f6dfc6e31edfa7febb11a8a9db4ac8dac41e95"
+    },
+    "273e8d449763d0e9e051dee831dc42badcd15d00": {
+      "dll_sha256": "044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87",
+      "ini_sha256": "e08ac5e1de899bce37710ffe82f6dfc6e31edfa7febb11a8a9db4ac8dac41e95"
+    },
+    "ba0dedb4681875a1a0b88a35385d5aeb91db4063": {
+      "dll_sha256": "e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b",
+      "ini_sha256": "060d8fcfb1374f69dfbe4df6b22fed30d6349b97e9b5f6272cad9f494c440cb8"
+    }
+  },
+  "ini_keys": {
+    "54493b7795f92e2b2ef063815f62bb29e983716a27b524d19b27d5ddc473caac": [
+      "Anisotropy.anisotropyoverride",
+      "Anisotropy.modifycomparison",
+      "Anisotropy.modifyminmax",
+      "Anisotropy.skippointfilter",
+      "CAS.contrast",
+      "CAS.contrastenabled",
+      "CAS.daclampoutput",
+      "CAS.dadepthbias",
+      "CAS.dadepthscale",
+      "CAS.enabled",
+      "CAS.motionscalelimit",
+      "CAS.motionsharpness",
+      "CAS.motionsharpnessenabled",
+      "CAS.motionthreshold",
+      "CAS.sharpenerdebug",
+      "DLSS.enabled",
+      "DLSS.renderpresetbalanced",
+      "DLSS.renderpresetdlaa",
+      "DLSS.renderpresetforall",
+      "DLSS.renderpresetoverride",
+      "DLSS.renderpresetperformance",
+      "DLSS.renderpresetquality",
+      "DLSS.renderpresetultraperformance",
+      "DLSS.renderpresetultraquality",
+      "DLSS.usegenericappidwithdlss",
+      "DLSSD.renderpresetbalanced",
+      "DLSSD.renderpresetdlaa",
+      "DLSSD.renderpresetforall",
+      "DLSSD.renderpresetoverride",
+      "DLSSD.renderpresetperformance",
+      "DLSSD.renderpresetquality",
+      "DLSSD.renderpresetultraperformance",
+      "DLSSD.renderpresetultraquality",
+      "DLSSG.forcedmfg",
+      "DLSSG.frameratetargetdmfg",
+      "DLSSG.interpolationcount",
+      "DLSSG.overrideforcedmfg",
+      "DLSSG.overrideinterpolationcount",
+      "DLSSG.usegamesreflexmarkers",
+      "DRS.drsmaxoverrideenabled",
+      "DRS.drsminoverrideenabled",
+      "Dx11withDx12.dontusentshared",
+      "Dx11withDx12.usedelayedinit",
+      "FSR.accaddperframe",
+      "FSR.camerafar",
+      "FSR.cameranear",
+      "FSR.debugview",
+      "FSR.dlssreactivemaskbias",
+      "FSR.fgindex",
+      "FSR.fsr4donotloadamdxc64",
+      "FSR.fsr4enablewatermark",
+      "FSR.fsr4gpusupport",
+      "FSR.fsr4model",
+      "FSR.fsr4preset",
+      "FSR.fsragilitysdkupgrade",
+      "FSR.fsrnonlinearcolorspace",
+      "FSR.fsrnonlinearpq",
+      "FSR.fsrnonlinearsrgb",
+      "FSR.horizontalfov",
+      "FSR.mindisoccacc",
+      "FSR.reactivescale",
+      "FSR.shadingscale",
+      "FSR.upscalerindex",
+      "FSR.usefsrinputvalues",
+      "FSR.usereactivemaskfortransparency",
+      "FSR.velocityfactor",
+      "FSR.verticalfov",
+      "FSRFG.allowasync",
+      "FSRFG.debugpacinglines",
+      "FSRFG.debugresetlines",
+      "FSRFG.debugtearlines",
+      "FSRFG.disableflipmetering",
+      "FSRFG.enablewatermark",
+      "FSRFG.fpthybridspin",
+      "FSRFG.fpthybridspintime",
+      "FSRFG.fptsafetymargininms",
+      "FSRFG.fptvariancefactor",
+      "FSRFG.fptwaitforsingleobjectonfence",
+      "FSRFG.framepacingtuning",
+      "FSRFG.usemutexforswapchain",
+      "FSRFGInputs.skipconfigforhudless",
+      "FSRFGInputs.skipdispatchforhudless",
+      "FrameGen.allowedframeahead",
+      "FrameGen.debugview",
+      "FrameGen.depthvalidnow",
+      "FrameGen.disablehudless",
+      "FrameGen.disableui",
+      "FrameGen.drawuioverfg",
+      "FrameGen.enabled",
+      "FrameGen.fginput",
+      "FrameGen.fgnvngxreplacement",
+      "FrameGen.fgoutput",
+      "FrameGen.ftinput",
+      "FrameGen.hudcutoff",
+      "FrameGen.hudlessvalidnow",
+      "FrameGen.modifybufferstate",
+      "FrameGen.modifyscindex",
+      "FrameGen.onlyacceptfirsthudless",
+      "FrameGen.preserveswapchain",
+      "FrameGen.rectheight",
+      "FrameGen.rectleft",
+      "FrameGen.recttop",
+      "FrameGen.rectwidth",
+      "FrameGen.skipreset",
+      "FrameGen.skipresizebuffers",
+      "FrameGen.uipremultipliedalpha",
+      "FrameGen.velocityvalidnow",
+      "Framerate.frameratelimit",
+      "HDR.forcehdr",
+      "HDR.skipcolorspace",
+      "HDR.usehdr10",
+      "Hooks.earlyhooking",
+      "Hooks.hookoriginalnvngxonly",
+      "Hooks.usentdllhooks",
+      "Hotfix.checkforupdate",
+      "Hotfix.colormaskresourcebarrier",
+      "Hotfix.colorresourcebarrier",
+      "Hotfix.created3d12deviceforluma",
+      "Hotfix.depthresourcebarrier",
+      "Hotfix.disableoverlays",
+      "Hotfix.exposureresourcebarrier",
+      "Hotfix.extendedstaterestore",
+      "Hotfix.manualinputpolling",
+      "Hotfix.motionvectorresourcebarrier",
+      "Hotfix.outputresourcebarrier",
+      "Hotfix.preferdedicatedgpu",
+      "Hotfix.preferfirstdedicatedgpu",
+      "Hotfix.restorecomputesignature",
+      "Hotfix.restoregraphicsignature",
+      "Hotfix.roundinternalresolution",
+      "Hotfix.simulatewaitableobject",
+      "Hotfix.skipfirstframes",
+      "Hotfix.useprecompiledshaders",
+      "InitFlags.autoexposure",
+      "InitFlags.depthinverted",
+      "InitFlags.disablereactivemask",
+      "InitFlags.displayresolution",
+      "InitFlags.dynamicresolution",
+      "InitFlags.hdr",
+      "InitFlags.jittercancellation",
+      "Inputs.enabledlssinputs",
+      "Inputs.enableffxinputs",
+      "Inputs.enablefsr2inputs",
+      "Inputs.enablefsr3inputs",
+      "Inputs.enablehotswapping",
+      "Inputs.enablexessinputs",
+      "Inputs.fsr2pattern",
+      "Inputs.fsr3pattern",
+      "Inputs.useffxinputs",
+      "Inputs.usefsr2dx11inputs",
+      "Inputs.usefsr2inputs",
+      "Inputs.usefsr2vulkaninputs",
+      "Inputs.usefsr3inputs",
+      "Libraries.ffxdx12fgpath",
+      "Libraries.ffxdx12path",
+      "Libraries.ffxdx12rcpath",
+      "Libraries.ffxdx12rrpath",
+      "Libraries.ffxdx12srpath",
+      "Libraries.ffxvkpath",
+      "Libraries.nvapipath",
+      "Libraries.nvngxdlsspath",
+      "Libraries.nvngxfeaturepath",
+      "Libraries.nvngxpath",
+      "Libraries.optidllpath",
+      "Libraries.xefgpath",
+      "Libraries.xellpath",
+      "Libraries.xessdx11path",
+      "Libraries.xesspath",
+      "Log.logasync",
+      "Log.logasyncthreads",
+      "Log.logfilename",
+      "Log.loglevel",
+      "Log.logtoconsole",
+      "Log.logtodebug",
+      "Log.logtofile",
+      "Log.logtongx",
+      "Log.openconsole",
+      "Log.singlefile",
+      "Magnifier.bordersize",
+      "Magnifier.cursoroffsetx",
+      "Magnifier.cursoroffsety",
+      "Magnifier.enabled",
+      "Magnifier.size",
+      "Magnifier.staticposx",
+      "Magnifier.staticposy",
+      "Magnifier.zoomfactor",
+      "Menu.accentcolorb",
+      "Menu.accentcolorg",
+      "Menu.accentcolorr",
+      "Menu.bgcolora",
+      "Menu.bgcolorb",
+      "Menu.bgcolorg",
+      "Menu.bgcolorr",
+      "Menu.blur",
+      "Menu.blurstrength",
+      "Menu.disablesplash",
+      "Menu.extendedlimits",
+      "Menu.fgshortcutkey",
+      "Menu.fontsize",
+      "Menu.fpscycleshortcutkey",
+      "Menu.fpsoverlayalpha",
+      "Menu.fpsoverlaybgcolor",
+      "Menu.fpsoverlaycompactlabels",
+      "Menu.fpsoverlayfont",
+      "Menu.fpsoverlayfontsize",
+      "Menu.fpsoverlayfpsrow",
+      "Menu.fpsoverlaygraphcolor",
+      "Menu.fpsoverlaygraphheight",
+      "Menu.fpsoverlayhorizontal",
+      "Menu.fpsoverlaylabelcolor",
+      "Menu.fpsoverlaylabelscale",
+      "Menu.fpsoverlayletterspacing",
+      "Menu.fpsoverlaypos",
+      "Menu.fpsoverlayposx",
+      "Menu.fpsoverlayposy",
+      "Menu.fpsoverlayrounding",
+      "Menu.fpsoverlayrows",
+      "Menu.fpsoverlayrowspacing",
+      "Menu.fpsoverlayshadow",
+      "Menu.fpsoverlayshadowcolor",
+      "Menu.fpsoverlayshadowstrength",
+      "Menu.fpsoverlayshowratio",
+      "Menu.fpsoverlaytype",
+      "Menu.fpsoverlayupdateinterval",
+      "Menu.fpsoverlayvaluecolor",
+      "Menu.fpsoverlayvaluescale",
+      "Menu.fpsscale",
+      "Menu.fpsshortcutkey",
+      "Menu.height",
+      "Menu.lighttheme",
+      "Menu.overlaymenu",
+      "Menu.overlaysusetheme",
+      "Menu.rounding",
+      "Menu.scale",
+      "Menu.shortcutkey",
+      "Menu.showfps",
+      "Menu.ttffontpath",
+      "Menu.usehqfont",
+      "Mipmap.mipmapbiasfixedoverride",
+      "Mipmap.mipmapbiasoverride",
+      "Mipmap.mipmapbiasoverrideall",
+      "Mipmap.mipmapbiasscaleoverride",
+      "NvApi.disableflipmetering",
+      "NvApi.disableota",
+      "NvngxFG.disablehudless",
+      "NvngxFG.dispatchflags",
+      "NvngxFG.makedepthcopy",
+      "NvngxFG.showdebug",
+      "OptiFG.alwayscapturefsrfgswapchain",
+      "OptiFG.alwaystrackheaps",
+      "OptiFG.depthscalemax",
+      "OptiFG.disablehudfix",
+      "OptiFG.enabledepthscale",
+      "OptiFG.hudfix",
+      "OptiFG.hudfixdisabledi",
+      "OptiFG.hudfixdisabledii",
+      "OptiFG.hudfixdisabledispatch",
+      "OptiFG.hudfixdisableom",
+      "OptiFG.hudfixdisablertv",
+      "OptiFG.hudfixdisablescr",
+      "OptiFG.hudfixdisablesgr",
+      "OptiFG.hudfixdisablesrv",
+      "OptiFG.hudfixdisableuav",
+      "OptiFG.hudfixdontuseswapchainbuffers",
+      "OptiFG.hudfixextended",
+      "OptiFG.hudfiximmediate",
+      "OptiFG.hudfixpersistentbindings",
+      "OptiFG.hudfixrelaxedresolutioncheck",
+      "OptiFG.hudfixuitexture",
+      "OptiFG.hudfixuiunblend",
+      "OptiFG.hudlimit",
+      "OptiFG.makedepthcopy",
+      "OptiFG.makemvcopy",
+      "OptiFG.resourceblocking",
+      "OptiFG.resourceflip",
+      "OptiFG.resourceflipoffset",
+      "OptiFG.useshards",
+      "OutputScaling.downscaler",
+      "OutputScaling.enabled",
+      "OutputScaling.multiplier",
+      "Plugins.lateasipluginsdelay",
+      "Plugins.loadasiplugins",
+      "Plugins.loadcustomamdxc64onrdna2",
+      "Plugins.loadreshade",
+      "Plugins.loadspecialk",
+      "Plugins.path",
+      "ProcessFilter.processexclusionlist",
+      "ProcessFilter.targetprocessname",
+      "QualityOverrides.qualityratiobalanced",
+      "QualityOverrides.qualityratiodlaa",
+      "QualityOverrides.qualityratiooverrideenabled",
+      "QualityOverrides.qualityratioperformance",
+      "QualityOverrides.qualityratioquality",
+      "QualityOverrides.qualityratioultraperformance",
+      "QualityOverrides.qualityratioultraquality",
+      "Sharpness.overridesharpness",
+      "Sharpness.shader",
+      "Sharpness.sharpness",
+      "Spoofing.d3dfeaturelevel",
+      "Spoofing.dxgi",
+      "Spoofing.dxgiblacklist",
+      "Spoofing.dxgifactorywrapping",
+      "Spoofing.dxgivram",
+      "Spoofing.registry",
+      "Spoofing.registrydriver",
+      "Spoofing.spoofeddeviceid",
+      "Spoofing.spoofedgpuname",
+      "Spoofing.spoofedvendorid",
+      "Spoofing.spoofhags",
+      "Spoofing.streamlinespoofing",
+      "Spoofing.targetdeviceid",
+      "Spoofing.targetvendorid",
+      "Spoofing.ueintelatomics",
+      "Spoofing.user32",
+      "Spoofing.vulkan",
+      "Spoofing.vulkanextensionspoofing",
+      "Spoofing.vulkanvram",
+      "UpscaleRatio.upscaleratiooverrideenabled",
+      "UpscaleRatio.upscaleratiooverridevalue",
+      "Upscalers.dx11upscaler",
+      "Upscalers.dx12upscaler",
+      "Upscalers.vulkanupscaler",
+      "V-Sync.forcevsync",
+      "V-Sync.overridevsync",
+      "V-Sync.syncinterval",
+      "XeFG.debugview",
+      "XeFG.depthinverted",
+      "XeFG.dynamicallow1x",
+      "XeFG.dynamicmfg",
+      "XeFG.forceborderless",
+      "XeFG.frameratetargetdmfg",
+      "XeFG.highresmv",
+      "XeFG.ignoreinitchecks",
+      "XeFG.interpolationcount",
+      "XeFG.jitteredmv",
+      "XeFG.overrideinterpolationcount",
+      "XeFG.roundingdmfg",
+      "XeFG.targetascapdmfg",
+      "XeFG.uicomposition",
+      "XeSS.buildpipelines",
+      "XeSS.createheaps",
+      "XeSS.networkmodel",
+      "fakenvapi.forcelatencyflex",
+      "fakenvapi.forcereflex",
+      "fakenvapi.forcexell",
+      "fakenvapi.latencyflexmode",
+      "fakenvapi.lowlatencyinput",
+      "fakenvapi.lowlatencyoutput",
+      "fakenvapi.usefakenvapi"
+    ],
+    "e08ac5e1de899bce37710ffe82f6dfc6e31edfa7febb11a8a9db4ac8dac41e95": [
+      "Anisotropy.anisotropyoverride",
+      "Anisotropy.modifycomparison",
+      "Anisotropy.modifyminmax",
+      "Anisotropy.skippointfilter",
+      "CAS.contrast",
+      "CAS.contrastenabled",
+      "CAS.daclampoutput",
+      "CAS.dadepthbias",
+      "CAS.dadepthscale",
+      "CAS.enabled",
+      "CAS.motionscalelimit",
+      "CAS.motionsharpness",
+      "CAS.motionsharpnessenabled",
+      "CAS.motionthreshold",
+      "CAS.sharpenerdebug",
+      "DLSS.enabled",
+      "DLSS.renderpresetbalanced",
+      "DLSS.renderpresetdlaa",
+      "DLSS.renderpresetforall",
+      "DLSS.renderpresetoverride",
+      "DLSS.renderpresetperformance",
+      "DLSS.renderpresetquality",
+      "DLSS.renderpresetultraperformance",
+      "DLSS.renderpresetultraquality",
+      "DLSS.usegenericappidwithdlss",
+      "DLSSD.renderpresetbalanced",
+      "DLSSD.renderpresetdlaa",
+      "DLSSD.renderpresetforall",
+      "DLSSD.renderpresetoverride",
+      "DLSSD.renderpresetperformance",
+      "DLSSD.renderpresetquality",
+      "DLSSD.renderpresetultraperformance",
+      "DLSSD.renderpresetultraquality",
+      "DLSSG.forcedmfg",
+      "DLSSG.frameratetargetdmfg",
+      "DLSSG.interpolationcount",
+      "DLSSG.overrideforcedmfg",
+      "DLSSG.overrideinterpolationcount",
+      "DLSSG.usegamesreflexmarkers",
+      "DRS.drsmaxoverrideenabled",
+      "DRS.drsminoverrideenabled",
+      "Dx11withDx12.dontusentshared",
+      "Dx11withDx12.usedelayedinit",
+      "FSR.accaddperframe",
+      "FSR.camerafar",
+      "FSR.cameranear",
+      "FSR.debugview",
+      "FSR.dlssreactivemaskbias",
+      "FSR.fgindex",
+      "FSR.fsr4donotloadamdxc64",
+      "FSR.fsr4enablewatermark",
+      "FSR.fsr4gpusupport",
+      "FSR.fsr4model",
+      "FSR.fsr4preset",
+      "FSR.fsragilitysdkupgrade",
+      "FSR.fsrnonlinearcolorspace",
+      "FSR.fsrnonlinearpq",
+      "FSR.fsrnonlinearsrgb",
+      "FSR.horizontalfov",
+      "FSR.mindisoccacc",
+      "FSR.reactivescale",
+      "FSR.shadingscale",
+      "FSR.upscalerindex",
+      "FSR.usefsrinputvalues",
+      "FSR.usereactivemaskfortransparency",
+      "FSR.velocityfactor",
+      "FSR.verticalfov",
+      "FSRFG.allowasync",
+      "FSRFG.debugpacinglines",
+      "FSRFG.debugresetlines",
+      "FSRFG.debugtearlines",
+      "FSRFG.disableflipmetering",
+      "FSRFG.enablewatermark",
+      "FSRFG.fpthybridspin",
+      "FSRFG.fpthybridspintime",
+      "FSRFG.fptsafetymargininms",
+      "FSRFG.fptvariancefactor",
+      "FSRFG.fptwaitforsingleobjectonfence",
+      "FSRFG.framepacingtuning",
+      "FSRFG.usemutexforswapchain",
+      "FSRFGInputs.skipconfigforhudless",
+      "FSRFGInputs.skipdispatchforhudless",
+      "FrameGen.allowedframeahead",
+      "FrameGen.debugview",
+      "FrameGen.depthvalidnow",
+      "FrameGen.disablehudless",
+      "FrameGen.disableui",
+      "FrameGen.drawuioverfg",
+      "FrameGen.enabled",
+      "FrameGen.fginput",
+      "FrameGen.fgnvngxreplacement",
+      "FrameGen.fgoutput",
+      "FrameGen.ftinput",
+      "FrameGen.hudcutoff",
+      "FrameGen.hudlessvalidnow",
+      "FrameGen.modifybufferstate",
+      "FrameGen.modifyscindex",
+      "FrameGen.onlyacceptfirsthudless",
+      "FrameGen.preserveswapchain",
+      "FrameGen.rectheight",
+      "FrameGen.rectleft",
+      "FrameGen.recttop",
+      "FrameGen.rectwidth",
+      "FrameGen.skipreset",
+      "FrameGen.skipresizebuffers",
+      "FrameGen.uipremultipliedalpha",
+      "FrameGen.velocityvalidnow",
+      "Framerate.frameratelimit",
+      "HDR.forcehdr",
+      "HDR.skipcolorspace",
+      "HDR.usehdr10",
+      "Hooks.earlyhooking",
+      "Hooks.hookoriginalnvngxonly",
+      "Hooks.usentdllhooks",
+      "Hotfix.checkforupdate",
+      "Hotfix.colormaskresourcebarrier",
+      "Hotfix.colorresourcebarrier",
+      "Hotfix.created3d12deviceforluma",
+      "Hotfix.depthresourcebarrier",
+      "Hotfix.disableoverlays",
+      "Hotfix.exposureresourcebarrier",
+      "Hotfix.extendedstaterestore",
+      "Hotfix.manualinputpolling",
+      "Hotfix.motionvectorresourcebarrier",
+      "Hotfix.outputresourcebarrier",
+      "Hotfix.preferdedicatedgpu",
+      "Hotfix.preferfirstdedicatedgpu",
+      "Hotfix.restorecomputesignature",
+      "Hotfix.restoregraphicsignature",
+      "Hotfix.roundinternalresolution",
+      "Hotfix.simulatewaitableobject",
+      "Hotfix.skipfirstframes",
+      "Hotfix.useprecompiledshaders",
+      "InitFlags.autoexposure",
+      "InitFlags.depthinverted",
+      "InitFlags.disablereactivemask",
+      "InitFlags.displayresolution",
+      "InitFlags.dynamicresolution",
+      "InitFlags.hdr",
+      "InitFlags.jittercancellation",
+      "Inputs.enabledlssinputs",
+      "Inputs.enableffxinputs",
+      "Inputs.enablefsr2inputs",
+      "Inputs.enablefsr3inputs",
+      "Inputs.enablehotswapping",
+      "Inputs.enablexessinputs",
+      "Inputs.fsr2pattern",
+      "Inputs.fsr3pattern",
+      "Inputs.useffxinputs",
+      "Inputs.usefsr2dx11inputs",
+      "Inputs.usefsr2inputs",
+      "Inputs.usefsr2vulkaninputs",
+      "Inputs.usefsr3inputs",
+      "Libraries.ffxdx12fgpath",
+      "Libraries.ffxdx12path",
+      "Libraries.ffxdx12rcpath",
+      "Libraries.ffxdx12rrpath",
+      "Libraries.ffxdx12srpath",
+      "Libraries.ffxvkfgpath",
+      "Libraries.ffxvkpath",
+      "Libraries.ffxvksrpath",
+      "Libraries.nvapipath",
+      "Libraries.nvngxdlsspath",
+      "Libraries.nvngxfeaturepath",
+      "Libraries.nvngxpath",
+      "Libraries.optidllpath",
+      "Libraries.xefgpath",
+      "Libraries.xellpath",
+      "Libraries.xessdx11path",
+      "Libraries.xesspath",
+      "Log.logasync",
+      "Log.logasyncthreads",
+      "Log.logfilename",
+      "Log.loglevel",
+      "Log.logtoconsole",
+      "Log.logtodebug",
+      "Log.logtofile",
+      "Log.logtongx",
+      "Log.openconsole",
+      "Log.singlefile",
+      "Magnifier.bordersize",
+      "Magnifier.cursoroffsetx",
+      "Magnifier.cursoroffsety",
+      "Magnifier.enabled",
+      "Magnifier.size",
+      "Magnifier.staticposx",
+      "Magnifier.staticposy",
+      "Magnifier.zoomfactor",
+      "Menu.accentcolorb",
+      "Menu.accentcolorg",
+      "Menu.accentcolorr",
+      "Menu.bgcolora",
+      "Menu.bgcolorb",
+      "Menu.bgcolorg",
+      "Menu.bgcolorr",
+      "Menu.blur",
+      "Menu.blurstrength",
+      "Menu.disablesplash",
+      "Menu.extendedlimits",
+      "Menu.fgshortcutkey",
+      "Menu.fontsize",
+      "Menu.fpscycleshortcutkey",
+      "Menu.fpsoverlayalpha",
+      "Menu.fpsoverlaybgcolor",
+      "Menu.fpsoverlaycompactlabels",
+      "Menu.fpsoverlayfont",
+      "Menu.fpsoverlayfontsize",
+      "Menu.fpsoverlayfpsrow",
+      "Menu.fpsoverlaygraphcolor",
+      "Menu.fpsoverlaygraphheight",
+      "Menu.fpsoverlayhideaverages",
+      "Menu.fpsoverlayhorizontal",
+      "Menu.fpsoverlaylabelcolor",
+      "Menu.fpsoverlaylabelscale",
+      "Menu.fpsoverlayletterspacing",
+      "Menu.fpsoverlaypos",
+      "Menu.fpsoverlayposx",
+      "Menu.fpsoverlayposy",
+      "Menu.fpsoverlayrounding",
+      "Menu.fpsoverlayrows",
+      "Menu.fpsoverlayrowspacing",
+      "Menu.fpsoverlayshadow",
+      "Menu.fpsoverlayshadowcolor",
+      "Menu.fpsoverlayshadowstrength",
+      "Menu.fpsoverlayshowratio",
+      "Menu.fpsoverlaytype",
+      "Menu.fpsoverlayupdateinterval",
+      "Menu.fpsoverlayvaluecolor",
+      "Menu.fpsoverlayvaluescale",
+      "Menu.fpsscale",
+      "Menu.fpsshortcutkey",
+      "Menu.height",
+      "Menu.lighttheme",
+      "Menu.overlaymenu",
+      "Menu.overlaysusetheme",
+      "Menu.rounding",
+      "Menu.scale",
+      "Menu.shortcutkey",
+      "Menu.showfps",
+      "Menu.ttffontpath",
+      "Menu.usehqfont",
+      "Mipmap.mipmapbiasfixedoverride",
+      "Mipmap.mipmapbiasoverride",
+      "Mipmap.mipmapbiasoverrideall",
+      "Mipmap.mipmapbiasscaleoverride",
+      "NvApi.disableflipmetering",
+      "NvApi.disableota",
+      "NvngxFG.disablehudless",
+      "NvngxFG.dispatchflags",
+      "NvngxFG.makedepthcopy",
+      "NvngxFG.showdebug",
+      "OptiFG.alwayscapturefsrfgswapchain",
+      "OptiFG.alwaystrackheaps",
+      "OptiFG.depthscalemax",
+      "OptiFG.disablehudfix",
+      "OptiFG.enabledepthscale",
+      "OptiFG.hudfix",
+      "OptiFG.hudfixdisabledi",
+      "OptiFG.hudfixdisabledii",
+      "OptiFG.hudfixdisabledispatch",
+      "OptiFG.hudfixdisableom",
+      "OptiFG.hudfixdisablertv",
+      "OptiFG.hudfixdisablescr",
+      "OptiFG.hudfixdisablesgr",
+      "OptiFG.hudfixdisablesrv",
+      "OptiFG.hudfixdisableuav",
+      "OptiFG.hudfixdontuseswapchainbuffers",
+      "OptiFG.hudfixextended",
+      "OptiFG.hudfiximmediate",
+      "OptiFG.hudfixpersistentbindings",
+      "OptiFG.hudfixrelaxedresolutioncheck",
+      "OptiFG.hudfixuitexture",
+      "OptiFG.hudfixuiunblend",
+      "OptiFG.hudlimit",
+      "OptiFG.makedepthcopy",
+      "OptiFG.makemvcopy",
+      "OptiFG.resourceblocking",
+      "OptiFG.resourceflip",
+      "OptiFG.resourceflipoffset",
+      "OptiFG.useshards",
+      "OutputScaling.downscaler",
+      "OutputScaling.enabled",
+      "OutputScaling.multiplier",
+      "Plugins.lateasipluginsdelay",
+      "Plugins.loadasiplugins",
+      "Plugins.loadcustomamdxc64onrdna2",
+      "Plugins.loadreshade",
+      "Plugins.loadspecialk",
+      "Plugins.path",
+      "ProcessFilter.processexclusionlist",
+      "ProcessFilter.targetprocessname",
+      "QualityOverrides.qualityratiobalanced",
+      "QualityOverrides.qualityratiodlaa",
+      "QualityOverrides.qualityratiooverrideenabled",
+      "QualityOverrides.qualityratioperformance",
+      "QualityOverrides.qualityratioquality",
+      "QualityOverrides.qualityratioultraperformance",
+      "QualityOverrides.qualityratioultraquality",
+      "Sharpness.overridesharpness",
+      "Sharpness.shader",
+      "Sharpness.sharpness",
+      "Spoofing.d3dfeaturelevel",
+      "Spoofing.dxgi",
+      "Spoofing.dxgiblacklist",
+      "Spoofing.dxgifactorywrapping",
+      "Spoofing.dxgivram",
+      "Spoofing.registry",
+      "Spoofing.registrydriver",
+      "Spoofing.spoofeddeviceid",
+      "Spoofing.spoofedgpuname",
+      "Spoofing.spoofedvendorid",
+      "Spoofing.spoofhags",
+      "Spoofing.streamlinespoofing",
+      "Spoofing.targetdeviceid",
+      "Spoofing.targetvendorid",
+      "Spoofing.ueintelatomics",
+      "Spoofing.user32",
+      "Spoofing.vulkan",
+      "Spoofing.vulkanextensionspoofing",
+      "Spoofing.vulkanvram",
+      "UpscaleRatio.upscaleratiooverrideenabled",
+      "UpscaleRatio.upscaleratiooverridevalue",
+      "Upscalers.dx11upscaler",
+      "Upscalers.dx12upscaler",
+      "Upscalers.vulkanupscaler",
+      "V-Sync.forcevsync",
+      "V-Sync.overridevsync",
+      "V-Sync.syncinterval",
+      "XeFG.debugview",
+      "XeFG.depthinverted",
+      "XeFG.dynamicallow1x",
+      "XeFG.dynamicmfg",
+      "XeFG.forceborderless",
+      "XeFG.frameratetargetdmfg",
+      "XeFG.highresmv",
+      "XeFG.ignoreinitchecks",
+      "XeFG.interpolationcount",
+      "XeFG.jitteredmv",
+      "XeFG.overrideinterpolationcount",
+      "XeFG.roundingdmfg",
+      "XeFG.targetascapdmfg",
+      "XeFG.uicomposition",
+      "XeSS.buildpipelines",
+      "XeSS.createheaps",
+      "XeSS.networkmodel",
+      "fakenvapi.forcelatencyflex",
+      "fakenvapi.forcereflex",
+      "fakenvapi.forcexell",
+      "fakenvapi.latencyflexmode",
+      "fakenvapi.lowlatencyinput",
+      "fakenvapi.lowlatencyoutput",
+      "fakenvapi.usefakenvapi"
+    ],
+    "060d8fcfb1374f69dfbe4df6b22fed30d6349b97e9b5f6272cad9f494c440cb8": [
+      "Anisotropy.anisotropyoverride",
+      "Anisotropy.modifycomparison",
+      "Anisotropy.modifyminmax",
+      "Anisotropy.skippointfilter",
+      "BC250.requireargument",
+      "CAS.contrast",
+      "CAS.contrastenabled",
+      "CAS.daclampoutput",
+      "CAS.dadepthbias",
+      "CAS.dadepthscale",
+      "CAS.enabled",
+      "CAS.motionscalelimit",
+      "CAS.motionsharpness",
+      "CAS.motionsharpnessenabled",
+      "CAS.motionthreshold",
+      "CAS.sharpenerdebug",
+      "DLSS.enabled",
+      "DLSS.renderpresetbalanced",
+      "DLSS.renderpresetdlaa",
+      "DLSS.renderpresetforall",
+      "DLSS.renderpresetoverride",
+      "DLSS.renderpresetperformance",
+      "DLSS.renderpresetquality",
+      "DLSS.renderpresetultraperformance",
+      "DLSS.renderpresetultraquality",
+      "DLSS.usegenericappidwithdlss",
+      "DLSSD.renderpresetbalanced",
+      "DLSSD.renderpresetdlaa",
+      "DLSSD.renderpresetforall",
+      "DLSSD.renderpresetoverride",
+      "DLSSD.renderpresetperformance",
+      "DLSSD.renderpresetquality",
+      "DLSSD.renderpresetultraperformance",
+      "DLSSD.renderpresetultraquality",
+      "DLSSG.forcedmfg",
+      "DLSSG.frameratetargetdmfg",
+      "DLSSG.interpolationcount",
+      "DLSSG.overrideforcedmfg",
+      "DLSSG.overrideinterpolationcount",
+      "DLSSG.usegamesreflexmarkers",
+      "DRS.drsmaxoverrideenabled",
+      "DRS.drsminoverrideenabled",
+      "Dx11withDx12.dontusentshared",
+      "Dx11withDx12.usedelayedinit",
+      "FSR.accaddperframe",
+      "FSR.camerafar",
+      "FSR.cameranear",
+      "FSR.debugview",
+      "FSR.dlssreactivemaskbias",
+      "FSR.fgindex",
+      "FSR.fsr4donotloadamdxc64",
+      "FSR.fsr4enablewatermark",
+      "FSR.fsr4gpusupport",
+      "FSR.fsr4model",
+      "FSR.fsr4preset",
+      "FSR.fsragilitysdkupgrade",
+      "FSR.fsrnonlinearcolorspace",
+      "FSR.fsrnonlinearpq",
+      "FSR.fsrnonlinearsrgb",
+      "FSR.horizontalfov",
+      "FSR.mindisoccacc",
+      "FSR.reactivescale",
+      "FSR.shadingscale",
+      "FSR.upscalerindex",
+      "FSR.usefsrinputvalues",
+      "FSR.usereactivemaskfortransparency",
+      "FSR.velocityfactor",
+      "FSR.verticalfov",
+      "FSRFG.allowasync",
+      "FSRFG.debugpacinglines",
+      "FSRFG.debugresetlines",
+      "FSRFG.debugtearlines",
+      "FSRFG.disableflipmetering",
+      "FSRFG.enablewatermark",
+      "FSRFG.fpthybridspin",
+      "FSRFG.fpthybridspintime",
+      "FSRFG.fptsafetymargininms",
+      "FSRFG.fptvariancefactor",
+      "FSRFG.fptwaitforsingleobjectonfence",
+      "FSRFG.framepacingtuning",
+      "FSRFG.usemutexforswapchain",
+      "FSRFGInputs.skipconfigforhudless",
+      "FSRFGInputs.skipdispatchforhudless",
+      "FrameGen.allowedframeahead",
+      "FrameGen.debugview",
+      "FrameGen.depthvalidnow",
+      "FrameGen.disablehudless",
+      "FrameGen.disableui",
+      "FrameGen.drawuioverfg",
+      "FrameGen.enabled",
+      "FrameGen.fginput",
+      "FrameGen.fgnvngxreplacement",
+      "FrameGen.fgoutput",
+      "FrameGen.ftinput",
+      "FrameGen.hudcutoff",
+      "FrameGen.hudlessvalidnow",
+      "FrameGen.modifybufferstate",
+      "FrameGen.modifyscindex",
+      "FrameGen.onlyacceptfirsthudless",
+      "FrameGen.preserveswapchain",
+      "FrameGen.rectheight",
+      "FrameGen.rectleft",
+      "FrameGen.recttop",
+      "FrameGen.rectwidth",
+      "FrameGen.skipreset",
+      "FrameGen.skipresizebuffers",
+      "FrameGen.uipremultipliedalpha",
+      "FrameGen.velocityvalidnow",
+      "Framerate.frameratelimit",
+      "HDR.forcehdr",
+      "HDR.skipcolorspace",
+      "HDR.usehdr10",
+      "Hooks.earlyhooking",
+      "Hooks.hookoriginalnvngxonly",
+      "Hooks.usentdllhooks",
+      "Hotfix.auxiliarydxgifactorymodules",
+      "Hotfix.checkforupdate",
+      "Hotfix.colormaskresourcebarrier",
+      "Hotfix.colorresourcebarrier",
+      "Hotfix.created3d12deviceforluma",
+      "Hotfix.depthresourcebarrier",
+      "Hotfix.disableoverlays",
+      "Hotfix.exposureresourcebarrier",
+      "Hotfix.extendedstaterestore",
+      "Hotfix.manualinputpolling",
+      "Hotfix.motionvectorresourcebarrier",
+      "Hotfix.outputresourcebarrier",
+      "Hotfix.preferdedicatedgpu",
+      "Hotfix.preferfirstdedicatedgpu",
+      "Hotfix.restorecomputesignature",
+      "Hotfix.restoregraphicsignature",
+      "Hotfix.roundinternalresolution",
+      "Hotfix.simulatewaitableobject",
+      "Hotfix.skipfirstframes",
+      "Hotfix.useprecompiledshaders",
+      "InitFlags.autoexposure",
+      "InitFlags.depthinverted",
+      "InitFlags.disablereactivemask",
+      "InitFlags.displayresolution",
+      "InitFlags.dynamicresolution",
+      "InitFlags.hdr",
+      "InitFlags.jittercancellation",
+      "Inputs.enabledlssinputs",
+      "Inputs.enableffxinputs",
+      "Inputs.enablefsr2inputs",
+      "Inputs.enablefsr3inputs",
+      "Inputs.enablehotswapping",
+      "Inputs.enablexessinputs",
+      "Inputs.fsr2pattern",
+      "Inputs.fsr3pattern",
+      "Inputs.useffxinputs",
+      "Inputs.usefsr2dx11inputs",
+      "Inputs.usefsr2inputs",
+      "Inputs.usefsr2vulkaninputs",
+      "Inputs.usefsr3inputs",
+      "Libraries.ffxdx12fgpath",
+      "Libraries.ffxdx12path",
+      "Libraries.ffxdx12rcpath",
+      "Libraries.ffxdx12rrpath",
+      "Libraries.ffxdx12srpath",
+      "Libraries.ffxvkfgpath",
+      "Libraries.ffxvkpath",
+      "Libraries.ffxvksrpath",
+      "Libraries.nvapipath",
+      "Libraries.nvngxdlsspath",
+      "Libraries.nvngxfeaturepath",
+      "Libraries.nvngxpath",
+      "Libraries.optidllpath",
+      "Libraries.xefgpath",
+      "Libraries.xellpath",
+      "Libraries.xessdx11path",
+      "Libraries.xesspath",
+      "Log.logasync",
+      "Log.logasyncthreads",
+      "Log.logfilename",
+      "Log.loglevel",
+      "Log.logtoconsole",
+      "Log.logtodebug",
+      "Log.logtofile",
+      "Log.logtongx",
+      "Log.openconsole",
+      "Log.singlefile",
+      "Magnifier.bordersize",
+      "Magnifier.cursoroffsetx",
+      "Magnifier.cursoroffsety",
+      "Magnifier.enabled",
+      "Magnifier.size",
+      "Magnifier.staticposx",
+      "Magnifier.staticposy",
+      "Magnifier.zoomfactor",
+      "Menu.accentcolorb",
+      "Menu.accentcolorg",
+      "Menu.accentcolorr",
+      "Menu.bgcolora",
+      "Menu.bgcolorb",
+      "Menu.bgcolorg",
+      "Menu.bgcolorr",
+      "Menu.blur",
+      "Menu.blurstrength",
+      "Menu.disablesplash",
+      "Menu.extendedlimits",
+      "Menu.fgshortcutkey",
+      "Menu.fontsize",
+      "Menu.fpscycleshortcutkey",
+      "Menu.fpsoverlayalpha",
+      "Menu.fpsoverlaybgcolor",
+      "Menu.fpsoverlaycompactlabels",
+      "Menu.fpsoverlayfont",
+      "Menu.fpsoverlayfontsize",
+      "Menu.fpsoverlayfpsrow",
+      "Menu.fpsoverlaygraphcolor",
+      "Menu.fpsoverlaygraphheight",
+      "Menu.fpsoverlayhideaverages",
+      "Menu.fpsoverlayhorizontal",
+      "Menu.fpsoverlaylabelcolor",
+      "Menu.fpsoverlaylabelscale",
+      "Menu.fpsoverlayletterspacing",
+      "Menu.fpsoverlaypos",
+      "Menu.fpsoverlayposx",
+      "Menu.fpsoverlayposy",
+      "Menu.fpsoverlayrounding",
+      "Menu.fpsoverlayrows",
+      "Menu.fpsoverlayrowspacing",
+      "Menu.fpsoverlayshadow",
+      "Menu.fpsoverlayshadowcolor",
+      "Menu.fpsoverlayshadowstrength",
+      "Menu.fpsoverlayshowratio",
+      "Menu.fpsoverlaytype",
+      "Menu.fpsoverlayupdateinterval",
+      "Menu.fpsoverlayvaluecolor",
+      "Menu.fpsoverlayvaluescale",
+      "Menu.fpsscale",
+      "Menu.fpsshortcutkey",
+      "Menu.height",
+      "Menu.lighttheme",
+      "Menu.overlaymenu",
+      "Menu.overlaysusetheme",
+      "Menu.rounding",
+      "Menu.scale",
+      "Menu.shortcutkey",
+      "Menu.showfps",
+      "Menu.ttffontpath",
+      "Menu.usehqfont",
+      "Mipmap.mipmapbiasfixedoverride",
+      "Mipmap.mipmapbiasoverride",
+      "Mipmap.mipmapbiasoverrideall",
+      "Mipmap.mipmapbiasscaleoverride",
+      "NvApi.disableflipmetering",
+      "NvApi.disableota",
+      "NvngxFG.disablehudless",
+      "NvngxFG.dispatchflags",
+      "NvngxFG.makedepthcopy",
+      "NvngxFG.showdebug",
+      "OptiFG.alwayscapturefsrfgswapchain",
+      "OptiFG.alwaystrackheaps",
+      "OptiFG.depthscalemax",
+      "OptiFG.disablehudfix",
+      "OptiFG.enabledepthscale",
+      "OptiFG.hudfix",
+      "OptiFG.hudfixdisabledi",
+      "OptiFG.hudfixdisabledii",
+      "OptiFG.hudfixdisabledispatch",
+      "OptiFG.hudfixdisableom",
+      "OptiFG.hudfixdisablertv",
+      "OptiFG.hudfixdisablescr",
+      "OptiFG.hudfixdisablesgr",
+      "OptiFG.hudfixdisablesrv",
+      "OptiFG.hudfixdisableuav",
+      "OptiFG.hudfixdontuseswapchainbuffers",
+      "OptiFG.hudfixextended",
+      "OptiFG.hudfiximmediate",
+      "OptiFG.hudfixpersistentbindings",
+      "OptiFG.hudfixrelaxedresolutioncheck",
+      "OptiFG.hudfixuitexture",
+      "OptiFG.hudfixuiunblend",
+      "OptiFG.hudlimit",
+      "OptiFG.makedepthcopy",
+      "OptiFG.makemvcopy",
+      "OptiFG.resourceblocking",
+      "OptiFG.resourceflip",
+      "OptiFG.resourceflipoffset",
+      "OptiFG.useshards",
+      "OutputScaling.downscaler",
+      "OutputScaling.enabled",
+      "OutputScaling.multiplier",
+      "Plugins.lateasipluginsdelay",
+      "Plugins.loadasiplugins",
+      "Plugins.loadcustomamdxc64onrdna2",
+      "Plugins.loadreshade",
+      "Plugins.loadspecialk",
+      "Plugins.path",
+      "ProcessFilter.processexclusionlist",
+      "ProcessFilter.targetprocessname",
+      "QualityOverrides.qualityratiobalanced",
+      "QualityOverrides.qualityratiodlaa",
+      "QualityOverrides.qualityratiooverrideenabled",
+      "QualityOverrides.qualityratioperformance",
+      "QualityOverrides.qualityratioquality",
+      "QualityOverrides.qualityratioultraperformance",
+      "QualityOverrides.qualityratioultraquality",
+      "Sharpness.overridesharpness",
+      "Sharpness.shader",
+      "Sharpness.sharpness",
+      "Spoofing.d3dfeaturelevel",
+      "Spoofing.dxgi",
+      "Spoofing.dxgiblacklist",
+      "Spoofing.dxgifactorywrapping",
+      "Spoofing.dxgivram",
+      "Spoofing.registry",
+      "Spoofing.registrydriver",
+      "Spoofing.spoofeddeviceid",
+      "Spoofing.spoofedgpuname",
+      "Spoofing.spoofedvendorid",
+      "Spoofing.spoofhags",
+      "Spoofing.streamlinespoofing",
+      "Spoofing.targetdeviceid",
+      "Spoofing.targetvendorid",
+      "Spoofing.ueintelatomics",
+      "Spoofing.user32",
+      "Spoofing.vulkan",
+      "Spoofing.vulkanextensionspoofing",
+      "Spoofing.vulkanvram",
+      "UpscaleRatio.upscaleratiooverrideenabled",
+      "UpscaleRatio.upscaleratiooverridevalue",
+      "Upscalers.dx11upscaler",
+      "Upscalers.dx12upscaler",
+      "Upscalers.vulkanupscaler",
+      "V-Sync.forcevsync",
+      "V-Sync.overridevsync",
+      "V-Sync.syncinterval",
+      "XeFG.debugview",
+      "XeFG.depthinverted",
+      "XeFG.dynamicallow1x",
+      "XeFG.dynamicmfg",
+      "XeFG.forceborderless",
+      "XeFG.frameratetargetdmfg",
+      "XeFG.highresmv",
+      "XeFG.ignoreinitchecks",
+      "XeFG.interpolationcount",
+      "XeFG.jitteredmv",
+      "XeFG.overrideinterpolationcount",
+      "XeFG.roundingdmfg",
+      "XeFG.targetascapdmfg",
+      "XeFG.uicomposition",
+      "XeSS.buildpipelines",
+      "XeSS.createheaps",
+      "XeSS.networkmodel",
+      "fakenvapi.forcelatencyflex",
+      "fakenvapi.forcereflex",
+      "fakenvapi.forcexell",
+      "fakenvapi.latencyflexmode",
+      "fakenvapi.lowlatencyinput",
+      "fakenvapi.lowlatencyoutput",
+      "fakenvapi.usefakenvapi"
+    ]
+  },
+  "quirks": {
+    "about": "Derived with the research quirks2.py from OptiScaler 03db4f86 (pinned at the time) and upstream 08e13adf; 25db192b and 273e8d44 add only code-level quirks (HideFsr4, ExtendedSearch), so these config-level tables are unchanged. titles: the game an upstream quirk entry names (its first comment line, normalized), which links an exe to its wiki title.",
+    "pinned": "03db4f8692878e65748769ebe583c053cae96360",
+    "upstream": "08e13adf55b3fd71a67071eac2e95973ac598df3",
+    "leave_auto": {
+      "granblue_fantasy_relink.exe": [
+        {
+          "key": "fakenvapi.UseFakenvapi",
+          "quirk": "set:fakenvapi.UseFakenvapi=false",
+          "value": "false"
+        }
+      ],
+      "endfield.exe": [
+        {
+          "key": "fakenvapi.UseFakenvapi",
+          "quirk": "set:fakenvapi.UseFakenvapi=false",
+          "value": "false"
+        }
+      ],
+      "dcs.exe": [
+        {
+          "key": "fakenvapi.UseFakenvapi",
+          "quirk": "set:fakenvapi.UseFakenvapi=false",
+          "value": "false"
+        }
+      ]
+    },
+    "backports": {},
+    "quirk_keys": {
+      "007firstlight.exe": {
+        "FSR.Fsr4DoNotLoadAmdxc64": "true",
+        "Hotfix.ExtendedStateRestore": "true",
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "acblackflag.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "acblackflag_plus.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "acmirage.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "acmirage_plus.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "acr.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "acshadows.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "acshadows_plus.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "afop.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "alanwake2.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "assettocorsaevo.exe": {
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "avowed-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "avowed-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "b1-win64-shipping.exe": {
+        "Spoofing.Registry": "true"
+      },
+      "b1-wingdk-shipping.exe": {
+        "Spoofing.Registry": "true"
+      },
+      "banishers-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "banishers-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "bates-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "bates-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "bcg-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "bcg-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "beamng.drive.x64.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "beastofreincarnation-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "OptiFG.AlwaysCaptureFSRFGSwapchain": "true"
+      },
+      "beastofreincarnation-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "OptiFG.AlwaysCaptureFSRFGSwapchain": "true"
+      },
+      "bg3.exe": {
+        "Spoofing.VulkanExtensionSpoofing": "true@gpu=non-nvidia"
+      },
+      "bloom&rage.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "caravansandwitch-win64-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "caravansandwitch-wingdk-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "client-win64-shipping.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "Hooks.UseNtdllHooks": "false"
+      },
+      "client-wingdk-shipping.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "Hooks.UseNtdllHooks": "false"
+      },
+      "control_dx12.exe": {
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "controlresonant.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "Hotfix.SimulateWaitableObject": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "crimsondesert.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "crysis2remastered.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "crysis3remastered.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "crysisremastered.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "cyberpunk2077.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Reprojection.DepthCutoff": "0.02",
+        "Spoofing.Dxgi": "false"
+      },
+      "darktide.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "dcs.exe": {
+        "fakenvapi.UseFakenvapi": "false"
+      },
+      "dd2.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "dd2ccs.exe": {
+        "Hotfix.RestoreComputeSignature": "true@gpu=non-nvidia",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "dead space.exe": {
+        "FrameGen.SkipResizeBuffers": "false",
+        "Spoofing.Dxgi": "false",
+        "V-Sync.OverrideVsync": "true@fg_output=xefg",
+        "XeFG.ForceBorderless": "true@fg_output=xefg"
+      },
+      "deadisland-win64-shipping.exe": {
+        "InitFlags.AutoExposure": "true",
+        "InitFlags.DisableReactiveMask": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "deadisland-wingdk-shipping.exe": {
+        "InitFlags.AutoExposure": "true",
+        "InitFlags.DisableReactiveMask": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "deathloop.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "devilmaycry5.exe": {
+        "Menu.OverlayMenu": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "doa6lr.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "FrameGen.SkipResizeBuffers": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "doomthedarkages.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "dragon age the veilguard.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "drdr.exe": {
+        "Hotfix.RestoreComputeSignature": "true@gpu=non-nvidia",
+        "Spoofing.Dxgi": "false"
+      },
+      "ds.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "ds2.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "dungeonhaven-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "dungeonhaven-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "dworigins.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "dyinglightgame_thebeast_x64_rwdi.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "dyinglightgame_x64_rwdi.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "eldenring.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "em-win64-shipping.exe": {
+        "Hooks.UseNtdllHooks": "false"
+      },
+      "endfield.exe": {
+        "Spoofing.Vulkan": "true@gpu=non-nvidia",
+        "Spoofing.VulkanExtensionSpoofing": "true@gpu=non-nvidia",
+        "fakenvapi.UseFakenvapi": "false"
+      },
+      "enshrouded.exe": {
+        "Spoofing.Vulkan": "true@gpu=non-nvidia",
+        "Spoofing.VulkanExtensionSpoofing": "true@gpu=non-nvidia"
+      },
+      "eu5.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "f1_2020_dx12.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "f1_2021_dx12.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "f1_22.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "f1manager24.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "fall of avalon.exe": {
+        "InitFlags.AutoExposure": "true"
+      },
+      "farmingsimulator2025game.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "fatalframeii.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "fbcfirebreak.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "ff7rebirth_.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "ff7remake_.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "ffxiv_dx11.exe": {
+        "V-Sync.OverrideVsync": "false"
+      },
+      "flightsimulator.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "fmf2-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "fmf2-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "forza_gaming.desktop.x64_release_final.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "forza_steamworks_release_final.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "forzahorizon5.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "forzahorizon6.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "game-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "game-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "genesis-win64-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "genesis-wingdk-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "ghostoftsushima.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "gotg.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "gow.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "granblue_fantasy_relink.exe": {
+        "fakenvapi.UseFakenvapi": "false"
+      },
+      "gta5_enhanced.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "hellbladegame-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "hellbladegame-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "hitman3.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "horizonforbiddenwest.exe": {
+        "FrameGen.AllowedFrameAhead": "2",
+        "Spoofing.Dxgi": "false"
+      },
+      "horizonzerodawnremastered.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "htgame.exe": {
+        "Hooks.UseNtdllHooks": "false",
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "indiana-win64-shipping.exe": {
+        "InitFlags.AutoExposure": "true",
+        "InitFlags.DisableReactiveMask": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "indiana-wingdk-shipping.exe": {
+        "InitFlags.AutoExposure": "true",
+        "InitFlags.DisableReactiveMask": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "jedisurvivor.exe": {
+        "InitFlags.AutoExposure": "true"
+      },
+      "keeper-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "keeper-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "kunitsugami.exe": {
+        "Hotfix.RestoreComputeSignature": "true@gpu=non-nvidia",
+        "Spoofing.Dxgi": "false"
+      },
+      "kunitsugamidemo.exe": {
+        "Hotfix.RestoreComputeSignature": "true@gpu=non-nvidia",
+        "Spoofing.Dxgi": "false"
+      },
+      "lop-win64-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "lop-wingdk-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "medium-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "medium-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "metaleden-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "metaleden-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "metro.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "metroexodus.exe": {
+        "InitFlags.AutoExposure": "true",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false",
+        "XeFG.ForceBorderless": "true@fg_output=xefg"
+      },
+      "milesmorales.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "monster_hunter_stories_3_twisted_reflection.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "monsterhunterrise.exe": {
+        "Hotfix.RestoreComputeSignature": "true"
+      },
+      "monsterhunterwilds.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "mouse.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "needforspeedunbound.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "nightreign.exe": {
+        "Spoofing.Dxgi": "false",
+        "XeSS.BuildPipelines": "false",
+        "XeSS.CreateHeaps": "false"
+      },
+      "ninjagaiden4-steam.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "FrameGen.SkipResizeBuffers": "false",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "ninjagaiden4-wingdk.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "FrameGen.SkipResizeBuffers": "false",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "nioh2.exe": {
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "nioh3.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "nms.exe": {
+        "Spoofing.Vulkan": "true@gpu=non-nvidia"
+      },
+      "nvremixbridge.exe": {
+        "Spoofing.Dxgi": "false",
+        "Spoofing.VulkanExtensionSpoofing": "true@gpu=non-nvidia"
+      },
+      "observersystemredux.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "onimushawots.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "onimushawots_demo.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "outlaws.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "outlaws_plus.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "outriders-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "outriders-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "over the hill.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "paganidol-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "paganidol-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "pal7-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64"
+      },
+      "pal7-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64"
+      },
+      "pathofexile.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "pathofexile_kg.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "pathofexile_x64.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "pathofexile_x64_kg.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "pathofexile_x64steam.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "pathofexilesteam.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "plagueproject-win64-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "plagueproject-wingdk-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "playrdr.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "playrdr2.exe": {
+        "Inputs.EnableFsr3Inputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "pragmata.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "pragmata_sketchbook.exe": {
+        "FrameGen.AllowedFrameAhead": "2",
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "prey.exe": {
+        "Dx11withDx12.DontUseNTShared": "true",
+        "Spoofing.Dxgi": "false",
+        "XeSS.BuildPipelines": "false",
+        "XeSS.CreateHeaps": "false"
+      },
+      "project_plague-deck-shipping.exe": {
+        "Hotfix.SkipFirstFrames": "10"
+      },
+      "project_plague-win64-shipping.exe": {
+        "Hotfix.SkipFirstFrames": "10"
+      },
+      "pumpkinjack-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "pumpkinjack-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "rdr.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "rdr2.exe": {
+        "Inputs.EnableFsr3Inputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "re2.exe": {
+        "Menu.OverlayMenu": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "re3.exe": {
+        "Menu.OverlayMenu": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "re4.exe": {
+        "Menu.OverlayMenu": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "re7.exe": {
+        "Menu.OverlayMenu": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "re8.exe": {
+        "Menu.OverlayMenu": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "re9.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "re9demo.exe": {
+        "Hotfix.RestoreComputeSignature": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "recolored-win64-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "recolored-wingdk-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "redout2-win64-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "redout2-wingdk-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "reliccoh3.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "returnal-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "returnal-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "Spoofing.Dxgi": "false"
+      },
+      "riftapart.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "ronin.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "sackboy-win64-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "sackboy-wingdk-shipping.exe": {
+        "Hotfix.ColorResourceBarrier": "64",
+        "Hotfix.MotionVectorResourceBarrier": "64",
+        "InitFlags.AutoExposure": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "saintsrow_dx12.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "sb-win64-shipping.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "sb-wingdk-shipping.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "scorn-win64-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "scorn-wingdk-shipping.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "sekiro.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "shf-win64-shipping.exe": {
+        "OptiFG.AlwaysCaptureFSRFGSwapchain": "true"
+      },
+      "shf-wingdk-shipping.exe": {
+        "OptiFG.AlwaysCaptureFSRFGSwapchain": "true"
+      },
+      "shrot.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "sora_1st.exe": {
+        "Inputs.UseFsr2Dx11Inputs": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "sora_2nd.exe": {
+        "Inputs.UseFsr2Dx11Inputs": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "sottr.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler"
+      },
+      "soulstice.exe": {
+        "InitFlags.AutoExposure": "true"
+      },
+      "spider-man.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "spider-man2.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "starfield.exe": {
+        "InitFlags.AutoExposure": "true",
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "streetfighter6.exe": {
+        "Menu.OverlayMenu": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "supraworld-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "supraworld-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "talos2-win64-shipping.exe": {
+        "FrameGen.PreserveSwapChain": "false",
+        "FrameGen.SkipResizeBuffers": "false"
+      },
+      "thecallistoprotocol-win64-shipping.exe": {
+        "FSR.UseFsrInputValues": "false",
+        "InitFlags.AutoExposure": "true",
+        "InitFlags.DisableReactiveMask": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "thecallistoprotocol-wingdk-shipping.exe": {
+        "FSR.UseFsrInputValues": "false",
+        "InitFlags.AutoExposure": "true",
+        "InitFlags.DisableReactiveMask": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "thegreatcircle.exe": {
+        "Spoofing.Dxgi": "false",
+        "Spoofing.VulkanExtensionSpoofing": "true@gpu=non-nvidia"
+      },
+      "tll-l.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "tll.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "tlou-i-l.exe": {
+        "FrameGen.AllowedFrameAhead": "2",
+        "Spoofing.Dxgi": "false"
+      },
+      "tlou-i.exe": {
+        "FrameGen.AllowedFrameAhead": "2",
+        "Spoofing.Dxgi": "false"
+      },
+      "tlou-ii-l.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "tlou-ii.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "towers-win64-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "towers-wingdk-shipping.exe": {
+        "Inputs.EnableFsr2Inputs": "false",
+        "Inputs.EnableFsr3Inputs": "false"
+      },
+      "u4-l.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "u4.exe": {
+        "OptiFG.DisableHUDFix": "true@fg_input=upscaler",
+        "Spoofing.Dxgi": "false"
+      },
+      "visionsofmana-win64-shipping.exe": {
+        "Inputs.Fsr2Pattern": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "visionsofmana-wingdk-shipping.exe": {
+        "Inputs.Fsr2Pattern": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "voodoo fishin'.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "watchdogslegion.exe": {
+        "InitFlags.AutoExposure": "true"
+      },
+      "watchdogslegion_plus.exe": {
+        "InitFlags.AutoExposure": "true"
+      },
+      "witcher3.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "witchfire-win64-shipping.exe": {
+        "FSR.UseFsrInputValues": "false"
+      },
+      "witchfire-wingdk-shipping.exe": {
+        "FSR.UseFsrInputValues": "false"
+      },
+      "wonderlands.exe": {
+        "InitFlags.DisableReactiveMask": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "wwm.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "wwzretail.exe": {
+        "Inputs.UseFsr2VulkanInputs": "true",
+        "Spoofing.Dxgi": "false",
+        "Spoofing.VulkanExtensionSpoofing": "true@gpu=non-nvidia"
+      },
+      "xrengine.exe": {
+        "Spoofing.Dxgi": "false"
+      },
+      "yet another zombie survivors.exe": {
+        "Spoofing.Dxgi": "false"
+      }
+    },
+    "titles": {
+      "007firstlight.exe": "007 first light",
+      "acmirage.exe": "assassins creed mirage",
+      "acmirage_plus.exe": "assassins creed mirage",
+      "afop.exe": "avatar frontiers of pandora",
+      "assettocorsaevo.exe": "assetto corsa evo",
+      "avowed-win64-shipping.exe": "avowed",
+      "avowed-wingdk-shipping.exe": "avowed",
+      "b1-win64-shipping.exe": "black myth wukong",
+      "b1-wingdk-shipping.exe": "black myth wukong",
+      "beamng.drive.x64.exe": "beamng",
+      "beastofreincarnation-win64-shipping.exe": "beast of reincarnation",
+      "beastofreincarnation-wingdk-shipping.exe": "beast of reincarnation",
+      "bg3.exe": "baldurs gate 3",
+      "client-win64-shipping.exe": "wuthering waves",
+      "client-wingdk-shipping.exe": "wuthering waves",
+      "control_dx12.exe": "nioh 2 the complete edition control",
+      "controlresonant.exe": "control resonant",
+      "crimsondesert.exe": "crimson desert",
+      "cyberpunk2077.exe": "cyberpunk 2077",
+      "dcs.exe": "dcs world",
+      "dd2.exe": "dragons dogma 2",
+      "dd2ccs.exe": "dragons dogma 2 character creator and storage",
+      "dead space.exe": "dead space remake",
+      "doa6lr.exe": "dead or alive 6 last round",
+      "doomthedarkages.exe": "doom the dark ages",
+      "ds.exe": "death stranding and",
+      "ds2.exe": "death stranding 2 on the beach",
+      "dyinglightgame_thebeast_x64_rwdi.exe": "dying light the beast",
+      "dyinglightgame_x64_rwdi.exe": "dying light 2 reloaded edition",
+      "eldenring.exe": "elden ring",
+      "em-win64-shipping.exe": "duet night abyss",
+      "endfield.exe": "arknights endfield",
+      "enshrouded.exe": "enshrouded",
+      "fall of avalon.exe": "tainted grail fall of avalon",
+      "ff7rebirth_.exe": "final fantasy vii rebirth",
+      "ffxiv_dx11.exe": "final fantasy xiv",
+      "forza_gaming.desktop.x64_release_final.exe": "forza motorsport 8",
+      "forza_steamworks_release_final.exe": "forza motorsport 8",
+      "forzahorizon5.exe": "forza horizon 5",
+      "ghostoftsushima.exe": "ghost of tsushima",
+      "granblue_fantasy_relink.exe": "granblue fantasy relink",
+      "hitman3.exe": "hitman world of assassination",
+      "horizonforbiddenwest.exe": "horizon forbidden west",
+      "htgame.exe": "neverness to everness",
+      "jedisurvivor.exe": "star wars jedi survivor",
+      "kingdomcome.exe": "kingdom come deliverance 2",
+      "lop-win64-shipping.exe": "lies of p",
+      "lop-wingdk-shipping.exe": "lies of p",
+      "metro.exe": "metro 2033 redux metro last light redux",
+      "metroexodus.exe": "metro exodus",
+      "milesmorales.exe": "marvels spider man miles morales marvels spider man 2",
+      "minecraft.windows.exe": "minecraft bedrock",
+      "monsterhunterrise.exe": "monster hunter rise",
+      "nightreign.exe": "elden ring nightreign",
+      "ninjagaiden4-steam.exe": "ninja gaiden 4",
+      "ninjagaiden4-wingdk.exe": "ninja gaiden 4",
+      "nioh2.exe": "nioh 2 the complete edition control",
+      "nms.exe": "vulkan",
+      "nvremixbridge.exe": "rtx remix",
+      "observersystemredux.exe": "observer system redux no spoof needed for dlss inputs",
+      "outlaws.exe": "star wars outlaws",
+      "outlaws_plus.exe": "star wars outlaws",
+      "pal7-win64-shipping.exe": "sword and fairy 7",
+      "pal7-wingdk-shipping.exe": "sword and fairy 7",
+      "playrdr.exe": "red dead redemption",
+      "playrdr2.exe": "red dead redemption 2",
+      "pragmata.exe": "pragmata",
+      "pragmata_sketchbook.exe": "pragmata demo",
+      "prey.exe": "prey 2017",
+      "project_plague-deck-shipping.exe": "wuchang fallen feathers",
+      "project_plague-win64-shipping.exe": "wuchang fallen feathers",
+      "rdr.exe": "red dead redemption",
+      "rdr2.exe": "red dead redemption 2",
+      "returnal-win64-shipping.exe": "returnal",
+      "returnal-wingdk-shipping.exe": "returnal",
+      "riftapart.exe": "nixxes sony ports dxgi spoofing disabled due to rt crashes",
+      "roadcraft - retail.exe": "roadcraft",
+      "rottr.exe": "rise of the tomb raider",
+      "shf-win64-shipping.exe": "silent hill f",
+      "shf-wingdk-shipping.exe": "silent hill f",
+      "sora_1st.exe": "trails in the sky 1st chapter trails in the sky 2nd chapter",
+      "sora_2nd.exe": "trails in the sky 1st chapter trails in the sky 2nd chapter",
+      "soulstice.exe": "soulstice",
+      "spider-man.exe": "marvels spider man",
+      "spider-man2.exe": "marvels spider man miles morales marvels spider man 2",
+      "starfield.exe": "starfield",
+      "talos2-win64-shipping.exe": "the talos principle 2",
+      "thecallistoprotocol-win64-shipping.exe": "the callisto protocol",
+      "thecallistoprotocol-wingdk-shipping.exe": "the callisto protocol",
+      "thegreatcircle.exe": "indiana jones and the great circle",
+      "tlou-i-l.exe": "the last of us part i",
+      "tlou-i.exe": "the last of us part i",
+      "visionsofmana-win64-shipping.exe": "visions of mana",
+      "visionsofmana-wingdk-shipping.exe": "visions of mana",
+      "watchdogslegion.exe": "watch dogs legion",
+      "watchdogslegion_plus.exe": "watch dogs legion",
+      "witcher3.exe": "the witcher 3",
+      "witchfire-win64-shipping.exe": "witchfire",
+      "witchfire-wingdk-shipping.exe": "witchfire",
+      "wonderlands.exe": "tiny tinas wonderlands",
+      "wwm.exe": "where winds meet",
+      "wwzretail.exe": "world war z",
+      "xrengine.exe": "s t a l k e r legends of the zone trilogy enhanced editions",
+      "zenlesszonezero.exe": "zenless zone zero"
+    }
+  }
+}

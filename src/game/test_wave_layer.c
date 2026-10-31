@@ -69,5 +69,20 @@ int main(void){
  pthread_t t1,t2;pthread_create(&t1,NULL,submitter,queue);pthread_create(&t2,NULL,submitter,queue);pthread_join(t1,NULL);pthread_join(t2,NULL);
  assert(!overlap&&submits==600);destroy_device((VkDevice)4,NULL);
  destroy_device((VkDevice)1,NULL);destroy_device((VkDevice)2,NULL);destroy_device((VkDevice)3,NULL);
- assert(!devices&&!modules);puts("PASS per-device dispatch, same-valued handles, explicit contracts, disable and destruction, subgroup-size range, shared-queue lock");return 0;
+ assert(!devices&&!modules);
+ /* The wave table (XEFG_WAVE_CONFIG), read by hand: "<16 lower-case hex digits> <32|64>" lines and blank lines; any other
+  * line drops the whole table, as proxy_common.wave_table expects. */
+ char hash[17];unsigned wave=0;
+ assert(wave_line("0123456789abcdef 32\n",hash,&wave)&&wave==32&&!strcmp(hash,"0123456789abcdef"));
+ assert(wave_line("fedcba9876543210\t 64 \r\n",hash,&wave)&&wave==64&&wave_line("fedcba9876543210 64",hash,&wave));
+ const char*bad[]={"0123456789ABCDEF 32\n","0123456789abcde 32\n","0123456789abcdef32\n","0123456789abcdef 32 x\n",
+  "0123456789abcdef\n","0123456789abcdef \n","0123456789abcdef -32\n","0123456789abcdef 1000\n","0123456789abcdefa 32\n"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++)assert(!wave_line(bad[i],hash,&wave));
+ char path[]="/tmp/test-wave-layer-XXXXXX";int fd=mkstemp(path);assert(fd>=0);
+ const char table[]="aaaaaaaaaaaaaaaa 32\n\n  \r\nbbbbbbbbbbbbbbbb\t64\r\n";assert(write(fd,table,sizeof(table)-1)==(ssize_t)sizeof(table)-1);close(fd);
+ setenv("XEFG_WAVE_CONFIG",path,1);choice_count=0;configuration();
+ assert(choice_count==2&&!strcmp(choices[1].name,"bbbbbbbbbbbbbbbb")&&choices[1].wave==64);
+ FILE*f=fopen(path,"a");assert(f);fputs("cccccccccccccccc 16\n",f);fclose(f);configuration();assert(choice_count==0); /* one bad line: no table */
+ unlink(path);unsetenv("XEFG_WAVE_CONFIG");
+ puts("PASS per-device dispatch, same-valued handles, explicit contracts, disable and destruction, subgroup-size range, shared-queue lock, wave table");return 0;
 }

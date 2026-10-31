@@ -218,6 +218,40 @@ def override_anticheat(installer,selected):
         dialog('--info','--width=560','--text=The sentence does not match. Nothing was installed.');return None
     return exe,typed.strip()
 
+def wiki_choices(installer,selected):
+    """The wiki INI checklist for one selected game (install.py's wiki settings plan, each row source-backed): the
+    wiki-apply options for the rows the user selects and the conditions they confirm, or None when they go back. One
+    value per setting: a selection that sets a key twice is refused here, as the installer refuses it."""
+    if installer is None or not hasattr(installer,'wiki_settings_plan'):
+        dialog('--error','--text=Setup cannot read install.py; use the command line (README.md).');return None
+    if len(selected)!=1:dialog('--info','--width=560','--text=Select one installed game for Wiki settings.');return None
+    try:plan=installer.wiki_settings_plan(ROOT,Path(selected[0]).absolute())
+    except Exception as error:  # noqa: BLE001 - a plan that cannot be read is shown, never a crash
+        dialog('--error','--width=700','--text='+str(error));return None
+    rows=[r for r in plan.get('rows',[]) if r.get('action') in ('automatic','prefill','conditional')
+          and not (r.get('current') is not None and str(r['current'])==str(r['value']))]
+    if not rows:dialog('--info','--width=560','--text=The bundled wiki catalogue has no settings to apply for this game.');return None
+    values=[]
+    for r in rows:
+        values+=['FALSE',r['id'],r['key']+' = '+str(r['value']),'not set' if r.get('current') is None else str(r['current']),
+                 str(r.get('reason') or ''),'; '.join(map(str,r.get('confirmations') or []))]
+    choice=dialog('--list','--checklist','--width=1100','--height=520','--hide-column=2','--print-column=2','--separator=\n',
+        '--column=Apply','--column=ID','--column=Setting','--column=Current','--column=Why','--column=Confirm first',*values,
+        '--text=OptiScaler settings from the wiki for '+Path(selected[0]).name+'. Select only the settings you want; Rollback undoes them.')
+    chosen=[x for x in (choice or '').splitlines() if x]
+    if not chosen:return None
+    by_id={r['id']:r for r in rows};picked={}
+    for token in chosen:
+        key=by_id[token]['key'].lower()
+        if key in picked and picked[key]!=str(by_id[token]['value']):
+            dialog('--error','--width=560','--text=Choose one value for '+by_id[token]['key']+': one value per setting is applied.');return None
+        picked[key]=str(by_id[token]['value'])
+    confirm=[t for t in chosen if by_id[t].get('confirmations')]
+    if confirm and dialog('--question','--width=700','--ok-label=They apply','--cancel-label=Back',
+                          '--text=Confirm that these conditions apply to this game:\n\n'+'\n'.join(
+                              by_id[t]['key']+': '+'; '.join(map(str,by_id[t]['confirmations'])) for t in confirm)) is None:return None
+    return ['--wiki-plan-digest',plan['digest'],*[x for t in chosen for x in ('--wiki-setting',t)],*[x for t in confirm for x in ('--wiki-confirm',t)]]
+
 def update_candidates(installer,selected):
     """The games Update all goes through: every game with this build installed that a Steam, Heroic or Lutris entry starts
     (install.py library), and the selected games."""
@@ -287,8 +321,10 @@ def desktop_app(installer,load_error):
     if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
     try:
         import setup_app,setup_model
-    except (ImportError,ValueError) as error:  # no PyGObject, no GTK 4 or libadwaita typelib, or libadwaita before 1.5
-        print('Setup’s window needs PyGObject with GTK 4 and libadwaita 1.5 ('+str(error)+'); using its dialogs.',file=sys.stderr)
+    # No PyGObject, no GTK 4 or libadwaita typelib (ImportError, ValueError), a typelib that does not load (gi's
+    # RepositoryError, an Exception of its own), or libadwaita before 1.5: the dialogs are Setup.
+    except Exception as error:  # noqa: BLE001
+        print('Setup’s window needs PyGObject with GTK 4 and libadwaita 1.5 ('+type(error).__name__+': '+str(error)+'); using its dialogs.',file=sys.stderr)
         return None
     context=setup_model.Context(ROOT,NAME,MANIFEST,installer,load_error,FACTORS,SCALING,HELIXSR_ABOUT,blockers)
     def run():
@@ -319,6 +355,7 @@ def main():
             'Library','Select enrolled games; view versions, last-session logs and recovery'
             ,'Update selected','Preview and update the selected games in place',
             'Refresh recipe','Apply a tested input and launcher recipe in place; game settings stay manual',
+            'Wiki settings','Review OptiScaler wiki INI suggestions for one selected game and apply the ones you choose',
             'Register','Remember selected existing installations for Update all',
             'Pin','Keep selected games on their installed release',
             'Unpin','Allow selected games to receive updates again',
@@ -356,7 +393,7 @@ def main():
         elif not selected:dialog('--info','--text=Add games first.');continue
         # Check prints each game's verdict and the redacted report a game report issue asks for (CONTRIBUTING.md).
         if action=='Check':show_text(['check','--report'],selected);continue
-        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure',RISK_ACTION:'install',
+        command={'Install':'install','Restore':'restore','Status':'status','Settings':'configure','Upscaler':'configure',RISK_ACTION:'install','Wiki settings':'wiki-apply',
                  'Update all':'update','Update upscalers':'update','Update selected':'update','Refresh recipe':'update','Rollback':'rollback','Register':'register','Pin':'pin','Unpin':'unpin'}[action]
         extra=update_scope
         if action=='Upscaler':
@@ -385,6 +422,10 @@ def main():
         if action=='Install':
             extra=install_choices(installer,games)
             if extra is None:continue
+        if action=='Wiki settings':
+            extra=wiki_choices(installer,selected)
+            if extra is None:continue
+            games=selected[:1]
         if action==RISK_ACTION:
             # Only the one game the user confirmed: install.py repeats the check and the sentence (CODE=EXE scoping).
             picked=override_anticheat(installer,selected)
@@ -402,7 +443,10 @@ def main():
                 result=process.wait()
                 try:progress.communicate(b'100\n',timeout=10)
                 except (subprocess.TimeoutExpired,BrokenPipeError):progress.terminate();progress.wait()
-            if result:
+            # 3: refused before anything changed (a game or launcher still running, a refusal); 1: something failed.
+            if result==3:
+                with output.open('a') as stream:stream.write('\nNothing was changed in the games named above: close them (and their launchers) or do what their message says, then try again.\n')
+            elif result:
                 with output.open('a') as stream:stream.write('\nSome games could not complete. Read their messages above. For an interrupted update, retry Update or use Rollback. For an interrupted first installation, use Restore.\n')
             dialog('--text-info','--width=1000','--height=650','--filename='+str(output))
     return 0

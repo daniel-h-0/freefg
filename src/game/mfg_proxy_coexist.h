@@ -199,7 +199,8 @@ static int proxy_caller_accelerable(void*caller){
  const char*leaf=strrchr(path,'\\');char line[MAX_PATH+400];
  snprintf(line,sizeof(line),"FAST_SKIP beside another module hooking Intel's XeFG runtime only OptiScaler's own contexts are accelerated; "
           "this one (created from %s) keeps the caller's device and runs Intel's or that module's shaders\n",leaf?leaf+1:*path?path:"code outside any module");
- proxy_log(line);return 0;
+ proxy_log(line);proxy_log("FAST_DECISION not accelerated: another module hooks Intel's XeFG runtime and this context is not OptiScaler's\n");
+ return 0;
 }
 
 /* ------------------------------------------------------------------------------------------- stepping aside */
@@ -232,20 +233,62 @@ static void STDMETHODCALLTYPE proxy_aside_dispatch_hook(ID3D12GraphicsCommandLis
 /* The owner context steps aside (once). Its private tables return to plain forwarding, as when it is released, except
  * that SetPipelineState maps each replaced pipeline to Intel's original; this project's resources stay alive (work
  * recorded earlier may still use them) until the context is destroyed. */
-static void proxy_aside_now(const char*why){
- if(!proxy_owner_foreign||InterlockedExchange(&proxy_aside,1))return;
- struct scoped_tables*t=proxy_owner_tables;
+static void proxy_aside_switch(struct scoped_tables*t,const char*line){
  /* slot by slot, atomically: other threads keep calling through these tables */
  if(t){for(UINT i=0;i<SCOPED_device_COUNT;i++)InterlockedExchangePointer(&t->device[i],scoped_device_vtable[i]);
   for(UINT i=0;i<SCOPED_queue_COUNT;i++)InterlockedExchangePointer(&t->queue[i],scoped_queue_vtable[i]);
   for(UINT i=0;i<SCOPED_list_COUNT;i++)InterlockedExchangePointer(&t->list[i],i==SCOPED_list_SetPipelineState?(void*)proxy_aside_set:
    i==SCOPED_list_Dispatch?(void*)proxy_aside_dispatch_hook:scoped_list_vtable[i]);}
- char line[300];snprintf(line,sizeof(line),"FAST_ASIDE %s, with another module hooking Intel's XeFG runtime: this context now runs Intel's (or that module's) shaders; FreeFG's are off until it is destroyed\n",why);
  proxy_log(line);logline(line);
 }
+static void proxy_aside_now(const char*why){
+ if(!proxy_owner_foreign||InterlockedExchange(&proxy_aside,1))return;
+ char line[300];snprintf(line,sizeof(line),"FAST_ASIDE %s, with another module hooking Intel's XeFG runtime: this context now runs Intel's (or that module's) shaders; FreeFG's are off until it is destroyed\n",why);
+ proxy_aside_switch(proxy_owner_tables,line);
+}
+/* FreeFG alone (no other module hooking Intel's runtime, so no pipeline was paired at creation): a census check that
+ * fails while the owner context is set up (model_seal_allocations, before any frame) steps aside the same way, with
+ * Intel's original of each replaced pipeline created from the pipeline cache (the bytecode and root Intel gave,
+ * mfg_pipeline_cache.h) once the census lock is released (proxy_aside_settle). Not with generated-frame scaling on, and
+ * not later: a failed check after that stays fatal, as recorded work may depend on this project's resources. */
+static const char*proxy_aside_pending;
+/* Intel's original beside each replaced pipeline of the cache. Caller holds fast_record_lock. */
+static int proxy_pair_cached(void){
+ for(UINT i=0;i<mfg_pipeline_count;i++){
+  ID3D12PipelineState*ours=mfg_pipelines[i].p,*intel=NULL;
+  if(!profile_lists_replacement(mfg_pipelines[i].hash)||proxy_intel_pipeline(ours))continue;
+  D3D12_COMPUTE_PIPELINE_STATE_DESC desc={.pRootSignature=mfg_pipelines[i].root,.CS={mfg_pipelines[i].code,mfg_pipelines[i].size},
+   .NodeMask=mfg_pipelines[i].node,.Flags=mfg_pipelines[i].flags};
+  if(FAILED(compute_original(model_device,&desc,&IID_ID3D12PipelineState,(void**)&intel))||!intel)return 0;
+  AcquireSRWLockExclusive(&proxy_pair_lock);int stored=proxy_pair_count<sizeof(proxy_pairs)/sizeof(*proxy_pairs);
+  if(stored){proxy_pairs[proxy_pair_count].ours=ours;proxy_pairs[proxy_pair_count++].intel=intel;}
+  ReleaseSRWLockExclusive(&proxy_pair_lock);
+  if(!stored){ID3D12PipelineState_Release(intel);return 0;}
+ }
+ return 1;
+}
+/* fast_ready, after the census (no lock held): the step aside a failed census check asked for, or the end of the game
+ * as before when Intel's originals cannot be created. */
+static void proxy_aside_settle(void){
+ const char*why=proxy_aside_pending;if(!why)return;
+ proxy_aside_pending=NULL;
+ struct scoped_tables*t=NULL;AcquireSRWLockShared(&scoped_lock);
+ for(UINT i=0;i<16;i++)if(fast_scope&&scoped_contexts[i].scope==fast_scope&&scoped_contexts[i].device)t=scoped_contexts[i].device->tables;
+ ReleaseSRWLockShared(&scoped_lock);
+ AcquireSRWLockExclusive(&fast_record_lock);int paired=t&&proxy_pair_cached();ReleaseSRWLockExclusive(&fast_record_lock);
+ if(!paired){model_fail(why);return;}
+ if(InterlockedExchange(&proxy_aside,1))return;
+ char line[300];snprintf(line,sizeof(line),"FAST_ASIDE %s: this context now runs Intel's shaders (originals from the pipeline cache); FreeFG's are off until it is destroyed\n",why);
+ proxy_aside_switch(t,line);
+}
 /* model_owner.h: a census or work-order check that failed. With another module hooking Intel's runtime the owner context
- * steps aside (1, the caller returns without failing); otherwise the check stays fatal (0). */
-static int proxy_census_soft(const char*why){if(!proxy_owner_foreign)return 0;proxy_aside_now(why);return 1;}
+ * steps aside (1, the caller returns without failing); alone, it does so during its initial census (above); otherwise
+ * the check stays fatal (0). */
+static int proxy_census_soft(const char*why){
+ if(proxy_owner_foreign){proxy_aside_now(why);return 1;}
+ if(proxy_seal_thread!=GetCurrentThreadId()||mfg_settings_cap_requested())return 0;  /* the census itself, on its thread */
+ proxy_aside_pending=why;return 1;
+}
 /* dispatch_hook: a network dispatch before the deferred initialisation has built the network (initialisation tail-called
  * and no call on its handle has run the deferred work yet) steps aside instead of failing. */
 static int proxy_dispatch_unready(uint64_t shader){

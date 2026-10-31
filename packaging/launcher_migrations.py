@@ -117,13 +117,16 @@ def merge_environment(current, old, new, keys=None, strict=True):
 
 
 def _arguments(current, old, new):
+    """current argument text with the old→new delta: the words old has and new does not are taken out, new's other words
+    added (an API switch only where current chooses no API). The user's own text stays as written: a ~ or the quoting in
+    it keeps its meaning."""
     if old == new:return current
-    before, after, values = shlex.split(old or ''), shlex.split(new or ''), shlex.split(current or '')
+    before, after = shlex.split(old or ''), shlex.split(new or '')
     if before == after:return current
-    removed = set(before) - set(after)
-    values = [v for v in values if v not in removed]
-    added = [v for v in after if v not in before and v not in values]
-    return shlex.join(lc.with_args(values, added))
+    removed = [v for v in dict.fromkeys(before) if v not in after]
+    text = lc._drop_words(current or '', removed) if removed else current
+    values = shlex.split(text or '')
+    return lc.added_to(text, [v for v in after if v not in before and v not in values])
 
 
 def merge_fields(row, current, old, new, keys=None, strict=True):
@@ -149,7 +152,7 @@ def merge_fields(row, current, old, new, keys=None, strict=True):
     return current if result == current else result
 
 
-def desired_fields(row, root, owner, runtime, route, args, extra, cache, previous_owner=None):
+def desired_fields(row, root, owner, runtime, route, args, extra, cache, previous_owner=None, required=()):
     before = copy.deepcopy(row['before'])
     if previous_owner and previous_owner != owner:
         env = environment(before,row['launcher'])
@@ -163,32 +166,37 @@ def desired_fields(row, root, owner, runtime, route, args, extra, cache, previou
         elif row['launcher']=='heroic':before['enviromentOptions']=[dict(key=k,value=v) for k,v in env.items()]
         else:before['env']=env
     if row['launcher'] == 'steam':
-        return {'LaunchOptions': lc.steam_options(before.get('LaunchOptions') or '', root, owner, runtime, route, args, extra, cache)}
+        return {'LaunchOptions': lc.steam_options(before.get('LaunchOptions') or '', root, owner, runtime, route, args, extra, cache,
+                                                  required)}
     result = copy.deepcopy(row['after'])
     env = lc.environment(root, owner, environment(before, row['launcher']), runtime, route, extra, cache)
     if row['launcher'] == 'heroic':
         result['enviromentOptions'] = [dict(key=k, value=v) for k, v in env.items()]
-        if 'launcherArgs' in before or args:
-            values = lc.with_args(shlex.split(before.get('launcherArgs') or ''), args)
-            result['launcherArgs'] = shlex.join(values) if values else before.get('launcherArgs')
+        if 'launcherArgs' in before or args or required:
+            result['launcherArgs'] = lc.added_to(before.get('launcherArgs'), args, required)
     else:result['env'] = env
     return result
 
 
-def plan(record, root, owner, *, runtime='xemfg-proxy', route=None, args=None, extra=None, cache=None, previous_owner=None):
-    """Return per-entry migrations and the new ownership rows; no launcher or index is written."""
+def plan(record, root, owner, *, runtime='xemfg-proxy', route=None, args=None, extra=None, cache=None, previous_owner=None,
+         required=None):
+    """Return per-entry migrations and the new ownership rows; no launcher or index is written. args, required: the
+    graphics-API switch and the arguments the game always needs (default: the record's launch_args, required_args)."""
     operations, records = [], []
     keys = POLICY_KEYS | set((record.get('compat') or {}).get('extra_env') or {}) | set(extra or {})
     keys |= set(record.get('launcher_policy_keys') or [])
     keys |= set(lc.environment(root,owner,{},runtime,route or record.get('route','native'),extra,cache))
+    args = record.get('launch_args', []) if args is None else args
+    required = record.get('required_args', []) if required is None else required
     for row in record.get('launchers') or []:
         target = dict(row)
         wanted = desired_fields(target, root, owner, runtime, route or record.get('route', 'native'),
-                                record.get('launch_args', []) if args is None else args, extra, cache, previous_owner)
+                                args, extra, cache, previous_owner, required)
+        manages = row['launcher'] == 'heroic' and (args or required) and 'launcherArgs' not in row['before']
         unchanged = merge_fields(target, target['after'], target['after'], wanted, keys) == target['after']
-        if unchanged and not (row['launcher'] == 'heroic' and args and 'launcherArgs' not in row['before']):
+        if unchanged and not manages:
             records.append(copy.deepcopy(row));continue
-        if row['launcher'] == 'heroic' and args and 'launcherArgs' not in row['before']:
+        if manages:
             target['before'] = dict(row['before'], launcherArgs=None)
             target['after'] = dict(row['after'], launcherArgs=None)
         path = Path(target['path'])
@@ -202,7 +210,7 @@ def plan(record, root, owner, *, runtime='xemfg-proxy', route=None, args=None, e
             target['before']['launcherArgs'] = current['launcherArgs']
             target['after']['launcherArgs'] = current['launcherArgs']
         wanted = desired_fields(target, root, owner, runtime, route or record.get('route', 'native'),
-                                record.get('launch_args', []) if args is None else args, extra, cache, previous_owner)
+                                args, extra, cache, previous_owner, required)
         updated = merge_fields(target, current, target['after'], wanted, keys)
         ownership = copy.deepcopy(target)
         ownership['after'] = merge_fields(target, target['after'], target['after'], wanted, keys)
@@ -230,16 +238,28 @@ def check(operations):
             raise ValueError('Launcher configuration changed since planning; retry: ' + path)
 
 
-def prepare_apply(operations, reverse=False, strict=True):
-    """Validate and prepare the entry patches without writing; rollback preflights every resource this way."""
+def prepare_apply(operations, reverse=False, strict=True, gone=None):
+    """Validate and prepare the entry patches without writing; rollback preflights every resource this way. gone (a list;
+    undoing only): an entry the user removed since, or its whole launcher file, has nothing to undo, as for Restore
+    (launcher_config.apply): a line saying so goes into gone instead of a refusal."""
     if operations:lc.require_stopped(op['target']['launcher'] for op in operations)
     prepared = []
     for path, rows in grouped(operations).items():
         p = Path(path)
-        if p.is_symlink() or not p.is_file():raise ValueError('Launcher configuration was replaced: ' + path)
+        if p.is_symlink() or not p.is_file():
+            if gone is None:raise ValueError('Launcher configuration was replaced: ' + path)
+            gone.append('Launcher entry no longer present, nothing to undo: ' + path);continue
         data = p.read_bytes();start = data
         for row in rows:
-            current = lc.fields(dict(row['target'], before=row['before']), data)
+            try:current = lc.fields(dict(row['target'], before=row['before']), data)
+            except lc.Missing as error:
+                if gone is None:raise
+                gone.append('Launcher entry no longer present, nothing to undo: ' + path + ' (' + str(error) + ')');continue
+            if gone is not None and row['target']['launcher'] == 'steam' and current.get('LaunchOptions') is None and \
+                    row['after'].get('LaunchOptions') is not None:
+                # Steam's entry lost its launch options since (the user cleared them, or Steam its app settings).
+                gone.append('Launcher entry no longer present, nothing to undo: ' + path + ' (no launch options for Steam app ' +
+                            str(row['target'].get('id')) + ')');continue
             old, new = (row['after'], row['before']) if reverse else (row['before'], row['after'])
             target = merge_fields(row['target'], current, old, new, strict=strict)
             data = lc.patch(row['target'], data, target)
@@ -247,9 +267,10 @@ def prepare_apply(operations, reverse=False, strict=True):
     return prepared
 
 
-def apply(operations, writer, reverse=False, strict=True):
-    """Patch only selected entries. The caller holds locks and journals before invoking this function."""
-    prepared = prepare_apply(operations, reverse, strict)
+def apply(operations, writer, reverse=False, strict=True, gone=None):
+    """Patch only selected entries. The caller holds locks and journals before invoking this function. gone: as for
+    prepare_apply."""
+    prepared = prepare_apply(operations, reverse, strict, gone)
     for path, before, data in prepared:
         if path.read_bytes() != before:raise ValueError('Launcher configuration changed while applying: ' + str(path))
         if data != before:writer(path, data, path.stat().st_mode & 0o777)

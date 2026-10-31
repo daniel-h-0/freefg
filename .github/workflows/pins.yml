@@ -1,9 +1,11 @@
 # Scheduled checks that do not belong on every push:
 #   pinned-downloads   every pinned download still serves its pinned bytes (release/ci/check_pins.py): the build
 #                      inputs of release/inputs.lock.json "fetch", every download of packaging/dependencies.json
-#                      (followed by the installer's own preparation of them), and the CI toolchain pins of
-#                      release/ci/ci.lock.json (Arch packages, DXC, the container image digest). A failure means an
-#                      upstream file moved or vanished: installations or builds would fail the same way.
+#                      (followed by the installer's own preparation of them) and of its Prepare HLX group (the
+#                      HelixSR archive and both DXC compilers), and the CI toolchain pins of release/ci/ci.lock.json
+#                      (Arch packages, DXC, the container image digest). A failure means an upstream file moved or
+#                      vanished: installations or builds would fail the same way. A warning (no failure) when
+#                      intel/xess has changed Intel's XeFG runtime after the pinned commit.
 #   current-toolchain  ci.yml with today's Arch packages instead of the pinned snapshot. Best effort: it shows whether
 #                      the tree still builds and passes its tests on current compilers; hash differences are warnings.
 

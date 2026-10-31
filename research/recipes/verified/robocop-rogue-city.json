@@ -1,0 +1,37 @@
+{
+ "title": "RoboCop: Rogue City",
+ "match": {
+  "exe": [
+   "robocop-win64-shipping.exe"
+  ],
+  "steam": [
+   "1681430"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "dlssg",
+ "ini": {
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [
+  {
+   "file": "AppData/Local/RoboCop/Saved/Config/Windows/GameUserSettings.ini",
+   "base": "steamuser",
+   "format": "ini-replace",
+   "section": null,
+   "values": {
+    "UpscalingMethod": "2",
+    "NvidiaFrameGeneration": "1",
+    "bAMDFrameGeneration": "False",
+    "IntelXeFrameGeneration": "0"
+   },
+   "why": "RoboCop's own FSR 3.0 frame generation never reaches OptiScaler (FSR FG input: 1.0 in gameplay even with the FSR upscaler); DLSS upscaling with the game's DLSS frame generation feeds XeFG through DLSS FG input (OptiPatcher exposes DLSS without spoofing).",
+   "requires_fg_input": "dlssg"
+  }
+ ],
+ "launch_args": [],
+ "note": "FSR FG input needs the game's AMD frame generation; the game's FSR 3.0 FG may not reach OptiScaler. RoboCop's own FSR 3.0 frame generation never reaches OptiScaler (FSR FG input: 1.0 in gameplay even with the FSR upscaler); DLSS upscaling with the game's DLSS frame generation feeds XeFG through DLSS FG input (OptiPatcher exposes DLSS without spoofing).",
+ "evidence": "generates",
+ "observed": "2.0"
+}

@@ -179,11 +179,13 @@ src/mfg_heap_lifetime.h
 src/mfg_model_alias.h
 src/mfg_model_pool.h
 src/mfg_root_cache.h
+src/profile_io.h
 src/game/fast_trial.h
 src/game/f4q.h
 src/game/mfg_pace_signal.h
 src/game/mfg_settings.h
 src/game/mfg_pipeline_cache.h
+src/game/mfg_list_collect.h
 src/game/mfg_proxy_coexist.h
 src/game/mfg_scoped_retire.h
 src/game/scoped_com.h
@@ -226,6 +228,31 @@ packaging/recipes/recipes.json
 research/recipes/build_recipes.py
 # The community recipe schema (packaging/public/CONTRIBUTING.md "Game recipes" points to it)
 research/recipes/community/README.md
+# The recipe builder's inputs (test_recipes: both recipe files are what these build)
+research/recipes/catalogue.json
+research/recipes/optiscaler.json
+research/recipes/wiki.json
+research/recipes/wiki-curation.json
+research/recipes/wiki_promote.json
+research/recipes/verified/assassins-creed-black-flag-resynced.json
+research/recipes/verified/control-resonant.json
+research/recipes/verified/crimson-desert.json
+research/recipes/verified/cyberpunk-2077.json
+research/recipes/verified/dead-as-disco.json
+research/recipes/verified/deadzone-rogue.json
+research/recipes/verified/deep-rock-galactic.json
+research/recipes/verified/echo-point-nova.json
+research/recipes/verified/hogwarts-legacy.json
+research/recipes/verified/kingdom-come-deliverance-ii.json
+research/recipes/verified/red-dead-redemption-2.json
+research/recipes/verified/robocop-rogue-city.json
+research/recipes/verified/system-shock.json
+research/recipes/verified/tainted-grail-the-fall-of-avalon.json
+research/recipes/verified/the-invincible.json
+research/recipes/verified/thymesia.json
+research/recipes/verified/tryp-fpv.json
+research/recipes/verified/voin.json
+research/recipes/verified/witchfire.json
 
 # PyYAML used by the launcher configuration
 packaging/vendor/__init__.py
@@ -442,6 +469,7 @@ scripts/test_integration_updates.py
 scripts/test_launcher_migrations.py
 
 packaging/library_view.py
+packaging/versions.py
 scripts/test_library_view.py
 scripts/test_recipe_migrations.py
 scripts/test_hlx_preparation.py

@@ -1,0 +1,26 @@
+{
+ "about": "OptiScaler wiki INI items reviewed for automatic use (RULES.md P1). build_recipes.py attaches each 'promote' item to its wiki entry; packaging/compat.py writes it only for a strong match (launcher ID, or exe name with title or folder), only where every condition of the item holds for the install, only where OptiScaler.ini still says auto, and never where an OptiScaler quirk sets the key for the exe. 'reject' items stay shown with their condition. First pass: the ten INI items the 2026-10-19 assessment classed auto-now (build/compat-20261019/wiki/assessment.json).",
+ "reviewer": "agent review for the maintainers, 2026-10-19; to be confirmed by a maintainer before 1.0",
+ "items": [
+  {"title": "Apocalypse 2.0", "key": "InitFlags.DisplayResolution", "value": "false", "decision": "promote",
+   "reason": "an unconditional fix for shimmering stated for this game; a motion-vector flag, not a quality preference"},
+  {"title": "FINAL FANTASY VII REBIRTH", "key": "Hotfix.ColorResourceBarrier", "value": "4", "decision": "promote",
+   "reason": "the page gives it as the fix for artifacts after a game update broke Unreal's resource-state reporting"},
+  {"title": "High on Life", "key": "Hotfix.ColorResourceBarrier", "value": "4", "decision": "promote",
+   "reason": "an unconditional resource-barrier fix given for this game"},
+  {"title": "High on Life", "key": "Hotfix.MotionVectorResourceBarrier", "value": "8", "decision": "promote",
+   "reason": "the second half of the same fix"},
+  {"title": "Shadow of the Tomb Raider", "key": "OptiFG.ResourceBlocking", "value": "true", "decision": "promote",
+   "reason": "the page states the working OptiFG to XeFG setup with Resource Blocking on, unhedged"},
+  {"title": "Soulstice", "key": "Hotfix.ColorResourceBarrier", "value": "4", "decision": "promote",
+   "reason": "the fix for a white screen, unconditional"},
+  {"title": "Rise of the Tomb Raider", "key": "OptiFG.ResourceBlocking", "value": "true", "decision": "reject",
+   "reason": "hedged ('seems to look best'): an image preference, shown as a suggestion"},
+  {"title": "Still Wakes the Deep", "key": "Inputs.EnableFfxInputs", "value": "false", "decision": "reject",
+   "reason": "one of two alternatives, and it turns off an upscaler input OptiFG may need; shown"},
+  {"title": "No Man's Sky", "key": "Spoofing.VulkanExtensionSpoofing", "value": "true", "decision": "reject",
+   "reason": "a Vulkan game: this build refuses it (api-vulkan)"},
+  {"title": "Alan Wake II", "key": "Hotfix.DisableOverlays", "value": "true", "decision": "reject",
+   "reason": "mis-extraction: the page gives it only when the game crashes (its condition was missed); shown"}
+ ]
+}

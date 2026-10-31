@@ -6,7 +6,7 @@ no BC-250-only checks. The lines follow the package beside this file (its manife
 
 `install.py doctor` prints one line per item (OK / WARN / INFO) with what to do. Nothing is changed.
 """
-import ctypes, json, os, re, shutil, socket, subprocess
+import ctypes, json, os, re, shutil, socket, subprocess, sys
 from pathlib import Path
 
 BC250 = 0x13fe
@@ -171,6 +171,59 @@ def kernel_compute_fixes():
 SIDE_DRIVERS=[('/usr/local/lib/bc250-radv/share/vulkan/icd.d','bc250-async-compute-bazzite'),('/opt/bc250-gfx1013/share/vulkan/icd.d','bc250-gfx1013-fix')]
 
 
+LAYER = 'payload/BC250-XeFG/layer/libxefg_wave.so'
+# Loads the layer the way the Vulkan loader does (dlopen with RTLD_NOW) and finds its entry point, in a process of its
+# own: the layer has no constructors, so nothing of it runs, and a failed load cannot disturb the other checks.
+LAYER_PROBE = 'import ctypes,sys\nctypes.CDLL(sys.argv[1]).vkNegotiateLoaderLayerInterfaceVersion'
+
+
+def glibc_version():
+    """This system's glibc version as a tuple ((2, 41)), or None with another C library."""
+    try:
+        name, _, version = (os.confstr('CS_GNU_LIBC_VERSION') or '').partition(' ')
+        return tuple(int(part) for part in version.split('.')[:2]) if name == 'glibc' else None
+    except (ValueError, OSError):
+        return None
+
+
+def layer_load(path):
+    """(loaded, reason): whether the pacing layer loads, and the loader's reason when it does not."""
+    try:
+        out = subprocess.run([sys.executable, '-I', '-c', LAYER_PROBE, str(path)], capture_output=True, text=True,
+                             timeout=30)
+    except (OSError, subprocess.SubprocessError) as error:
+        return None, type(error).__name__
+    lines = [line.strip() for line in out.stderr.splitlines() if line.strip()]
+    return out.returncode == 0, (lines[-1] if lines else f'exit status {out.returncode}')[:200]
+
+
+def layer_row(package=None, glibc=None, load=layer_load):
+    """(level, item, text) for the pacing layer of the package beside this file: the oldest glibc it loads on (manifest
+    present_pacing.glibc, from release/build_layer.py's check) against this system's, and a load in a process of its
+    own. None without the layer (the source tree)."""
+    folder = Path(package or Path(__file__).resolve().parent)
+    path = folder/LAYER
+    if not path.is_file():
+        return None
+    try:
+        needed = json.loads((folder/'manifest.json').read_text())['present_pacing']['glibc']
+        needed = tuple(int(part) for part in needed.split('.'))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        needed = None
+    have = glibc_version() if glibc is None else glibc
+    shown = lambda v: '.'.join(map(str, v))  # noqa: E731
+    versions = (f'needs glibc {shown(needed)}' if needed else '') + (f'{"; " if needed else ""}this system has glibc {shown(have)}'
+                                                                     if have else '')
+    loaded, reason = load(path)
+    if needed and have and have < needed or loaded is False:
+        return ('WARN', 'Pacing layer', 'The Vulkan loader cannot load FreeFG\'s layer here' +
+                (f' ({reason})' if loaded is False else '') + (f' ({versions})' if versions else '') +
+                ', so presents are not paced and its wave sizes are not applied. Frame generation itself still runs.')
+    if loaded is None:
+        return ('INFO', 'Pacing layer', f'could not test-load the layer ({reason})' + (f'; {versions}' if versions else ''))
+    return ('OK', 'Pacing layer', 'loads on this system' + (f' ({versions})' if versions else ''))
+
+
 def helixsr_row(home, package=None):
     """(level, item, text) for the optional HelixSR upscaler (helixsr.py): where it is and whether HelixSR's own setup has
     built it on this computer. None when the package pins no HelixSR. Downloads nothing."""
@@ -222,6 +275,9 @@ def checks(home=None, drm=None, package=None):
         (f'{others}: not a BC-250' if others else 'No BC-250 GPU found') + '; this package is qualified on the BC-250 only. ' + any_gpu_text(info))
     if info:
         add('INFO', 'Build', build_text(info))
+    layer = layer_row(package)
+    if layer:
+        add(*layer)
     add('INFO', 'Kernel', os.uname().release + f' (current reference: {KERNEL}; earlier configurations are in MEASUREMENTS.md)')
     if card:  # the compute-queue, memory and clock checks are about the BC-250
         families = vulkan_queue_families()

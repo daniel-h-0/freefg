@@ -40,7 +40,7 @@ static void STDMETHODCALLTYPE graph_execute_hook(ID3D12CommandQueue*q,UINT count
  graph_execute_original(q,count,lists);
 }
 static void*graph_blob(const char*name,UINT*size){
- char path[1400];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=fopen(path,"rb");if(!f)model_fail("missing Winograd helper");
+ char path[1400];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=profile_fopen(path,"rb");if(!f)model_fail("missing Winograd helper");
  if(fseek(f,0,SEEK_END))model_fail("Winograd helper seek");long length=ftell(f);if(length<=0||length>8*1024*1024)model_fail("Winograd helper size");rewind(f);
  void*bytes=malloc((size_t)length);if(!bytes||fread(bytes,1,(size_t)length,f)!=(size_t)length)model_fail("Winograd helper read");fclose(f);*size=(UINT)length;
  char line[160];snprintf(line,sizeof(line),"WINOGRAD_HELPER name=%s hash=%016llx\n",name,(unsigned long long)hash(bytes,*size));logline(line);return bytes;
@@ -70,13 +70,13 @@ static void graph_initialize(void){
 }
 static void install_graph(ID3D12Device*d,ID3D12CommandQueue*q){
  graph_enabled=env_uint("XEFG_WINOGRAD",0);
- if(*patchdir){char path[1400];snprintf(path,sizeof(path),"%s\\winograd.required",patchdir);FILE*f=fopen(path,"r");if(f){int required=fgetc(f)-'0';fclose(f);if(required<1||required>3||graph_enabled!=(UINT)required)model_fail("Winograd helper mask required by candidate");}}
+ if(*patchdir){char path[1400];snprintf(path,sizeof(path),"%s\\winograd.required",patchdir);FILE*f=profile_fopen(path,"r");if(f){int required=fgetc(f)-'0';fclose(f);if(required<1||required>3||graph_enabled!=(UINT)required)model_fail("Winograd helper mask required by candidate");}}
  if(!graph_enabled)return;
  if(graph_enabled>3||model_owner_enabled!=7||!*patchdir)model_fail("Winograd requires mode7 and paired helpers");
- char path[1400];snprintf(path,sizeof(path),"%s\\winograd-adaptive.required",patchdir);FILE*f=fopen(path,"r");if(f){int enabled=fgetc(f);fclose(f);if(enabled!='1'||!(graph_enabled&1))model_fail("invalid adaptive Winograd profile");graph_adaptive=1;}
- snprintf(path,sizeof(path),"%s\\winograd-coarse17.required",patchdir);f=fopen(path,"r");if(f){int enabled=fgetc(f);fclose(f);if(enabled!='1'||!(graph_enabled&1))model_fail("invalid coarse17 Winograd profile");graph_coarse17=1;}
- snprintf(path,sizeof(path),"%s\\winograd-refine-pitch.required",patchdir);f=fopen(path,"r");if(f){unsigned columns,pad;char extra;int fields=fscanf(f,"%u %u %c",&columns,&pad,&extra);fclose(f);if(fields!=2||columns!=32||pad!=16||!(graph_enabled&2))model_fail("invalid refinement pitch profile");graph_refine_columns=columns;graph_refine_pad=pad;}
- snprintf(path,sizeof(path),"%s\\wino-ref64.required",patchdir);f=fopen(path,"r");
+ char path[1400];snprintf(path,sizeof(path),"%s\\winograd-adaptive.required",patchdir);FILE*f=profile_fopen(path,"r");if(f){int enabled=fgetc(f);fclose(f);if(enabled!='1'||!(graph_enabled&1))model_fail("invalid adaptive Winograd profile");graph_adaptive=1;}
+ snprintf(path,sizeof(path),"%s\\winograd-coarse17.required",patchdir);f=profile_fopen(path,"r");if(f){int enabled=fgetc(f);fclose(f);if(enabled!='1'||!(graph_enabled&1))model_fail("invalid coarse17 Winograd profile");graph_coarse17=1;}
+ snprintf(path,sizeof(path),"%s\\winograd-refine-pitch.required",patchdir);f=profile_fopen(path,"r");if(f){unsigned columns,pad;char extra;int fields=fscanf(f,"%u %u %c",&columns,&pad,&extra);fclose(f);if(fields!=2||columns!=32||pad!=16||!(graph_enabled&2))model_fail("invalid refinement pitch profile");graph_refine_columns=columns;graph_refine_pad=pad;}
+ snprintf(path,sizeof(path),"%s\\wino-ref64.required",patchdir);f=profile_fopen(path,"r");
  if(f){int enabled=fgetc(f);fclose(f);
   /* The kernel reads the conv64 segment (bit 128) and sums all 64 channels in FP32 (bit 256 proofs). */
   if(enabled!='1'||!(graph_enabled&2)||(model_wino_enc16&384)!=384)model_fail("invalid fused refinement profile");

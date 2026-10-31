@@ -9,7 +9,7 @@ it is not a tested recipe.
 ```json
 {
   "title": "Game Title",
-  "match": {"steam": ["1234560"], "exe": ["game-win64-shipping.exe"]},
+  "match": {"steam": ["1234560"], "exe": ["gametitle-win64-shipping.exe"]},
   "status": "community-bc250",
   "route": "opti",
   "fg_input": "upscaler",
@@ -30,7 +30,7 @@ it is not a tested recipe.
 
 | Field | Rule |
 |---|---|
-| `match` | a launcher ID (`steam`, `gog`, `epic`), or `exe` names together with the title; generic exe names alone never match |
+| `match` | a launcher ID (`steam`, `gog`, `epic`), or `exe` names together with the exact title; never an exe name many games share (`game.exe`, `client-win64-shipping.exe`: `GENERIC_EXES` in `packaging/compat.py`) |
 | `route`, `fg_input` | `native`, or `opti` with `upscaler`, `dlssg` or `fsrfg` (never FSR 3.0 FG; XeFG is always the generator) |
 | `fg_input` `dlssg`/`fsrfg` | needs the game setting that turns the game's frame generation on, or a manual step saying so |
 | `ini` | OptiScaler keys the shipped build reads; never an installer key, HUDFix, `Spoofing.Dxgi`, Reflex, quality/colour keys, and never a key OptiScaler's own fix for the exe sets |

@@ -1,0 +1,24 @@
+{
+ "title": "System Shock",
+ "match": {
+  "exe": [
+   "systemreshock-win64-shipping.exe"
+  ],
+  "steam": [
+   "482400"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {
+  "Spoofing.Dxgi": "true"
+ },
+ "game_settings": [],
+ "launch_args": [
+  "-dx12"
+ ],
+ "note": "DX12 via -dx12 (the default DX11 path does not reach the upscaler).",
+ "evidence": "startup",
+ "observed": "2.0 at start-up"
+}

@@ -100,7 +100,7 @@ static void model_enc16_pack(const void*snapshot,UINT bytes,UINT expanded){
 }
 static void model_enc16_configure(void){
  char path[1400];snprintf(path,sizeof(path),"%s\\wino-enc16.required",patchdir);
- FILE*f=*patchdir?fopen(path,"r"):NULL;
+ FILE*f=*patchdir?profile_fopen(path,"r"):NULL;
  if(!f)model_fail("enc16 Winograd build requires its profile marker");
  unsigned value;char extra;int fields=fscanf(f,"%u %c",&value,&extra);fclose(f);
  if(fields!=1||!value||value>2047||(value&64&&!(value&3))||(value&128&&!(value&32)))model_fail("invalid enc16 Winograd marker");

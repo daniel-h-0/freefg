@@ -7,6 +7,30 @@ The detailed [measurement record at the 1.1.6 release](https://github.com/daniel
 retains the older tables, individual runs, methods and exclusions summarized below. Figure data and scripts are in
 [`docs/data`](https://github.com/daniel-h-0/freefg/tree/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data).
 
+## Checks of 1.3.0
+
+The 93 shader-profile files retain 1.2.0 bytes. The proxy (`6489938d…`) and the pacing layer (`1f691dfd…`) change,
+and the bundled OptiScaler is `ba0dedb` (DLL `e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b`).
+These checks add no performance measurement to the charts below.
+
+- 678 installer tests pass without skips, 19 of them in a real GTK window. The release-tool suite passes, with three
+  public-tree exclusions.
+- Copies of the 18 installed games of the maintainers' library pass Update, exact Rollback, repeat Update and
+  Restore, once with Restore by this build and once by released 1.2.0. 48 transitions from 1.1.3.1, 1.1.4, 1.1.5,
+  1.1.6, 1.2.0-preview and 1.2.0 pass on both routes, with two upscalers each.
+- Short Steam starts on GE-Proton11-11: Echo Point Nova (OptiFG) at 2×, and at 3× and 4× with MFG Unlocker 1.6.0
+  (`FAST_COEXIST`, 13 of 13 programs, 3 and 4 presents per game frame); CONTROL Resonant (DLSS FG input) at 2×;
+  GTA V Enhanced Story Mode at 2× with Social Club, with `RequireArgument` unset and set to `-nobattleye`. A D3D12
+  probe whose swapchain is created while its window is minimized keeps XeFG with the new OptiScaler. Maximum sampled
+  temperature 83 °C, no GPU faults.
+- Native route (the game's own XeSS FG), Cyberpunk 2.31 benchmark on a research copy at 1440p with AMD FSR 4
+  Performance: the game calls the proxy, 13 programs are replaced, and XeFG shows 2.0 presents per benchmark frame.
+  Short same-day starts gave 104.21 ± 0.56 FPS (n = 3) against 1.2.0's 104.44 (n = 2), with the same pacing. This is
+  a functional check, not a timed comparison.
+
+This is short functional qualification, not all-game, long-play, Online, HDR, latency, pacing or image-equivalence
+qualification. GTA without `-nobattleye` and native XeSS FG in Cyberpunk 2.5 were not tested.
+
 ## Checks of 1.2.0
 
 All 97 FreeFG runtime/profile payload files retain 1.1.6 bytes. The bundled OptiScaler changes to `273e8d4`
@@ -174,8 +198,10 @@ research tooling.
 
 | Component | Build | SHA-256 |
 | --- | --- | --- |
-| FreeFG proxy | 1.1.5 / 1.1.6 | `5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f` |
-| Pacing layer | 1.1.3 onward | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
+| FreeFG proxy | 1.3.0: functional checks and one short same-day native-route comparison ([Checks of 1.3.0](#checks-of-130)) | `6489938d63e7059d1b669681881cc11e93072bec921844868926386131b03ca8` |
+| Pacing layer | 1.3.0: functional checks ([Checks of 1.3.0](#checks-of-130)) | `1f691dfd018f7d3d062704b9639e5ed7bfbcfe1e71d92c2299e08153b9f666b6` |
+| FreeFG proxy | 1.1.5–1.2.0 | `5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f` |
+| Pacing layer | 1.1.3–1.2.0 | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 | FreeFG proxy | 0.9.0 (2×) | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
 | Earlier pacing layer | 0.9.0–1.1.2 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
 

@@ -25,11 +25,16 @@ import os
 import re
 from pathlib import Path
 
-# OptiScaler keys the installer writes itself (research/recipes/build_recipes.py INSTALLER_KEYS; a test keeps them alike).
-INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4ForceModel', 'FSR.Fsr4EnableWatermark',
+# OptiScaler keys the installer writes itself, each a key of the shipped OptiScaler.ini (a test checks). Earlier builds
+# also wrote FSR.Fsr4ForceModel, Fsr4GpuSupport's old name, which an update moves (install.fsr4_model_migration).
+# research/recipes/build_recipes.py leaves its INSTALLER_KEYS out of verified recipes (a test keeps the two alike): that
+# list still names FSR.Fsr4ForceModel, and not Libraries.XeSSPath, which the installer writes only to repair an FG or
+# latency DLL saved there, while a verified recipe may set a real XeSS upscaler path.
+INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4GpuSupport', 'FSR.Fsr4EnableWatermark',
                   'FrameGen.Enabled', 'fakenvapi.UseFakenvapi', 'FrameGen.FGInput', 'FrameGen.FGOutput',
                   'Libraries.XeFGPath', 'Libraries.XeLLPath', 'XeFG.ForceBorderless', 'Plugins.LoadAsiPlugins',
-                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel'}
+                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel',
+                  'Libraries.XeSSPath'}
 # What the wiki drafts record beside a condition: explanations, never limits on where an item applies.
 NOTE_KEYS = {'reason', 'purpose', 'note', 'autoapplied_since', 'value', 'feature'}
 INPUT_NAMES = {'upscaler': 'OptiFG', 'dlssg': 'DLSS FG', 'fsrfg': 'FSR 3.1 FG', 'fsrfg30': 'FSR 3.0 FG',
@@ -93,9 +98,30 @@ def key_rule(key, value):
         return 'human', 'a personal preference'
     if k.startswith('plugins.loadreshade') or 'luma' in k:
         return 'human', 'needs another mod (ReShade or Luma)'
+    if k.startswith('libraries.') or k == 'plugins.path':
+        return 'installer', 'library and plugin paths are the integration\'s own layout'
+    if k in FORK_KEYS:
+        return 'installer', 'a switch of the bundled OptiScaler fork, which only verified recipes set'
+    if k in PATH_KEYS:
+        return 'never', 'a file path or process filter (one computer\'s own; a filter can switch OptiScaler off for the game)'
     if k.startswith('log.'):
         return 'never', 'logging'
     return None, None
+
+
+# Keys of the shipped OptiScaler.ini whose value names a file, a folder or the processes OptiScaler loads into (besides
+# Libraries.* and Plugins.Path): never written from a recipe or the wiki.
+PATH_KEYS = {'log.logfilename', 'menu.ttffontpath', 'processfilter.targetprocessname', 'processfilter.processexclusionlist'}
+# Switches only the bundled OptiScaler fork has: a wiki value would replace the Social Club default module list or
+# leave OptiScaler a plain proxy without its hooks.
+FORK_KEYS = {'hotfix.auxiliarydxgifactorymodules', 'bc250.requireargument'}
+
+
+def ini_value_ok(value):
+    """A value an OptiScaler.ini line holds as it is: printable characters only (no C0 or C1 control, no line, paragraph
+    or other Unicode separator but the space) and no blanks at either end, which INI readers strip."""
+    value = str(value)
+    return value.isprintable() and value == value.strip()
 
 
 # --------------------------------------------------------------------------------------- wiki conditions, evaluated
@@ -140,10 +166,14 @@ def _condition(key, value, ctx):
         files = ctx.get('files')
         return (None, None) if files is None else (v in {str(path).lower() for path in files}, 'required file: ' + str(value))
     if key == 'upscaler_input':
-        chosen = ctx.get('upscaler_input')
+        chosen = str(ctx.get('upscaler_input') or '').lower()
         if not chosen:
             return None, None
-        return (str(chosen).lower() == v, 'requires ' + str(value) + ' game input')
+        # One input or several ("fsr31, xess", "dlss/xess"), or all but one ("not dlss").
+        hit = chosen in {p.strip() for p in re.split(r'[/,]| or ', v.removeprefix('not ')) if p.strip()}
+        if v.startswith('not '):
+            return (not hit), (None if not hit else 'not with ' + chosen + ' game input')
+        return hit, (None if hit else 'requires ' + str(value) + ' game input')
     if key in ('upscaler', 'upscaler_output'):
         mine = ctx.get('upscaler', 'fsr4')
         if mine in v:
@@ -184,16 +214,34 @@ def _condition(key, value, ctx):
     return None, None  # upscaler_input (the user's pick in the game), symptoms, game versions, other mods: unknown here
 
 
+# How a wiki condition reads where it is shown: Check, Setup's confirmations and the install notes. Other keys read
+# "key: value".
+CONDITION_TEXT = {'condition': 'if {}', 'symptom': 'if {}', 'gpu': 'on {}', 'os': 'on {}', 'platform': 'on {}', 'store': 'on {}',
+                  'launcher': 'with the {} launcher', 'api': 'with {}', 'engine': 'with {}', 'proxy': 'with OptiScaler as {}',
+                  'optiscaler': 'with OptiScaler {}', 'game_version': 'game version {}', 'upscaler': 'with {} as the upscaler',
+                  'required_file': 'with {} in the game folder'}
+
+
+def condition_text(key, value):
+    """One wiki condition in words: "if crashing on startup", "with the game's FSR 3.1 or XeSS input"."""
+    if key in ('fg_input', 'upscaler_input'):
+        v = str(value).strip().lower()
+        names = INPUT_NAMES if key == 'fg_input' else dict(UPSCALER_NAMES, fsr4='FSR 4')
+        text = ' or '.join(names.get(p, p) for p in (p.strip() for p in re.split(r'[/,]| or ', v.removeprefix('not '))) if p)
+        return ('not ' if v.startswith('not ') else '') + (f'with {text} input' if key == 'fg_input' else f"with the game's {text} input")
+    return CONDITION_TEXT.get(key, str(key).replace('_', ' ') + ': {}').format(value)
+
+
 def evaluate(when, ctx):
     """(result, reasons): result True when every condition holds for this install, False when one never does (reasons
-    says which), None when one cannot be known before the game runs (reasons lists the unknown ones)."""
+    says which), None when one cannot be known before the game runs (reasons lists the unknown ones, in words)."""
     unknown, false = [], []
     for key, value in (when or {}).items():
         result, why = _condition(key, value, ctx)
         if result is False:
             false.append(why or f'{key} {value}')
         elif result is None:
-            unknown.append(f'{key}: {value}')
+            unknown.append(condition_text(key, value))
     if false:
         return False, false
     return (None, unknown) if unknown else (True, [])
@@ -202,16 +250,20 @@ def evaluate(when, ctx):
 # ---------------------------------------------------------------------------------------------- matching the wiki
 def wiki_matches(data, ids):
     """[(wiki entry, 'strong' | 'weak')]: strong = a launcher ID, or the exe name together with the game's title or one
-    of its folders; weak = the title alone, or a (non-generic) exe name alone."""
+    of its folders, also without its store edition (the exe already names the game: "The Witcher 3: Wild Hunt —
+    Remastered", folder "...GOTY", is the wiki's "The Witcher 3: Wild Hunt"); weak = the title alone (exactly), or a
+    (non-generic) exe name alone."""
+    from recipes import loose
     out = []
     exe = ids.get('exe', '')
     names = set(ids.get('titles') or ()) | set(ids.get('folders') or ())
+    loose_names = {loose(n) for n in names} - {''}
     for w in (data or {}).get('wiki', []):
         m = w.get('match', {})
         by_id = any(set(ids.get(k) or ()) & set(m.get(k, [])) for k in ('steam', 'gog', 'epic'))
         by_exe = exe in m.get('exe', [])
         by_title = bool(set(m.get('title', [])) & set(ids.get('titles') or ()))
-        named = bool(set(m.get('title', [])) & names)
+        named = bool(set(m.get('title', [])) & names) or (by_exe and bool({loose(t) for t in m.get('title', [])} & loose_names))
         if by_id or (by_exe and named):
             out.append((w, 'strong'))
         elif by_title or (by_exe and exe not in GENERIC_EXES):
@@ -276,8 +328,8 @@ def wiki_plan(data, ids, ctx=None, *, supported_keys=None, current=None, recipe_
                 items.append(item)
         for item in items:
             key, value = item['key'], str(item['value'])
-            if not re.fullmatch(r'[A-Za-z0-9_-]+\.[A-Za-z0-9_]+', key) or any(c in value for c in '\r\n\0'):
-                raise ValueError('Malformed wiki INI proposal')
+            if not re.fullmatch(r'[A-Za-z0-9_-]+\.[A-Za-z0-9_]+', key) or not ini_value_ok(value):
+                raise ValueError('Malformed wiki INI proposal: ' + entry['title'] + ' ' + repr(key) + '=' + repr(value))
             low, when = key.lower(), item.get('when') or {}
             condition, reasons = evaluate(when, ctx)
             rule, rule_reason = key_rule(key, value)
@@ -760,7 +812,7 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
             elif cls:
                 shown.append(f'{text}: not applied automatically ({reason})')
             elif result is None:
-                shown.append(f'{text}: a known fix when {"; ".join(why)} (set it in OptiScaler\'s menu if that applies)')
+                shown.append(f'{text}: a known fix {"; ".join(why)} (set it in OptiScaler\'s menu if that applies)')
             else:
                 shown.append(f'{text}: suggested (not reviewed for automatic use)' + ('' if strength == 'strong' else '; matched by title'))
         for a in w.get('fg_advice', []):
@@ -780,7 +832,7 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
             elif a['input'] in verdict['vetoes']:
                 shown.append(f'Reports problems with {name} input (not used here: {chooser} decides the input)')
             else:
-                shown.append(f'Reports problems with {name} input' + (f' when {"; ".join(why)}' if result is None else '') +
+                shown.append(f'Reports problems with {name} input' + (f' ({"; ".join(why)})' if result is None else '') +
                              ('' if strength == 'strong' else ' (matched by title)'))
         for s in w.get('game_settings', []):
             text = f'Game setting {s["key"]}={s["value"]}' + (f' in {s["file"]}' if s.get('file') else '')
@@ -791,11 +843,20 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
                 shown.append(f'{text}: not applied; the {kind} sets {s["key"]}={mine}')
             else:
                 shown.append(f'{text} (a recipe candidate; not applied)')
-        for arg in w.get('other_launch_args', []):
-            if arg.lower() in OFF_DX12_ARGS:
+        # Each launch item whole, as the page gives it (a Steam line or wrapper is pasted as one), never token by token.
+        for item in w.get('launch', []):
+            result, why = evaluate(item.get('when'), ctx)
+            clash = item.get('conflicts', [])
+            name = {'env': 'Launch environment', 'steam': 'Steam launch options', 'wrapper': 'Launch wrapper'}.get(item.get('kind'), 'Launch option')
+            if result is False:
+                hidden[why[0]] = hidden.get(why[0], 0) + 1
+            elif any(c.lower() in OFF_DX12_ARGS for c in clash):
                 hidden['launch options that leave DirectX 12'] = hidden.get('launch options that leave DirectX 12', 0) + 1
-            else:
-                shown.append(f'Launch option {arg} (not applied)')
+            elif clash:
+                shown.append(f'{name} {item["text"]}: not usable with FreeFG as it stands (it sets {names_text(clash)}, which '
+                             'FreeFG\'s own launch settings set or refuse)')
+            elif item['text'] not in verdict['launch_args']:
+                shown.append(f'{name} {item["text"]}' + (f' {"; ".join(why)}' if result is None else '') + ' (not applied)')
         if verdict['launch_source'] and verdict['launch_source'].startswith('OptiScaler wiki') and w['title'] in verdict['launch_source']:
             applied.append('Launch option ' + ' '.join(verdict['launch_args']))
         if w.get('compat') == 'not-working':
@@ -876,8 +937,10 @@ def _mfg_unlocker_files(root):
 def last_run(root, route=None, beside_exe=False, since=None):
     """What the logs in the game folder say about the last session: dict(found, optiscaler, xefg, fg_input, upscaler,
     proxy, accelerated, problems, cause, own_programs, f4q, owner, coexist_accelerated, skipped_game_context,
-    context_caller, other_module, aside, mfg_unlocker, mfg_unlocker_files, xefg_model, route, fast_stale, acceleration,
-    acceleration_reason, output, output_fallbacks). output: the FP16 forms' state of the last session (dict(mode, source,
+    context_caller, other_module, aside, aside_module, decision, mfg_unlocker, mfg_unlocker_files, xefg_model, route,
+    fast_stale, acceleration, acceleration_reason, output, output_fallbacks). aside_module: the FAST_ASIDE line names another
+    module hooking Intel's runtime (else this build stepped aside on its own: a model it has not verified). decision: the
+    proxy's last FAST_DECISION reason for not accelerating a context. output: the FP16 forms' state of the last session (dict(mode, source,
     forms) from its FP16_CONFIG line; None when the log has none: builds before 1.1.2). output_fallbacks: the shaders of its
     F4Q_FALLBACK and FP16_FALLBACK lines (pipelines that ran an exact form instead; an FP16 pipeline that could not be
     created logs FP16_REPLACE first, then F4Q_FALLBACK). route: the installation's route ('native' or 'opti', None when unknown); the logs alone tell
@@ -896,7 +959,8 @@ def last_run(root, route=None, beside_exe=False, since=None):
                                                                      'OptiScaler/plugins/BC250-XeFG-fast.log')), since=since)
     out = dict(found=bool(opti or proxy or fast), optiscaler=opti is not None, xefg=False, fg_input=None, upscaler=None,
                proxy=None, accelerated=0, problems=[], cause=None, own_programs=0, f4q=0, owner=False, coexist_accelerated=False,
-               skipped_game_context=False, context_caller=False, other_module=False, aside=None, mfg_unlocker=None,
+               skipped_game_context=False, context_caller=False, other_module=False, aside=None, aside_module=False,
+               decision=None, mfg_unlocker=None,
                mfg_unlocker_files=_mfg_unlocker_files(root), xefg_model=xefg_model(root), route=route, fast_stale=False,
                acceleration=None, acceleration_reason=None, output=None, output_fallbacks=[])
     if opti:
@@ -914,6 +978,8 @@ def last_run(root, route=None, beside_exe=False, since=None):
         out['coexist_accelerated'] = bool(re.search(r'^FAST_COEXIST this context is accelerated', proxy, re.M))
         out['skipped_game_context'] = bool(re.search(r'^FAST_SKIP beside another module', proxy, re.M))
         out['context_caller'] = bool(re.search(r'^CONTEXT_CALLER ', proxy, re.M))
+        decisions = re.findall(r'^FAST_DECISION not accelerated: (.+?)\s*$', proxy, re.M)
+        out['decision'] = decisions[-1][:160] if decisions else None
         out['other_module'] = bool(re.search(r'^FAST_COEXIST another module hooks', proxy, re.M))
         module = re.search(r'^FAST_COEXIST .*?jumps to ([^)\r\n]+)\)', proxy, re.M)
         if module:
@@ -922,9 +988,9 @@ def last_run(root, route=None, beside_exe=False, since=None):
     # session that selected a context, so without FAST_OWNER here it is an earlier session's.
     if proxy is not None and fast is not None and not out['owner'] and not out['coexist_accelerated']:
         out['fast_stale'], fast = True, None
-    aside = re.search(r'^FAST_ASIDE (.+?)(?:, with another module|$)', proxy or fast or '', re.M)
+    aside = re.search(r'^FAST_ASIDE (.+?)(, with another module|: this context now runs|$)', proxy or fast or '', re.M)
     if aside:
-        out['aside'] = aside[1].strip()[:120]
+        out['aside'], out['aside_module'] = aside[1].strip()[:120], aside[2].startswith(', with another module')
     if fast:
         out['accelerated'] = len(set(re.findall(r'WINOGRAD_EXECUTE shader=([0-9a-f]+)', fast)))
         out['own_programs'] = len(set(re.findall(r'^REPLACE ([0-9A-Fa-f]+)\b', fast, re.M)))
@@ -994,6 +1060,10 @@ def acceleration_lines(summary):
                 'replaced the rest.', 'Fix: ' + XEFG_MODEL_FIX + '.']
     if kind == 'partial':
         return [f'Acceleration: partial (this build\'s shaders ran on {n} of {FULL_PROGRAMS} programs).']
+    if kind == 'not-running' and why == 'aside' and not summary.get('aside_module'):
+        return [f'Acceleration: stepped aside during the session ({summary.get("aside")}): Intel\'s shaders ran from then on; '
+                'the game kept its frame generation.',
+                'Report: this build met a model it has not verified; BC250-MFG.log names it (TROUBLESHOOTING.md).']
     if kind == 'not-running' and why == 'aside':
         return [f'Acceleration: stepped aside during the session ({summary.get("aside")}): Intel\'s or the other module\'s shaders '
                 'ran from then on.',
@@ -1011,6 +1081,8 @@ def acceleration_lines(summary):
                 'was used: this build accelerates only OptiScaler\'s frame generation beside it.',
                 'Fix: remove that module, or use OptiScaler\'s frame generation.' if opti else
                 'Fix: remove that module, or install on the OptiScaler route.']
+    if kind == 'not-running' and not summary.get('cause') and summary.get('proxy') != 'failed' and summary.get('decision'):
+        return ['Acceleration: none: ' + summary['decision'].rstrip('.') + '.']
     if kind == 'not-running' and not summary.get('cause') and summary.get('proxy') != 'failed':
         return ['Acceleration: none (no acceleration log' + (' from this session' if summary.get('fast_stale') else '') + ').',
                 'Check: the launch options for BC250_XEFG_DISABLE, and BC250-MFG.log for FAST_FALLBACK, FAST_SKIP or FAST_ASIDE lines.']

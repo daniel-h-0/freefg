@@ -1,0 +1,23 @@
+{
+ "title": "Red Dead Redemption 2",
+ "match": {
+  "exe": [
+   "rdr2.exe"
+  ],
+  "epic": [
+   "Heather"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {
+  "Inputs.EnableDlssInputs": "true",
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [],
+ "launch_args": [],
+ "note": "The tested launch stopped at Rockstar authentication error 2 even directly through Heroic. Resolve launcher authentication before diagnosing FreeFG.",
+ "evidence": "installed",
+ "observed": "Rockstar authentication error 2 prevented game qualification, October 29, 2026"
+}

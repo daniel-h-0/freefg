@@ -299,6 +299,100 @@ class UpdateTests(UpdateFixture):
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),CHANGES['payload/libxess_fg.dll']);self.assertEqual(self.record()['package'],NEW)
         with self.assertRaisesRegex(ValueError,'No update to roll back'):m.rollback(self.exe)
 
+class GenerationKindTests(UpdateFixture):
+    """Wiki INI settings applied after an update keep the way back to the release before it: one generation is kept per
+    kind (a release or upscaler change, wiki INI settings), and Rollback undoes the newest and names it."""
+    def setUp(self):
+        super().setUp()
+        catalog=json.dumps(dict(schema=1,verified=[],leave_auto={},backports={},quirk_keys={},wiki=[dict(
+            title='Test game',match={'gog':['123']},pages=[],ini=[dict(key='Hotfix.ColorResourceBarrier',value='4'),
+                                                                   dict(key='Hotfix.MotionVectorResourceBarrier',value='8')])])).encode()
+        for package in (self.package,self.new):set_package_file(package,'recipes/recipes.json',catalog)
+        self.ini=self.game/'OptiScaler.ini'
+        self.ini.write_bytes(self.ini.read_bytes()+b'[Hotfix]\r\nColorResourceBarrier=auto\r\nMotionVectorResourceBarrier=auto\r\n')
+        self.original['OptiScaler.ini']=self.ini.read_bytes()
+    def apply(self,key):
+        plan=m.wiki_settings_plan(self.new,self.exe);row=next(row for row in plan['rows'] if row['key']==key)
+        return self.run_quiet(m.apply_wiki_settings,self.exe,[row['id']],package=self.new,expected=plan['digest'])
+    def hotfix(self):
+        return {k:v for (s,k),v in m.read_ini(self.ini.read_bytes()).items() if s=='hotfix'}
+
+    def test_wiki_settings_after_an_update_keep_the_way_back(self):
+        m.install(self.package,self.exe,route='opti');original=self.snapshot()
+        self.run_quiet(m.update,self.exe,self.new);updated=self.snapshot()
+        self.apply('Hotfix.ColorResourceBarrier');first=self.snapshot()
+        self.apply('Hotfix.MotionVectorResourceBarrier')
+        # The newest of each kind: the update, and the second wiki apply (it replaced the first).
+        self.assertEqual([(g['kind'],g['from'],g['to']) for g in self.record()['generations']],[('release',OLD,NEW),('settings',NEW,NEW)])
+        self.assertEqual(self.record()['generations'][1]['settings'],{'Hotfix.MotionVectorResourceBarrier':'8'})
+        self.assertEqual(len(list((self.game/m.STATE/m.GENERATIONS).iterdir())),2)
+        _,out=self.run_quiet(m.status,self.exe)
+        self.assertIn('install.py rollback undoes the wiki INI settings applied on',out);self.assertIn('After that, install.py rollback undoes the update from '+OLD,out)
+        _,out=self.run_quiet(m.rollback,self.exe)
+        self.assertIn('Rolled back the wiki INI settings applied on',out);self.assertIn('(Hotfix.MotionVectorResourceBarrier=8): 1 file put back',out)
+        self.assertIn('install.py rollback can still undo the update from '+OLD,out)
+        self.assertEqual(self.snapshot(),first);self.assertEqual(self.hotfix(),{'colorresourcebarrier':'4','motionvectorresourcebarrier':'auto'})
+        _,out=self.run_quiet(m.rollback,self.exe)
+        self.assertIn('Rolled back from '+NEW+' to '+OLD,out);self.assertEqual(self.record()['package'],OLD)
+        # Back on the earlier release; the first wiki value (its generation replaced) stays, as a later edit would.
+        self.assertEqual(self.hotfix(),{'colorresourcebarrier':'4','motionvectorresourcebarrier':'auto'})
+        self.assertEqual({k:v for k,v in self.snapshot().items() if k!='OptiScaler.ini'},{k:v for k,v in original.items() if k!='OptiScaler.ini'})
+        with self.assertRaisesRegex(ValueError,'No update to roll back'):m.rollback(self.exe)
+        m.restore(self.exe);self.assertOriginal()
+
+    def test_an_update_after_wiki_settings_rolls_back_first(self):
+        m.install(self.package,self.exe,route='opti');self.apply('Hotfix.ColorResourceBarrier');applied=self.snapshot()
+        self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual([g['kind'] for g in self.record()['generations']],['settings','release'])
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),applied);self.assertEqual(self.record()['package'],OLD)
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.hotfix(),{'colorresourcebarrier':'auto','motionvectorresourcebarrier':'auto'})
+        m.restore(self.exe);self.assertOriginal()
+
+class FsrModelMigrationTests(UpdateFixture):
+    """An installation of an earlier build set OptiScaler's FSR 4 model override by its old name, FSR.Fsr4ForceModel=2: the
+    update moves it to Fsr4GpuSupport, keeps what the user chose, and Rollback and Restore stay exact."""
+    def old_build(self,saved=None):
+        """The installed game as an earlier build left it: Fsr4ForceModel=2 written and owned, no Fsr4GpuSupport; saved:
+        then OptiScaler's Save Settings (or the user) set these values ({key: value or None})."""
+        m.install(self.package,self.exe,route='opti');ini=self.game/'OptiScaler.ini'
+        data=m.patch_ini(ini.read_bytes(),{('FSR','Fsr4GpuSupport'):None,('FSR','Fsr4ForceModel'):'2'});ini.write_bytes(data)
+        record=self.record()
+        record['ini_changes']=[dict(row,key='Fsr4ForceModel') if row['key']=='Fsr4GpuSupport' else row for row in record['ini_changes']]
+        next(item for item in record['files'] if item['path']=='OptiScaler.ini')['after']=m.digest(data)
+        m.save_record(self.game/m.STATE,record)
+        if saved:ini.write_bytes(m.patch_ini(data,{('FSR',key):value for key,value in saved.items()}))
+        return ini
+    def owned(self):
+        return {row['key']:row['value'] for row in self.record()['ini_changes'] if row['key'].startswith('Fsr4') and row['key']!='Fsr4EnableWatermark'}
+    def fsr(self,ini):
+        return {key:value for (section,key),value in m.read_ini(ini.read_bytes()).items() if section=='fsr' and key in ('fsr4forcemodel','fsr4gpusupport')}
+
+    def test_untouched_override_moves_and_rolls_back_exactly(self):
+        ini=self.old_build();before=ini.read_bytes();record=self.record()
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
+        self.assertEqual(self.fsr(ini),{'fsr4gpusupport':'2'});self.assertEqual(self.owned(),{'Fsr4ForceModel':None,'Fsr4GpuSupport':'2'})
+        self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(ini.read_bytes(),before);self.assertEqual(self.record()['ini_changes'],record['ini_changes'])
+        self.run_quiet(m.update,self.exe,self.new);m.restore(self.exe);self.assertOriginal()
+
+    def test_saved_by_optiscaler_the_value_becomes_owned(self):
+        # OptiScaler's Save Settings wrote Fsr4GpuSupport=2 and deleted the old name: nothing to write, Restore removes it.
+        ini=self.old_build({'Fsr4ForceModel':None,'Fsr4GpuSupport':'2'});before=ini.read_bytes()
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
+        self.assertEqual(ini.read_bytes(),before);self.assertEqual(self.owned(),{'Fsr4ForceModel':None,'Fsr4GpuSupport':'2'})
+        m.restore(self.exe);self.assertOriginal()
+
+    def test_a_model_chosen_in_optiscaler_stays(self):
+        ini=self.old_build({'Fsr4ForceModel':None,'Fsr4GpuSupport':'4'})  # INT8 Lite, chosen in OptiScaler's menu
+        self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.fsr(ini),{'fsr4gpusupport':'4'});self.assertEqual(self.owned(),{'Fsr4ForceModel':None})
+        m.restore(self.exe);self.assertEqual(self.fsr(ini),{'fsr4gpusupport':'4'})
+
+    def test_a_hand_written_old_name_stays(self):
+        ini=self.old_build({'Fsr4ForceModel':'4'})
+        self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.fsr(ini),{'fsr4forcemodel':'4'});self.assertEqual(self.owned(),{'Fsr4ForceModel':'2'})
+
 class InterruptionTests(UpdateFixture):
     """A crash at each write of an update or a rollback: the next update, rollback or Restore puts the game in a known state."""
     def crash_at(self,count,function,*args):
@@ -567,6 +661,27 @@ class UpdateContractTests(UpdateFixture):
         self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'blocked')
         self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
 
+    def test_release_names_in_order_and_unknown_names_never_updated_across(self):
+        ordered=['freefg-1.1.6','freefg-1.2.0-preview','freefg-1.2.0-preview.1','freefg-1.2.0-preview2','freefg-1.2.0-rc1',
+                 'freefg-1.2.0-rc2','freefg-1.2.0','freefg-1.2.0.1-rc1','freefg-1.2.0.1']
+        self.assertEqual(sorted(reversed(ordered),key=m.release_number),ordered)
+        self.assertEqual(m.release_number('freefg-1.2.0-preview.1'),m.release_number('freefg-1.2.0-preview1'))
+        for name in ['freefg-1.2.0-preview.','freefg-1.2.0-beta1','freefg-1.2.0-custom','bc250-fsr4-xemfg-private-test-25','',None]:
+            self.assertIsNone(m.release_number(name),name)
+        m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,self.new)
+        # A release candidate is older than its release, newer than the release before it.
+        rc=self.newer({},name='freefg-1.1.5-rc1',folder='rc',base=self.new)
+        self.assertEqual(self.run_quiet(m.update,self.exe,rc)[0],'blocked')
+        # A name whose order is unknown, either side: the game stays as it is (fails closed), with the reason.
+        custom=self.newer({},name='freefg-1.1.6-custom',folder='custom',base=self.new)
+        before=self.snapshot();record=self.record()
+        status,out=self.run_quiet(m.update,self.exe,custom)
+        self.assertEqual(status,'blocked');self.assertIn('Cannot tell whether freefg-1.1.6-custom is newer than '+NEW,out)
+        self.assertEqual((self.snapshot(),self.record()),(before,record))
+        m.save_record(self.game/m.STATE,dict(record,package='freefg-local-build'))
+        later=self.newer({},name='freefg-1.1.6',folder='later',base=self.new)
+        self.assertEqual(self.run_quiet(m.update,self.exe,later)[0],'blocked');self.assertEqual(self.snapshot(),before)
+
 class LibraryTests(UpdateFixture):
     """Update all: the games found from the launchers' entries, each updated or left on its own."""
     def second_game(self):
@@ -592,15 +707,38 @@ class LibraryTests(UpdateFixture):
         with patch.object(m,'__file__',str(self.new/'install.py')),patch('sys.argv',['install.py','update','--all']),\
              contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
             code=m.main()
-        self.assertEqual(code,1)
+        self.assertEqual(code,m.EXIT_REFUSED)  # a game that needs attention, none failed
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),CHANGES['payload/libxess_fg.dll'])
         self.assertEqual((game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
         self.assertIn('Update: 1 updated; 1 need attention (Other.exe).',out.getvalue())
         # Again: the first is up to date, the second still needs attention; plan says the same and changes nothing.
         with patch.object(m,'__file__',str(self.new/'install.py')),patch('sys.argv',['install.py','plan','--all']),\
              contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
-            self.assertEqual(m.main(),0)
+            self.assertEqual(m.main(),m.EXIT_REFUSED)
         self.assertIn('Plan: 1 up to date; 1 need attention (Other.exe).',out.getvalue())
+
+    def test_update_applies_only_the_plan_that_was_shown(self):
+        # plan prints its digest; update --expect-plan DIGEST changes nothing once any game's plan differs from it.
+        game,exe=self.second_game()
+        m.install(self.package,self.exe,route='opti');m.install(self.package,exe,route='opti')
+        def cli(*argv):
+            out,err=io.StringIO(),io.StringIO()
+            with patch.object(m,'__file__',str(self.new/'install.py')),patch('sys.argv',['install.py',*argv]),\
+                 contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
+                return m.main(),out.getvalue(),err.getvalue()
+        code,out,_=cli('plan','--all');digest=out.split('Plan digest: ')[1].split()[0]
+        self.assertEqual((code,cli('plan','--all')[1].split('Plan digest: ')[1].split()[0]),(m.EXIT_OK,digest))  # the same plan, the same digest
+        # A front end planning in its own process (Setup) gets the same digest, in any order.
+        self.assertEqual(m.plan_digest([(e,m.game_plan(self.new,e)) for e in (exe,self.exe)]),digest)
+        (game/'BC250-XeFG/shaders/waves.txt').write_bytes(b'edited')  # the second game now needs attention
+        before=(self.snapshot(),(game/'libxess_fg.dll').read_bytes())
+        code,_,err=cli('update','--all','--expect-plan',digest)
+        self.assertEqual(code,m.EXIT_REFUSED);self.assertIn('The plan changed since it was shown',err)
+        self.assertEqual((self.snapshot(),(game/'libxess_fg.dll').read_bytes()),before)
+        code,out,_=cli('plan','--all');digest=out.split('Plan digest: ')[1].split()[0]
+        code,out,_=cli('update','--all','--expect-plan',digest)
+        self.assertEqual(code,m.EXIT_REFUSED);self.assertIn('Update: 1 updated; 1 need attention (Other.exe).',out)
+        with self.assertRaises(SystemExit):cli('plan','--all','--expect-plan',digest)
 
     def test_installation_roots_from_steam_and_lutris(self):
         steam=self.root/'.local/share/Steam';layer='VK_LAYER_PATH=/games/a/BC250-XeFG/layer:/usr/share/vulkan %command%'
@@ -609,5 +747,74 @@ class LibraryTests(UpdateFixture):
                 '\t\t\t\t\t"20"\n\t\t\t\t\t{\n\t\t\t\t\t\t"LaunchOptions"\t\t"gamemoderun %command%"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n').encode())
         m.write(self.root/'.config/lutris/games/b.yml',b'game:\n  exe: /games/b/B.exe\nsystem:\n  env:\n    VK_LAYER_PATH: /games/b/BC250-XeFG/layer\n')
         self.assertEqual(launcher_config.installation_roots(self.root),[Path('/games/a'),Path('/games/b')])
+
+class EventAndExitTests(UpdateFixture):
+    """install.py --events (Setup reads these instead of the text) and its exit codes: 0 done, 1 failed, 3 refused."""
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(setattr,m,'EVENTS',False)
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('setup_model_events',Path(m.__file__).parent/'mfg/setup_model.py')
+        self.model=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.model)
+    def cli(self,*argv,package=None):
+        """main() for argv with --events, from package's install.py: (exit code, ordinary lines, events)."""
+        out,err=io.StringIO(),io.StringIO()
+        with patch.object(m,'__file__',str((package or self.package)/'install.py')),patch('sys.argv',['install.py',*map(str,argv),'--events']),\
+             contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
+            code=m.main()
+        lines=out.getvalue().splitlines()
+        events=[json.loads(line[len(m.EVENT_PREFIX):]) for line in lines if line.startswith(m.EVENT_PREFIX)]
+        return code,[line for line in lines if not line.startswith(m.EVENT_PREFIX)],events
+    def assertEventsCoverText(self,lines,events):
+        """Every line Setup reads from the text (setup_model.summary_lines, next_steps) is an event with that text."""
+        changed=[e['text'] for e in events if e['type']=='changed'];steps=[e['text'] for e in events if e['type']=='step']
+        stream=[('out',line) for line in lines]
+        # summary_lines also took the verdict's numbered steps ("  1. ...") for changes: they are step events.
+        self.assertEqual([line for line in self.model.summary_lines(stream) if line not in changed and not line[:1].isdigit()],[])
+        self.assertEqual([line for line in self.model.next_steps(stream) if line not in steps and not line.startswith('In your launcher:')],[])
+        return changed,steps
+
+    def test_events_name_what_changed_and_the_steps_left(self):
+        code,lines,events=self.cli('install',self.exe,'--route','opti')
+        changed,steps=self.assertEventsCoverText(lines,events)
+        self.assertEqual(code,m.EXIT_OK);self.assertEqual(events[-1],{'v':1,'type':'outcome','exe':str(self.exe),'result':'install'})
+        self.assertTrue(any(text.startswith('Frame-generation input:') for text in changed))
+        self.assertEqual([e['where'] for e in events if e['type']=='step'],['game'])
+        self.assertTrue(steps[0].startswith('In game: open OptiScaler with Insert'))
+        code,lines,events=self.cli('configure',self.exe,'--percent','67')
+        self.assertEqual(self.assertEventsCoverText(lines,events)[0][0],'Settings saved. Launch the game to apply them.')
+        # An update that merges a setting: its four-space lines are changes too.
+        newer=self.newer({**CHANGES,'payload/BC250-XeFG/settings.ini':SETTINGS+b'NewKey=5\n'},folder='package-events')
+        code,lines,events=self.cli('update',self.exe,package=newer)
+        changed,_=self.assertEventsCoverText(lines,events)
+        self.assertEqual(code,m.EXIT_OK);self.assertIn('bc250.newkey: (unset) → 5',changed);self.assertIn('    bc250.newkey: (unset) → 5',lines)
+        code,lines,events=self.cli('rollback',self.exe)
+        self.assertTrue(self.assertEventsCoverText(lines,events)[0][0].startswith('Rolled back from freefg-1.1.5 to '+OLD))
+        code,lines,events=self.cli('restore',self.exe)
+        self.assertTrue(self.assertEventsCoverText(lines,events)[0][0].startswith('Original files and launcher settings restored.'))
+        self.assertOriginal()
+
+    def test_refusals_exit_3_and_failures_1(self):
+        m.install(self.package,self.exe,route='opti')
+        with patch.object(m,'idle',side_effect=m.GameRunningError('Close the game before installing, updating or restoring')):
+            code,_,events=self.cli('restore',self.exe)
+        self.assertEqual((code,events[-1]['result']),(m.EXIT_REFUSED,'running'))
+        with patch.object(launcher_config,'require_stopped',side_effect=ValueError('Close heroic before installing or restoring launcher settings')):
+            code,_,events=self.cli('restore',self.exe)
+        self.assertEqual((code,events[-1]['result']),(m.EXIT_REFUSED,'refused'))
+        import fcntl
+        lock=os.open(self.game,os.O_RDONLY|os.O_DIRECTORY)
+        try:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            code,_,events=self.cli('restore',self.exe)
+        finally:os.close(lock)
+        self.assertEqual((code,events[-1]['result']),(m.EXIT_REFUSED,'refused'))
+        self.assertEqual(self.record()['status'],'installed')
+        # A game refused and another failed: 1.
+        missing=self.root/'gone/Game.exe'  # no such folder: the lock fails before the running check
+        with patch.object(m,'idle',side_effect=m.GameRunningError('Close the game before installing, updating or restoring')):
+            code,_,events=self.cli('restore',self.exe,missing)
+        self.assertEqual((code,[e['result'] for e in events if e['type']=='outcome']),(m.EXIT_FAILED,['running','failed']))
+        code,_,_=self.cli('restore',self.exe);self.assertEqual(code,m.EXIT_OK);self.assertOriginal()
 
 if __name__=='__main__':unittest.main()

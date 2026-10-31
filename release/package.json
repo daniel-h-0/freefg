@@ -1,6 +1,6 @@
 {
  "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build (variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-mfg for tools that pass --variant intel-free-mfg, and that entry changes nothing.",
- "name": "freefg-1.2.0",
+ "name": "freefg-1.3.0",
  "variant": "intel-free-mfg",
  "documents_version": "public",
  "documents_component": "documents",
@@ -23,14 +23,17 @@
   },
   "enabler_overlay": "not applicable (no XeSSMFG enabler)",
   "optiscaler": {
-   "source_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
+   "source_commit": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
    "upstream_base": "e7e3872d410f704479d94d318d68d163b6b58947",
    "fixed": [
     "f6db41dfa7bacb16ac50bd1e5787fdb44362da47 Try to prevent race conditions when hooking sl plugins (lock order: the loader lock before a Streamline plugin mutex)",
     "Separate XeSS, XeFG and XeLL library-path configuration fields (saved XeSSPath corruption)",
     "Adaptive FreeFG frame-start pacing through XeLL at 3x/4x, with bounded stall recovery",
     "Distinct HLX providers with original-input parameters and actual FFX provider identity",
-    "Social Club auxiliary factories retain native swapchains; zero-sized descriptors use HWND geometry for the tiny-window guard"
+    "Social Club auxiliary factories retain native swapchains; zero-sized descriptors use HWND geometry for the tiny-window guard",
+    "Minimized or unmapped game windows (an empty client area) stay eligible for frame generation",
+    "Configurable auxiliary DXGI-factory modules ([Hotfix] AuxiliaryDxgiFactoryModules, default SocialClubD3D12Renderer.dll)",
+    "[BC250] RequireArgument: without that launch argument OptiScaler stays a plain proxy, with no hooks or frame generation"
    ]
   },
   "extras": {
@@ -69,7 +72,8 @@
     "upscaler_updates.py": "repo:packaging/upscaler_updates.py",
     "hlx.py": "repo:packaging/hlx.py",
     "launcher_migrations.py": "repo:packaging/launcher_migrations.py",
-    "library_view.py": "repo:packaging/library_view.py"
+    "library_view.py": "repo:packaging/library_view.py",
+    "versions.py": "repo:packaging/versions.py"
    }
   },
   "installer-vendor": {
@@ -366,7 +370,7 @@
  "variants": {
   "intel-free-mfg": {
    "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-mfg builds exactly what release/assemble.py builds.",
-   "name": "freefg-1.2.0",
+   "name": "freefg-1.3.0",
    "package_dir": "package-intel-free-mfg",
    "documents_version": "public",
    "replace": {},

@@ -79,9 +79,12 @@ POINTER_ONLY = {
 }
 XZ = dict(format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC64, preset=9)
 RECORD_FILES = ('SOURCE-ARCHIVE.md', 'SOURCE-ARCHIVE.json', 'SOURCE-ARCHIVE.sha256')
-# Placeholders and draft markers (the bracketed upper-case tokens of the public documents) that a published FORK.md must
-# not carry any more.
+# Placeholders and the draft marker that a published FORK.md must not carry any more: the placeholders of the public
+# documents, which release/assemble.py --archive refuses in the build route (check_public_docs.py PLACEHOLDER), and
+# [DRAFT] (unfilled_pattern()). A bracketed name of OptiScaler's own, such as the OptiScaler.ini section [BC250], is
+# neither. In a tree without that check, every bracketed upper-case token counts.
 UNFILLED = re.compile(r'\[[A-Z][A-Z0-9 -]*[A-Z0-9]\]')
+DRAFT_MARKER = '[DRAFT]'
 CACHE_FOLDER = 'optiscaler-fork-submodules'
 GIT_ENV = dict(GIT_TERMINAL_PROMPT='0', GIT_OPTIONAL_LOCKS='0')
 
@@ -234,14 +237,23 @@ def plan(config, folder, pointer_only, url_overrides):
     return parts
 
 
+def unfilled_pattern():
+    """The placeholders of check_public_docs.py and the [DRAFT] marker, or UNFILLED without that check."""
+    import assemble  # local import: assemble loads the public documents' check
+    pattern = assemble.placeholder_pattern()
+    return re.compile(re.escape(DRAFT_MARKER) + '|' + pattern.pattern) if pattern is not None else UNFILLED
+
+
 def unfilled(folder, part):
     """Warnings for the build route files of the fork's part that still carry placeholders or draft markers."""
     route = set(part['extra']['build_route'])
+    pattern = unfilled_pattern()
     out = []
     with fork.Blobs(folder) as blobs:
         for _mode, object_id, path in part['entries']:
             if path in route:
-                found = sorted(set(UNFILLED.findall(blobs.read(object_id).decode('utf-8', errors='replace'))))
+                text = blobs.read(object_id).decode('utf-8', errors='replace')
+                found = sorted({match.group(0) for match in pattern.finditer(text)})
                 if found:
                     out.append(f'{path} still carries {", ".join(found)}: fill it in, commit, move the tag and make '
                                'the archive again before the fork\'s release ("Moving the tag")')

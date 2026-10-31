@@ -1,11 +1,32 @@
 # SPDX-License-Identifier: MIT
 import copy
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 from test_update import UpdateFixture,m
 
 
 class RecipeMigrationTests(UpdateFixture):
+    def test_gta_refresh_writes_require_argument_with_exact_rollback(self):
+        # GTA V Enhanced's recipe sets [BC250] RequireArgument=-nobattleye: an installation of an earlier release gets it
+        # from an explicit refresh; rollback and Restore take it out again.
+        rm=m.recipes_module()
+        catalog=rm.load(Path(__file__).resolve().parents[1]/'packaging/recipes/recipes.json')
+        recipe=copy.deepcopy(next(v for v in catalog['verified'] if '3240220' in v['match'].get('steam',[])))
+        self.assertEqual(recipe['ini']['BC250.RequireArgument'],'-nobattleye')
+        m.install(self.package,self.exe,route='opti',fg_input='upscaler');before=self.snapshot()
+        def ini():
+            return m.read_ini((self.game/'OptiScaler.ini').read_bytes())
+        self.assertNotIn(('bc250','requireargument'),ini())
+        with patch.object(m,'recipe_for',return_value=(rm,recipe,[],[],{},[])):
+            result,_=self.run_quiet(m.update,self.exe,self.new,refresh_recipe=True)
+        self.assertEqual(result,'update');self.assertEqual(ini()[('bc250','requireargument')],'-nobattleye')
+        self.assertIn('-nobattleye',self.config.read_text())
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),before)
+        with patch.object(m,'recipe_for',return_value=(rm,recipe,[],[],{},[])):
+            self.assertEqual(self.run_quiet(m.update,self.exe,self.new,refresh_recipe=True)[0],'update')
+        m.restore(self.exe);self.assertOriginal();self.assertNotIn(('bc250','requireargument'),ini())
+
     def test_explicit_refresh_migrates_input_and_arguments_with_exact_rollback(self):
         m.install(self.package,self.exe,route='opti',fg_input='fsrfg');before=self.snapshot();record=self.record()
         recipe=dict(title='Fixture game',route='opti',fg_input='upscaler',evidence='gameplay',ini={},

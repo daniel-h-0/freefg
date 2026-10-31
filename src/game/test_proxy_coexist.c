@@ -12,7 +12,9 @@
  * output pointer reused replaces its unclaimed entry; the deferred initialisation work runs at the first call after the
  * initialisation (once) and not for a context whose initialisation failed; the frame count of a maximum-count
  * initialisation is learned; no status read for a NULL handle; at the end every reference this proxy took on the fake
- * device and queue is released and nothing is left pending.
+ * device and queue is released and nothing is left pending. Then fast_set's collection (mfg_list_collect.h): once a list
+ * table is three quarters full, a new list retires the scope's lists the runtime released, and only those. Last,
+ * FreeFG alone: a failed census during the owner's set-up steps aside with Intel's originals from the pipeline cache.
  */
 #define WIDL_C_INLINE_WRAPPERS
 #define COBJMACROS
@@ -51,7 +53,13 @@ static void(STDMETHODCALLTYPE*set_original)(ID3D12GraphicsCommandList*,ID3D12Pip
 static void(STDMETHODCALLTYPE*dispatch_original)(ID3D12GraphicsCommandList*,UINT,UINT,UINT);
 static HRESULT(STDMETHODCALLTYPE*compute_original)(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,REFIID,void**);
 static uint64_t hash(const void*d,SIZE_T n){(void)d;(void)n;return 0;}
-static int profile_lists_replacement(uint64_t s){(void)s;return 0;}
+static int profile_lists_replacement(uint64_t s){return s==5;}  /* only the stand-in cache entry below is a replacement */
+/* mfg_pipeline_cache.h, mfg_settings.h, model_owner.h and fast_trial.h for the step aside of FreeFG alone */
+static struct{ID3D12PipelineState*p;ID3D12RootSignature*root;void*code;SIZE_T size;UINT node,flags;uint64_t hash;}mfg_pipelines[4];
+static UINT mfg_pipeline_count,cap_requested;static int model_failures;
+static UINT mfg_settings_cap_requested(void){return cap_requested;}
+static void model_fail(const char*why){(void)why;model_failures++;}
+static volatile DWORD proxy_seal_thread;
 static int graph_ready,graph_enabled;static ID3D12CommandQueue*graph_queue;static ID3D12Device*model_device;
 static UINT frame_output_count,mfg_second_phase_pending,mfg_live_heap_count,frame_desc_count;static SRWLOCK frame_lock=SRWLOCK_INIT;
 static UINT64 mfg_retired_heaps,mfg_retired_lists,mfg_retired_queues;
@@ -73,6 +81,10 @@ static void fast_finish(xefg_swapchain_handle_t handle){if(fast_scope&&fast_cont
 /* f4q.h */
 static void fq_frame_tick(void){}
 #include "mfg_proxy_coexist.h"
+/* fast_set's collection of idle lists (src/game/mfg_list_collect.h), with this test's four-entry binding table */
+#define XEFG_PROBE_BINDINGS 4
+static UINT model_list_count,flow_list_count,frame_list_count,graph_list_count,scale_list_count;
+#include "mfg_list_collect.h"
 
 /* --------------------------------------------------------------------------------------------- fake COM objects */
 struct fake{void**vtable;LONG refs;struct fake*device;};
@@ -80,7 +92,15 @@ static HRESULT STDMETHODCALLTYPE fake_query(struct fake*f,REFIID iid,void**resul
 static ULONG STDMETHODCALLTYPE fake_addref(struct fake*f){return InterlockedIncrement(&f->refs);}
 static ULONG STDMETHODCALLTYPE fake_release(struct fake*f){return InterlockedDecrement(&f->refs);}
 static HRESULT STDMETHODCALLTYPE fake_get_device(struct fake*q,REFIID iid,void**result){(void)iid;fake_addref(q->device);*result=q->device;return S_OK;}
-static void*device_vtable[SCOPED_device_COUNT],*queue_vtable[SCOPED_queue_COUNT];
+static void*device_vtable[SCOPED_device_COUNT],*queue_vtable[SCOPED_queue_COUNT],*list_vtable[SCOPED_list_COUNT];
+static struct fake lists[8];static UINT list_count;
+static struct fake originals[4];static int computes,compute_fails;
+static HRESULT STDMETHODCALLTYPE fake_compute(ID3D12Device*d,const D3D12_COMPUTE_PIPELINE_STATE_DESC*desc,REFIID iid,void**result){
+ (void)d;(void)desc;(void)iid;if(compute_fails||computes==4)return E_FAIL;struct fake*o=&originals[computes++];o->vtable=device_vtable;o->refs=1;*result=o;return S_OK;}
+static HRESULT STDMETHODCALLTYPE fake_create_list(struct fake*d,UINT node,D3D12_COMMAND_LIST_TYPE type,ID3D12CommandAllocator*a,
+                                                  ID3D12PipelineState*p,REFIID iid,void**result){
+ (void)node;(void)type;(void)a;(void)p;(void)iid;if(list_count==8)return E_OUTOFMEMORY;
+ struct fake*l=&lists[list_count++];l->vtable=list_vtable;l->refs=1;l->device=d;*result=l;return S_OK;}
 static struct fake device={device_vtable,1,NULL},other_device={device_vtable,1,NULL},queue={queue_vtable,1,&device},other_queue={queue_vtable,1,&other_device};
 
 /* --------------------------------------------------------------------------------------------------------- checks */
@@ -170,6 +190,42 @@ void mainCRTStartup(void){
  proxy_destroy_foreign(H(2));proxy_destroy_foreign(H(3));proxy_finish_deferred(NULL);
  CHECK(proxy_deferred==0);CHECK(device.refs==1);CHECK(other_device.refs==1);CHECK(queue.refs==1);CHECK(other_queue.refs==1);
  CHECK(finishes==2);CHECK(collected>=0);
+
+ /* A list table three quarters full: the first pipeline bound on a new list retires the lists the runtime released (only
+  * the scope's lifetime reference left), not the ones it still holds, and says so; below that, or for a known list,
+  * nothing runs. */
+ device_vtable[SCOPED_device_CreateCommandList]=fake_create_list;list_vtable[0]=fake_query;list_vtable[1]=fake_addref;list_vtable[2]=fake_release;
+ ID3D12Device*S=scoped_begin(D);CHECK(S!=NULL);ID3D12GraphicsCommandList*L[3]={0};
+ for(int i=0;i<3;i++)CHECK(SUCCEEDED(ID3D12Device_CreateCommandList(S,0,D3D12_COMMAND_LIST_TYPE_DIRECT,NULL,NULL,&IID_ID3D12GraphicsCommandList,(void**)&L[i])));
+ ID3D12GraphicsCommandList_Release(L[0]);ID3D12GraphicsCommandList_Release(L[1]);  /* the runtime let go of two */
+ fast_scope=((struct scoped_com*)S)->scope;int before_collect=collected;
+ nbinding=2;bindings[0].l=L[0];bindings[1].l=L[1];fast_collect_lists(L[2]);CHECK(collected==before_collect);  /* 2 of 4 */
+ nbinding=3;bindings[2].l=L[2];fast_collect_lists(L[2]);CHECK(collected==before_collect);  /* a known list */
+ model_list_count=3;nbinding=0;fast_collect_lists(L[2]);CHECK(collected==before_collect+2);  /* any table counts */
+ CHECK(lists[list_count-1].refs==1&&lists[list_count-2].refs==0&&lists[list_count-3].refs==0);  /* only the held one is left */
+ CHECK(logged("MFG_TRACKING idle lists retired at 3 tracked lists"));
+ model_list_count=0;fast_scope=0;nbinding=0;ID3D12GraphicsCommandList_Release(L[2]);
+ scoped_remember(H(30),S);scoped_destroy(H(30));CHECK(device.refs==1);CHECK(lists[list_count-1].refs==0);
+
+ /* FreeFG alone: a census check that fails during the owner's set-up (on its sealing thread) steps aside once the census
+  * lock is released, with Intel's original of each replaced pipeline from the pipeline cache; elsewhere, or with scaling
+  * on, it stays fatal; a failed pairing ends the game as before. */
+ compute_original=fake_compute;
+ ID3D12Device*S2=scoped_begin(D);scoped_remember(H(40),S2);fast_scope=fast_context_scope(H(40));model_device=S2;
+ static struct fake ours={device_vtable,1,NULL},intel_own={device_vtable,1,NULL};
+ mfg_pipelines[0].p=(ID3D12PipelineState*)&ours;mfg_pipelines[0].hash=5;mfg_pipelines[1].p=(ID3D12PipelineState*)&intel_own;mfg_pipelines[1].hash=6;mfg_pipeline_count=2;
+ CHECK(!proxy_census_soft("census"));                       /* not during the census on its thread */
+ proxy_seal_thread=GetCurrentThreadId();cap_requested=1;CHECK(!proxy_census_soft("census"));cap_requested=0;
+ CHECK(proxy_census_soft("the initial model census is not one this project verified"));CHECK(!proxy_aside_active());
+ proxy_seal_thread=0;proxy_aside_settle();
+ CHECK(proxy_aside_active());CHECK(computes==1);CHECK(proxy_intel_pipeline((ID3D12PipelineState*)&ours)==(ID3D12PipelineState*)&originals[0]);
+ CHECK(!proxy_intel_pipeline((ID3D12PipelineState*)&intel_own));CHECK(model_failures==0);
+ CHECK(logged("FAST_ASIDE the initial model census is not one this project verified: this context now runs Intel's shaders"));
+ CHECK(((struct scoped_com*)S2)->tables->list[SCOPED_list_SetPipelineState]==(void*)proxy_aside_set);
+ proxy_owner_released();CHECK(!proxy_aside_active());CHECK(originals[0].refs==0);
+ compute_fails=1;proxy_seal_thread=GetCurrentThreadId();CHECK(proxy_census_soft("again"));proxy_seal_thread=0;
+ proxy_aside_settle();CHECK(model_failures==1);CHECK(!proxy_aside_active());compute_fails=0;
+ fast_scope=0;mfg_pipeline_count=0;model_device=NULL;scoped_destroy(H(40));CHECK(device.refs==1);
 
  char line[80];snprintf(line,sizeof(line),"COEXIST_UNIT failures=%d\n",failures);DWORD n;WriteFile(out,line,(DWORD)strlen(line),&n,NULL);
  WriteFile(out,"LOG\n",4,&n,NULL);WriteFile(out,log_text,(DWORD)log_size,&n,NULL);
