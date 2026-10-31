@@ -50,8 +50,9 @@ static HRESULT STDMETHODCALLTYPE fast_compute(ID3D12Device*d,const D3D12_COMPUTE
  if(SUCCEEDED(hr))proxy_pair_note(d,desc,*out);  /* beside another module: Intel's original next to a replacement */
  ReleaseSRWLockExclusive(&fast_record_lock);return hr;
 }
+#include "mfg_list_collect.h"
 static void STDMETHODCALLTYPE fast_set(ID3D12GraphicsCommandList*l,ID3D12PipelineState*p){
- AcquireSRWLockExclusive(&fast_record_lock);set_hook(l,p);ReleaseSRWLockExclusive(&fast_record_lock);
+ AcquireSRWLockExclusive(&fast_record_lock);fast_collect_lists(l);set_hook(l,p);ReleaseSRWLockExclusive(&fast_record_lock);
 }
 static void STDMETHODCALLTYPE fast_dispatch(ID3D12GraphicsCommandList*l,UINT x,UINT y,UINT z){
  AcquireSRWLockExclusive(&fast_record_lock);

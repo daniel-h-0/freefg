@@ -185,6 +185,7 @@ src/game/f4q.h
 src/game/mfg_pace_signal.h
 src/game/mfg_settings.h
 src/game/mfg_pipeline_cache.h
+src/game/mfg_list_collect.h
 src/game/mfg_proxy_coexist.h
 src/game/mfg_scoped_retire.h
 src/game/scoped_com.h

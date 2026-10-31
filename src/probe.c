@@ -55,7 +55,7 @@ static uint64_t hash(const void*p,size_t n){uint64_t h=0xcbf29ce484222325ULL;con
 #ifndef XEFG_PROBE_BINDINGS
 #define XEFG_PROBE_BINDINGS 128
 #endif
-#define PROBE_TABLE_FULL(what) ExitProcess(13)
+#define PROBE_TABLE_FULL(what) (logline("FAIL " what "\n"),ExitProcess(13))
 static struct{void*p;uint64_t hash;} psos[XEFG_PROBE_PSOS];static LONG npsos;
 static struct{uint64_t shader;UINT factor;int x,y;} split_z[32];static UINT split_count;
 static UINT scale_log; /* diagnostic: XEFG_SCALE_LOG=1 logs every scaled dispatch */

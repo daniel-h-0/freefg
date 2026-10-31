@@ -29,7 +29,8 @@ src/game/test_proxy_load.c is compiled to a console program and run under `wine`
   unit       (--variant intel-free-mfg only) src/game/test_proxy_coexist.c: the proxy's bookkeeping beside another
              module (mfg_proxy_coexist.h with the real scoped forwarding objects and stand-ins for the rest; fake COM
              objects, no runtime): which contexts are scoped, claims by output pointer or device, releases, capacity,
-             the deferred initialisation work, frame counts, references all released at the end
+             the deferred initialisation work, frame counts, references all released at the end; and fast_set's
+             collection of the lists the runtime released once a list table is three quarters full
              expected: exit 0 and COEXIST_UNIT failures=0
   f4q-*      (variants built with XEFG_F4Q) src/game/test_f4q.c: the switches of F4Q and F4Q2, model segments, pipelines
              and geometry, fallback and diagnostic check (src/model_f4q.h, src/game/f4q.h and the real settings reader,
