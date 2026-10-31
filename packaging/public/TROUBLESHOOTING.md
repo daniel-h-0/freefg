@@ -37,7 +37,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | | `FAST_OWNER` | FreeFG selected the context it accelerates. |
 | | `FAST_FALLBACK …`, other `FAST_SKIP …` lines | Why Intel's shaders are used instead. |
 | `BC250-XeFG-fast.log` | `MODEL_SEALED`, `PRIVATE GAME TRIAL scoped prepared-model and Winograd path installed` (fixed text compiled into the DLL) | The accelerated path is active. |
-| | `FAST_ASIDE …` | FreeFG stepped aside for the rest of that context, because another mod changed the runtime's work in a way it has not verified. |
+| | `FAST_ASIDE …` | FreeFG stepped aside for the rest of that context: another mod changed the runtime's work in a way it has not verified, or (`FAST_ASIDE …: this context now runs Intel's shaders`, no other mod) the runtime's model census at the context's set-up was not one it verified. Intel's shaders run from then on; report the second case with the logs. |
 | | `F4Q_CONFIG mode=… source=…` | F4Q mode and source. `layout` means the network layout is unsupported; `F4Q_FALLBACK` names a pipeline using its F(2×2) form. |
 | | `F4Q2_CONFIG mode=… source=… layers=…` | F4Q2 mode, source and layer bitmask (7 means all three). `dropped_by_layout` names excluded layers; `source=F4Q` means F4Q disabled it. |
 | | `FP16_CONFIG mode=… source=… forms=…` | Approximate forms: `on` by default, or `off` with the source. `forms=3` enables both groups. `FP16_REPLACE` names loaded forms; `FP16_FALLBACK` and `F4Q_FALLBACK` report fallback. Status/Check summarize them in `Output:`. |

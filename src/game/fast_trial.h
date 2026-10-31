@@ -17,6 +17,9 @@ static int profile_lists_replacement(uint64_t shader){
 #include "mfg_pipeline_cache.h"
 static void proxy_pair_note(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,ID3D12PipelineState*);static void proxy_owner_released(void);
 static UINT fast_scope;
+/* The owner context's model census at its initialisation (fast_ready): a failed check there may step aside instead of
+ * ending the game (mfg_proxy_coexist.h proxy_census_soft, proxy_aside_settle). */
+static volatile DWORD proxy_seal_thread;static void proxy_aside_settle(void);
 static LONG fast_claimed;
 static SRWLOCK fast_record_lock=SRWLOCK_INIT;
 static SRWLOCK fast_lifecycle_lock=SRWLOCK_INIT;
@@ -189,7 +192,12 @@ static void fast_begin_init(xefg_swapchain_handle_t handle){
  }
  if(d)scoped_release(d);ReleaseSRWLockExclusive(&fast_lifecycle_lock);
 }
-static void fast_ready(xefg_swapchain_handle_t handle){if(fast_scope&&fast_context_scope(handle)==fast_scope&&!graph_ready){model_seal_allocations();if(!proxy_aside_active())graph_initialize();}}
+static void fast_ready(xefg_swapchain_handle_t handle){
+ if(fast_scope&&fast_context_scope(handle)==fast_scope&&!graph_ready){
+  proxy_seal_thread=GetCurrentThreadId();model_seal_allocations();proxy_seal_thread=0;
+  proxy_aside_settle();if(!proxy_aside_active())graph_initialize();
+ }
+}
 static void fast_report(xefg_swapchain_handle_t handle){
  if(fast_scope&&fast_context_scope(handle)==fast_scope)frame_report();
  if(fast_scope&&fast_context_scope(handle)==fast_scope){char line[120];snprintf(line,sizeof(line),"FLOW_CAP frames=%llu\n",(unsigned long long)flow_frames);logline(line);}

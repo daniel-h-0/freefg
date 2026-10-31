@@ -113,7 +113,9 @@ its own model left seven replaceable programs in the tested Cyberpunk route.
 For a hooked context, an unsupported model census, missing coefficient set or premature network work triggers
 `FAST_ASIDE`. Forwarding tables revert to pass-through behavior, replacement pipelines are rebound to Intel's
 originals, and network checks stop for that context. Resources remain alive until destruction because previously
-recorded GPU work may still use them. Other runtime consistency checks can still terminate the process.
+recorded GPU work may still use them. Without another mod, a failed model census while a context is set up (before any
+frame, with generated-frame scaling off) steps aside the same way; Intel's originals are then created from the pipeline
+cache. Other runtime consistency checks can still terminate the process.
 
 ## Generated-frame scaling
 

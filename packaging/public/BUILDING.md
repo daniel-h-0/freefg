@@ -7,7 +7,7 @@ has its own pinned source and build route.
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `143838194d4858610229101ca976d8754569f11c02a3033c8a92cd5226b19277` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `6489938d63e7059d1b669681881cc11e93072bec921844868926386131b03ca8` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `1f691dfd018f7d3d062704b9639e5ed7bfbcfe1e71d92c2299e08153b9f666b6` |
 
 The proxy and layer scripts build twice and require identical outputs. They also compare against
