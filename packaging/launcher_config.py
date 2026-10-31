@@ -111,8 +111,9 @@ def vkd3d_cache_fits(folder, program, margin=16):
 #   remove         var deleted
 # unless {VAR: value}: the operation is skipped where VAR holds that value.
 CONTRACT_OPS = ('replace', 'prepend', 'append-member', 'dll-override', 'remove')
-# Variables an add-on of the shipped runtimes owns in its own files: the proxy still reads the first two from the
-# environment (a stale value would change what it does), so every installation takes them out.
+# Variables of earlier builds whose settings the shipped add-on keeps in its own files: it still reads them from the
+# environment (fast_trial.h, flow_cap.h), where a stale value would change what it does, so every installation takes
+# them out.
 OWNED_ELSEWHERE = ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP')
 
 
@@ -675,8 +676,8 @@ def conflicts(exe, targets, environ=None, required=()):
             found.append(dict(code='required-args', kind='hard',
                               text='This game needs the game argument' + ('s ' if len(missing) > 1 else ' ') + ' '.join(missing) +
                                    ', and this installer does not edit Lutris\'s game arguments.',
-                              way='In Lutris, add ' + ' '.join(missing) + ' to the game\'s Arguments (Configure, Game options), '
-                                  'then install again.'))
+                              way='In Lutris, add ' + ' '.join(missing) + ' to the game\'s Arguments (Configure, Game options) '
+                                  'first.'))
         others = sorted({str(r) for r in layer_roots(env) if r.resolve() != root})
         if others:
             found.append(dict(code='shared-entry', kind='hard',

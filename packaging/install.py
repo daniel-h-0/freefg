@@ -536,8 +536,9 @@ def recipe_for(package,exe,launcher_home=None):
 def recipe_required_args(rm,verified):
     """The arguments a verified recipe says the game always needs (recipes.required_args; wiki data never supplies them).
     A recipes.py without that function reads the recipe's own required_args field."""
+    if not verified:return []
     if hasattr(rm,'required_args'):return list(rm.required_args(verified))
-    return list((verified or {}).get('required_args') or [])
+    return list(verified.get('required_args') or [])
 
 def record_arguments(record):
     """(graphics-API switch, arguments the game always needs) of an installation record. Records before required_args
