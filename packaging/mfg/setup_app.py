@@ -736,9 +736,9 @@ class OperationDialog(Adw.Dialog):
         if found in ('current', 'pinned'):
             return {'current': 'Already up to date', 'pinned': 'Pinned: left as it is'}[found]
         for _, line in reversed(result.lines):
-            found = re.match(r'Updated to (\S+)\.(?:\s|$)', line.strip())
+            found = re.match(r'(Updated to|Recipe refreshed within) (\S+)\.(?:\s|$)', line.strip())
             if found:
-                return 'Updated to ' + model.version(found[1])
+                return ('Updated to ' if found[1] == 'Updated to' else 'Recipe refreshed in ') + model.version(found[2])
         return 'Done'
 
     def close_done(self):

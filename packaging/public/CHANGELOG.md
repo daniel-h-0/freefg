@@ -4,6 +4,12 @@ Release summaries are below; [measurements](MEASUREMENTS.md) describe their spec
 [detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
 retains earlier release notes.
 
+## Unreleased
+
+- A recipe refresh within the installed release keeps its own rollback generation, so it no longer replaces the way back
+  to the release before the last update. Rollback undoes the refresh first, then the update; Setup and `status` name
+  each. A 1.3.0 refresh already recorded reads as a change within its release.
+
 ## 1.3.0 – 2026-10-31
 
 - GTA V Enhanced: the recipe also sets OptiScaler's `[BC250] RequireArgument=-nobattleye`, so a start without

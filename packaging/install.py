@@ -1855,8 +1855,8 @@ RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler'
                 'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input','wiki_settings',
                 'required_args')
 # Generations kept for rollback: the newest GENERATIONS_KEPT of each slot (generation_slot). A release update and an
-# upscaler change share one; wiki INI settings have their own, so applying them never deletes the way back to the
-# release before the last update. Rollback undoes the newest operation of all.
+# upscaler change share one; wiki INI settings have their own, and so does a recipe refresh within the installed release,
+# so neither deletes the way back to the release before the last update. Rollback undoes the newest operation of all.
 GENERATIONS='generations'
 GENERATIONS_KEPT=1
 # The add-on's files beside the executable (the rest are under BC250-XeFG/), and the settings files whose values are the user's.
@@ -2482,12 +2482,18 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
     if not actions and not out['metadata'] and not out['launcher_ops'] and out['source']==target and record.get('update_contract')==UPDATE_CONTRACT:
         if out['deferred']:return stop('deferred','No changes applied: '+out['notes'][0])
         return stop('current','Up to date ('+str(target)+').')
+    # A recipe refresh within the installed release (only the integration and settings change, not the release or the
+    # upscaler): its own kind of generation, which keeps the way back to the release before the last update.
+    if refresh_recipe and target==record.get('package') and 'upscaler' not in out['metadata'] and \
+            all(a['component']=='integration' or a['kind']=='merge' for a in actions):
+        out['operation']='recipe'
     out['status']='update';return out
 
 def plan_lines(plan):
     """What an update plan changes, one line each."""
     if plan['status']!='update':return [plan['reason']]
     lines=['Apply selected wiki INI settings:' if plan.get('operation')=='wiki-settings' else
+           'Refresh the recipe within '+str(plan['target'])+':' if plan.get('operation')=='recipe' else
            'Update '+str(plan['source'])+' → '+str(plan['target'])+':' if plan.get('core',True) else
            'Update selected upscaler; FreeFG core stays '+str(plan['source'])+':']
     for component,label in COMPONENTS.items():
@@ -2644,9 +2650,10 @@ def reset_vkd3d_cache(state,record,paths):
     return True
 
 def generation_slot(entry):
-    """The slot of an entry of record['generations'] (its kind: release, provider or settings; entries of earlier builds
-    have none): 'settings' for wiki INI settings, 'release' for a release update or an upscaler change."""
-    return 'settings' if entry.get('kind')=='settings' else 'release'
+    """The slot of an entry of record['generations'] (its kind: release, provider, settings or recipe; entries of earlier
+    builds have none): 'settings' for wiki INI settings, 'recipe' for a recipe refresh within the installed release,
+    'release' for a release update or an upscaler change."""
+    return entry['kind'] if entry.get('kind') in ('settings','recipe') else 'release'
 
 def generation_text(entry):
     """What rolling back the generation of an entry of record['generations'] undoes, in words."""
@@ -2655,6 +2662,9 @@ def generation_text(entry):
         return 'the wiki INI settings applied on '+when+' ('+', '.join(k+'='+str(v) for k,v in (entry.get('settings') or {}).items())+')'
     if entry.get('kind')=='provider':
         return 'the upscaler change of '+when+(' (back to '+UPSCALERS.get(entry['upscaler'],entry['upscaler'])+')' if entry.get('upscaler') else '')
+    if entry.get('kind')=='recipe':return 'the recipe refresh of '+when
+    # A release-kind generation within one release: an earlier build's recipe refresh, or a loader switch.
+    if entry.get('from')==entry.get('to'):return 'the change of '+when+' within '+str(entry.get('to'))
     return 'the update from '+str(entry.get('from'))+' ('+when+')'
 
 def prune_generations(state,record):
@@ -2827,7 +2837,8 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     core_manifest=digest((package/'manifest.json').read_bytes()) if plan['core'] else (record.get('components') or {}).get('core',{}).get('manifest_sha256')
     record['components']=component_state(record,core_manifest,plan['core_paths'])
     # The kind of operation (generation_slot): wiki INI settings name their values, an upscaler change the provider before.
-    kind='settings' if plan.get('operation')=='wiki-settings' else 'release' if plan['core'] else 'provider'
+    kind=('settings' if plan.get('operation')=='wiki-settings' else 'recipe' if plan.get('operation')=='recipe' else
+          'release' if plan['core'] else 'provider')
     entry=dict(id=generation,**{'from':previous['package']},to=plan['target'],at=time.strftime('%Y-%m-%dT%H:%M:%S%z'),kind=kind)
     if kind=='settings':entry['settings']=dict(plan['metadata']['wiki_settings']['settings'])
     if kind=='provider':entry['upscaler']=provider_before
@@ -2842,7 +2853,8 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
         print(line)
         if line in changes:event('changed',text=line.strip())
     if emptied:say('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
-    print('Updated to '+str(plan['target'])+'. Launch the game as before; install.py rollback returns to '+str(previous['package'])+'.')
+    if kind=='recipe':print('Recipe refreshed within '+str(plan['target'])+'. Launch the game as before; install.py rollback undoes the refresh.')
+    else:print('Updated to '+str(plan['target'])+'. Launch the game as before; install.py rollback returns to '+str(previous['package'])+'.')
     if plan['metadata'].get('manual_launch'):
         step='In your launcher: change the game’s launch settings to those this update lists (in Setup: the game’s Launch settings, Show…).'
         print(step)
@@ -2895,7 +2907,7 @@ def rollback_generation(root,record,generation):
     if not history or history[-1]['id']!=generation['id']:raise ValueError('Rollback generation does not match history')
     entry=history.pop();prune_generations(state,record)
     remember_installation(Path(record['game']),record)
-    what=('Rolled back '+generation_text(entry) if entry.get('kind') in ('settings','provider') else
+    what=('Rolled back '+generation_text(entry) if entry.get('kind') in ('settings','provider','recipe') or entry.get('from')==entry.get('to') else
           'Rolled back from '+str(generation['to']['package'])+' to '+str(generation['from']['package']))
     say(what+': '+str(len(actions))+' file'+('s' if len(actions)!=1 else '')+' put back as they were. Launch the game as before.')
     if history:print('install.py rollback can still undo '+generation_text(history[-1])+'.')
@@ -3048,10 +3060,12 @@ def status(exe):
         print('An update was interrupted: run install.py update again, or install.py rollback.' if record['pending_update'].get('generation') else
               'An update by an earlier build was interrupted: use Restore.')
     if record.get('generations') and record['status']=='installed':
-        # What Rollback undoes, newest first (one kept per slot: a release or upscaler change, and wiki INI settings).
+        # What Rollback undoes, newest first (one kept per slot: a release or upscaler change, a recipe refresh, and wiki INI
+        # settings).
         for n,entry in enumerate(reversed(record['generations'])):
             if n:print('After that, install.py rollback undoes '+generation_text(entry)+'.')
-            elif entry.get('kind') in ('settings','provider'):print('install.py rollback undoes '+generation_text(entry)+'.')
+            elif entry.get('kind') in ('settings','provider','recipe') or entry.get('from')==entry.get('to'):
+                print('install.py rollback undoes '+generation_text(entry)+'.')
             else:print('Updated in place from '+str(entry['from'])+' ('+str(entry['at'])[:10]+'); install.py rollback returns to it.')
     if record.get('update_pin') and record['status']=='installed':
         print('Pinned to '+str(record['update_pin'].get('package'))+': install.py update leaves it as it is (install.py unpin).')

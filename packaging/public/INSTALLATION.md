@@ -68,7 +68,7 @@ python3 install.py status GAME.exe       # installed files and last session
 python3 install.py library               # discovered and registered installations
 python3 install.py plan GAME.exe         # preview an update
 python3 install.py update GAME.exe       # apply it
-python3 install.py rollback GAME.exe     # undo the most recent update, provider switch or wiki settings
+python3 install.py rollback GAME.exe     # undo the most recent update, provider switch, recipe refresh or wiki settings
 python3 install.py restore GAME.exe      # restore the original installation
 ```
 
@@ -100,10 +100,10 @@ an occupied name is refused.
 - **Keep this release** on a game page holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
 - **Track** on an untracked installation’s page adds that installation to the optional index. The index can be rebuilt; game files and recovery
   do not depend on it.
-- **Rollback** restores the saved state before the most recent update, **provider switch or wiki settings**. Each game
-  retains one completed generation of each kind (an update or switch, wiki settings), so wiki settings applied after an
-  update keep the way back to the release before it; later settings edits are preserved where possible, and
-  conflicting binary edits are refused.
+- **Rollback** restores the saved state before the most recent update, **provider switch, recipe refresh or wiki
+  settings**. Each game retains one completed generation of each kind (an update or switch, a recipe refresh, wiki
+  settings), so a recipe refresh or wiki settings applied after an update keep the way back to the release before it;
+  later settings edits are preserved where possible, and conflicting binary edits are refused.
 - **Restore** removes owned files and launcher changes and restores originals, preserving later user edits where
   possible. It reports conflicts and leaves backups and logs in a `.bc250-xefg-experimental-restored-…` folder.
 
