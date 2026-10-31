@@ -1211,7 +1211,10 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         # argument from a strong match or a title match detection confirms, or detection's own switch).
         launch_args=rm.launch_args(verified,wiki) if verified or verdict is None else list(verdict['launch_args'])
         notes+=rm.suggestions(verified,wiki,fg_input,route)
-        if verified:notes.insert(0,'Recipe (verified on BC-250): '+verified['title'])
+        # On another route than the recipe's, only its upscaler settings apply (ini_changes skips its frame generation).
+        if verified:notes.insert(0,'Recipe (verified on BC-250): '+verified['title'] if verified.get('route') in (None,route) else
+                                 'Recipe (verified on BC-250 on the '+('OptiScaler' if verified['route']=='opti' else 'native')+
+                                 ' route; on this route only its upscaler settings apply): '+verified['title'])
         if (verified or community) and not user and (verified or community).get('game_settings'):notes.append('Game settings not changed: no Proton prefix found for this game yet. Start it once, then use Settings (configure) to apply them.')
     elif verdict:launch_args=list(verdict['launch_args'])
     if verdict:

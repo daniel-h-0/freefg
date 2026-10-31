@@ -1026,7 +1026,9 @@ class RecipeInstallTests(unittest.TestCase):
                           fg_input=None, ini={'FrameGen.FTInput': '2'}, launch_args=[], game_settings=[dict(
                           file='AppData/Local/Remedy/Test/renderer.ini', base='steamuser', format='json', section=None,
                           values={'m_eDLSSFGMode': 1}, requires_fg_input=None)]))
-        self.install_quietly(fg_input='upscaler')
+        out = self.install_quietly(fg_input='upscaler')
+        self.assertIn('Recipe (verified on BC-250 on the native route; on this route only its upscaler settings apply): Test Game',
+                      out)
         self.assertEqual(self.renderer.read_bytes(), RENDERER)
         self.assertEqual(self.record()['game_settings'], [])
         self.assertNotIn(('framegen', 'ftinput'), self.current_ini())
