@@ -78,6 +78,8 @@ void mainCRTStartup(void){
  xefg_swapchain_handle_t handle=NULL;int r=create?create(NULL,&handle):-9999;
  HMODULE original=GetModuleHandleA("bc250_xefg_original.dll");
  snprintf(line,sizeof(line),"WRAPPED xefgSwapChainD3D12CreateContext(NULL) result=%d in_proxy=%d original_loaded=%d\n",r,create&&owner((void*)create)==fg,original!=NULL);say(line);
+ /* A second call: a refused runtime is not checked again (one log line, no second 22 MB hash). */
+ r=create?create(NULL,&handle):-9999;snprintf(line,sizeof(line),"WRAPPED_AGAIN result=%d\n",r);say(line);
  BOOL(WINAPI*get)(struct bc250_fg_status*)=(void*)GetProcAddress(fg,"BC250MFGGetFrameSettings");
  struct bc250_fg_status status={.size=sizeof(status),.version=BC250_FG_SETTINGS_VERSION};BOOL ok=get&&get(&status);
  snprintf(line,sizeof(line),"SETTINGS ok=%d ready=%u resolution=%u downscale_mask=%u upscale_mask=%u\n",ok,status.ready,status.applied.resolution,status.downscale_mask,status.upscale_mask);say(line);

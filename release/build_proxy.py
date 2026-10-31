@@ -205,9 +205,11 @@ def exports_header(headers_text, hooks):
             if original not in arguments:
                 raise ReleaseError(f'{name}: Intel header has no parameter {original}')
             arguments[arguments.index(original)] = replacement
-        code.append(f'XEFG_SWAPCHAIN_API {result_type} {name}({signature}){{static LONG calls;'
-                    f'__typeof__(&{name}) original=(void*)resolve("{name}");'
-                    f'if(!original)return XEFG_SWAPCHAIN_RESULT_ERROR_CANT_LOAD_LIBRARY;InterlockedIncrement(&calls);'
+        # Intel's entry is resolved once, as in tail_wrapper: GetProcAddress takes the loader lock, and
+        # GetLastPresentStatus runs every frame.
+        code.append(f'XEFG_SWAPCHAIN_API {result_type} {name}({signature}){{static __typeof__(&{name}) original;static LONG calls;'
+                    f'if(!original&&!(original=(void*)resolve("{name}")))return XEFG_SWAPCHAIN_RESULT_ERROR_CANT_LOAD_LIBRARY;'
+                    f'InterlockedIncrement(&calls);'
                     f'{spec["before"]}{result_type} result=original({", ".join(arguments)});{spec["after"]}'
                     f'return result;}}\n')
     if len(code) != len(hooks):

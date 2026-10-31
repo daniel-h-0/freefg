@@ -104,16 +104,7 @@ __declspec(dllexport) BOOL WINAPI BC250MFGSaveFrameSettings(const struct bc250_f
  }
  return TRUE;
 }
-
-static void mfg_settings_note_context(xefg_swapchain_handle_t context) {
- HMODULE sdk=GetModuleHandleA("libxess_fg.dll");
- __typeof__(&xefgSwapChainD3D12GetSwapChainPtr) get=sdk?(void*)GetProcAddress(sdk,"xefgSwapChainD3D12GetSwapChainPtr"):NULL;
- IDXGISwapChain3*swap=NULL;DXGI_SWAP_CHAIN_DESC1 desc;
- if(get&&get(context,&IID_IDXGISwapChain3,(void**)&swap)==0&&swap) {
-  if(SUCCEEDED(IDXGISwapChain3_GetDesc1(swap,&desc)))mfg_settings_note_size(desc.Width,desc.Height);
-  IDXGISwapChain3_Release(swap);
- }
-}
+/* mfg_settings_note_context (src/game/mfg_proxy.c) records a context's sizes through the verified runtime. */
 static void mfg_settings_clear_context(void) {
  AcquireSRWLockExclusive(&mfg_settings_lock);mfg_settings_status.ready=0;
  mfg_settings_status.output_width=mfg_settings_status.output_height=0;

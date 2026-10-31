@@ -12,7 +12,8 @@ src/game/test_proxy_load.c is compiled to a console program and run under `wine`
              (--variant intel-free-mfg: and BC250-MFG.log has no FAST_COEXIST line: the runtime's entry table was read
              from the file and the unhooked runtime is not taken for a hooked one)
   altered    the same with one byte of bc250_xefg_original.dll changed
-             expected: the wrapped entry refuses (CANT_LOAD_LIBRARY, -11) without loading it, and the log says why
+             expected: the wrapped entry refuses (CANT_LOAD_LIBRARY, -11) without loading it, and the log says why, once
+             (a second call is refused without another check)
   missing    the proxy alone
              expected: the same refusal
   hooked     (--variant intel-free-mfg only) as pinned, then the program writes a jump at eight of Intel's entries in its
@@ -695,6 +696,8 @@ def main():
                 problems.append(f'pinned: the forwarded entry did not reach {original}: {forwarded}')
             if int(wrapped[0]) == CANT_LOAD_LIBRARY or wrapped[2] != '1':
                 problems.append(f'pinned: the wrapped entry did not reach Intel\'s runtime: {wrapped}')
+            if field(stdout, r'WRAPPED_AGAIN result=(-?\d+)') != (wrapped[0],):
+                problems.append(f'pinned: a second call did not reach Intel\'s runtime as the first did')
             masks = ('3', '29') if 'XEFG_OWN_FRAME_SCALING=1' in defines else ('0', '0')
             if not settings or settings[0] != '1' or settings[3:] != masks:
                 problems.append(f'pinned: settings interface {settings}')
@@ -708,6 +711,10 @@ def main():
                 problems.append(f'{case}: the wrapped entry was not refused before loading the runtime: {wrapped}')
             if 'not the pinned Intel XeFG runtime' not in log:
                 problems.append(f'{case}: BC250-MFG.log does not say why XeFG is unavailable')
+            # the refusal is latched: the second call is refused without a second check (one line in the log)
+            again, lines = field(stdout, r'WRAPPED_AGAIN result=(-?\d+)'), log.count('not the pinned Intel XeFG runtime')
+            if again != (str(CANT_LOAD_LIBRARY),) or lines != 1:
+                problems.append(f'{case}: a second call was not refused at once: {again}, {lines} log lines')
     if coexist:
         folder = work / 'unit'
         folder.mkdir()

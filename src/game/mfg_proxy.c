@@ -56,26 +56,43 @@ static int original_verified(const wchar_t*path){
  CloseHandle(f);return ok&&total==ORIGINAL_BYTES&&h==ORIGINAL_HASH;
 }
 static INIT_ONCE mfg_once=INIT_ONCE_STATIC_INIT;
-static BOOL CALLBACK mfg_initialize(PINIT_ONCE once,PVOID arg,PVOID*out){(void)once;(void)arg;(void)out;
- DWORD n=GetModuleFileNameW(proxy_module,proxy_directory,32768);if(!n||n>=32768)return FALSE;wchar_t*slash=wcsrchr(proxy_directory,L'\\');if(!slash)return FALSE;slash[1]=0;
- static wchar_t path[32768];if(wcslen(proxy_directory)+64>=32768)return FALSE;
+/* The initialisation runs once, whatever its outcome: a missing or altered runtime is logged once and every later call
+ * answers CANT_LOAD_LIBRARY at once (a retry per call reopened the log and re-hashed the 22 MB runtime). */
+static int mfg_ready;
+static void mfg_initialize_once(void){
+ /* Pinned from here on: the pacing-signal thread runs for the life of the process and Intel's runtime keeps the scoped
+  * objects' tables, so an unload by the caller (FreeLibrary after frame generation is turned off) must not unmap them. */
+ HMODULE self;GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,(LPCWSTR)(void*)mfg_initialize_once,&self);
+ DWORD n=GetModuleFileNameW(proxy_module,proxy_directory,32768);if(!n||n>=32768)return;wchar_t*slash=wcsrchr(proxy_directory,L'\\');if(!slash)return;slash[1]=0;
+ static wchar_t path[32768];if(wcslen(proxy_directory)+64>=32768)return;
  wcscpy(path,proxy_directory);wcscat(path,L"BC250-MFG.log");logfile=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
  mfg_settings_init();
  wcscpy(path,proxy_directory);wcscat(path,L"bc250_xefg_original.dll");
- if(!original_verified(path)){proxy_log("MFG proxy: bc250_xefg_original.dll is missing or is not the pinned Intel XeFG runtime (size or hash); XeFG is unavailable\n");return FALSE;}
+ if(!original_verified(path)){proxy_log("MFG proxy: bc250_xefg_original.dll is missing or is not the pinned Intel XeFG runtime (size or hash); XeFG is unavailable\n");return;}
  original_module=LoadLibraryExW(path,NULL,LOAD_WITH_ALTERED_SEARCH_PATH);
- if(!original_module){char line[120];snprintf(line,sizeof(line),"MFG proxy: Intel XeFG runtime did not load (error %lu)\n",GetLastError());proxy_log(line);return FALSE;}
+ if(!original_module){char line[120];snprintf(line,sizeof(line),"MFG proxy: Intel XeFG runtime did not load (error %lu)\n",GetLastError());proxy_log(line);return;}
  mfg_pace_signal_start();
  proxy_snapshot_entries(path);
  proxy_log("MFG proxy ready: Intel's XeFG runtime unmodified beside it, own shaders only, at the frame count the runtime runs\n");
- return TRUE;
+ mfg_ready=1;
 }
+static BOOL CALLBACK mfg_initialize(PINIT_ONCE once,PVOID arg,PVOID*out){(void)once;(void)arg;(void)out;mfg_initialize_once();return TRUE;}
 /* The Intel runtime's entry point, once this module is initialised and the runtime verified; NULL otherwise. */
 static FARPROC resolve(const char*name){
- if(!InitOnceExecuteOnce(&mfg_once,mfg_initialize,NULL,NULL))return NULL;
+ if(!InitOnceExecuteOnce(&mfg_once,mfg_initialize,NULL,NULL)||!mfg_ready)return NULL;
  FARPROC result=GetProcAddress(original_module,name);
  if(!result){proxy_log("MFG proxy: Intel runtime lacks ");proxy_log(name);proxy_log("\n");}
  return result;
+}
+/* The settings' sizes from a context's swap chain, through the verified runtime this proxy loaded: by name,
+ * "libxess_fg.dll" can be a game's own copy of Intel's runtime, which does not know this context. */
+static void mfg_settings_note_context(xefg_swapchain_handle_t context){
+ static __typeof__(&xefgSwapChainD3D12GetSwapChainPtr) get;if(!get&&!(get=(void*)resolve("xefgSwapChainD3D12GetSwapChainPtr")))return;
+ IDXGISwapChain3*swap=NULL;DXGI_SWAP_CHAIN_DESC1 desc;
+ if(get(context,&IID_IDXGISwapChain3,(void**)&swap)==0&&swap){
+  if(SUCCEEDED(IDXGISwapChain3_GetDesc1(swap,&desc)))mfg_settings_note_size(desc.Width,desc.Height);
+  IDXGISwapChain3_Release(swap);
+ }
 }
 /* 2x only: a context is accelerated only when XeFG generates one frame per real frame. Intel's runtime allows more only
  * on GPUs it supports for that (an Intel GPU with BC250_XEFG_ANY_GPU=1); such a context keeps Intel's shaders instead of
@@ -108,5 +125,5 @@ static void mfg_tag_capture(xefg_swapchain_handle_t handle){
 #include "mfg_proxy_coexist.h"
 #include "mfg_proxy_exports.h"
 /* The research harness and OptiScaler-plugin builds call this; here it only runs the lazy initialisation early. */
-__declspec(dllexport) BOOL WINAPI BC250MFGInitialize(void){return InitOnceExecuteOnce(&mfg_once,mfg_initialize,NULL,NULL);}
+__declspec(dllexport) BOOL WINAPI BC250MFGInitialize(void){return InitOnceExecuteOnce(&mfg_once,mfg_initialize,NULL,NULL)&&mfg_ready;}
 BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID reserved){(void)reserved;if(reason==DLL_PROCESS_ATTACH){proxy_module=instance;DisableThreadLibraryCalls(instance);}return TRUE;}

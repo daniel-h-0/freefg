@@ -2121,6 +2121,9 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         self.assertNotIn(' result=original(', chain)
         for name in self.ORDINARY:
             self.assertNotIn('musttail', wrappers[name], name)
+            # Intel's entry resolved once (GetLastPresentStatus runs every frame; GetProcAddress takes the loader lock)
+            self.assertIn(f'static __typeof__(&{name}) original;', wrappers[name], name)
+            self.assertIn(f'if(!original&&!(original=(void*)resolve("{name}")))', wrappers[name], name)
             body = wrappers[name]
             self.assertLess(body.index('proxy_ready_first(hSwapChain);'), body.index(' result=original('), name)
         # Claims: by output pointer or the initialisation queue's device; at destruction by output pointer.
