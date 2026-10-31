@@ -104,11 +104,9 @@ def version(name):
 
 
 def release_number(name):
-    found = re.fullmatch(r'[a-z][a-z0-9-]*?-([0-9]+(?:\.[0-9]+){1,3})(-preview)?', str(name or ''))
-    if not found:
-        return None
-    numbers = tuple(int(part) for part in found[1].split('.'))
-    return numbers + (0,) * (4 - len(numbers)) + (0 if found[2] else 1,)
+    """versions.release_number: the installer's own order of release names (None for a name it does not read)."""
+    import versions
+    return versions.release_number(name)
 
 
 @dataclass

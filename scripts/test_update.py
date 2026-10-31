@@ -567,6 +567,27 @@ class UpdateContractTests(UpdateFixture):
         self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'blocked')
         self.assertEqual(self.snapshot(),before);self.assertEqual(self.record(),record)
 
+    def test_release_names_in_order_and_unknown_names_never_updated_across(self):
+        ordered=['freefg-1.1.6','freefg-1.2.0-preview','freefg-1.2.0-preview.1','freefg-1.2.0-preview2','freefg-1.2.0-rc1',
+                 'freefg-1.2.0-rc2','freefg-1.2.0','freefg-1.2.0.1-rc1','freefg-1.2.0.1']
+        self.assertEqual(sorted(reversed(ordered),key=m.release_number),ordered)
+        self.assertEqual(m.release_number('freefg-1.2.0-preview.1'),m.release_number('freefg-1.2.0-preview1'))
+        for name in ['freefg-1.2.0-preview.','freefg-1.2.0-beta1','freefg-1.2.0-custom','bc250-fsr4-xemfg-private-test-25','',None]:
+            self.assertIsNone(m.release_number(name),name)
+        m.install(self.package,self.exe,route='opti');self.run_quiet(m.update,self.exe,self.new)
+        # A release candidate is older than its release, newer than the release before it.
+        rc=self.newer({},name='freefg-1.1.5-rc1',folder='rc',base=self.new)
+        self.assertEqual(self.run_quiet(m.update,self.exe,rc)[0],'blocked')
+        # A name whose order is unknown, either side: the game stays as it is (fails closed), with the reason.
+        custom=self.newer({},name='freefg-1.1.6-custom',folder='custom',base=self.new)
+        before=self.snapshot();record=self.record()
+        status,out=self.run_quiet(m.update,self.exe,custom)
+        self.assertEqual(status,'blocked');self.assertIn('Cannot tell whether freefg-1.1.6-custom is newer than '+NEW,out)
+        self.assertEqual((self.snapshot(),self.record()),(before,record))
+        m.save_record(self.game/m.STATE,dict(record,package='freefg-local-build'))
+        later=self.newer({},name='freefg-1.1.6',folder='later',base=self.new)
+        self.assertEqual(self.run_quiet(m.update,self.exe,later)[0],'blocked');self.assertEqual(self.snapshot(),before)
+
 class LibraryTests(UpdateFixture):
     """Update all: the games found from the launchers' entries, each updated or left on its own."""
     def second_game(self):

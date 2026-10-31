@@ -12,6 +12,7 @@ import freefg_library
 import upscaler_updates
 import launcher_migrations
 import hlx
+from versions import release_number
 
 # Machine-readable events for Setup and other front ends (install.py --events): one line each, EVENT_PREFIX and a JSON
 # object {"v": 1, "type": ...}, among the ordinary output, which stays as it is. Types: outcome (exe; result: the command
@@ -1740,13 +1741,6 @@ def rollback_settings(original,applied,current):
              if now.get(key)==base.get(key) and now.get(key)!=old.get(key)}
     return patch_ini(current,changes) if changes else current
 
-def release_number(name):
-    found=re.fullmatch(r'freefg-([0-9]+(?:\.[0-9]+){1,3})(-preview)?',str(name))
-    if not found:return None
-    numbers=tuple(int(part) for part in found[1].split('.'))
-    # A preview precedes the final release with the same numeric version.
-    return numbers+(0,)*(4-len(numbers))+(0 if found[2] else 1,)
-
 def update_compatibility(record,manifest,core=True):
     """Legacy versions are imported explicitly; later releases negotiate the stored layout/configuration contract."""
     target=manifest.get('update_contract')
@@ -1760,6 +1754,10 @@ def update_compatibility(record,manifest,core=True):
     if core and old is not None and new is not None and new<old:return 'The selected package is older than this installation. Use Rollback for a saved earlier release.'
     if source is None and record.get('package')!=manifest.get('name') and record.get('package') not in UPDATES_FROM:
         return str(record.get('package') or 'This installation')+' is not a release this build updates in place: use Restore, then Install.'
+    # Two different release names whose order is unknown (versions.release_number): never taken for an upgrade.
+    if core and record.get('package')!=manifest.get('name') and (old is None or new is None):
+        return ('Cannot tell whether '+str(manifest.get('name'))+' is newer than '+str(record.get('package') or 'this installation')+
+                ' (a release name this installer does not read): use Restore, then Install.')
     return None
 
 def component_state(record,manifest_hash=None,core_paths=None):
