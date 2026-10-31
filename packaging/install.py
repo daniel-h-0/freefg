@@ -458,6 +458,13 @@ def upscaler_line(upscaler,dll=None):
             'own licence, running NVIDIA’s DLSS network; built on this computer by HelixSR’s own setup. In the game, choose the '
             'upscaler as for FSR 4. Frame generation stays XeFG (HelixSR’s own frame generation is off in '+upscaler['ini']+').')
 
+def manual_launch_lines(step,settings):
+    """A step in the user's own launcher, for an installation without a launcher entry (record manual_launch): the step,
+    which Setup lists among the next steps ('In your launcher: …', as it does 'In game: …'), then the settings, indented
+    so that Setup does not count them among what changed."""
+    import launcher_config
+    return ['In your launcher: '+step]+['    '+line for line in launcher_config.manual_lines(settings)]
+
 def log_path(root,relative):
     """A log's path in the game folder, or None when it (or a folder above it) is a symlink or not a file: such a log is
     left alone, never followed or moved."""
@@ -1188,8 +1195,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         for name in displaced:print('Set aside until Restore: '+name+' (an earlier log by the same name)')
         for target in launchers:print('Configure '+target['launcher']+': '+target['path'])
         if manual_launch:
-            print('No launcher entry is changed; set these in the game’s launcher:')
-            for line in launcher_config.manual_lines(manual_launch):print('  '+line)
+            for line in manual_launch_lines('set the launch settings listed below for the game (no launcher entry is changed).',manual_launch):print(line)
         if vkd3d_cache is not None:print('vkd3d-proton shader cache: '+str(vkd3d_cache))
         for item in settings_plan:print(('Game setting: ' if item['after'] is not None else 'Game setting (pending): ')+item['file'])
         if helper:print(helper_line(helper))
@@ -1265,9 +1271,10 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     remember_installation(exe,record,home=launcher_home)
     if upscaler in hlx.NAMES:remember_prepared(package,helixsr_dir)
     if manual_launch:
-        print('\nInstalled. No launcher entry was changed: set these for the game in its launcher before you play (on a command line, '
-              'before the command). install.py status shows them again.')
-        for line in launcher_config.manual_lines(manual_launch):print('  '+line)
+        print('\nInstalled. No launcher entry was changed.')
+        for line in manual_launch_lines('set the launch settings listed below for the game before you play (in Setup: under '
+                                        'Installer output; on a command line: before the command). Status shows them again.',
+                                        manual_launch):print(line)
     else:print('\nInstalled. Open your launcher and play normally. No wrapper command is needed.')
     if kept:print('Kept your settings from the previous installation: '+', '.join(kept))
     for item in record.get('game_settings',[]):
@@ -1433,9 +1440,8 @@ def restore(exe):
     except (OSError,ValueError) as error:print('Library index was left unchanged: '+str(error))
     if (state/GENERATIONS).is_dir() and not (state/GENERATIONS).is_symlink():shutil.rmtree(state/GENERATIONS)
     if record.get('manual_launch'):
-        import launcher_config
-        print('Original files restored. Backups remain in '+str(state)+'\nRemove the launch settings you set for this game from its launcher:')
-        for line in launcher_config.manual_lines(record['manual_launch']):print('  '+line)
+        print('Original files restored. Backups remain in '+str(state))
+        for line in manual_launch_lines('remove the launch settings listed below from the game (in Setup: under Installer output).',record['manual_launch']):print(line)
     else:print(('Original files and launcher settings restored. ' if record.get('launchers') else 'Original files restored; later INI edits preserved. Remove the earlier build’s run.sh launch wrapper from the game’s launch options. ')+'Backups remain in '+str(state))
     if record.get('preserved_ini'):print('Settings from the removed fresh OptiScaler setup: '+str(state/record['preserved_ini']))
     if record.get('preserved_helixsr_ini') and any(Path(item['path']).name.lower()==helixsr.INI for item in record['files']):
@@ -2545,6 +2551,7 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     for line in plan_lines(plan)[1:]:print(line)
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
     print('Updated to '+str(plan['target'])+'. Launch the game as before; install.py rollback returns to '+str(previous['package'])+'.')
+    if plan['metadata'].get('manual_launch'):print('In your launcher: change the game’s launch settings to those this update lists (in Setup: under Installer output).')
     return 'partial' if plan['deferred'] else 'update'
 
 def rollback_generation(root,record,generation):
@@ -2595,9 +2602,7 @@ def rollback_generation(root,record,generation):
           ' put back as they were. Launch the game as before.')
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
     if 'manual_launch' in (generation.get('metadata_after') or {}) and record.get('manual_launch'):
-        import launcher_config
-        print('Set the game’s launch settings in its launcher back to these:')
-        for line in launcher_config.manual_lines(record['manual_launch']):print('  '+line)
+        for line in manual_launch_lines('set the game’s launch settings back to those listed below (in Setup: under Installer output).',record['manual_launch']):print(line)
 
 @locked
 @launcher_locked
@@ -2740,9 +2745,7 @@ def status(exe):
                 except launcher_config.Missing:pass
             print(target['launcher']+' launch settings: '+('no longer present' if current is None else 'installed' if current==target['after'] else 'changed since installation'))
     if record.get('manual_launch'):
-        import launcher_config
-        print('Launch settings to keep in the game’s launcher (set by you; this installer does not edit it):')
-        for line in launcher_config.manual_lines(record['manual_launch']):print('  '+line)
+        for line in manual_launch_lines('keep the launch settings listed below for the game (this installer does not edit it).',record['manual_launch']):print(line)
     if record.get('vkd3d_cache')==VKD3D_CACHE:
         cache=root/STATE/VKD3D_CACHE
         size=sum(p.stat().st_size for p in cache.rglob('*') if p.is_file() and not p.is_symlink()) if cache.is_dir() else 0

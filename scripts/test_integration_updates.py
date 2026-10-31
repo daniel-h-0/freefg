@@ -43,14 +43,18 @@ class IntegrationUpdateTests(UpdateFixture):
         status,out=self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')
         self.assertEqual(status,'update');self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'],'winmm=n,b')
         self.assertIn('  launch settings change; set these in the game’s launcher (this installer does not edit it):\n    WINEDLLOVERRIDES=winmm=n,b\n',out)
+        self.assertIn('\nIn your launcher: change the game’s launch settings to those this update lists (in Setup: under Installer output).\n',out)
         self.assertFalse(self.config.exists())
         _,out=self.run_quiet(m.rollback,self.exe)
         self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'],'dxgi=n,b')
-        self.assertIn('Set the game’s launch settings in its launcher back to these:\n  WINEDLLOVERRIDES=dxgi=n,b\n',out)
+        self.assertIn('In your launcher: set the game’s launch settings back to those listed below (in Setup: under Installer output).\n'
+                      '    WINEDLLOVERRIDES=dxgi=n,b\n',out)
         # An update that leaves them as they are does not name them.
         status,out=self.run_quiet(m.update,self.exe,self.new)
         self.assertEqual(status,'update');self.assertNotIn('launch settings',out)
-        _,out=self.run_quiet(m.restore,self.exe);self.assertIn('  WINEDLLOVERRIDES=dxgi=n,b\n',out)
+        _,out=self.run_quiet(m.restore,self.exe)
+        self.assertIn('In your launcher: remove the launch settings listed below from the game (in Setup: under Installer output).\n'
+                      '    WINEDLLOVERRIDES=dxgi=n,b\n',out)
         for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
 
     def test_loader_change_removes_even_an_original_override_until_restore(self):

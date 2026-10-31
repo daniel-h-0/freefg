@@ -793,7 +793,8 @@ class InstallDialog(Adw.Dialog):
         window.run(f'Installing {window.ctx.name}', [Step(game.title, model.install_args(game.exe, choice), game)],
                    working=f'Installing {window.ctx.name} into {game.title}',
                    success=f'{window.ctx.name} is installed in {game.title}',
-                   next_steps=steps + ['Reopen your launcher and play normally.'])
+                   # Without a launcher entry to edit (no-launcher accepted), the installer's own step says what to set.
+                   next_steps=steps + ([] if 'no-launcher' in choice.accept else ['Reopen your launcher and play normally.']))
 
 
 # ------------------------------------------------------------------------------------------------- upscaler switch
@@ -2101,7 +2102,8 @@ class Window(Adw.ApplicationWindow):
                          'Restoring', [Step(game.title, ['restore', str(game.exe)], game)],
                          working=f'Restoring the original files of {game.title}',
                          success=f'{game.title} has its original files back',
-                         next_steps=['Reopen your launcher and play normally.'])), destructive=True)
+                         next_steps=[] if (game.record or {}).get('manual_launch') else ['Reopen your launcher and play normally.'])),
+                     destructive=True)
 
     def set_pin(self, game, on):
         release = model.version((game.record or {}).get('package'))

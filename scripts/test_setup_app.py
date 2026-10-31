@@ -120,6 +120,19 @@ class Words(unittest.TestCase):
         self.assertEqual(model.summary_lines(install), ['Frame-generation input: OptiFG (Automatic)',
                                                         'Launch option added: -dx12', 'Upscaler: FSR 4 (BC-250 build RC12).'])
 
+    def test_a_game_without_a_launcher_entry_asks_for_its_launch_settings(self):
+        # Installed with no-launcher accepted: the installer's 'In your launcher:' step is one of the next steps, and the
+        # settings below it are not counted among what changed.
+        settings = dict(env={'WINEDLLOVERRIDES': 'dxgi=n,b', 'VK_LAYER_PATH': '/games/My Game/BC250-XeFG/layer'}, args=['-dx12'])
+        lines = [('out', 'Installed. No launcher entry was changed.'),
+                 *[('out', line) for line in m.manual_launch_lines('set these for the game before you play:', settings)],
+                 ('out', 'Upscaler: FSR 4 (BC-250 build RC12).'), ('out', 'In game: open OptiScaler with Insert.')]
+        self.assertEqual(model.next_steps(lines), ['In your launcher: set these for the game before you play:',
+                                                   'In game: open OptiScaler with Insert.'])
+        self.assertEqual(model.summary_lines(lines), ['Upscaler: FSR 4 (BC-250 build RC12).'])
+        self.assertEqual([line for _, line in lines[2:5]], ['    WINEDLLOVERRIDES=dxgi=n,b', "    VK_LAYER_PATH='/games/My Game/BC250-XeFG/layer'",
+                                                           '    Game arguments (after the .exe): -dx12'])
+
     def test_plan_lines_split_into_changes_and_notes(self):
         lines = ['Update freefg-1.1.5 → freefg-1.1.6:', '  OptiScaler integration: 1 replaced file', '  OptiScaler.ini: update owned settings',
                  '    upscalers.dx12upscaler: ffx → hlx-dlss', '    menu.blur: (unset) → auto', '  original-file backups and user settings are retained',

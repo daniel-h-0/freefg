@@ -428,20 +428,21 @@ class ManualLaunchTests(ProxyFixture):
         env={'WINEDLLOVERRIDES':'dxgi=n,b','VK_LAYER_PATH':str(root/'BC250-XeFG/layer'),'VK_INSTANCE_LAYERS':'VK_LAYER_BC250_xefg_wave',
              'XEFG_WAVE_CONFIG':str(root/'BC250-XeFG/shaders/waves.txt'),'VKD3D_CONFIG':'no_staggered_submit',
              'VKD3D_DISABLE_EXTENSIONS':'VK_EXT_shader_module_identifier','VKD3D_SHADER_CACHE_PATH':str(root/m.STATE/m.VKD3D_CACHE)}
-        return env,['  '+key+'='+shlex.quote(value)+'\n' for key,value in env.items()]
+        return env,''.join('    '+key+'='+shlex.quote(value)+'\n' for key,value in env.items())
     def test_refused_unless_accepted(self):
         with self.assertRaisesRegex(ValueError,r'No launcher entry found.*Install anyway.*\[no-launcher\]'):m.install(self.package,self.exe,route='opti')
         self.assertFalse((self.game/m.STATE).exists())
     def test_preview_names_the_settings_and_writes_nothing(self):
         out=self.quiet(m.install,self.package,self.exe,preview=True,route='opti',accept=('no-launcher',))
-        self.assertIn('No launcher entry is changed; set these in the game’s launcher:\n',out)
-        for line in self.expected()[1]:self.assertIn(line,out)
+        self.assertIn('In your launcher: set the launch settings listed below for the game (no launcher entry is changed).\n'+self.expected()[1],out)
         self.assertFalse((self.game/m.STATE).exists());self.assertFalse(self.config.exists())
     def test_install_status_restore(self):
-        env,lines=self.expected()
+        env,block=self.expected()
         out=self.quiet(m.install,self.package,self.exe,route='opti',accept=('no-launcher',))
-        self.assertIn('Installed. No launcher entry was changed',out);self.assertNotIn('Open your launcher and play normally',out)
-        for line in lines:self.assertIn(line,out)
+        self.assertIn('Installed. No launcher entry was changed.\nIn your launcher: set the launch settings listed below for the game '
+                      'before you play (in Setup: under Installer output; on a command line: before the command). Status shows '
+                      'them again.\n'+block,out)
+        self.assertNotIn('Open your launcher and play normally',out)
         record=self.record()
         self.assertEqual((record['launchers'],record['manual_launch'],record['compat']['accepted']),([],{'env':env,'args':[]},['no-launcher']))
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy');self.assertTrue((self.game/m.STATE/m.VKD3D_CACHE).is_dir())
@@ -449,11 +450,10 @@ class ManualLaunchTests(ProxyFixture):
         # No launcher entry names it: Update all finds it through the library index.
         self.assertEqual([(row['exe'],row['status']) for row in m.library_inventory()],[(self.exe.resolve(),'installed')])
         out=self.quiet(m.status,self.exe)
-        self.assertIn('Launch settings to keep in the game’s launcher',out);self.assertIn('Launch normally with FG active.',out)
-        for line in lines:self.assertIn(line,out)
+        self.assertIn('In your launcher: keep the launch settings listed below for the game (this installer does not edit it).\n'+block,out)
+        self.assertIn('Launch normally with FG active.',out)
         out=self.quiet(m.restore,self.exe)
-        self.assertIn('Remove the launch settings you set for this game from its launcher:',out);self.assertNotIn('run.sh',out)
-        for line in lines:self.assertIn(line,out)
+        self.assertIn('In your launcher: remove the launch settings listed below from the game (in Setup: under Installer output).\n'+block,out);self.assertNotIn('run.sh',out)
         for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
         self.assertFalse((self.game/'bc250_xefg_original.dll').exists());self.assertFalse(self.config.exists())
     def test_a_launcher_entry_found_after_all_is_configured(self):
