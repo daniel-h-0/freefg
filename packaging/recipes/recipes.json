@@ -1959,9 +1959,6 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-force-d3d12"
-      ],
       "proxy": [
         "dxgi.dll"
       ],
@@ -8484,8 +8481,14 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "proxy": [
         "dxgi.dll",
@@ -8906,8 +8909,14 @@
       "launch_args": [
         "-dx12"
       ],
-      "other_launch_args": [
-        "-dx12"
+      "launch": [
+        {
+          "text": "-dx12",
+          "kind": "args",
+          "when": {
+            "upscaler_input": "fsr3"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -9359,9 +9368,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-unlockReflexOptions",
-        "-disallowDLSSGOffInMenu"
+      "launch": [
+        {
+          "text": "-unlockReflexOptions",
+          "kind": "args"
+        },
+        {
+          "text": "-disallowDLSSGOffInMenu",
+          "kind": "args"
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -9793,9 +9808,6 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-dx12"
-      ],
       "proxy": [
         "d3d12.dll"
       ],
@@ -9936,9 +9948,6 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-dx12"
-      ],
       "proxy": [
         "d3d12.dll"
       ],
@@ -10016,9 +10025,6 @@
             "fg_input": "upscaler"
           }
         }
-      ],
-      "other_launch_args": [
-        "-dx12"
       ],
       "proxy": [
         "d3d12.dll"
@@ -10887,8 +10893,11 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-unlockReflexOptions"
+      "launch": [
+        {
+          "text": "-unlockReflexOptions",
+          "kind": "args"
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -10968,8 +10977,11 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-unlockReflexOptions"
+      "launch": [
+        {
+          "text": "-unlockReflexOptions",
+          "kind": "args"
+        }
       ],
       "proxy": [
         "dxgi.dll",
@@ -13105,8 +13117,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-forceReflexMarkers"
+      "launch": [
+        {
+          "text": "-forceReflexMarkers",
+          "kind": "args",
+          "when": {
+            "gpu": "amd/intel",
+            "fg_input": "dlssg"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -13292,8 +13311,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-forceReflexMarkers"
+      "launch": [
+        {
+          "text": "-forceReflexMarkers",
+          "kind": "args",
+          "when": {
+            "fg_input": "dlssg",
+            "gpu": "amd/intel"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -14267,8 +14293,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "counts": {
         "launch": 1,
@@ -14949,8 +14981,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx12"
+      "launch": [
+        {
+          "text": "-dx12",
+          "kind": "args",
+          "when": {
+            "condition": "DLSS input doesn't work"
+          }
+        }
       ],
       "counts": {
         "launch": 1
@@ -16122,8 +16160,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "counts": {
         "launch": 1
@@ -16401,8 +16445,15 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-forceReflexMarkers"
+      "launch": [
+        {
+          "text": "-forceReflexMarkers",
+          "kind": "args",
+          "when": {
+            "fg_input": "dlssg",
+            "gpu": "amd/intel"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -16780,8 +16831,14 @@
       "upscaler_inputs": [
         "dlss"
       ],
-      "other_launch_args": [
-        "-dx11"
+      "launch": [
+        {
+          "text": "-dx11",
+          "kind": "args",
+          "conflicts": [
+            "-dx11"
+          ]
+        }
       ],
       "counts": {
         "launch": 1
@@ -21358,9 +21415,14 @@
           "value": "dlssg"
         }
       ],
-      "other_launch_args": [
-        "-unlockreflexoptions",
-        "-disallowdlssgoffinmenu"
+      "launch": [
+        {
+          "text": "-unlockreflexoptions",
+          "kind": "args",
+          "when": {
+            "gpu": "amd/intel"
+          }
+        }
       ],
       "proxy": [
         "dxgi.dll"
@@ -24218,8 +24280,11 @@
           }
         }
       ],
-      "other_launch_args": [
-        "force-d3d12"
+      "launch": [
+        {
+          "text": "force-d3d12",
+          "kind": "args"
+        }
       ],
       "counts": {
         "ini": 1,
@@ -24305,16 +24370,23 @@
           }
         }
       ],
-      "other_launch_args": [
-        "-use-d3d12",
-        "\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Zenless Zone Zero\\games\\ZenlessZoneZero Game\\ZenlessZoneZero.exe\"",
-        "%command%",
-        "DXVK_CONFIG_FILE=dxvk.conf",
-        "WINEDLLOVERRIDES=\"d3d12=n,b\"",
-        "bash",
-        "-c",
-        "exec \"${@/HYP.exe/games\\/ZenlessZoneZero Game\\/ZenlessZoneZero.exe}\"",
-        "--"
+      "launch": [
+        {
+          "text": "-use-d3d12",
+          "kind": "args",
+          "when": {
+            "os": "windows",
+            "launcher": "official"
+          }
+        },
+        {
+          "text": "\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Zenless Zone Zero\\games\\ZenlessZoneZero Game\\ZenlessZoneZero.exe\" -use-d3d12 %command%",
+          "kind": "wrapper",
+          "when": {
+            "os": "windows",
+            "launcher": "steam"
+          }
+        }
       ],
       "proxy": [
         "d3d12.dll",

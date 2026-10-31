@@ -791,11 +791,20 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
                 shown.append(f'{text}: not applied; the {kind} sets {s["key"]}={mine}')
             else:
                 shown.append(f'{text} (a recipe candidate; not applied)')
-        for arg in w.get('other_launch_args', []):
-            if arg.lower() in OFF_DX12_ARGS:
+        # Each launch item whole, as the page gives it (a Steam line or wrapper is pasted as one), never token by token.
+        for item in w.get('launch', []):
+            result, why = evaluate(item.get('when'), ctx)
+            clash = item.get('conflicts', [])
+            name = {'env': 'Launch environment', 'steam': 'Steam launch options', 'wrapper': 'Launch wrapper'}.get(item.get('kind'), 'Launch option')
+            if result is False:
+                hidden[why[0]] = hidden.get(why[0], 0) + 1
+            elif any(c.lower() in OFF_DX12_ARGS for c in clash):
                 hidden['launch options that leave DirectX 12'] = hidden.get('launch options that leave DirectX 12', 0) + 1
-            else:
-                shown.append(f'Launch option {arg} (not applied)')
+            elif clash:
+                shown.append(f'{name} {item["text"]}: not usable with FreeFG as it stands (it sets {names_text(clash)}, which '
+                             'FreeFG\'s own launch settings set or refuse)')
+            elif item['text'] not in verdict['launch_args']:
+                shown.append(f'{name} {item["text"]}' + (f': when {"; ".join(why)}' if result is None else '') + ' (not applied)')
         if verdict['launch_source'] and verdict['launch_source'].startswith('OptiScaler wiki') and w['title'] in verdict['launch_source']:
             applied.append('Launch option ' + ' '.join(verdict['launch_args']))
         if w.get('compat') == 'not-working':

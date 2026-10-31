@@ -154,6 +154,7 @@ def ini_changes(verified, backports, parsed, fg_input, recipe_input, route=None,
 
 
 DX12_ARGS = ('-dx12', '-d3d12', '-force-d3d12')
+OFF_DX12_ARGS = ('-dx11', '-d3d11', '-force-d3d11', '-vulkan', '-force-vulkan', '-opengl', '-force-glcore')  # compat.py's
 
 
 def launch_args(verified, wiki):
@@ -571,9 +572,23 @@ def suggestions(verified, wiki, fg_input, route):
                 keys.append(text)
     if keys and not verified:
         lines.append('  OptiScaler settings it lists (not applied): ' + '; '.join(keys[:6]) + ('; ...' if len(keys) > 6 else ''))
-    other = sorted({a for w in wiki for a in w.get('other_launch_args', [])})
-    if other and not verified:
-        lines.append('  Launch options it lists (not applied): ' + ' '.join(other))
+    # Launch items whole, as the page gives them (never token by token); not those for Windows or NVIDIA only, nor those
+    # that leave DirectX 12. One that sets what FreeFG's own launch settings set is named as such.
+    usable, clash = [], []
+    for w in wiki:
+        for i in w.get('launch', []):
+            when = i.get('when') or {}
+            if ('nvidia' in str(when.get('gpu', '')).lower() or re.search(r'windows|\bw1[01]\b|win1[01]', str(when.get('os', '')).lower())
+                    or any(c.lower() in OFF_DX12_ARGS for c in i.get('conflicts', []))):
+                continue
+            text = i['text'] + (f" ({', '.join(f'{k} {v}' for k, v in when.items())})" if when else '')
+            target = clash if i.get('conflicts') else usable
+            if text not in target:
+                target.append(text)
+    if usable and not verified:
+        lines.append('  Launch options it lists (not applied): ' + '; '.join(usable))
+    if clash and not verified:
+        lines.append('  Launch settings it lists that collide with FreeFG\'s own (not usable as they stand): ' + '; '.join(clash))
     pages = [p for w in sorted(wiki, key=lambda w: -len(w['title'])) for p in w.get('pages', [])]
     if pages:
         lines.append('  Read: ' + ' '.join(dict.fromkeys(pages)))

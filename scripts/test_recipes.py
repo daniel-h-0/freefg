@@ -200,6 +200,18 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(r.required_args(None), [])
         self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12'], required_args=['-x'])]), ['-dx12'])
 
+    def test_wiki_launch_items_are_suggested_whole(self):
+        wiki = [dict(title='Hero', launch=[
+            dict(text='-unlockReflexOptions', kind='args'), dict(text='-forceReflexMarkers', kind='args', when=dict(fg_input='dlssg')),
+            dict(text='"C:\\Hero.exe" -x %command%', kind='wrapper', when=dict(os='windows')), dict(text='-dx11', kind='args', conflicts=['-dx11']),
+            dict(text='WINEDLLOVERRIDES="d3d12=n,b" %command%', kind='steam', conflicts=['WINEDLLOVERRIDES'])])]
+        lines = r.suggestions(None, wiki, 'upscaler', 'opti')
+        self.assertIn('  Launch options it lists (not applied): -unlockReflexOptions; -forceReflexMarkers (fg_input dlssg)', lines)
+        self.assertIn("  Launch settings it lists that collide with FreeFG's own (not usable as they stand): "
+                      'WINEDLLOVERRIDES="d3d12=n,b" %command%', lines)
+        self.assertFalse(any('-dx11' in line or 'Hero.exe' in line for line in lines))  # leaves DirectX 12; Windows only
+        self.assertEqual(r.suggestions(dict(title='Hero'), wiki, 'upscaler', 'opti'), [])  # a verified recipe decides
+
     def test_shipped_recipe_file(self):
         data = r.load()
         self.assertEqual(data['schema'], 1)
@@ -234,7 +246,7 @@ class BuildTests(unittest.TestCase):
         # A conditional DX12 argument is not L1 (ODDRoom: "if DLSS input doesn't work").
         odd = next(w for w in self.data['wiki'] if w['title'] == 'ODDRoom')
         self.assertNotIn('launch_args', odd)
-        self.assertIn('-dx12', odd['other_launch_args'])
+        self.assertEqual(odd['launch'], [dict(text='-dx12', kind='args', when=dict(condition="DLSS input doesn't work"))])
 
     def test_sources_and_backports_follow_the_shipped_build(self):
         root = Path(__file__).resolve().parents[1]
@@ -366,7 +378,8 @@ class BuildTests(unittest.TestCase):
             self.assertEqual(entry['match'], dict(title=['soulstice'], exe=['soulstice.exe'], steam=['1602080']))
             self.assertEqual(entry['identity_sources'][0]['appid'], '1602080')
             self.assertEqual(entry['promoted'], [dict(key='Hotfix.ColorResourceBarrier', value='4')])
-            self.assertEqual((entry['launch_args'], entry['other_launch_args']), (['-dx12'], ['-skipintro', '-dx12']))
+            self.assertEqual((entry['launch_args'], entry['launch']), (['-dx12'], [dict(text='-skipintro -dx12', kind='args',
+                                                                                          when=dict(condition='crash at start'))]))
             self.assertEqual((entry['compat'], entry['optipatcher'], entry['counts']), ('working', False, {'ini': 2, 'launch': 2, 'issue': 1}))
             self.assertEqual(entry['pages'], ['https://github.com/optiscaler/OptiScaler/wiki/Soulstice',
                                               'https://github.com/optiscaler/OptiScaler/wiki/Compatibility-List'])
@@ -434,6 +447,26 @@ class BuildTests(unittest.TestCase):
             (Path(tmp)/'quirks.json').write_text(json.dumps(quirks))
             with self.assertRaisesRegex(SystemExit, 'pinned side'):
                 self.b.refresh_quirks(Path(tmp)/'quirks.json', folder)
+
+    def test_wiki_launch_items_stay_whole_and_name_what_collides_with_freefg(self):
+        zzz = ['DXVK_CONFIG_FILE=dxvk.conf', 'WINEDLLOVERRIDES="d3d12=n,b"', 'bash', '-c',
+               'exec "${@/HYP.exe/games\\/ZenlessZoneZero Game\\/ZenlessZoneZero.exe}"', '--', '%command%', '-use-d3d12']
+        items = [dict(args=['-dx12'], confidence='high'), dict(args=['-unlockReflexOptions'], confidence='high'),
+                 dict(args=['-unlockReflexOptions'], confidence='high'), dict(args=zzz, when=dict(os='linux'), confidence='high'),
+                 dict(args=['PROTON_FSR4_UPGRADE=1'], confidence='high'), dict(args=['DXVK_HUD=1', '%command%', '-dx12'], confidence='high'),
+                 dict(args=['-dx11'], confidence='high'),
+                 dict(args=['-force-d3d12'], confidence='low')]  # "forcing DX12 doesn't work": the extraction doubts it
+        l1, shown = self.b.launch_items(items)
+        self.assertEqual(l1, ['-dx12'])
+        self.assertEqual(shown, [
+            dict(text='-unlockReflexOptions', kind='args'),
+            dict(text='DXVK_CONFIG_FILE=dxvk.conf WINEDLLOVERRIDES="d3d12=n,b" bash -c \'exec "${@/HYP.exe/games\\/ZenlessZoneZero '
+                      'Game\\/ZenlessZoneZero.exe}"\' -- %command% -use-d3d12', kind='wrapper', when=dict(os='linux'), conflicts=['WINEDLLOVERRIDES']),
+            dict(text='PROTON_FSR4_UPGRADE=1', kind='env', conflicts=['PROTON_FSR4_UPGRADE']),
+            dict(text='DXVK_HUD=1 %command% -dx12', kind='steam'), dict(text='-dx11', kind='args', conflicts=['-dx11'])])
+        self.assertFalse(any('other_launch_args' in w for w in self.data['wiki']))  # no token lists any more
+        ghost = next(w for w in self.data['wiki'] if w['title'].startswith('Ghost of Tsushima'))
+        self.assertEqual([i['text'] for i in ghost['launch']], ['-unlockReflexOptions', '-disallowDLSSGOffInMenu'])
 
     def verified(self, name='voin'):
         return json.loads((self.ROOT/'research/recipes/verified'/(name + '.json')).read_text())

@@ -100,3 +100,14 @@ links relative to `wiki_url` and each OptiScaler.ini's keys once, in
 `optiscaler_ini_keys` by INI digest. `recipes.load()` restores absolute links
 and `optiscaler_builds[commit]['keys']`; a reader that parses the compact file
 itself must do the same.
+
+A wiki entry's `launch_args` holds the DX12 switches FreeFG may add itself (an
+unconditional instruction). Every other launch instruction is one `launch` item:
+`text` (the whole line as the page gives it; show it whole, never per token),
+`kind` (`args` game flags, `env` assignments, `steam` a launch-options line with
+`%command%`, `wrapper` another program around the game), optional `when`, and
+`conflicts`: the variables FreeFG sets or refuses (`WINEDLLOVERRIDES`, `VK_*`,
+`VKD3D_*`, `XEFG_*`, `BC250_*`, GE-Proton's `PROTON_USE_OPTISCALER` and
+`PROTON_*_UPGRADE`) or the switches leaving DirectX 12 it contains. An item with
+conflicts is not usable beside FreeFG as it stands. Instructions the extraction
+marked low-confidence are left out, as INI items are.

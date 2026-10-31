@@ -154,6 +154,24 @@ class PrecedenceTests(unittest.TestCase):
         auto = c.decide(scan(game_fg=dict(dlssg=True)), data([], [], [wiki]), ids())
         self.assertIn('OptiFG input left out of the automatic choice (reported broken)', c.wiki_advice(data([], [], [wiki]), ids(), auto)['applied'])
 
+    def test_wiki_launch_items_are_shown_whole(self):
+        wiki = dict(title='Hero', match=dict(title=['hero'], steam=['4242']), pages=['https://wiki/Hero'], launch_args=['-dx12'], launch=[
+            dict(text='-unlockReflexOptions', kind='args'), dict(text='-dx12', kind='args', when=dict(upscaler_input='fsr3')),
+            dict(text='-forceReflexMarkers', kind='args', when=dict(fg_input='dlssg')), dict(text='-skip', kind='args', when=dict(condition='crash at start')),
+            dict(text='"C:\\Hero.exe" %command%', kind='wrapper', when=dict(os='windows')), dict(text='-dx11', kind='args', conflicts=['-dx11']),
+            dict(text='PROTON_FSR4_UPGRADE=1', kind='env', conflicts=['PROTON_FSR4_UPGRADE'])])
+        d = data([], [], [wiki])
+        advice = c.wiki_advice(d, ids(), c.decide(scan(), d, ids()))
+        self.assertIn('Launch option -dx12', advice['applied'])
+        self.assertIn('Launch option -unlockReflexOptions (not applied)', advice['shown'])
+        self.assertIn('Launch option -skip: when condition: crash at start (not applied)', advice['shown'])
+        self.assertIn("Launch environment PROTON_FSR4_UPGRADE=1: not usable with FreeFG as it stands (it sets PROTON_FSR4_UPGRADE, which "
+                      "FreeFG's own launch settings set or refuse)", advice['shown'])
+        shown = '\n'.join(advice['shown'])
+        for text in ('forceReflexMarkers', 'Hero.exe', '-dx11', 'fsr3', 'Launch option %command%', 'Launch option bash'):
+            self.assertNotIn(text, shown)  # DLSS FG only; Windows only; leaves DX12; the applied switch again; no single tokens
+        self.assertEqual((advice['hidden']['launch options that leave DirectX 12'], advice['hidden']['Windows only']), (1, 1))
+
     def test_wiki_rule_conflicts_are_shown_not_applied(self):
         v = c.decide(scan(), data([], [], [WIKI]), ids())
         advice = c.wiki_advice(data([], [], [WIKI]), ids(), v)

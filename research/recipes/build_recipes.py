@@ -30,7 +30,7 @@ The research drafts, the quirk extraction and the OptiScaler sources these read 
   --add-build COMMIT DLL_SHA256 OPTISCALER_INI           a build's digests and the keys its OptiScaler.ini defines
   --quirks QUIRKS_JSON                                   the quirk tables, from a quirk extraction of the pinned build
 """
-import argparse, configparser, hashlib, json, re, sys
+import argparse, configparser, hashlib, json, re, shlex, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -86,7 +86,7 @@ def norm(title):
 # ---------------------------------------------------------------------------------------------------- the build
 # Field order of a wiki entry in the recipe file (every entry alike, whichever input added a field).
 WIKI_ORDER = ('title', 'match', 'status', 'pages', 'tested', 'upscaler_inputs', 'fg_inputs', 'fg_advice', 'ini', 'launch_args',
-              'other_launch_args', 'proxy', 'game_settings', 'counts', 'compat', 'optipatcher', 'promoted', 'requirements',
+              'launch', 'proxy', 'game_settings', 'counts', 'compat', 'optipatcher', 'promoted', 'requirements',
               'identity_sources')
 # What wiki.json holds per entry (the wiki's facts), in its order.
 WIKI_FACTS = ('title', 'pages', 'tested', 'upscaler_inputs', 'fg_inputs', 'fg_advice', 'ini', 'launch', 'proxy', 'game_settings',
@@ -108,17 +108,59 @@ def exe_links(key, titles):
         len(t.split()) >= 2 and key.startswith(t + ' ') and not re.match(r'\d|[ivx]+\b', key[len(t) + 1:])))
 
 
-def launch_tokens(items):
-    """(L1 arguments, other arguments) of an entry's launch items: an unconditional high-confidence DX12 switch is
-    applied (L1); every other token is shown."""
-    l1, other = [], []
+# A wiki launch item's tokens: environment assignments, %command% (Steam's place for the game), programs that wrap the
+# game, game flags.
+ASSIGN = re.compile(r'[A-Za-z_][A-Za-z0-9_]*=.*')
+FLAG = re.compile(r'[-+/]?[A-Za-z0-9][A-Za-z0-9_.:=,+-]*')
+WRAPPERS = {'bash', 'sh', 'env', 'exec', 'gamescope', 'gamemoderun', 'mangohud', 'taskset', 'nice', 'wine', 'proton', 'prime-run'}
+# What FreeFG's own launch settings set or its checks refuse (packaging/launcher_config.py environment() and GE_UPSCALER),
+# and API switches that leave DirectX 12 (packaging/compat.py OFF_DX12_ARGS): a wiki item touching one cannot be used
+# beside FreeFG as it stands.
+FREEFG_OWNED = re.compile(r'WINEDLLOVERRIDES|VK_\w+|VKD3D_\w+|XEFG_\w+|BC250_\w+|PROTON_(USE_OPTISCALER|\w+_UPGRADE)')
+OFF_DX12_ARGS = {'-dx11', '-d3d11', '-force-d3d11', '-vulkan', '-force-vulkan', '-opengl', '-force-glcore'}
+
+
+def launch_text(args):
+    """A launch item as one line, its tokens in order; a token with blanks is quoted for the shell unless it is."""
+    return ' '.join(shlex.quote(a) if re.search(r'\s', a) and a[:1] + a[-1:] not in ('""', "''") else a for a in args)
+
+
+def launch_kind(args):
+    """args: game flags only; env: environment assignments only; steam: a Steam launch-options line (assignments,
+    %command%, then game flags); wrapper: another program around the game (a shell, an executable path...)."""
+    n = next((i for i, a in enumerate(args) if not ASSIGN.fullmatch(a)), len(args))
+    rest = args[n:]
+    if not rest:
+        return 'env'
+    if any(a.lower() in WRAPPERS for a in rest):
+        return 'wrapper'
+    if rest[0] == '%command%' and all(FLAG.fullmatch(a) for a in rest[1:]):
+        return 'steam'
+    return 'args' if not n and all(FLAG.fullmatch(a) for a in rest) else 'wrapper'
+
+
+def launch_items(items):
+    """(L1 arguments, shown items) of an entry's launch items (wiki.json). The DX12 switch of an unconditional item is
+    applied (L1); every other item is shown whole, as the page gives it (one line, never token by token), with its
+    kind, its condition and the FreeFG settings it would collide with. Low-confidence items are left out, as INI items
+    are: the extraction doubts what the page says."""
+    l1, shown = [], []
     for i in items:
+        if i.get('confidence') != 'high':
+            continue
         conditions = {k for k in i.get('when') or {} if k not in NOTE_KEYS}
-        for arg in i['args']:
-            target = l1 if arg.lower() in DX12_ARGS and i.get('confidence') == 'high' and not conditions else other
-            if arg not in target:
-                target.append(arg)
-    return l1, other
+        if not conditions:
+            l1 += [a for a in i['args'] if a.lower() in DX12_ARGS and a not in l1]
+            if all(a.lower() in DX12_ARGS for a in i['args']):
+                continue
+        item = dict(text=launch_text(i['args']), kind=launch_kind(i['args']), **({'when': i['when']} if i.get('when') else {}))
+        clash = [a.split('=', 1)[0] for a in i['args'] if ASSIGN.fullmatch(a) and FREEFG_OWNED.fullmatch(a.split('=', 1)[0])]
+        clash += [a for a in i['args'] if a.lower() in OFF_DX12_ARGS]
+        if clash:
+            item['conflicts'] = list(dict.fromkeys(clash))
+        if item not in shown:
+            shown.append(item)
+    return l1, shown
 
 
 # The wiki's topic pages (FSR4 on Linux, Resource Barriers, Unreal Engine...): advice for many games, no game's
@@ -152,11 +194,11 @@ def wiki_entries(doc, curation, titles):
         w = dict(title=e['title'], match=match, status='wiki-reported',
                  pages=[p if '://' in p else doc['wiki']['url'] + p for p in e['pages']])
         w.update({k: v for k, v in e.items() if k not in ('title', 'pages', 'launch')})
-        l1, other = launch_tokens(e.get('launch', []))
+        l1, shown = launch_items(e.get('launch', []))
         if l1:
             w['launch_args'] = l1
-        if other:
-            w['other_launch_args'] = other
+        if shown:
+            w['launch'] = shown
         w.update({k: extra[k] for k in ('requirements', 'identity_sources') if extra.get(k)})
         out.append(w)
     return out
@@ -410,7 +452,7 @@ VERIFIED_FIELDS = ('manual_steps', 'title', 'match', 'route', 'fg_input', 'ini',
 COMMUNITY_FIELDS = VERIFIED_FIELDS + ('status', 'manual_steps', 'known_problems')
 # requires_fg_input is kept whenever present, even as null: a missing key means "the recipe's own input".
 SETTING_FIELDS = ('file', 'format', 'section', 'values', 'requires_fg_input')
-WIKI_FIELDS = ('requirements', 'identity_sources', 'title', 'match', 'pages', 'launch_args', 'other_launch_args', 'tested', 'proxy', 'compat', 'optipatcher',
+WIKI_FIELDS = ('requirements', 'identity_sources', 'title', 'match', 'pages', 'launch_args', 'tested', 'proxy', 'compat', 'optipatcher',
                'game_settings', 'promoted', 'counts')
 SHOWN_ADVICE = ('prefer', 'broken', 'avoid')  # recipes.suggestions lists only these
 
@@ -442,6 +484,9 @@ def compact(data, full_sha256):
         ini = [_pick(i, ('key', 'value', 'when')) for i in w.get('ini', []) if not _nvidia_only(i)]
         if ini:
             entry['ini'] = ini
+        launch = [i for i in w.get('launch', []) if not _nvidia_only(i)]
+        if launch:
+            entry['launch'] = launch
         wiki.append(entry)
     verified = []
     for v in data['verified']:
