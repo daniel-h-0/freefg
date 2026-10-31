@@ -4,6 +4,24 @@ Release summaries are below; [measurements](MEASUREMENTS.md) describe their spec
 [detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
 retains earlier release notes.
 
+## 1.3.0 candidate
+
+- Keep a recipe's required launch arguments, once: GTA V Enhanced keeps `-nobattleye` beside a player's own API
+  switch, and a Lutris entry that cannot take it holds the update.
+- Complete manual mode: Install, Update, Rollback and Restore print the launch settings to add, merge, replace or
+  remove. `install.py contract --json` and the release's `integration.json` describe the launch contract.
+- Add `--events` output and exit status 3 for refusals, which Setup reads. Install re-checks the game and launcher
+  files just before writing; Rollback keeps one generation per kind (release or provider, and wiki settings); Restore
+  restores the other files past a damaged backup; Update moves `FSR.Fsr4ForceModel` to `FSR.Fsr4GpuSupport`.
+- Setup shows copyable launch settings for manual installations and keeps unsaved settings edits across refreshes.
+- The pacing layer passes presents through until FreeFG's add-on answers and needs glibc 2.34. The proxy has its own
+  entry for every declared export, refuses a second copy of Intel's runtime, logs one `FAST_DECISION` line per context
+  and reads game folders the ANSI code page cannot spell.
+- Rebuild the recipe files from committed inputs; show wiki launch options as whole strings; apply wiki settings
+  automatically only for a strong game identity.
+- OptiScaler `ba0dedb`: minimized game windows stay eligible for frame generation, the auxiliary DXGI-factory modules
+  are configurable, and `[BC250] RequireArgument` keeps it a plain proxy without that launch argument.
+
 ## 1.2.0 – 2026-10-30
 
 - Replace Setup's chain of Zenity dialogs with a window built on GTK 4 and libadwaita 1.5+: the game library grouped by
