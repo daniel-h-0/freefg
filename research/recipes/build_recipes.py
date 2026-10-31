@@ -70,17 +70,32 @@ def dumps_rows(doc, key):
     return head[:-2] + f',\n  "{key}": [\n{rows}\n  ]\n}}\n'
 
 
-# Store editions of the same game: "Crimson Desert Enhanced", "The Witcher 3: Wild Hunt - Game of the Year Edition".
-EDITION = re.compile(r'(\s+(game of the year|goty|enhanced|definitive|complete|deluxe|gold|ultimate|anniversary|remastered|'
+# Store editions: "Crimson Desert Enhanced", "The Witcher 3: Wild Hunt - Game of the Year Edition". A title without its
+# edition is a loose alias, sometimes another game (GTA V Legacy and Enhanced, Crysis and Crysis Remastered): the recipe
+# file lists it apart (match.alias), and FreeFG never matches by it.
+EDITION = re.compile(r'(\s+(the\s+)?(game of the year|goty|enhanced|definitive|complete|deluxe|gold|ultimate|anniversary|remastered|'
                      r'directors cut|standard|premium)(\s+edition)?)+$')
 
 
 def norm(title):
+    """A title as packaging/recipes.py matches it (recipes.norm)."""
     t = re.sub(r'\([^)]*\)', '', title.lower()).replace('&', 'and').replace('’', "'").replace('‐', '-')
     t = re.sub(r"[^a-z0-9]+", ' ', t.replace("'", '')).strip()
     t = re.sub(r'\b(ii)\b', '2', t)
-    t = re.sub(r'\b(iii)\b', '3', t)
-    return EDITION.sub('', t).strip()
+    return re.sub(r'\b(iii)\b', '3', t)
+
+
+def loose(title):
+    """The title without its store edition (recipes.loose)."""
+    return EDITION.sub('', norm(title)).strip()
+
+
+def generic(exe):
+    """True for an exe name many games share (packaging/compat.py GENERIC_EXES, also as its WinGDK build): never a
+    game's identity."""
+    sys.path.insert(0, str(ROOT / 'packaging'))
+    import compat
+    return exe in compat.GENERIC_EXES or exe.replace('-wingdk-', '-win64-') in compat.GENERIC_EXES
 
 
 # ---------------------------------------------------------------------------------------------------- the build
@@ -101,9 +116,10 @@ def build_keys(opti, commit=None):
 
 
 def exe_links(key, titles):
-    """The exes an OptiScaler quirk entry links to the wiki title key (titles: exe -> normalized game name). A quirk
-    comment names the game ("The Witcher 3"); it links to the one wiki title it is the start of: "the witcher 3 wild
-    hunt" extends "the witcher 3"; "red dead redemption 2" is another game than "red dead redemption"."""
+    """The exes an OptiScaler quirk entry links to the wiki title key (both without edition, loose; titles: exe ->
+    game name). A quirk comment names the game ("The Witcher 3"); it links to the one wiki title it is the start of:
+    "the witcher 3 wild hunt" extends "the witcher 3"; "red dead redemption 2" is another game than "red dead
+    redemption"."""
     return sorted(exe for exe, t in titles.items() if t == key or (
         len(t.split()) >= 2 and key.startswith(t + ' ') and not re.match(r'\d|[ivx]+\b', key[len(t) + 1:])))
 
@@ -183,11 +199,17 @@ def wiki_entries(doc, curation, titles):
             raise SystemExit(f'wiki.json {e["title"]!r}: unknown fields {sorted(set(e) - set(WIKI_FACTS))}')
         if TOPIC.search(e['title']):
             continue
-        key, extra = norm(e['title']), curation.get(e['title'], {})
-        match = dict(title=list(extra.get('title') or [key]))
-        exes = exe_links(key, titles)
-        if exes:
-            match['exe'] = exes
+        extra = curation.get(e['title'], {})
+        # Identity strength as data: exact titles, then the loose aliases and the shared exe names nothing matches by.
+        match = dict(title=list(extra.get('title') or [norm(e['title'])]))
+        aliases = [a for a in dict.fromkeys(loose(t) for t in [e['title'], *match['title']]) if a not in match['title']]
+        if aliases:
+            match['alias'] = aliases
+        exes = exe_links(loose(e['title']), titles)
+        if [x for x in exes if not generic(x)]:
+            match['exe'] = [x for x in exes if not generic(x)]
+        if [x for x in exes if generic(x)]:
+            match['generic_exe'] = [x for x in exes if generic(x)]
         for store in ('steam', 'gog', 'epic'):
             if extra.get(store):
                 match[store] = list(extra[store])
@@ -258,6 +280,8 @@ def check_verified(entry):
         problems.append('match holds lists of steam, gog, epic, exe and title names only')
     elif not any(m.get(k) for k in ('steam', 'gog', 'epic')) and not m.get('exe'):
         problems.append('match needs a launcher ID (steam, gog, epic) or exe names')
+    if any(generic(e) for e in m.get('exe') or []):
+        problems.append('match exe: a name many games share is no game\'s identity (use a launcher ID, or the game\'s own exe)')
     # recipes.identity lower-cases the exe and normalizes titles (lower-case words of letters and digits): anything else
     # never matches.
     if any(e != e.lower() for e in m.get('exe') or []) or not all(re.fullmatch(r'[a-z0-9]+( [a-z0-9]+)*', t) for t in m.get('title') or []):
@@ -396,6 +420,8 @@ def check_community(entry, quirk_keys=None, readable=None):
     m = entry.get('match') or {}
     if not any(m.get(k) for k in ('steam', 'gog', 'epic')) and not (m.get('exe') and (m.get('title') or entry.get('title'))):
         problems.append('match needs a launcher ID (steam, gog, epic) or exe names with the title')
+    if any(generic(e) for e in m.get('exe') or []):
+        problems.append('match exe: a name many games share is no game\'s identity (use a launcher ID, or the game\'s own exe)')
     if entry.get('status') != 'community-bc250':
         problems.append('status must be community-bc250')
     if entry.get('route') not in ('native', 'opti'):
@@ -680,7 +706,7 @@ def exe_titles(quirks):
     out = {}
     for e in quirks['upstream']['entries']:
         if e['comment'] and len(e['exes']) <= 2:
-            out.update({exe: norm(e['comment'][0]) for exe in e['exes']})
+            out.update({exe: loose(e['comment'][0]) for exe in e['exes']})
     return out
 
 

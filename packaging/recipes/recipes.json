@@ -2100,6 +2100,9 @@
       "title": "Alan Wake Remastered",
       "match": {
         "title": [
+          "alan wake remastered"
+        ],
+        "alias": [
           "alan wake"
         ]
       },
@@ -4669,6 +4672,9 @@
       "title": "Conan Exiles Enhanced",
       "match": {
         "title": [
+          "conan exiles enhanced"
+        ],
+        "alias": [
           "conan exiles"
         ]
       },
@@ -4758,6 +4764,9 @@
       "title": "CONTROL Ultimate Edition",
       "match": {
         "title": [
+          "control ultimate edition"
+        ],
+        "alias": [
           "control"
         ]
       },
@@ -5176,6 +5185,9 @@
       "title": "Crysis 2 Remastered",
       "match": {
         "title": [
+          "crysis 2 remastered"
+        ],
+        "alias": [
           "crysis 2"
         ]
       },
@@ -5192,6 +5204,9 @@
       "title": "Crysis 3 Remastered",
       "match": {
         "title": [
+          "crysis 3 remastered"
+        ],
+        "alias": [
           "crysis 3"
         ]
       },
@@ -5226,6 +5241,9 @@
       "title": "Crysis Remastered",
       "match": {
         "title": [
+          "crysis remastered"
+        ],
+        "alias": [
           "crysis"
         ]
       },
@@ -5957,6 +5975,9 @@
       "title": "Death Stranding: Director’s Cut",
       "match": {
         "title": [
+          "death stranding directors cut"
+        ],
+        "alias": [
           "death stranding"
         ]
       },
@@ -9316,6 +9337,9 @@
       "title": "Ghost of Tsushima DIRECTOR'S CUT",
       "match": {
         "title": [
+          "ghost of tsushima directors cut"
+        ],
+        "alias": [
           "ghost of tsushima"
         ],
         "exe": [
@@ -9775,7 +9799,10 @@
       "title": "Grand Theft Auto III - The Definitive Edition",
       "match": {
         "title": [
-          "grand theft auto 3 the"
+          "grand theft auto 3 the definitive edition"
+        ],
+        "alias": [
+          "grand theft auto 3"
         ]
       },
       "status": "wiki-reported",
@@ -9823,6 +9850,9 @@
       "title": "Grand Theft Auto III – Definitive Edition",
       "match": {
         "title": [
+          "grand theft auto 3 definitive edition"
+        ],
+        "alias": [
           "grand theft auto 3"
         ]
       },
@@ -9853,6 +9883,9 @@
       "title": "Grand Theft Auto V Enhanced",
       "match": {
         "title": [
+          "grand theft auto v enhanced"
+        ],
+        "alias": [
           "grand theft auto v"
         ]
       },
@@ -9915,7 +9948,10 @@
       "title": "Grand Theft Auto: San Andreas - The Definitive Edition",
       "match": {
         "title": [
-          "grand theft auto san andreas the"
+          "grand theft auto san andreas the definitive edition"
+        ],
+        "alias": [
+          "grand theft auto san andreas"
         ]
       },
       "status": "wiki-reported",
@@ -9963,6 +9999,9 @@
       "title": "Grand Theft Auto: San Andreas – Definitive Edition",
       "match": {
         "title": [
+          "grand theft auto san andreas definitive edition"
+        ],
+        "alias": [
           "grand theft auto san andreas"
         ]
       },
@@ -9993,7 +10032,10 @@
       "title": "Grand Theft Auto: Vice City - The Definitive Edition",
       "match": {
         "title": [
-          "grand theft auto vice city the"
+          "grand theft auto vice city the definitive edition"
+        ],
+        "alias": [
+          "grand theft auto vice city"
         ]
       },
       "status": "wiki-reported",
@@ -10041,6 +10083,9 @@
       "title": "Grand Theft Auto: Vice City – Definitive Edition",
       "match": {
         "title": [
+          "grand theft auto vice city definitive edition"
+        ],
+        "alias": [
           "grand theft auto vice city"
         ]
       },
@@ -10858,6 +10903,9 @@
       "title": "Horizon Forbidden West Complete Edition",
       "match": {
         "title": [
+          "horizon forbidden west complete edition"
+        ],
+        "alias": [
           "horizon forbidden west"
         ],
         "exe": [
@@ -10916,6 +10964,9 @@
       "title": "Horizon Zero Dawn Complete Edition",
       "match": {
         "title": [
+          "horizon zero dawn complete edition"
+        ],
+        "alias": [
           "horizon zero dawn"
         ]
       },
@@ -11060,6 +11111,9 @@
       "title": "HZD Remastered",
       "match": {
         "title": [
+          "hzd remastered"
+        ],
+        "alias": [
           "hzd"
         ]
       },
@@ -13244,6 +13298,9 @@
       "title": "Marvel’s Spider-Man Remastered",
       "match": {
         "title": [
+          "marvels spider man remastered"
+        ],
+        "alias": [
           "marvels spider man"
         ],
         "exe": [
@@ -13603,6 +13660,9 @@
       "title": "Metro Exodus Enhanced Edition",
       "match": {
         "title": [
+          "metro exodus enhanced edition"
+        ],
+        "alias": [
           "metro exodus"
         ],
         "exe": [
@@ -14700,7 +14760,10 @@
       "title": "Nioh 2: The Complete Edition",
       "match": {
         "title": [
-          "nioh 2 the"
+          "nioh 2 the complete edition"
+        ],
+        "alias": [
+          "nioh 2"
         ]
       },
       "status": "wiki-reported",
@@ -16194,6 +16257,9 @@
       "title": "Q.U.B.E. 10th Anniversary",
       "match": {
         "title": [
+          "q u b e 10th anniversary"
+        ],
+        "alias": [
           "q u b e 10th"
         ]
       },
@@ -16747,6 +16813,9 @@
       "title": "Redeemer Enhanced Edition",
       "match": {
         "title": [
+          "redeemer enhanced edition"
+        ],
+        "alias": [
           "redeemer"
         ]
       },
@@ -16821,6 +16890,9 @@
       "title": "Redout Enhanced Edition",
       "match": {
         "title": [
+          "redout enhanced edition"
+        ],
+        "alias": [
           "redout"
         ]
       },
@@ -19534,6 +19606,9 @@
       "title": "STALKER: Call of Prypiat Enhanced Edition",
       "match": {
         "title": [
+          "stalker call of prypiat enhanced edition"
+        ],
+        "alias": [
           "stalker call of prypiat"
         ]
       },
@@ -19554,6 +19629,9 @@
       "title": "STALKER: Clear Sky Enhanced Edition",
       "match": {
         "title": [
+          "stalker clear sky enhanced edition"
+        ],
+        "alias": [
           "stalker clear sky"
         ]
       },
@@ -19574,6 +19652,9 @@
       "title": "STALKER: Shadow of Chornobyl Enhanced Edition",
       "match": {
         "title": [
+          "stalker shadow of chornobyl enhanced edition"
+        ],
+        "alias": [
           "stalker shadow of chornobyl"
         ]
       },
@@ -21048,6 +21129,9 @@
       "title": "The Elder Scrolls IV: Oblivion Remastered",
       "match": {
         "title": [
+          "the elder scrolls iv oblivion remastered"
+        ],
+        "alias": [
           "the elder scrolls iv oblivion"
         ]
       },
@@ -21367,6 +21451,9 @@
       "title": "The Last of Us Part II Remastered",
       "match": {
         "title": [
+          "the last of us part 2 remastered"
+        ],
+        "alias": [
           "the last of us part 2"
         ]
       },
@@ -22018,6 +22105,9 @@
       "title": "The Sinking City Remastered",
       "match": {
         "title": [
+          "the sinking city remastered"
+        ],
+        "alias": [
           "the sinking city"
         ]
       },
@@ -24093,7 +24183,7 @@
         "title": [
           "wuthering waves"
         ],
-        "exe": [
+        "generic_exe": [
           "client-win64-shipping.exe",
           "client-wingdk-shipping.exe"
         ]

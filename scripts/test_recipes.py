@@ -200,6 +200,20 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(r.required_args(None), [])
         self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12'], required_args=['-x'])]), ['-dx12'])
 
+    def test_identity_keeps_the_edition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp)/'steamapps/common/GTAV Enhanced/GTA5_Enhanced.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b'MZ')
+            (Path(tmp)/'steamapps/appmanifest_3240220.acf').write_text(
+                '"AppState" { "appid" "3240220" "name" "Grand Theft Auto V Enhanced" "installdir" "GTAV Enhanced" }')
+            ids = r.identity(exe, (), home=tmp)
+        self.assertEqual((ids['steam'], ids['titles']), ({'3240220'}, {'grand theft auto v enhanced'}))
+        self.assertIn('gtav enhanced', ids['folders'])
+        self.assertEqual((r.norm('Grand Theft Auto V Enhanced'), r.loose('Grand Theft Auto V Enhanced')),
+                         ('grand theft auto v enhanced', 'grand theft auto v'))
+        self.assertEqual((r.loose('Nioh 2: The Complete Edition'), r.norm('Kingdom Come: Deliverance II')), ('nioh 2', 'kingdom come deliverance 2'))
+
     def test_wiki_launch_items_are_suggested_whole(self):
         wiki = [dict(title='Hero', launch=[
             dict(text='-unlockReflexOptions', kind='args'), dict(text='-forceReflexMarkers', kind='args', when=dict(fg_input='dlssg')),
@@ -468,6 +482,29 @@ class BuildTests(unittest.TestCase):
         ghost = next(w for w in self.data['wiki'] if w['title'].startswith('Ghost of Tsushima'))
         self.assertEqual([i['text'] for i in ghost['launch']], ['-unlockReflexOptions', '-disallowDLSSGOffInMenu'])
 
+    def test_identity_strength_is_data(self):
+        # Exact titles match; a title without its store edition (alias) and an exe name many games share never do, so no
+        # automatic step (promoted INI, FG-input veto, DX12 switch, not-working refusal) can act on one.
+        by = {w['title']: w for w in self.data['wiki']}
+        self.assertEqual(by['Grand Theft Auto V Enhanced']['match'], dict(title=['grand theft auto v enhanced'], alias=['grand theft auto v']))
+        self.assertEqual(by['Wuthering Waves']['match'], dict(title=['wuthering waves'],
+                                                              generic_exe=['client-win64-shipping.exe', 'client-wingdk-shipping.exe']))
+        for w in self.data['wiki']:
+            m = w['match']
+            self.assertTrue(all(t == r.norm(t) for t in m['title']) and not set(m.get('alias', [])) & set(m['title']), w['title'])
+            self.assertFalse([e for e in m.get('exe', []) if self.b.generic(e)] or [e for e in m.get('generic_exe', []) if not self.b.generic(e)])
+            for alias in m.get('alias', []):
+                game = dict(exe='game.exe', steam=set(), gog=set(), epic=set(), titles={alias}, folders={alias})
+                self.assertNotIn(w['title'], [x['title'] for x, _ in self.compat.wiki_matches(self.data, game)] +
+                                 [x['title'] for x in r.match(self.data, game)[1]])
+        # GTA V under its old title (Epic's legacy build) is not GTA V Enhanced, by recipe or wiki.
+        legacy = dict(exe='gta5.exe', steam=set(), gog=set(), epic={'9d2d0eb64d5c44529cece33fe2a46482'}, titles={'grand theft auto v'},
+                      folders={'gtav'})
+        self.assertEqual((r.match(self.data, legacy)[:2], self.compat.wiki_matches(self.data, legacy)), ((None, []), []))
+        # The shared exe name with the title: a title match (weak): shown, never acted on.
+        wuwa = dict(exe='client-win64-shipping.exe', steam=set(), gog=set(), epic=set(), titles={'wuthering waves'}, folders=set())
+        self.assertEqual([(w['title'], s) for w, s in self.compat.wiki_matches(self.data, wuwa)], [('Wuthering Waves', 'weak')])
+
     def verified(self, name='voin'):
         return json.loads((self.ROOT/'research/recipes/verified'/(name + '.json')).read_text())
 
@@ -484,7 +521,8 @@ class BuildTests(unittest.TestCase):
                  (dict(match=dict(exe=['voin.exe'], title=['VOIN'])), 'normalized'), (dict(match=dict(title=['voin'])), 'launcher ID'),
                  (dict(match=dict(steam=[2464530])), 'lists of'), (dict(ini={'Spoofing Dxgi': 'false'}), 'Section.Key'),
                  (dict(ini={'Spoofing.Dxgi': False}), 'text values'), (dict(game_settings=[dict(setting, file='/tmp/x.ini')]), 'relative'),
-                 (dict(game_settings=[dict(setting, format='yaml')]), 'format'), (dict(manual_steps='Choose DLSS.'), 'manual_steps')]
+                 (dict(game_settings=[dict(setting, format='yaml')]), 'format'), (dict(manual_steps='Choose DLSS.'), 'manual_steps'),
+                 (dict(match=dict(exe=['client-win64-shipping.exe'], steam=['1'])), 'many games share')]
         for change, message in cases:
             self.assertTrue(any(message in p for p in self.b.check_verified(dict(good, **change))), (change, message))
         self.assertEqual(self.b.check_verified(dict(good, required_args=['-nobattleye'], game_settings=[setting])), [])
@@ -557,7 +595,7 @@ class BuildTests(unittest.TestCase):
         self.assertIn(('Soulstice', 'Hotfix.ColorResourceBarrier'), shipped)
         self.assertNotIn('Alan Wake II', [t for t, _ in shipped])  # its condition ("if crashing") was missed: rejected
 
-    GOOD = dict(title='Game', match=dict(steam=['42'], exe=['game-win64-shipping.exe']), status='community-bc250', route='opti',
+    GOOD = dict(title='Game', match=dict(steam=['42'], exe=['hero-win64-shipping.exe']), status='community-bc250', route='opti',
                 fg_input='upscaler', ini={'Hotfix.ColorResourceBarrier': '4'}, game_settings=[], launch_args=['-dx12'],
                 manual_steps=['Choose DLSS.'], reports=[dict(issue=1, freefg='0.9.1', proton='GE-Proton11-7', ratio=2.0, minutes=30,
                                                              starts=3, restore_checked=True, date='2026-11-02')],
@@ -570,10 +608,11 @@ class BuildTests(unittest.TestCase):
                  (dict(fg_input='dlssg', manual_steps=[]), 'F2'), (dict(launch_args=['-dx11']), 'DX12 switches'),
                  (dict(game_settings=[dict(file='/tmp/a.ini', format='ini', section='S', values={'a': '1'})]), 'relative'),
                  (dict(reports=[dict(self.GOOD['reports'][0], ratio=1.0)]), 'below the bar'), (dict(status='verified-bc250'), 'status'),
-                 (dict(match=dict(exe=['game.exe']), title=''), 'missing title')]
+                 (dict(match=dict(exe=['game.exe']), title=''), 'missing title'),
+                 (dict(match=dict(steam=['42'], exe=['game-win64-shipping.exe'])), 'many games share')]
         for change, message in cases:
             self.assertTrue(any(message in p for p in self.b.check_community(dict(self.GOOD, **change))), (change, message))
-        quirks = {'game-win64-shipping.exe': {'Hotfix.ColorResourceBarrier': '4'}}
+        quirks = {'hero-win64-shipping.exe': {'Hotfix.ColorResourceBarrier': '4'}}
         self.assertTrue(any('Q1' in p for p in self.b.check_community(self.GOOD, quirks)))
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp)/'42.json').write_text(json.dumps(dict(self.GOOD, ini={'OptiFG.HUDFix': 'true'})))

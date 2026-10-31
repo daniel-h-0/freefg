@@ -61,10 +61,14 @@ stale preview results, and check that the game is closed before application.
 `compat.wiki_plan(data, ids, context, supported_keys=..., current=...,
 recipe_ini=..., quirk_exe=..., optiscaler_commit=...)` performs no filesystem or
 network access. Identity uses FreeFG's `wiki_matches` convention: store ID or
-executable plus title/folder is strong; title alone is weak. Integrations should
-provide the actual input/output, provider, store and proxy context, plus the keys
-supported by the selected OptiScaler build. `current` and `recipe_ini` use
-`Section.Key` strings.
+executable plus title/folder is strong; title alone is weak. Titles compare as
+`recipes.norm()` gives them, edition included ("grand theft auto v enhanced").
+`match.alias` (a title without its store edition, `recipes.loose()`) and
+`match.generic_exe` (an exe name many games share) are kept apart from `title`
+and `exe` and never matched: sometimes they name another game, so integrations
+should not act on them either. Integrations should provide the actual
+input/output, provider, store and proxy context, plus the keys supported by the
+selected OptiScaler build. `current` and `recipe_ini` use `Section.Key` strings.
 
 `compat.select_wiki_settings(plan, selected_ids, confirmed_ids)` validates the
 selection and returns `settings` (`Section.Key → value`), `selected` provenance

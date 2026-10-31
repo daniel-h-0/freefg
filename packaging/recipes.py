@@ -2,11 +2,12 @@
 """Per-game recipes (recipes/recipes.json; rules in the source tree's research/recipes/RULES.md).
 
 A recipe is matched by launcher ID (Steam AppID, GOG/Epic app name), or by executable name together with the game's
-title or folder. Only recipes verified on a BC-250 are applied: their OptiScaler keys (only where the INI still says
-auto), frame-generation input, game-setting edits for the recipe's route (each key's original recorded, so Restore
-undoes them even in a file the game rewrote since), DX12 launch arguments and the arguments the game always needs
-(required_args). OptiScaler's own per-game quirks keep working because keys they set are left at auto. OptiScaler
-wiki reports add DX12 launch arguments; everything else from the wiki is shown as suggestions with the page link.
+exact title or folder (never by a title without its store edition, nor by an exe name many games share). Only recipes
+verified on a BC-250 are applied: their OptiScaler keys (only where the INI still says auto), frame-generation input,
+game-setting edits for the recipe's route (each key's original recorded, so Restore undoes them even in a file the
+game rewrote since), DX12 launch arguments and the arguments the game always needs (required_args). OptiScaler's own
+per-game quirks keep working because keys they set are left at auto. OptiScaler wiki reports add DX12 launch
+arguments; everything else from the wiki is shown as suggestions with the page link.
 """
 import hashlib, html, json, re
 from pathlib import Path
@@ -42,17 +43,25 @@ def load(path=FILE):
     return data
 
 
-# Store editions of the same game: "Crimson Desert Enhanced", "The Witcher 3: Wild Hunt - Game of the Year Edition".
-EDITION = re.compile(r'(\s+(game of the year|goty|enhanced|definitive|complete|deluxe|gold|ultimate|anniversary|remastered|'
+# Store editions: "Crimson Desert Enhanced", "The Witcher 3: Wild Hunt - Game of the Year Edition". A title without its
+# edition is a loose alias: sometimes the same game, sometimes another (GTA V Legacy and Enhanced, Crysis and Crysis
+# Remastered). The recipe file lists aliases apart from titles (match.alias); nothing here matches by them.
+EDITION = re.compile(r'(\s+(the\s+)?(game of the year|goty|enhanced|definitive|complete|deluxe|gold|ultimate|anniversary|remastered|'
                      r'directors cut|standard|premium)(\s+edition)?)+$')
 
 
 def norm(title):
+    """A title as recipes match it: lower-case words of letters and digits (II and III as 2 and 3, & as and), without
+    notes in parentheses such as a year."""
     t = re.sub(r'\([^)]*\)', '', title.lower()).replace('&', 'and').replace('’', "'").replace('‐', '-')
     t = re.sub(r"[^a-z0-9]+", ' ', t.replace("'", '')).strip()
     t = re.sub(r'\bii\b', '2', t)
-    t = re.sub(r'\biii\b', '3', t)
-    return EDITION.sub('', t).strip()
+    return re.sub(r'\biii\b', '3', t)
+
+
+def loose(title):
+    """The title without its store edition: the alias recipe files list apart from titles (never matched)."""
+    return EDITION.sub('', norm(title)).strip()
 
 
 def _steam_manifest(exe):
