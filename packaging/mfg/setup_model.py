@@ -91,8 +91,11 @@ class Context:
         return version(self.release)
 
     def command(self, args):
-        """The process that runs install.py with args (unbuffered, so its lines arrive as it prints them)."""
-        return [sys.executable, '-u', str(self.root / 'install.py'), *map(str, args)]
+        """The process that runs install.py with args (unbuffered, so its lines arrive as it prints them), with its event
+        lines where this installer prints them (--events; last, as an option between the command and its games would
+        leave argparse an empty list of games)."""
+        events = ['--events'] if getattr(self.installer, 'EVENT_PREFIX', None) == EVENT_PREFIX else []
+        return [sys.executable, '-u', str(self.root / 'install.py'), *map(str, args), *events]
 
 
 def version(name):
@@ -127,7 +130,9 @@ class Game:
     unavailable or its record cannot be read; present: its executable is there; tracked: Update all finds it (the
     library index or a launcher entry); added: chosen in this session with Add Game; run: the last session's logs of an
     installed game; settings: its frame-generation settings; verdict: the compatibility verdict Install starts from, once
-    checked (checked: the check ran; a None verdict then means it could not)."""
+    checked (checked: the check ran; a None verdict then means it could not); change: what Rollback would undo
+    (last_change); activation: the installer's reading of the launch settings of an installation without a launcher
+    entry (manual_activation)."""
     exe: Path
     title: str = ''
     record: dict = None
@@ -140,6 +145,8 @@ class Game:
     verdict: dict = None
     checked: bool = False
     integrity: dict = None
+    change: dict = None
+    activation: tuple = None
 
     @property
     def key(self):
@@ -269,6 +276,8 @@ def load_game(ctx, exe, titles=None, tracked=False, added=False, inventory=None)
             game.run = compat.last_run(exe.parent.resolve(), game.record.get('route'), **installer.run_scope(game.record))
         except Exception:  # noqa: BLE001 - the logs are evidence, not a requirement
             game.run = None
+        game.change = last_change(ctx, game.record, exe)
+        game.activation = manual_activation(ctx, game.record, game.run)
     return game
 
 
@@ -643,9 +652,16 @@ def settings_support(record, max_factor=2):
                 factors=list(range(2, top + 1)) if (record or {}).get('route') == 'opti' else [2])
 
 
+# The state of a recorded launcher entry (integrity), in the words Health shows beside its launcher's name.
+LAUNCHER_STATES = {'installed': 'as installed', 'changed': 'changed since installation', 'missing': 'entry not found',
+                   'unreadable': 'could not be read'}
+
+
 def integrity(ctx, game):
     """What changed since installation, as Status reports it: program files whose bytes differ from the record (settings
-    files are the user's to change and are left out) and launcher entries no longer as installed."""
+    files are the user's to change and are left out) and the state of each recorded launcher entry (LAUNCHER_STATES):
+    'missing' when the user removed the entry or its file, 'unreadable' when its file is no longer one the launcher
+    writes (a malformed Lutris YAML, a Heroic file of another shape)."""
     installer, record = ctx.installer, game.record or {}
     root = game.exe.parent.resolve()
     changed, launchers = [], []
@@ -662,14 +678,20 @@ def integrity(ctx, game):
             changed.append(path)
     try:
         import launcher_config
-        for target in record.get('launchers') or []:
-            try:
-                same = launcher_config.fields(target, Path(target['path']).read_bytes()) == target['after']
-            except (OSError, ValueError, KeyError):
-                same = False
-            launchers.append((str(target.get('launcher', 'launcher')).capitalize(), same))
     except ImportError:
-        pass
+        return dict(changed=changed, launchers=launchers)
+    for target in record.get('launchers') or []:
+        try:
+            path = Path(target['path'])
+            if path.is_symlink() or not path.is_file():
+                state_ = 'missing'
+            else:
+                state_ = 'installed' if launcher_config.fields(target, path.read_bytes()) == target['after'] else 'changed'
+        except launcher_config.Missing:
+            state_ = 'missing'
+        except Exception:  # noqa: BLE001 - one unreadable launcher file is a finding, never a check that does not end
+            state_ = 'unreadable'
+        launchers.append((str(target.get('launcher', 'launcher')).capitalize(), state_))
     return dict(changed=changed, launchers=launchers)
 
 
@@ -677,7 +699,7 @@ def integrity(ctx, game):
 @dataclass
 class PlanItem:
     """One game in the update review: install.update_plan's status (or Setup's running, unavailable, failed), its reason,
-    the releases, the changes (line, detail lines) and notes, and the plan's own lines."""
+    the releases, the changes (line, detail lines) and notes, the plan's own lines, and its digest (plan_digest)."""
     exe: Path
     title: str
     status: str
@@ -687,6 +709,7 @@ class PlanItem:
     changes: list = field(default_factory=list)
     notes: list = field(default_factory=list)
     lines: list = field(default_factory=list)
+    digest: str = None
 
     @property
     def group(self):
@@ -722,6 +745,7 @@ def plan_game(ctx, game, component='all', refresh=False):
         return PlanItem(game.exe, game.title, 'failed', reason=str(error))
     item = PlanItem(game.exe, game.title, plan['status'], plan.get('reason') or '', plan.get('source'), plan.get('target'))
     item.lines = installer.plan_lines(plan)
+    item.digest = plan_digest(ctx, plan)
     if plan['status'] == 'update':
         item.changes, item.notes = split_plan(item.lines)
         try:
@@ -749,9 +773,22 @@ def plan_reason(item, ctx):
     return item.reason
 
 
-def update_args(exe, component='all', refresh=False):
+def plan_digest(ctx, plan):
+    """The digest of an update plan that install.py update --expect-plan checks again before it changes anything, so the
+    update runs the plan the review showed; None where this installer offers no such check (installer.plan_digest)."""
+    digest = getattr(ctx.installer, 'plan_digest', None)
+    if not callable(digest):
+        return None
+    try:
+        value = digest(plan)
+    except Exception:  # noqa: BLE001 - without a digest the update plans again, as it always did
+        return None
+    return value if isinstance(value, str) and re.fullmatch(r'[0-9a-f]{16,128}', value) else None
+
+
+def update_args(exe, component='all', refresh=False, expect=None):
     return ['update', str(exe), *(['--component', component] if component != 'all' else []),
-            *(['--refresh-recipe'] if refresh else [])]
+            *(['--refresh-recipe'] if refresh else []), *(['--expect-plan', expect] if expect else [])]
 
 
 # ----------------------------------------------------------------------------------------------- upscalers
@@ -782,11 +819,16 @@ def hlx_catalog(ctx):
         return None
 
 
+def built_in_provider():
+    """FSR 4, which every package installs and nothing has to prepare."""
+    return Provider('fsr4', 'FSR 4', 'AMD FSR 4, BC-250 build. The default; downloaded by checked hash.', detail='Built in')
+
+
 def providers(ctx):
     """The upscalers this package installs, each with whether it is ready on this computer. HLX preparation is checked
     by hashing the prepared files (hlx.find): call it off the window's thread."""
     installer = ctx.installer
-    out = [Provider('fsr4', 'FSR 4', 'AMD FSR 4, BC-250 build. The default; downloaded by checked hash.', detail='Built in')]
+    out = [built_in_provider()]
     if hlx_catalog(ctx):
         about = {'hlx-dlss': 'Helix DLSS network, prepared on this computer',
                  'hlx-fsr4': 'Helix FSR 4 provider, prepared on this computer'}
@@ -817,7 +859,10 @@ def game_providers(ctx, game, prepared):
     catalog = hlx_catalog(ctx)
     if not catalog or not game.installed:
         return result
+    # Read again: the installation may have been restored (or its record removed) since the page was drawn.
     record = read_record(ctx.installer, game.exe)
+    if not isinstance(record, dict) or not isinstance(record.get('upscaler') or {}, dict):
+        return result
     current = record.get('upscaler') or {}
     legacy = current.get('legacy_target') or current.get('target')
     if not legacy:
@@ -848,6 +893,16 @@ def wiki_settings_plan(ctx, game):
             r'[0-9a-f]{64}', str(plan.get('digest') or '')):
         raise ValueError('This package returned an unsupported wiki settings plan')
     return plan
+
+
+def wiki_rivals(rows):
+    """{row id: the ids of the other rows that set the same key to another value}. The installer writes one value per key
+    and refuses a selection with two (compat.select_wiki_settings), so Setup lets one of them be selected at a time."""
+    by_key = {}
+    for row in rows:
+        by_key.setdefault(str(row.get('key') or '').lower(), []).append(row)
+    return {row['id']: [other['id'] for other in by_key[str(row.get('key') or '').lower()]
+                        if other['id'] != row['id'] and str(other.get('value')) != str(row.get('value'))] for row in rows}
 
 
 def wiki_settings_args(game, plan, selected, confirmed):
@@ -923,3 +978,190 @@ def summary_lines(lines):
         if (line.startswith('  ') and not line.startswith('    ')) or text.startswith(SUMMARY):
             out.append(text)
     return list(dict.fromkeys(out))
+
+
+# ----------------------------------------------------------------------------------------------- the installer's events
+# install.py --events (Setup passes it to every command it runs): event lines among the ordinary output, each
+# EVENT_PREFIX and a JSON object {"v": 1, "type": ...}. Setup reads outcome, changed, step and manual events and, for a
+# type an installer sends none of, the ordinary lines as before (an installer from before the events).
+EVENT_PREFIX = 'FREEFG-EVENT '
+# install.py's exit status when it refused before changing anything: a game or launcher still running, a held lock, a
+# compatibility refusal, a game that needs attention first. 1 is a failure.
+REFUSED = 3
+# How the player's steps read, by where they are taken (a step event's 'where'; settings steps name themselves).
+STEP_PREFIX = {'launcher': 'In your launcher: ', 'game': 'In game: '}
+# What a manual event asks of the player for the launch settings they keep in their own launcher.
+MANUAL_ACTIONS = ('set', 'replace', 'remove')
+
+
+def parse_event(line):
+    """The event an output line of install.py --events carries (a dict with its type), None for an ordinary line. A line
+    with the prefix in a version this Setup does not read is None too: neither shown nor trusted."""
+    if not line.startswith(EVENT_PREFIX):
+        return None
+    try:
+        found = json.loads(line[len(EVENT_PREFIX):])
+    except ValueError:
+        return None
+    return found if isinstance(found, dict) and found.get('v') == 1 and isinstance(found.get('type'), str) else None
+
+
+def valid_launch(settings):
+    """Whether settings are launch settings Setup can show (a manual_launch record: env, a dict of strings)."""
+    return isinstance(settings, dict) and isinstance(settings.get('env'), dict) and \
+        all(isinstance(k, str) and isinstance(v, str) for k, v in settings['env'].items())
+
+
+def step_line(found):
+    """A step event as Setup lists it: its text, after where it is taken unless the text says so itself."""
+    text = str(found.get('text') or '').strip()
+    prefix = STEP_PREFIX.get(found.get('where'), '')
+    return text if not prefix or text.startswith((*STEP_PREFIX.values(), 'Game setting')) else prefix + text
+
+
+def outcome(lines, events=()):
+    """What one install.py command reported about its game: dict(result: its outcome event's, None without one; changed:
+    what it changed; steps: what is left to the player; manual: [(action, settings)], launch settings for a launcher this
+    installer does not edit). Each from the command's events, or from its ordinary lines where it sent no event of that
+    type."""
+    typed = {}
+    for found in events:
+        typed.setdefault(found['type'], []).append(found)
+    results = [e['result'] for e in typed.get('outcome', []) if isinstance(e.get('result'), str)]
+    changed = [str(e.get('text')).strip() for e in typed['changed'] if str(e.get('text') or '').strip()] \
+        if 'changed' in typed else summary_lines(lines)
+    steps = [step_line(e) for e in typed['step'] if str(e.get('text') or '').strip()] if 'step' in typed else next_steps(lines)
+    manual = [(e['action'], e['settings']) for e in typed.get('manual', [])
+              if e.get('action') in MANUAL_ACTIONS and valid_launch(e.get('settings'))]
+    return dict(result=results[-1] if results else None, changed=list(dict.fromkeys(changed)),
+                steps=list(dict.fromkeys(steps)), manual=manual, manual_events='manual' in typed)
+
+
+def command_outcome(ctx, args, lines, events=()):
+    """outcome() of a finished install.py command (args), with the launch settings an installer without manual events
+    only prints: when its output asks for a step in the player's launcher, the game's record (read again) names them;
+    set after Install, remove after Restore, replace after anything else (an update or rollback that changed them)."""
+    found = outcome(lines, events)
+    if found['manual'] or found['manual_events'] or len(args) < 2 or not Path(str(args[1])).is_absolute() or \
+            not any(line.strip().startswith(STEP_PREFIX['launcher']) for _, line in lines):
+        return found
+    try:
+        settings = (read_record(ctx.installer, Path(args[1])) or {}).get('manual_launch')
+    except (OSError, ValueError):
+        return found
+    if valid_launch(settings):
+        found['manual'] = [({'install': 'set', 'restore': 'remove'}.get(args[0], 'replace'), settings)]
+    return found
+
+
+# ----------------------------------------------------------------------------------------------- manual launch settings
+def manual_settings(record):
+    """The launch settings of an installation without a launcher entry (record manual_launch), None for any other."""
+    settings = (record or {}).get('manual_launch')
+    return settings if valid_launch(settings) and not (record or {}).get('launchers') else None
+
+
+def launch_forms(settings):
+    """Launch settings in the forms Setup offers to copy (launcher_config's helpers, I-2): dict(line: Steam's one
+    launch-options line; table: [(name, value)] for a launcher's environment table; args: the game's arguments; remove:
+    names to delete where present; text: the lines install.py prints; merge: whether some values join the player's own).
+    None when this build cannot read them (Installation Details still prints them)."""
+    try:
+        import launcher_config
+        return dict(line=launcher_config.manual_steam_line(settings), table=list(launcher_config.manual_env_table(settings)),
+                    args=list(launcher_config.manual_args(settings)), remove=list(launcher_config.manual_removals(settings)),
+                    text=list(launcher_config.manual_lines(settings)), merge=bool(settings.get('merge')))
+    except Exception:  # noqa: BLE001 - settings of another format are shown as the installer prints them
+        return None
+
+
+def manual_activation(ctx, record, run):
+    """For an installation without a launcher entry: (confirmed, line), the installer's own reading of whether the last
+    session ran with the launch settings the player added (installer.manual_activation(record, run), the reading
+    install.py status prints), or None where this installer has none. Setup shows it as it is and never derives it from
+    the logs itself."""
+    reading = getattr(ctx.installer, 'manual_activation', None)
+    if not callable(reading) or manual_settings(record) is None:
+        return None
+    try:
+        confirmed, line = reading(record, run)
+    except Exception:  # noqa: BLE001 - a reading that fails is no reading
+        return None
+    return bool(confirmed), str(line or '').strip()
+
+
+# ----------------------------------------------------------------------------------------------- what Rollback undoes
+# A generation's kind as an installer records it (record generations[], generation.json), in Setup's four words.
+GENERATION_KINDS = {'release': 'release', 'update': 'release', 'provider': 'provider', 'upscaler': 'provider',
+                    'settings': 'settings', 'ini': 'settings', 'wiki': 'settings', 'wiki-settings': 'settings'}
+
+
+def last_change(ctx, record, exe):
+    """What Rollback undoes in an installed game, its newest saved generation, or None without one: dict(kind: release
+    (an update to another release), provider (an upscaler switch), settings (wiki INI settings) or change (anything else
+    within a release); release: the release it returns to; to: the one it leaves; settings: [(key, value)] the wiki
+    settings it takes back; upscaler: the upscaler it returns to; launch: the launch settings it returns to when the
+    change also changed those of an installation without a launcher entry; launch_changed: the newest saved change that
+    did (dict(to, at)); missing: its saved files are gone or unreadable, so Rollback cannot run)."""
+    history = [entry for entry in (record or {}).get('generations') or [] if isinstance(entry, dict)]
+    if not history:
+        return None
+
+    def generation(entry):
+        try:
+            found = ctx.installer.load_generation(Path(exe).parent.resolve() / ctx.installer.STATE, entry.get('id'))
+        except Exception:  # noqa: BLE001 - a generation this build cannot read is one Rollback cannot use
+            return None
+        return found if isinstance(found, dict) else None
+    entry = history[-1]
+    saved = generation(entry)
+    before, after = (saved or {}).get('metadata_before') or {}, (saved or {}).get('metadata_after') or {}
+    kind = GENERATION_KINDS.get(str(entry.get('kind') or (saved or {}).get('kind') or ''))
+    if kind is None:
+        if 'wiki_settings' in after or (saved or {}).get('operation') == 'wiki-settings':
+            kind = 'settings'
+        elif entry.get('from') != entry.get('to'):
+            kind = 'release'
+        elif 'upscaler' in after:
+            kind = 'provider'
+        else:
+            kind = 'change'
+    wiki = after.get('wiki_settings') if isinstance(after.get('wiki_settings'), dict) else {}
+    settings = [(str(k), str(v)) for k, v in (wiki.get('settings') or {}).items()] if isinstance(wiki.get('settings'), dict) else []
+    upscaler = provider_label(dict(upscaler=before['upscaler'])) if isinstance(before.get('upscaler'), dict) else None
+    launch = before.get('manual_launch') if 'manual_launch' in after and valid_launch(before.get('manual_launch')) else None
+    changed = None
+    for older in reversed(history):
+        found = saved if older is entry else generation(older)
+        if 'manual_launch' in ((found or {}).get('metadata_after') or {}):
+            changed = dict(to=older.get('to'), at=str(older.get('at') or '')[:10])
+            break
+    return dict(kind=kind, release=entry.get('from'), to=entry.get('to'), settings=settings, upscaler=upscaler,
+                launch=launch, launch_changed=changed, missing=saved is None)
+
+
+def change_words(change):
+    """How Setup names what Rollback undoes (last_change): (row title, row text, confirmation heading, confirmation body,
+    where {game} stands for the game's title)."""
+    release = version(change.get('release'))
+    if change.get('missing'):
+        return ('Roll back', 'The files the last change saved are missing: Restore, then install again.', None, None)
+    if change['kind'] == 'settings':
+        named = ', '.join(f'{key} = {value}' for key, value in change['settings'][:3]) + \
+            (f' and {len(change["settings"]) - 3} more' if len(change['settings']) > 3 else '')
+        return ('Undo wiki settings' + (f' ({named})' if named else ''),
+                'OptiScaler.ini gets back the values it had before you applied them. Nothing else changes.',
+                'Undo wiki settings?',
+                'OptiScaler.ini in {game} gets back the values it had before' + (f': {named}' if named else '') +
+                '. Other settings are kept.')
+    if change['kind'] == 'provider':
+        back = change.get('upscaler') or 'the upscaler it had before'
+        return ('Undo the upscaler switch', f'Back to {back}, byte for byte. Your settings are kept.',
+                'Undo the upscaler switch?', '{game} returns to ' + back + ', byte for byte. Your settings are kept.')
+    if change['kind'] == 'release':
+        return (f'Roll back to {release}', f'Return to {release}, the release before the last update, byte for byte.',
+                f'Roll back to {release}?',
+                '{game} returns to ' + release + ', the release before its last update, byte for byte. Your settings are kept.')
+    return ('Undo the last change', f'Return to {release} as it was before its last change, byte for byte.',
+            'Undo the last change?',
+            '{game} returns to how it was before its last change within ' + release + ', byte for byte. Your settings are kept.')

@@ -91,7 +91,8 @@ keys through the existing transaction. The installed release and runtime stay in
 applied selection; Restore retains its normal handling of original values and later edits. Wiki suggestions are
 community evidence, not per-game qualification on your hardware.
 
-The command line also supports this review, including when using the Zenity fallback:
+In the Zenity fallback, **Wiki settings** lists the same suggestions as a checklist for one selected game and asks you
+to confirm their conditions. The command line supports this review too:
 
 ```sh
 python3 install.py wiki-plan GAME.exe
