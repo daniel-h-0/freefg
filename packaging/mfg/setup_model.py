@@ -1099,18 +1099,20 @@ def manual_activation(ctx, record, run):
 
 
 # ----------------------------------------------------------------------------------------------- what Rollback undoes
-# A generation's kind as an installer records it (record generations[], generation.json), in Setup's four words.
+# A generation's kind as an installer records it (record generations[], generation.json), in Setup's words.
 GENERATION_KINDS = {'release': 'release', 'update': 'release', 'provider': 'provider', 'upscaler': 'provider',
-                    'settings': 'settings', 'ini': 'settings', 'wiki': 'settings', 'wiki-settings': 'settings'}
+                    'settings': 'settings', 'ini': 'settings', 'wiki': 'settings', 'wiki-settings': 'settings',
+                    'recipe': 'recipe'}
 
 
 def last_change(ctx, record, exe):
     """What Rollback undoes in an installed game, its newest saved generation, or None without one: dict(kind: release
-    (an update to another release), provider (an upscaler switch), settings (wiki INI settings) or change (anything else
-    within a release); release: the release it returns to; to: the one it leaves; settings: [(key, value)] the wiki
-    settings it takes back; upscaler: the upscaler it returns to; launch: the launch settings it returns to when the
-    change also changed those of an installation without a launcher entry; launch_changed: the newest saved change that
-    did (dict(to, at)); missing: its saved files are gone or unreadable, so Rollback cannot run)."""
+    (an update to another release), provider (an upscaler switch), settings (wiki INI settings), recipe (a recipe refresh
+    within the release) or change (anything else within a release); release: the release it returns to; to: the one it
+    leaves; settings: [(key, value)] the wiki settings it takes back; upscaler: the upscaler it returns to; launch: the
+    launch settings it returns to when the change also changed those of an installation without a launcher entry;
+    launch_changed: the newest saved change that did (dict(to, at)); missing: its saved files are gone or unreadable, so
+    Rollback cannot run)."""
     history = [entry for entry in (record or {}).get('generations') or [] if isinstance(entry, dict)]
     if not history:
         return None
@@ -1134,6 +1136,8 @@ def last_change(ctx, record, exe):
             kind = 'provider'
         else:
             kind = 'change'
+    elif kind == 'release' and entry.get('from') == entry.get('to'):
+        kind = 'change'  # an earlier build's recipe refresh, or a loader switch: within one release
     wiki = after.get('wiki_settings') if isinstance(after.get('wiki_settings'), dict) else {}
     settings = [(str(k), str(v)) for k, v in (wiki.get('settings') or {}).items()] if isinstance(wiki.get('settings'), dict) else []
     upscaler = provider_label(dict(upscaler=before['upscaler'])) if isinstance(before.get('upscaler'), dict) else None
@@ -1166,6 +1170,11 @@ def change_words(change):
         back = change.get('upscaler') or 'the upscaler it had before'
         return ('Undo the upscaler switch', f'Back to {back}, byte for byte. Your settings are kept.',
                 'Undo the upscaler switch?', '{game} returns to ' + back + ', byte for byte. Your settings are kept.')
+    if change['kind'] == 'recipe':
+        return ('Undo the recipe refresh', f'Return to {release} as it was before the recipe refresh, byte for byte.',
+                'Undo the recipe refresh?',
+                '{game} returns to how it was before its recipe refresh within ' + release + ', byte for byte. Your '
+                'settings are kept.')
     if change['kind'] == 'release':
         return (f'Roll back to {release}', f'Return to {release}, the release before the last update, byte for byte.',
                 f'Roll back to {release}?',

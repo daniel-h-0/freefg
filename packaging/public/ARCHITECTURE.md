@@ -321,8 +321,9 @@ compatible core changes proceed. The transaction saves old bytes, permissions, m
 metadata before recording a pending operation. Rollback restores that generation, preserves later settings edits and
 provider choices outside the update's scope, and refuses conflicting binary edits. Interrupted updates are undone;
 interrupted rollbacks finish before another update starts. Missing or damaged recovery data leaves the journal intact.
-One completed generation of each kind is retained per game: an update or provider switch, and wiki INI settings.
-Rollback undoes the newest. This is per-game recovery, not an atomic transaction across a library.
+One completed generation of each kind is retained per game: an update or provider switch, a recipe refresh within the
+installed release, and wiki INI settings. Rollback undoes the newest. This is per-game recovery, not an atomic
+transaction across a library.
 
 `manifest.json.update_contract` and the game record agree on format, layout and configuration versions. Legacy
 1.1.3.1/1.1.4/1.1.5 records are explicitly imported. Core version downgrades are refused; Rollback uses saved bytes.
