@@ -488,8 +488,8 @@ def manual_launch_lines(step,settings,action='set',previous=None):
     return ['In your launcher: '+step]+['    '+line for line in launcher_config.manual_lines(settings)+extra]
 
 def manual_step(step,settings,action='set',previous=None):
-    """Print manual_launch_lines() and emit their events: the settings (manual: set, replace or remove) and the step
-    (where: launcher), whose text is the step's line."""
+    """Print manual_launch_lines() and emit their events: the settings (manual: set, replace or remove; a replace also
+    names the previous settings) and the step (where: launcher), whose text is the step's line."""
     lines=manual_launch_lines(step,settings,action,previous)
     for line in lines:print(line)
     event('manual',action=action,settings=settings,**({'previous':previous} if previous is not None else {}))
@@ -2172,6 +2172,12 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
                      cache=cache,
                      previous_owner=integration['previous_owner'],required=required_args)
     except ValueError as error:return stop('blocked',str(error))
+    # A Lutris entry without an argument the game always needs (Lutris's game arguments are the user's to edit), as
+    # Install refuses one.
+    import launcher_config
+    missing=[c for c in launcher_config.conflicts(Path(record['game']),[row for row in record.get('launchers') or [] if row['launcher']=='lutris'],
+                                                  required=required_args) if c['code']=='required-args']
+    if missing:return stop('blocked',missing[0]['text']+' '+missing[0]['way'])
     out['launcher_ops']=migrations['operations']
     if migrations['records']!=record.get('launchers',[]):out['metadata']['launchers']=migrations['records']
     if migrations['operations']:out['metadata']['launcher_policy_keys']=migrations['policy_keys']

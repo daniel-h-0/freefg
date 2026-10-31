@@ -119,6 +119,21 @@ class LauncherMigrationTests(UpdateFixture):
         self.run_quiet(m.update,self.exe,self.new);m.restore(self.exe)
         self.assertEqual(self.config.read_bytes(),original)
 
+    def test_an_update_needs_a_lutris_entry_to_carry_the_required_argument(self):
+        # GTA V Enhanced in Lutris under 1.2.0 ("Launch option not added"): Lutris's arguments are the user's, so the
+        # update needs attention until the entry has it.
+        from vendor import yaml
+        self.config.unlink()
+        lutris=self.root/'.config/lutris/games/game.yml'
+        doc=dict(game={'exe':str(self.exe),'args':'-dx12'},system={'env':{}});m.write(lutris,yaml.safe_dump(doc).encode())
+        m.install(self.package,self.exe,route='opti')
+        record=self.record();record['launch_args']=['-nobattleye'];record.pop('required_args',None)
+        (self.game/m.STATE/'state.json').write_text(json.dumps(record))
+        status,out=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'blocked');self.assertIn('In Lutris, add -nobattleye to the game\'s Arguments',out)
+        doc['game']['args']='-dx12 -nobattleye';m.write(lutris,yaml.safe_dump(doc).encode())
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
+
     def test_recipe_refresh_keeps_a_required_argument_once(self):
         m.install(self.package,self.exe,route='opti')
         record=self.record();record.update(launch_args=['-nobattleye'],recipe=dict(title='GTA',launch_args=['-nobattleye']))
