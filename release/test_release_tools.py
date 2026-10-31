@@ -1843,19 +1843,13 @@ class ForkSource(unittest.TestCase):
         self.assertEqual(self.archive('out-filled')[0]['warnings'], [])
 
     def test_the_fork_group_after_its_release(self):
-        """release_fetch's own instruction, followed literally: the group moves to "fetch" with the placeholders filled,
-        "enabled" (and the note) removed and the source record moved with it, and the work group is dropped. The
-        companion and the archive tool read the group there."""
-        about = json.loads((TREE / 'release/inputs.lock.json').read_text())['work']['optiscaler-fork']['release_fetch']
-        self.assertRegex(about['about'], r'"source" record \(commit, tree, tag, tag_commit, build_route, archive, '
-                                         r'\.\.\.\) moves with it')
+        """The group under "fetch" (as the real lock has it since the fork's release: placeholders filled, "enabled" and
+        the note removed, the source record moved with it, the work group dropped): the companion and the archive tool
+        read it there."""
         config = self.config()
         work = config.lock['work'].pop('optiscaler-fork')
-        template = dict(about, commit=self.tag_commit, files=work['files'])
-        fetch = {key: value.replace('[OPTISCALER-FORK-SOURCE-URL]', 'https://example.invalid/fork')
-                 .replace('[OPTISCALER-FORK-TAG]', 'bc250-test') if isinstance(value, str) else value
-                 for key, value in template.items() if key not in ('enabled', 'about')}
-        fetch['source'] = work['source']
+        fetch = dict(repository='https://example.invalid/fork', commit=self.tag_commit, files=work['files'],
+                     url='https://example.invalid/fork/releases/download/bc250-test/{path}', source=work['source'])
         config.lock['fetch']['optiscaler-fork'] = fetch
         files, pins = self.companion.fork_files(config)
         self.assertEqual((files['FORK.md'][0], pins['tag_commit']), (b'# Fork\n', self.tag_commit))
@@ -1943,13 +1937,15 @@ class OptiScalerNotices(unittest.TestCase):
 
 
 class OptiScalerForkLock(unittest.TestCase):
-    """inputs.lock.json's OptiScaler fork group: the build route and tag the source offer needs, the prepared (and
-    switched off) fetch group of the fork's release, and a public projection without internal notes."""
+    """inputs.lock.json's OptiScaler fork group: the build route and tag the source offer needs, the fetch group of the
+    fork's public release (moved from "work" as its release_fetch template said), and a public projection without
+    internal notes."""
 
     @classmethod
     def setUpClass(cls):
+        import config
         cls.lock = json.loads((TREE / 'release/inputs.lock.json').read_text())
-        cls.group = cls.lock['work']['optiscaler-fork']
+        cls.section, cls.group = config.fork_group(cls.lock)
 
     def test_build_route_and_tag(self):
         source = self.group['source']
@@ -1961,33 +1957,34 @@ class OptiScalerForkLock(unittest.TestCase):
                              (source['tag_commit'], source['commit'], source['tag']))
             self.assertEqual(archive['name'], f'OptiScaler-{source["tag"]}-source.tar.xz')
 
-    def test_release_fetch_template_is_off(self):
-        template = self.group['release_fetch']
-        self.assertIs(template['enabled'], False)
-        self.assertNotIn('optiscaler-fork', self.lock['fetch'])
-        self.assertEqual(template['files'], self.group['files'])
-        self.assertEqual(template['commit'], self.group['source']['tag_commit'])
-        self.assertIn('{path}', template['url'])
-        self.assertTrue({'[OPTISCALER-FORK-SOURCE-URL]', '[OPTISCALER-FORK-TAG]'} <= set(re.findall(r'\[[A-Z-]+\]',
-                                                                                                    template['url'])))
-        filled = template['url'].replace('[OPTISCALER-FORK-SOURCE-URL]', 'https://example.invalid/fork') \
-            .replace('[OPTISCALER-FORK-TAG]', 'bc250-test')
-        self.assertEqual(filled.format(commit=template['commit'], path='OptiScaler.dll'),
-                         'https://example.invalid/fork/releases/download/bc250-test/OptiScaler.dll')
+    def test_fetch_group_of_the_release(self):
+        """The fork's release is fetched by pinned hash: the group is under "fetch" only, at the tag commit, its URL the
+        release's download folder for the locked tag, without the template's placeholders or switches."""
+        self.assertEqual(self.section, 'fetch')
+        self.assertNotIn('optiscaler-fork', self.lock['work'])
+        group, source = self.group, self.group['source']
+        self.assertEqual(group['commit'], source['tag_commit'])
+        self.assertEqual(sorted(group['files']), ['OptiScaler.dll', 'OptiScaler.ini'])
+        self.assertFalse({'enabled', 'about', 'release_fetch'} & set(group))
+        self.assertEqual(group['url'].format(commit=group['commit'], path='OptiScaler.dll'),
+                         f'{group["repository"]}/releases/download/{source["tag"]}/OptiScaler.dll')
+        self.assertFalse(re.findall(r'\[[A-Z-]+\]', json.dumps(group)))
 
     def test_public_projection_has_no_internal_notes(self):
         import export_tree
         public, report = export_tree.public_lock(self.lock)
-        group = public['work']['optiscaler-fork']
+        group = public[self.section]['optiscaler-fork']
         # source.branch is the fork's branch until its public name is chosen
         text = json.dumps(group).replace(json.dumps(group['source']['branch']), '')
         for word in ('Private', 'private', 'tester', 'noreply', 'rewrite', 'research_record', 'evidence/', 'previous_build',
                      'source_in_work_note', 'fg-controls', 'slmutex'):
             self.assertNotIn(word, text)
-        self.assertEqual((group['path'], group['source']['source_in_work']), ('OptiScaler-build', 'OptiScaler'))
+        self.assertEqual(group['source']['source_in_work'], 'OptiScaler')
+        if self.section == 'work':
+            self.assertEqual(group['path'], 'OptiScaler-build')
+            self.assertEqual(group['release_fetch'], self.group['release_fetch'])
         self.assertNotIn('private', json.dumps(public['fetch']['optiscaler-license']))
         self.assertEqual(group['files'], self.group['files'])
-        self.assertEqual(group['release_fetch'], self.group['release_fetch'])
         for key in ('commit', 'tree', 'tag', 'tag_commit', 'build_route', 'upstream_base'):
             self.assertEqual(group['source'][key], self.group['source'][key])
         self.assertEqual(export_tree.public_lock(public)[0], public)

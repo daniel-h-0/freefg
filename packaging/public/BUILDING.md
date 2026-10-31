@@ -57,6 +57,7 @@ It does not execute downloaded files. The build tools accept `--offline` to use 
 | `intel-xess` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `inc/xess_fg/*.h`, `inc/xell/*.h`, `LICENSE.txt`, `third-party-programs.txt` | API types for the proxy; licence texts for the package |
 | `intel-xess-runtime` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `bin/libxess_fg.dll` | the proxy's export table, and the size and hash the proxy checks before loading the runtime; never copied into an output |
 | `optiscaler-license` | `optiscaler/OptiScaler` | `92337ebfbf07d533eabe3731fd8de1bb19437aea` | `LICENSE` | the package's `licenses/OptiScaler.txt` |
+| `optiscaler-fork` | `daniel-h-0/OptiScaler`, release `bc250-273e8d4` | `273e8d449763d0e9e051dee831dc42badcd15d00` | `OptiScaler.dll`, `OptiScaler.ini` | the package's `opti/` (the fork's own build: [below](#what-this-tree-does-not-build)) |
 | `fsr4-notices` | `daniel-h-0/bc250-fsr4-fork` | `b2ab949477b4d2745babae146393db5537d87fcb` | `dll/notices/*` | the package's `licenses/fsr4/` |
 | `minhook` | `TsudaKageyu/minhook` | `c3fcafdc10146beb5919319d0683e44e3c30d537` | sources, `LICENSE.txt` | nothing in FreeFG; fetched because `fetch.py` without arguments fetches every group |
 
@@ -76,14 +77,13 @@ python3 release/fetch.py
 python3 release/build_layer.py
 python3 release/build_proxy.py
 python3 release/check_proxy_wine.py
-export XEMFG_OPTISCALER=/path/to/folder  # contains the pinned OptiScaler.dll
 python3 release/assemble.py --variant intel-free-mfg --no-source-companion
 python3 release/check_intel_free.py check build/package-intel-free-mfg/<name>
 ```
 
-Take `opti/OptiScaler.dll` from the release archive; assembly verifies its hash. For a CI-style package without that
-DLL, use `release/ci/assemble_ci.py --variant intel-free-mfg`. It requires a clean checkout and matching reference
-outputs. Neither route establishes GPU/game qualification.
+`fetch.py` also downloads the OptiScaler fork's release files, which assembly verifies by hash.
+`release/ci/assemble_ci.py --variant intel-free-mfg` assembles the CI package; it requires a clean checkout and
+matching reference outputs. Neither route establishes GPU/game qualification.
 
 ### What each step checks
 
@@ -151,10 +151,11 @@ git config --system --add safe.directory <path-in-the-container>
 
 - **OptiScaler fork:** DLL SHA-256 `044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87`, built from
   `273e8d449763d0e9e051dee831dc42badcd15d00`, retaining upstream `e7e3872d410f704479d94d318d68d163b6b58947`.
-  Supply this DLL and its matching `OptiScaler.ini` with `--optiscaler`; provide its git checkout with
-  `--optiscaler-source`. `FORK.md` and `tools/bc250-build.py` describe the separate build. The source companion and
-  locked recursive source archive identify the complete corresponding source. The [fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-273e8d4) supplies the DLL and recursive source archive.
-  OptiScaler is the only component CI may omit from its test package.
+  `release/fetch.py` downloads this DLL and its matching `OptiScaler.ini` from the
+  [fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-273e8d4), which also has the recursive
+  source archive; the source companion needs the fork's git checkout (`--optiscaler-source`). `FORK.md` and
+  `tools/bc250-build.py` describe the separate build. The source companion and locked recursive source archive identify
+  the complete corresponding source.
 - **Source companion without its inputs:** normal assembly needs a fork checkout named by `XEMFG_OPTISCALER_SOURCE`.
   Use `--no-source-companion` only for a local build that does not distribute the complete source companion.
 - **GPU measurements:** the public tree reproduces binaries and CPU checks. The SDK scene and game benchmark harnesses
