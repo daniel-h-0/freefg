@@ -235,6 +235,63 @@ class InstallationTests(GameFixture):
             with self.assertRaises(OSError):m.install(self.package,self.exe)
         finally:m.write=original_write
         m.restore(self.exe);self.assertOriginal()
+    def during_download(self,action):
+        """install() with action run while it downloads the runtime (the window between its checks and its first change)."""
+        def prepare(package,groups):
+            self.prepared.append(list(groups));action();return self.deps
+        return patch.object(m,'prepare_dependencies',side_effect=prepare)
+    def before_the_commit(self,action):
+        """install() with action run at its last check, after its plan and downloads, just before its first change."""
+        real,calls=m.idle,[]
+        def idle(root):
+            calls.append(root)
+            if len(calls)==2:action()
+            return real(root)
+        return patch.object(m,'idle',side_effect=idle)
+    def test_changes_during_the_downloads_refuse_before_any_change(self):
+        # A launcher started or a launcher file rewritten while install downloaded, a game file updated after it planned:
+        # install checks again just before its first change, as update does, and the game folder and the launcher stay
+        # as they were. (The backups are the bytes this check read, under the plan's checksums.)
+        launching=launcher_config.require_stopped
+        def start():launching.side_effect=ValueError('Close heroic before installing or restoring launcher settings')
+        def rewrite():self.config.write_bytes(self.config.read_bytes().replace(b'"dxr"',b'"dxr,no_upload_hvv"'))
+        def update():(self.game/'libxell.dll').write_bytes(b'game update')
+        for action,message,kind,hook in [(start,'Close heroic',m.Refusal,self.during_download),(rewrite,'changed since planning',ValueError,self.during_download),
+                                         (update,'libxell.dll changed while',ValueError,self.before_the_commit)]:
+            with self.subTest(action=action.__name__):
+                config,game=self.config.read_bytes(),{name:(self.game/name).read_bytes() for name in self.original}
+                with hook(action),self.assertRaisesRegex(kind,message):m.install(self.package,self.exe)
+                self.assertEqual(self.prepared[-1],['runtime']);self.assertFalse(list(self.game.glob(m.STATE+'*')))
+                if action is not rewrite:self.assertEqual(self.config.read_bytes(),config)
+                if action is not update:self.assertEqual({name:(self.game/name).read_bytes() for name in self.original},game)
+                launching.side_effect=None
+        self.config.write_bytes(self.original_config_bytes);(self.game/'libxell.dll').write_bytes(self.original['libxell.dll'])
+        m.install(self.package,self.exe);m.restore(self.exe);self.assertOriginal()
+    def test_a_late_refusal_keeps_the_restored_record_in_place(self):
+        m.install(self.package,self.exe);m.restore(self.exe);restored=(self.game/m.STATE/'state.json').read_bytes()
+        with self.before_the_commit(lambda:(self.game/'libxell.dll').write_bytes(b'game update')),self.assertRaises(ValueError):
+            m.install(self.package,self.exe)
+        self.assertEqual((self.game/m.STATE/'state.json').read_bytes(),restored);self.assertFalse(list(self.game.glob(m.STATE+'-*')))
+    def test_another_installer_at_the_launcher_file_is_a_refusal(self):
+        # The per-file launcher lock update, rollback and Restore take: another installer holding it means retry.
+        import fcntl,hashlib
+        folder=m.freefg_library.location().parent/'locks';folder.mkdir(parents=True,exist_ok=True)
+        lock=os.open(folder/(hashlib.sha256(str(self.config.absolute()).encode()).hexdigest()+'.lock'),os.O_RDWR|os.O_CREAT,0o600)
+        try:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            with self.assertRaisesRegex(m.Refusal,'Another installer is editing this launcher'):m.install(self.package,self.exe)
+        finally:os.close(lock)
+        self.assertFalse((self.game/m.STATE).exists());self.assertOriginal()
+        m.install(self.package,self.exe);m.restore(self.exe);self.assertOriginal()
+    def test_preview_while_a_launcher_runs(self):
+        # A preview reads only: it works while the launcher runs; Install refuses at once, before any download.
+        launcher_config.require_stopped.side_effect=ValueError('Close heroic before installing or restoring launcher settings')
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.install(self.package,self.exe,preview=True)
+        self.assertIn('Configure heroic: '+str(self.config),out.getvalue());self.assertOriginal()
+        self.prepared.clear()
+        with self.assertRaisesRegex(m.Refusal,'Close heroic'):m.install(self.package,self.exe)
+        self.assertEqual(self.prepared,[]);self.assertFalse((self.game/m.STATE).exists());self.assertOriginal()
     def test_opti_without_native_xefg(self):
         (self.game/'libxess_fg.dll').unlink();del self.original['libxess_fg.dll']
         m.install(self.package,self.exe,route='opti')

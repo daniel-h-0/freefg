@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """Local, reversible installation of the experimental BC250 game add-on."""
-import argparse,collections,configparser,contextlib,fcntl,functools,hashlib,json,os,re,shutil,stat,struct,subprocess,sys,tempfile,time,uuid
+import argparse,collections,configparser,contextlib,contextvars,fcntl,functools,hashlib,json,os,re,shutil,stat,struct,subprocess,sys,tempfile,time,uuid
 from pathlib import Path
 
 # This file imports its sibling modules by name (doctor, launcher_config, which imports steam_config and vendor). An
@@ -201,7 +201,11 @@ def created_folder(root,relative):
         if current.is_symlink():return None
     return current if current.is_dir() else None
 
-class GameRunningError(ValueError):
+class Refusal(ValueError):
+    """A refusal before anything changed, for a reason the user resolves (a game or launcher still running, another
+    installer at work): main() exits EXIT_REFUSED for it."""
+
+class GameRunningError(Refusal):
     """The game's mapped binaries must be released before a file transaction starts."""
 
 def idle(root):
@@ -326,18 +330,57 @@ def locked(function):
         descriptor=os.open(exe.parent,os.O_RDONLY|os.O_DIRECTORY)
         try:
             try:fcntl.flock(descriptor,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except BlockingIOError:raise ValueError('Another installer is working on this game')
+            except BlockingIOError:raise Refusal('Another installer is working on this game') from None
             return function(*args,**kwargs)
         finally:os.close(descriptor)
     return call
+
+def launcher_locks(stack,rows):
+    """launcher_migrations.locked(rows), entered on stack: another installer editing one of these launcher files is a
+    Refusal."""
+    try:stack.enter_context(launcher_migrations.locked(rows))
+    except ValueError as error:raise Refusal(str(error)) from None
+
+def launchers_closed(names):
+    """A Refusal while one of the launchers named runs (launcher_config.require_stopped): a launcher writes its files back
+    when it closes, over what an installer wrote."""
+    import launcher_config
+    try:launcher_config.require_stopped(set(names))
+    except ValueError as error:raise Refusal(str(error)) from None
+
+def launcher_files(launchers):
+    """{path: SHA-256} of the launcher files planned entries (launcher_config.plan) edit, each read now and still holding
+    the fields it was planned from: install() checks these bytes again just before its first change."""
+    import launcher_config
+    out={}
+    for row in launchers:
+        data=Path(row['path']).read_bytes()
+        if launcher_config.fields(row,data)!=row['before']:raise ValueError('Launcher configuration changed since planning; retry: '+row['path'])
+        out[row['path']]=digest(data)
+    return out
 
 def launcher_locked(function):
     @functools.wraps(function)
     def call(exe,*args,**kwargs):
         path=safe(exe.parent.resolve(),STATE+'/state.json')
         record=json.loads(path.read_text()) if path.is_file() else {}
-        with launcher_migrations.locked(record.get('launchers') or []):
+        with contextlib.ExitStack() as stack:
+            launcher_locks(stack,record.get('launchers') or [])
             return function(exe,*args,**kwargs)
+    return call
+
+# install()'s launcher file locks, the ones update, rollback and Restore take (launcher_locks): install takes them just
+# before its first change, after checking the files it planned from, and holds them until it returns.
+INSTALL_LOCKS=contextvars.ContextVar('install_locks')
+
+def install_launchers_locked(function):
+    """install(), with an INSTALL_LOCKS stack for its launcher file locks, released when it returns."""
+    @functools.wraps(function)
+    def call(*args,**kwargs):
+        with contextlib.ExitStack() as stack:
+            token=INSTALL_LOCKS.set(stack)
+            try:return function(*args,**kwargs)
+            finally:INSTALL_LOCKS.reset(token)
     return call
 
 # Automatic input: the game's own XeSS FG when it ships it beside the executable (measured best on this runtime, and
@@ -913,6 +956,7 @@ def override_anticheat(package,exe,route,fg_input,accept,verdict=None,sentence=N
 CARRIED_INI=[('XeFG','InterpolationCount','multiplier'),('fakenvapi','ForceReflex','Reflex override'),('XeFG','XeFGModel','MFG Unlocker model')]
 
 @locked
+@install_launchers_locked
 def install(package,exe,preview=False,route="native",fg_input="upscaler",dependency_dir=None,launcher_home=None,extra_args=(),dlss_helper='auto',
             upscaler='fsr4',helixsr_dir=None,accept=(),verdict=None,accept_risk=()):
     """Install the package into the game of exe. accept: soft refusal codes the user accepted for this game; accept_risk:
@@ -1203,6 +1247,10 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
             replacements[name]=helixsr.ini_bytes(previous_helixsr_ini)
         changes.update(modern_provider['ini_changes']);ini_after=patch_ini(ini_after,modern_provider['ini_changes'])
     replacements['OptiScaler.ini']=ini_after
+    # The launchers closed now, before any download, and their files as planned: install checks them again just before
+    # its first change. A preview reads only.
+    if not preview:launchers_closed(t['launcher'] for t in launchers)
+    observed=launcher_files(launchers) if not preview else {}
     # Last refusals (a symlink or folder where a file goes), then the runtime downloads: no check waits on the network.
     # A preview fetches them too, so a preview that succeeds proves the install has every byte it needs: the
     # maintainers' library tool checks a move with a preview before it changes anything, and its install then reads
@@ -1242,8 +1290,19 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         print(upscaler_line(upscaler_record,runtime['Files'].get('fsr4/'+DLL)))
         for line in notes:print(line)
         return
+    # The downloads can take minutes: just before the first change everything is checked again, as update does. Each
+    # file is read once more for its backup, which must be the bytes the plan's checksum names.
+    idle(root)
+    if launchers:
+        launcher_locks(INSTALL_LOCKS.get(),launchers);launchers_closed(t['launcher'] for t in launchers)
+        launcher_migrations.check([dict(target=row,observed=observed[row['path']]) for row in launchers])
+    originals={}
+    for item in plan:
+        target=safe(root,item['path']);data=target.read_bytes() if target.is_file() else None
+        if (digest(data) if data is not None else None)!=item['before']:
+            raise ValueError(item['path']+' changed while this installation was prepared (a game update or another tool?); nothing was changed: install again.')
+        if data is not None:originals[item['path']]=data
     print('Installing '+('HelixSR' if helix else 'FSR 4')+', frame generation'+(' and launcher settings' if launchers else '')+'; saving original files.')
-    if archive_state:state.rename(archive_state)
     # wrapper=None: records of wrapper-based builds named their run.sh here.
     record=dict(status='prepared',runtime='xemfg',route=route,fresh=fresh,wrapper=None,game=str(exe.resolve()),files=plan,package=package_record.get('name'),
                 ini_changes=[dict(section=s,key=k,value=v) for (s,k),v in changes.items()],launchers=launchers,launch_args=launch_args,
@@ -1272,17 +1331,21 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         (staging/'backups').mkdir()
         if vkd3d_cache is not None:(staging/VKD3D_CACHE).mkdir()  # vkd3d-proton does not create its cache folder
         for i,item in enumerate(plan):
-            if item['before'] is not None:write(staging/'backups'/str(i),(root/item['path']).read_bytes(),item['mode'])
+            if item['before'] is not None:write(staging/'backups'/str(i),originals[item['path']],item['mode'])
         for i,item in enumerate(settings_plan):
             if item['before'] is not None and item['after'] is not None:write(staging/'game-settings'/str(i),item['before'])
         # Launcher files rewritten whole (Heroic's JSON, Lutris's YAML): a copy as found, which Restore writes back
         # when the restored file holds the same settings (launcher_config.apply).
         for i,target in enumerate(launchers):
             if target['launcher'] in launcher_config.WHOLE_FILE:
-                path=Path(target['path']);data=path.read_bytes();write(staging/'launcher-files'/str(i),data,0o600)
+                path=Path(target['path']);data=path.read_bytes()
+                if digest(data)!=observed[target['path']]:raise ValueError('Launcher configuration changed since planning; retry: '+target['path'])
+                write(staging/'launcher-files'/str(i),data,0o600)
                 target['file_backup']=dict(path='launcher-files/'+str(i),sha256=digest(data),mtime_ns=path.stat().st_mtime_ns)
         if displaced or helix_displaced:(staging/'displaced-logs').mkdir()
         write(staging/'state.json',(json.dumps(record,indent=2)+'\n').encode())
+        # The previous installation's restored record goes aside only now: a failure above leaves it in place.
+        if archive_state:state.rename(archive_state)
         os.replace(staging,state)
     finally:
         if staging.exists():shutil.rmtree(staging)

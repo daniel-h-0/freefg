@@ -614,7 +614,8 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
         if manual:
             return []
         raise ValueError('No launcher entry found for this executable. Add the game to Steam, Heroic or Lutris first.')
-    require_stopped(t['launcher'] for t in targets)
+    # Planning only reads: whoever writes checks that the launchers are closed (apply; install before and just after
+    # its downloads), so a preview works while a launcher runs.
     root = exe.parent.resolve()
     # The checks Install also runs before its downloads (compat.preflight); here they guard every other caller.
     for refusal in conflicts(exe, targets):
