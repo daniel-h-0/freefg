@@ -303,7 +303,8 @@
       "route": "opti",
       "fg_input": "upscaler",
       "ini": {
-        "FrameGen.Enabled": "true"
+        "FrameGen.Enabled": "true",
+        "BC250.RequireArgument": "-nobattleye"
       },
       "game_settings": [],
       "launch_args": [],
@@ -312,19 +313,19 @@
       ],
       "manual_steps": [
         "Story Mode only, with BattlEye disabled using the game launcher option (-nobattleye).",
-        "Restore FreeFG before playing GTA Online: without -nobattleye, OptiScaler would load beside BattlEye.",
+        "Restore FreeFG before playing GTA Online: without -nobattleye, OptiScaler stays inactive (RequireArgument), but its DLL still loads beside BattlEye.",
         "Select DLSS in the game (Quality was tested); leave the game's frame generation off. FreeFG enables XeFG through OptiFG.",
-        "Use the bundled OptiScaler 273e8d4 or a descendant with the Social Club factory fix; leave DxgiFactoryWrapping at auto/false and remove any SocialClubD3D12Renderer DLL-disable override."
+        "Use the bundled OptiScaler ba0dedb or a descendant (Social Club factory fix, RequireArgument); leave DxgiFactoryWrapping at auto/false and remove any SocialClubD3D12Renderer DLL-disable override."
       ],
       "note": "GTA 1.0.1158.16, GE-Proton11-11, AMD FSR 4 RC12. The anti-cheat installation refusal still requires explicit per-game acceptance. The Social Club overlay stays available.",
       "evidence": "gameplay",
-      "observed": "Story Mode bank prologue, movement and Social Club open/close; sustained 2.0 generated presents per game frame, including a fresh start with XeFG enabled",
+      "observed": "Story Mode bank prologue, movement and Social Club open/close; sustained 2.0 generated presents per game frame, including a fresh start with XeFG enabled and starts with RequireArgument unset and set to -nobattleye",
       "qualification": {
-        "date": "2026-10-30",
-        "optiscaler_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
-        "optiscaler_sha256": "044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87",
+        "date": "2026-10-31",
+        "optiscaler_commit": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
+        "optiscaler_sha256": "e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b",
         "record": "research/recipes/verified/gta-v-enhanced.md",
-        "limits": "Two successful short Story Mode starts; no Online, long-play, 3x/4x, HDR or pacing qualification."
+        "limits": "Short Story Mode starts: two with OptiScaler 273e8d4 (October 30), two with ba0dedb (October 31: RequireArgument unset, and set to -nobattleye). Only GTA5_Enhanced.exe loads OptiScaler on the Steam route, with -nobattleye on its command line. A start without -nobattleye (BattlEye), Online, long play, 3x/4x, HDR and pacing were not tested."
       }
     },
     {

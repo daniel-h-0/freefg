@@ -724,8 +724,11 @@ class RecipeInstallTests(unittest.TestCase):
         self.recipes(entry)
         self.install_quietly(fg_input='upscaler')
         self.assertIn('-nobattleye', self.options().split())
+        # OptiScaler stays a plain proxy in a start without the argument; Restore takes the key out with the rest.
+        self.assertEqual(self.current_ini()[('bc250', 'requireargument')], '-nobattleye')
         self.restore_quietly()
         self.assertOriginal()
+        self.assertNotIn(('bc250', 'requireargument'), self.current_ini())
 
     def test_install_applies_recipe_and_restore_reverts(self):
         self.m.install(self.package, self.exe, route='opti', fg_input='dlssg')

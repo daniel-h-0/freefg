@@ -43,14 +43,35 @@ regression checks passed.
 This is short functional qualification. Online, long play, HDR, 3×/4×,
 frame pacing and image equivalence were not tested.
 
+## Required argument (31 October 2026)
+
+OptiScaler `ba0dedb4681875a1a0b88a35385d5aeb91db4063` (DLL
+`e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b`) adds
+`[BC250] RequireArgument`: when it is set and the process command line lacks
+that argument, OptiScaler stays a plain `winmm.dll` proxy, without hooks or
+frame generation, and logs one line saying so. The recipe sets
+`-nobattleye`.
+
+Two short Story Mode starts with the FreeFG 1.3.0 candidate, one with the key
+unset and one with `RequireArgument=-nobattleye`, reached the prologue at
+sustained 2.0 generated presents per game frame, with Social Club opened and
+closed in the first. No process logged the inactive line. On the Steam route,
+`PlayGTAV.exe`, the Rockstar Launcher and `GTA5_Enhanced.exe` all received
+`-nobattleye` as a whole argument (process command lines and the launcher's own
+log). Only `GTA5_Enhanced.exe` loaded OptiScaler: `PlayGTAV.exe` did not load
+its `winmm.dll`, and the launcher runs outside the game folder. A start without
+`-nobattleye` (the BattlEye route) was not run.
+
 ## Recipe and integration
 
 Install selects OptiFG, enables XeFG and adds the Story Mode launch argument
 `-nobattleye` after the existing per-game anti-cheat acceptance. The recipe
 lists it under `required_args`, not as its API switch (`launch_args` is
-empty), so it is added whatever API switch the user chose. Restore before
-playing GTA Online: without the argument, OptiScaler would load beside
-BattlEye. Select DLSS in GTA and leave its own
+empty), so it is added whatever API switch the user chose. It also writes
+`[BC250] RequireArgument=-nobattleye`; an installation of an earlier release
+gets it from Refresh recipe. Restore before playing GTA Online: without the
+argument, OptiScaler stays inactive, but its DLL still loads beside BattlEye.
+Select DLSS in GTA and leave its own
 frame generation off. Keep factory wrapping at auto/false and remove an old
 Social Club DLL-disable override. The overlay remains available. The normal
 per-game anti-cheat refusal still applies; the recipe does not accept it.
