@@ -20,6 +20,7 @@ scan (gamescan.scan_*), the recipe file (recipes.load) and the identity (recipes
 and uses no network. install.py check prints the verdict; install.py install applies it.
 """
 import json
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -135,6 +136,14 @@ def _condition(key, value, ctx):
         if v.startswith('not '):
             return (not hit), (None if not hit else f'not with {INPUT_NAMES.get(chosen, chosen)}')
         return hit, (None if hit else f'only with {", ".join(sorted(INPUT_NAMES.get(p, p) for p in parts))}')
+    if key == 'required_file':
+        files = ctx.get('files')
+        return (None, None) if files is None else (v in {str(path).lower() for path in files}, 'required file: ' + str(value))
+    if key == 'upscaler_input':
+        chosen = ctx.get('upscaler_input')
+        if not chosen:
+            return None, None
+        return (str(chosen).lower() == v, 'requires ' + str(value) + ' game input')
     if key in ('upscaler', 'upscaler_output'):
         mine = ctx.get('upscaler', 'fsr4')
         if mine in v:
@@ -147,11 +156,17 @@ def _condition(key, value, ctx):
             return False, f'OptiScaler {value} (older than the shipped build)'
         return True, None
     if key == 'api':
-        if re.search(r'dx12|d3d12|directx 12', v):
-            return True, None
-        if re.search(r'dx11|d3d11|vulkan|opengl|dx9', v):
-            return False, f'{value} (this build runs in DirectX 12)'
+        mine = str(ctx.get('api') or '').lower()
+        aliases = {'dx12': ('dx12', 'd3d12', 'directx 12'), 'dx11': ('dx11', 'd3d11', 'directx 11'),
+                   'vulkan': ('vulkan',), 'opengl': ('opengl',), 'dx9': ('dx9', 'd3d9')}
+        expected = {name for name, names in aliases.items() if any(alias in v for alias in names)}
+        actual = next((name for name, names in aliases.items() if mine in names), None)
+        if actual and expected:
+            return actual in expected, f'requires {value}; current API is {mine}'
         return None, None
+    if key == 'proxy':
+        mine = ctx.get('proxy')
+        return (None, None) if not mine else (str(mine).lower() == v, 'requires proxy ' + str(value))
     if key in ('platform', 'store', 'launcher'):
         if re.search(r'xbox|game ?pass|ms store|microsoft store', v):
             return False, 'the Xbox / Game Pass build'
@@ -215,6 +230,131 @@ def community_match(data, ids):
         if by_id or (ids.get('exe') in m.get('exe', []) and not known and named):
             return entry
     return None
+
+
+# Catalog-only API used by both the installer and Proton integrations. No scan,
+# filesystem, GUI or dependency fetch is performed by these functions.
+WIKI_PLAN_FORMAT = 1
+
+
+def wiki_plan(data, ids, ctx=None, *, supported_keys=None, current=None, recipe_ini=None,
+              quirk_exe=None, optiscaler_commit=None):
+    """Return source-backed INI proposals, automatic writes and negative evidence.
+
+    Automatic writes require a reviewed item, a strong identity, true conditions,
+    and no higher-priority owner. Other usable INI values are explicit prefills;
+    unknown conditions and title-only matches require confirmation of that row.
+    Known-inapplicable, unsupported, runtime-owned and policy keys are never
+    selectable. Merely constructing or displaying this plan changes nothing.
+    """
+    ctx = dict(DEFAULT_CONTEXT, **(ctx or {}))
+    for key in ('fg_input', 'fg_output', 'upscaler', 'api'):
+        if ctx.get(key) is not None:ctx[key] = str(ctx[key]).lower()
+    ctx.setdefault('store', next((store for store in ('steam', 'gog', 'epic') if ids.get(store)), None))
+    supported = None if supported_keys is None else {key.lower() for key in supported_keys}
+    current = {key.lower(): str(value) for key, value in (current or {}).items()}
+    recipe_ini = {key.lower(): str(value) for key, value in (recipe_ini or {}).items()}
+    source_commit = (data.get('sources') or {}).get('optiscaler_pinned')
+    compatible = set((data.get('sources') or {}).get('optiscaler_compatible_commits', [])) | {source_commit}
+    quirk_current = not optiscaler_commit or not source_commit or optiscaler_commit in compatible
+    quirks = (data.get('quirk_keys') or {}).get(quirk_exe or ids.get('exe', ''), {}) if quirk_current else {}
+    quirks = {key.lower(): value for key, value in quirks.items()}
+    matches = wiki_matches(data, ids)
+    rows, vetoes, weak_vetoes, requirements = [], {}, {}, []
+    for entry, strength in matches:
+        requirements.extend(dict(title=entry['title'], text=text, pages=entry.get('pages', [])) for text in entry.get('requirements', []))
+        for advice in entry.get('fg_advice', []):
+            when = {k: v for k, v in (advice.get('when') or {}).items() if k != 'fg_input'}
+            if advice.get('advice') in ('broken', 'avoid') and evaluate(when, ctx)[0] is True:
+                (vetoes if strength == 'strong' else weak_vetoes).setdefault(advice['input'], entry['title'])
+        promoted = {(item['key'].lower(), str(item['value']), json.dumps(item.get('when') or {}, sort_keys=True))
+                    for item in entry.get('promoted', [])}
+        items = list(entry.get('ini', []))
+        for item in entry.get('promoted', []):
+            if item not in items and not any(old['key'].lower() == item['key'].lower() and str(old['value']) == str(item['value'])
+                                             and (old.get('when') or {}) == (item.get('when') or {}) for old in items):
+                items.append(item)
+        for item in items:
+            key, value = item['key'], str(item['value'])
+            if not re.fullmatch(r'[A-Za-z0-9_-]+\.[A-Za-z0-9_]+', key) or any(c in value for c in '\r\n\0'):
+                raise ValueError('Malformed wiki INI proposal')
+            low, when = key.lower(), item.get('when') or {}
+            condition, reasons = evaluate(when, ctx)
+            rule, rule_reason = key_rule(key, value)
+            reviewed = (low, value, json.dumps(when, sort_keys=True)) in promoted
+            source = dict(title=entry['title'], pages=list(entry.get('pages', [])),
+                          wiki=(data.get('sources') or {}).get('wiki'), reviewed=reviewed, tested=entry.get('tested', {}))
+            identity = dict(source=source, key=key, value=value, when=when)
+            token = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
+            confirmations = ([] if strength == 'strong' else ['Confirm this is the game named by the wiki'])
+            if condition is None:
+                confirmations.extend(reasons)
+            action, reason = 'prefill', 'Apply only when explicitly selected'
+            if condition is False:
+                action, reason = 'inapplicable', '; '.join(reasons)
+            elif supported is not None and low not in supported:
+                action, reason = 'unsupported', 'This OptiScaler build does not define the key'
+            elif low in recipe_ini:
+                action, reason = 'handled', 'The curated/community recipe owns this key'
+            elif low in quirks:
+                action, reason = 'handled', 'Leave the key automatic for the shipped OptiScaler runtime fix'
+            elif 'autoapplied_since' in when:
+                action, reason = 'advice', 'Check the shipped runtime fix before setting an older workaround explicitly'
+            elif rule in ('installer', 'policy', 'never', 'redundant') or low.startswith(('libraries.', 'plugins.')) or low == 'framegen.fgoutput':
+                action, reason = 'advice', rule_reason or 'Library/plugin wiring belongs to the integration'
+            elif reviewed and rule is None and strength == 'strong' and condition is True and current.get(low, 'auto').lower() in ('', 'auto'):
+                action, reason = 'automatic', 'Reviewed fix; matching identity and conditions'
+            elif confirmations:
+                action, reason = 'conditional', '; '.join(confirmations)
+            elif rule_reason:
+                reason = ('Changes GPU-spoofing behavior; this game has no recipe/runtime owner for the key; explicit selection only'
+                          if low == 'spoofing.dxgi' else rule_reason + '; explicit selection only')
+            rows.append(dict(id=token, key=key, value=value, current=current.get(low), when=when,
+                             condition=condition, strength=strength, action=action, reason=reason,
+                             confirmations=confirmations, source=source))
+    # Two simultaneously applicable sources cannot silently pick different values.
+    by_key = {}
+    for row in rows:
+        if row['action'] in ('automatic', 'prefill'):
+            by_key.setdefault(row['key'].lower(), set()).add(row['value'])
+    for row in rows:
+        if len(by_key.get(row['key'].lower(), ())) > 1 and row['action'] in ('automatic', 'prefill'):
+            row.update(action='conflict', reason='Applicable wiki sources disagree on this value')
+    rows = list({row['id']: row for row in rows}.values())
+    automatic = {row['key']: row['value'] for row in rows if row['action'] == 'automatic'}
+    plan = dict(format=WIKI_PLAN_FORMAT, context=ctx, rows=rows, automatic=automatic,
+                vetoes=vetoes, weak_vetoes=weak_vetoes, quirks_current=quirk_current, requirements=requirements)
+    plan['digest'] = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()
+    return plan
+
+
+def select_wiki_settings(plan, selected, confirmed=()):
+    """Validate explicit prefill selections; no write is performed.
+
+    confirmed contains row IDs whose displayed identity/unknown conditions the
+    player confirmed. It cannot override a known false condition or a key owned
+    by a recipe, runtime quirk, unsupported build, or another output generator.
+    """
+    if plan.get('format') != WIKI_PLAN_FORMAT:
+        raise ValueError('Unsupported wiki settings plan')
+    rows = {row['id']: row for row in plan['rows']}
+    selected, confirmed = set(selected), set(confirmed)
+    if not selected or not selected <= rows.keys() or not confirmed <= selected:
+        raise ValueError('Select current wiki settings IDs; refresh the preview if it changed')
+    changes, sources = {}, []
+    for token in sorted(selected):
+        row = rows[token]
+        if row['action'] not in ('automatic', 'prefill', 'conditional'):
+            raise ValueError(row['key'] + ': ' + row['reason'])
+        if row['confirmations'] and token not in confirmed:
+            raise ValueError(row['key'] + ': confirm the displayed game/conditions first')
+        low = row['key'].lower()
+        if low in changes and changes[low][1] != row['value']:
+            raise ValueError('Conflicting wiki selections for ' + row['key'])
+        changes[low] = (row['key'], row['value'])
+        sources.append(row)
+    return dict(settings={key: value for key, value in changes.values()}, selected=sources,
+                plan_digest=plan['digest'])
 
 
 # ---------------------------------------------------------------------------------------------- the decision
@@ -452,15 +592,17 @@ def decide(scan, data=None, ids=None, choice=None, ctx=None, accept=(), launcher
             if key not in quirks:
                 ini[tuple(key.split('.', 1))] = str(value)
                 sources[key] = 'community recipe'
+    # The same pure planner is consumed by Proton integrations and explicit INI
+    # prefills. A curated recipe, community recipe or runtime quirk stays above it.
+    wiki_settings = wiki_plan(data or {}, ids, ctx, recipe_ini={
+        **((verified or {}).get('ini') or {}), **{'.'.join(key): value for key, value in ini.items()}},
+        quirk_exe=quirk_exe)
     if not verified:
-        for w in strong:
-            for item in w.get('promoted', []):
-                key = item['key']
-                result, _ = evaluate(item.get('when'), ctx)
-                if result is True and key not in quirks and tuple(key.split('.', 1)) not in ini and key_rule(key, item['value'])[0] is None:
-                    ini[tuple(key.split('.', 1))] = str(item['value'])
-                    sources[key] = f'OptiScaler wiki ({w["title"]}), promoted'
-                    wiki_applied.append(key)
+        for key, value in wiki_settings['automatic'].items():
+            ini[tuple(key.split('.', 1))] = value
+            source = next(row['source']['title'] for row in wiki_settings['rows'] if row['key'] == key and row['action'] == 'automatic')
+            sources[key] = f'OptiScaler wiki ({source}), promoted'
+            wiki_applied.append(key)
     # DLSS helper: DLSS is the game's only hookable upscaler and the game ships no copy (OptiFG needs DLSS to show).
     dlss_helper = 'auto'
     if not verified and route == 'opti' and fg_input == 'upscaler' and scan.get('upscalers') == ['dlss'] and not scan.get('dlss_copy'):
@@ -524,7 +666,7 @@ def decide(scan, data=None, ids=None, choice=None, ctx=None, accept=(), launcher
                                evidence=(verified or {}).get('evidence'), observed=(verified or {}).get('observed'),
                                reports=(community or {}).get('reports')) if recipe else None,
                    wiki=[dict(title=w['title'], strength=s, pages=w.get('pages', [])) for w, s in wiki], wiki_applied=wiki_applied,
-                   recipe_entry=recipe)
+                   recipe_entry=recipe, wiki_settings=wiki_settings)
     verdict['line'] = verdict_line(verdict, scan)
     return verdict
 
@@ -578,6 +720,7 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
     recipe_settings = {str(k).lower(): str(v) for s in entry.get('game_settings') or [] for k, v in (s.get('values') or {}).items()}
     chooser = {'user': 'your choice', 'verified': 'the verified recipe', 'community': 'the community recipe'}.get(verdict.get('choice'))
     for w, strength in wiki_matches(data, ids):
+        shown.extend(w.get('requirements', []))
         links += [p for p in w.get('pages', []) if p not in links]
         t = w.get('tested') or {}
         if t:

@@ -203,6 +203,9 @@ src/game/test_present_concurrency.c
 # Installer, Setup, launcher configuration, recipes and dependency pins (package.json "installer")
 packaging/install.py
 packaging/mfg/setup.py
+# Setup's window (GTK 4 and libadwaita; setup.py keeps its Zenity dialogs where those are not installed)
+packaging/mfg/setup_app.py
+packaging/mfg/setup_model.py
 packaging/launcher_config.py
 packaging/steam_config.py
 packaging/recipes.py
@@ -356,6 +359,8 @@ scripts/test_game_install.py
 scripts/test_mfg_install.py
 scripts/test_launcher_config.py
 scripts/test_setup_front_end.py
+scripts/test_setup_app.py
+scripts/test_setup_window.py
 scripts/test_recipes.py
 scripts/test_dependencies.py
 scripts/test_screensaver_extra.py
@@ -440,3 +445,10 @@ packaging/library_view.py
 scripts/test_library_view.py
 scripts/test_recipe_migrations.py
 scripts/test_hlx_preparation.py
+
+docs/WIKI-SETTINGS-API.md
+research/recipes/utilization-review-20261030.json
+
+# GTA V Enhanced local runtime qualification and reproducible recipe input
+research/recipes/verified/gta-v-enhanced.json
+research/recipes/verified/gta-v-enhanced.md

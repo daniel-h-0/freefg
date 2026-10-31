@@ -286,8 +286,11 @@ values where appropriate and preserves explicit or later user edits.
 
 ## The installer
 
-`install.py` implements changes; `setup.py` is the Zenity front end. A manifest records installed files, original
-hashes, backups, launcher edits and recipe settings. Downloads are verified separately by SHA-256.
+`install.py` implements changes. `setup.py` starts Setup's GTK 4/libadwaita window (`setup_app.py`): it shows what
+`setup_model.py` reads from the installer and game folders, and runs every change as an `install.py` command in a
+process of its own. Without GTK 4 and libadwaita 1.5, `setup.py` keeps its Zenity dialogs. A manifest records
+installed files, original hashes, backups, launcher edits and recipe settings. Downloads are verified separately by
+SHA-256.
 
 The launcher integration writes the proxy override, layer path/name, wave-table path, `no_staggered_submit`, and the
 cache settings above. It preserves existing options and wrappers. Supported stores are Steam, Heroic and Lutris;
@@ -297,7 +300,7 @@ Upscaler switches record a pending operation so Restore can recover from interru
 are retained for later use. Restore reverts owned files and settings while preserving subsequent user edits; changed
 binaries can require attention. [Installation and removal](INSTALLATION.md#updates-and-recovery).
 
-In-place updates (`install.py update`, Setup's **Update all**) operate on a coherent FreeFG/Intel set and the
+In-place updates (`install.py update`, Setup's **Update All Games**) operate on a coherent FreeFG/Intel set and the
 selected compatible upscaler. `upscaler_updates.py` provides read-only adapters for pinned FidelityFX DLLs and the
 legacy HelixSR FidelityFX/network format. `hlx.py` validates complete prepared model files and describes separate
 custom NGX and FFX provider layouts. HLX DLSS retains its `helixsr.dll` filename to avoid the NGX file-redirection

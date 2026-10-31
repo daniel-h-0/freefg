@@ -1,6 +1,6 @@
 {
  "about": "Declarative contents of the package that release/assemble.py builds in this tree: the enabler-free build (variant intel-free-mfg; how it works: packaging/public/ARCHITECTURE.md). Each component maps package paths to sources: \"repo:<path>\" (a file of this tree), \"input:<lock group>/<file>\" (a file pinned in inputs.lock.json) and \"build:<kind>\", \"build:<kind>-record\", \"build:<kind>-profile/<file>\" (outputs of release/build_proxy.py and release/build_layer.py, and their build.json). Its add-on is payload/libxess_fg.dll, a proxy for Intel's unmodified XeFG runtime, which the installer downloads by its pinned hash (dependencies.json runtime.ProxyPackage); release/check_intel_free.py must report \"pass\" with no allowed component. Written by release/export_tree.py --public from the maintainers' package declaration; \"variants\" keeps the name intel-free-mfg for tools that pass --variant intel-free-mfg, and that entry changes nothing.",
- "name": "freefg-1.1.6",
+ "name": "freefg-1.2.0",
  "variant": "intel-free-mfg",
  "documents_version": "public",
  "documents_component": "documents",
@@ -23,13 +23,14 @@
   },
   "enabler_overlay": "not applicable (no XeSSMFG enabler)",
   "optiscaler": {
-   "source_commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
+   "source_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
    "upstream_base": "e7e3872d410f704479d94d318d68d163b6b58947",
    "fixed": [
     "f6db41dfa7bacb16ac50bd1e5787fdb44362da47 Try to prevent race conditions when hooking sl plugins (lock order: the loader lock before a Streamline plugin mutex)",
     "Separate XeSS, XeFG and XeLL library-path configuration fields (saved XeSSPath corruption)",
     "Adaptive FreeFG frame-start pacing through XeLL at 3x/4x, with bounded stall recovery",
-    "Distinct HLX providers with original-input parameters and actual FFX provider identity"
+    "Distinct HLX providers with original-input parameters and actual FFX provider identity",
+    "Social Club auxiliary factories retain native swapchains; zero-sized descriptors use HWND geometry for the tiny-window guard"
    ]
   },
   "extras": {
@@ -47,10 +48,12 @@
  },
  "components": {
   "installer": {
-   "description": "Installer, Setup front end, launcher configuration, recipes, the compatibility check (compat.py, gamescan.py) and dependency pins (one line per file)",
+   "description": "Installer, Setup front end (its GTK window and Zenity dialogs), launcher configuration, recipes, the compatibility check (compat.py, gamescan.py) and dependency pins (one line per file)",
    "files": {
     "install.py": "repo:packaging/install.py",
     "setup.py": "repo:packaging/mfg/setup.py",
+    "setup_app.py": "repo:packaging/mfg/setup_app.py",
+    "setup_model.py": "repo:packaging/mfg/setup_model.py",
     "launcher_config.py": "repo:packaging/launcher_config.py",
     "steam_config.py": "repo:packaging/steam_config.py",
     "recipes.py": "repo:packaging/recipes.py",
@@ -339,6 +342,8 @@
   "test_mfg_install",
   "test_launcher_config",
   "test_setup_front_end",
+  "test_setup_app",
+  "test_setup_window",
   "test_recipes",
   "test_dependencies",
   "test_screensaver_extra",
@@ -361,7 +366,7 @@
  "variants": {
   "intel-free-mfg": {
    "about": "The package above, under the name the maintainers' tree gives it: release/assemble.py --variant intel-free-mfg builds exactly what release/assemble.py builds.",
-   "name": "freefg-1.1.6",
+   "name": "freefg-1.2.0",
    "package_dir": "package-intel-free-mfg",
    "documents_version": "public",
    "replace": {},

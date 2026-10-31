@@ -1,16 +1,16 @@
 # Configuration
 
 Close the game before changing settings, then restart it. Settings affect generated frames; they do not raise the
-game's simulation rate. **Status** reports the installed route and last recorded session, not visual quality or
+game's simulation rate. The game page reports the installed route and last recorded session, not visual quality or
 settings persistence.
 
 ## Upscalers
 
-AMD FSR 4 is the default. Setup's **Upscaler** action also offers **HLX DLSS** and **HLX FSR 4**, from the separate
+AMD FSR 4 is the default. **Change…** beside **Upscaler** on the game page also offers **HLX DLSS** and **HLX FSR 4**, from the separate
 [HelixSR 3.1.0](https://github.com/lonewolf0622/HelixSR) project. FreeFG keeps AMD FSR 4 available separately and
 uses FreeFG/XeFG for frame generation.
 
-For HLX, select a prepared HelixSR 3.1.0 folder or choose **Prepare HLX**. Preparation verifies the official archive
+For HLX, open **Upscalers…** in the menu and select a prepared HelixSR 3.1.0 folder or choose **Prepare HLX**. Preparation verifies the official archive
 and shader compilers, then runs its build-only entry point locally with networking disabled. It needs Wine,
 bubblewrap, Python numpy, and these local model inputs: NVIDIA DLSS **310.7.0** and `amdxcffx64.dll` **2.4.0.4370**
 from AMD Software **26.10.1**. Prepare once for all games; neither model input nor built model data is distributed by
@@ -30,7 +30,7 @@ A provider switch creates a rollback generation; **Rollback** undoes the latest 
 
 ## Generated-frame scaling
 
-Choose **Settings → Generated frames**:
+On the game page, choose **Generated-frame size** and then **Apply**:
 
 | Choice | Result |
 | --- | --- |
@@ -41,7 +41,7 @@ Choose **Settings → Generated frames**:
 Reduced dimensions round down to even pixels, with a minimum of one. Match output, 100% and an output already within
 the limit preserve odd dimensions. Real frames, game resolution, depth and motion-vector inputs stay unchanged.
 
-**Downscale** offers Bilinear and Area; **Upscale** offers Bilinear, Bicubic, Lanczos2 and FSR 1 EASU without RCAS.
+**Downscale filter** offers Bilinear and Area; **Upscale filter** offers Bilinear, Bicubic, Lanczos2 and FSR 1 EASU without RCAS.
 Bilinear is the default for both. These filters are separate from the game's upscaler and change generated-frame
 detail, including in Exact mode.
 
@@ -74,3 +74,29 @@ With the unlocker's own model, only seven of 13 programs were replaced in the te
 To remove it, delete its `.asi` and `RTXMFG-*` files, saving `RTXMFG-Universal.json` if wanted, and return to 2×.
 Leave `LoadAsiPlugins` enabled for OptiPatcher. Restore does not remove third-party files it did not install.
 [Mechanism](ARCHITECTURE.md#another-mod-on-intels-runtime) · [Measurements](MEASUREMENTS.md).
+
+## Wiki settings
+
+In Setup's library window, open an installed game's page and choose **Review…** beside **Wiki settings**. This reads the bundled OptiScaler wiki
+catalogue and the game's current INI. Nothing is selected or written automatically by this review.
+
+The review shows wiki requirements and runtime caveats first. Each suggestion includes its value, current value,
+source page, pinned wiki revision, reported test context and conditions. Select the changes you want. A
+suggestion based on a title-only match or an unknown condition also requires you to confirm the displayed facts.
+Settings already handled by a recipe or runtime fix, unsupported keys and known-inapplicable settings cannot be
+selected. Already-set values need no change.
+
+**Apply Selected** checks that the plan and current values still match, then writes only the selected OptiScaler INI
+keys through the existing transaction. The installed release and runtime stay in place. **Roll Back** undoes the last
+applied selection; Restore retains its normal handling of original values and later edits. Wiki suggestions are
+community evidence, not per-game qualification on your hardware.
+
+The command line also supports this review, including when using the Zenity fallback:
+
+```sh
+python3 install.py wiki-plan GAME.exe
+python3 install.py wiki-apply GAME.exe --wiki-plan-digest DIGEST --wiki-setting ROW_ID
+```
+
+Use the digest and row IDs from the current JSON plan. Add `--wiki-confirm ROW_ID` only for a selected row whose
+identity/conditions you have checked. A stale plan is refused; review it again instead of reusing old IDs blindly.

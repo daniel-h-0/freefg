@@ -6,10 +6,18 @@ game will generate correctly; use Check before installation and Status after a r
 
 ## Recipe observations
 
-The package has **19 curated BC-250 recipes**. Setup labels them **Verified on BC-250**, but their evidence ranges
+The package has **20 curated BC-250 recipes**. Setup labels them **Verified on BC-250**, but their evidence ranges
 from gameplay to installation-only or failed checks. Run **Check** for the matched recipe, observation and manual
 steps; check the running game for actual frame generation. The complete recorded observations are in
 [`recipes.json`](https://github.com/daniel-h-0/freefg/blob/main/packaging/recipes/recipes.json).
+
+### GTA V Enhanced
+
+The bundled OptiScaler fixes Social Club's auxiliary swapchain crash without disabling its overlay. Two short
+Story Mode starts on GE-Proton11-11 reached the bank prologue with sustained 2× generation, including a fresh
+start with XeFG enabled. Use OptiFG, select DLSS in GTA, and leave its own FG off. Factory wrapping stays at
+auto/false; remove any old Social Club DLL-disable override. The anti-cheat refusal below still applies.
+[Reproduction, fix and limits](https://github.com/daniel-h-0/freefg/blob/main/research/recipes/verified/gta-v-enhanced.md).
 
 ## Verdicts
 
@@ -19,7 +27,7 @@ Check and Install produce an offline verdict before dependency downloads or game
 | --- | --- |
 | Verified on BC-250 | A curated recipe supplies the input/settings; Check shows the recorded observation. |
 | Community-reported on BC-250 | A reviewed user report, not reproduced by a maintainer. |
-| Automatic, guided by the OptiScaler wiki | Detection is supplemented by one of 758 imported wiki entries. Most reports concern Windows and other GPUs. |
+| Automatic, guided by the OptiScaler wiki | Detection is supplemented by one of 761 imported wiki entries. Most reports concern Windows and other GPUs. |
 | Automatic (no recipe) | Detection found a DirectX 12 input; in-game behavior is unverified. |
 | Not supported | A refusal with a reason and suggested next step. |
 
@@ -54,7 +62,8 @@ FreeFG loads DLLs into the game process. Anti-cheat software may refuse them or 
 offline mode. Check detects files; it cannot establish that anti-cheat is inactive. FreeFG does not hide itself,
 and Restore cannot undo a ban.
 
-The override is **per game**. In Setup, choose **Override anti-cheat refusal...**, read the warning, then type
+The override is **per game**. In Setup, choose **Override…** under **Install despite anti-cheat** on the game's page
+(in the Zenity dialogs, **Override anti-cheat refusal...**), read the warning, then type
 `I accept that my account may be banned` exactly. Cancel is the default. Other hard refusals still apply.
 
 ```sh

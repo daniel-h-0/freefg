@@ -280,12 +280,33 @@ def install_choices(installer,games,risk=False):
     if dialog('--question','--width=680','--text=Setup will configure '+NAME+' and each game’s launch settings.\nThe first installation downloads checked upstream files (FSR4 and Intel’s XeFG runtime);\na fresh OptiScaler setup also fetches OptiScaler and OptiPatcher, and NVIDIA’s DLSS helper only for a DLSS input\nwhere OptiScaler finds no copy of the game’s own.\nAfter installation, reopen your launcher and play normally.'+steps+override) is None:return None
     return extra
 
+def desktop_app(installer,load_error):
+    """Setup's window (setup_app.py, on GTK 4 and libadwaita 1.5+) as a function that runs it, or None where it cannot
+    run: then the Zenity dialogs below are Setup. FREEFG_SETUP_UI=zenity chooses the dialogs."""
+    if os.environ.get('FREEFG_SETUP_UI','').lower()=='zenity' or not (ROOT/'setup_app.py').is_file():return None
+    if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
+    try:
+        import setup_app,setup_model
+    except (ImportError,ValueError) as error:  # no PyGObject, no GTK 4 or libadwaita typelib, or libadwaita before 1.5
+        print('Setup’s window needs PyGObject with GTK 4 and libadwaita 1.5 ('+str(error)+'); using its dialogs.',file=sys.stderr)
+        return None
+    context=setup_model.Context(ROOT,NAME,MANIFEST,installer,load_error,FACTORS,SCALING,HELIXSR_ABOUT,blockers)
+    def run():
+        try:return setup_app.run(context)
+        except setup_app.StartupError as error:
+            print('Setup’s window did not start; using its dialogs.\n'+str(error),file=sys.stderr);return None
+    return run
+
 def main():
-    if not shutil.which('zenity'):
-        print('The desktop installer needs zenity. The command-line route is in README.md.',file=sys.stderr);return 1
     selected=[]
-    try:installer=load_installer()
-    except Exception:installer=None
+    try:installer=load_installer();load_error=None
+    except Exception as error:installer=None;load_error=type(error).__name__+': '+str(error)
+    app=desktop_app(installer,load_error)
+    if app is not None:
+        status=app()
+        if status is not None:return status
+    if not shutil.which('zenity'):
+        print('The desktop installer needs PyGObject with GTK 4 and libadwaita, or zenity. The command-line route is in README.md.',file=sys.stderr);return 1
     while True:
         action=dialog('--list','--width=740','--height=420','--column=Action','--column=Description',
             'Add games','Choose actual game .exe files; repeat to add another folder',

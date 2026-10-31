@@ -38,7 +38,11 @@
   },
   "extra_packages": {
     "git": "lets actions/checkout clone (the package manifest records git_head and git_dirty)",
-    "python-numpy": "check_intel_free.py's fast window scan (the same result as its pure-Python fallback)"
+    "python-numpy": "check_intel_free.py's fast window scan (the same result as its pure-Python fallback)",
+    "python-gobject": "test_setup_window drives Setup's window (PyGObject)",
+    "gtk4": "test_setup_window drives Setup's window (GTK 4)",
+    "libadwaita": "test_setup_window drives Setup's window (libadwaita 1.5 or newer)",
+    "xorg-server-xvfb": "the virtual display test_setup_window starts for Setup's window"
   },
   "dxc": {
     "release": "v1.9.2609",

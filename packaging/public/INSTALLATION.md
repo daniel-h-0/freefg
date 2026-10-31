@@ -1,14 +1,14 @@
 # Installation and recovery
 
-Use Setup in the extracted release folder, or run `python3 install.py` there. **Check system** (`doctor`) checks host
-dependencies; **Check** reports a game's compatibility without changing files or downloading dependencies.
+Use Setup in the extracted release folder, or run `python3 install.py` there. **System Check** (`doctor`) checks host
+dependencies; a game’s page reports its compatibility without changing files or downloading dependencies.
 
 ## Install a game
 
-1. In Desktop Mode run `Start-freefg.sh`, select **Add games**, and choose the rendering `.exe`. For many Unreal
-   games it is under `Binaries/Win64` rather than the game-root launcher.
-2. Select **Install** → **Automatic per game**, choose an upscaler and read the verdict. Close the game and its
-   launcher when prompted. Explicit input choices apply to every selected game; install different inputs separately.
+1. In Desktop Mode run `Start-freefg.sh`, choose **Add a Game**, then select an installed Steam/Heroic game or
+   **Choose a Game Executable…**. For many Unreal games the rendering `.exe` is under `Binaries/Win64`.
+2. Open the game page and choose **Install…**. Keep **Automatic** or select an input, choose an upscaler and read
+   the verdict and manual steps. Accept any item under **Needs your OK** and close the game and launcher when prompted.
 3. Reopen the launcher. In the game, choose the upscaler input and frame-generation setting named by Setup:
 
 | Input | In-game setting |
@@ -26,15 +26,19 @@ the rendering executable. It preserves existing launcher options and wrappers. S
 their loader filename; unknown DLLs, custom paths and other proxy mods can require manual integration. The installation
 record and original backups are in `.bc250-xefg-experimental`.
 
+Setup uses PyGObject, GTK 4 and libadwaita 1.5+. Without them it falls back to Zenity dialogs;
+`FREEFG_SETUP_UI=zenity ./Start-freefg.sh` selects those explicitly. In Zenity, choose **Add games**, **Install**
+and **Automatic per game**. An explicit input applies to every selected game in that interface.
+
 ## Other launchers
 
 Setup writes its launch settings into the game's Steam, Heroic or Lutris entry. A game that only another launcher
-starts (Faugus, Bottles, umu-run or a script) is refused with `no-launcher`. Choose **Install anyway**
-(`--accept no-launcher`): Setup installs the files as usual, changes no launcher entry and prints the environment
-variables, and any game arguments, to add to that launcher. In Faugus, put the `KEY=value` lines under **Launch
-Arguments**; on a command line, put them before the command; where a launcher takes each name and value separately,
-leave out the quotes around a value. Faugus's global environment variables override a game's own, so keep
-`WINEDLLOVERRIDES` out of them.
+starts (Faugus, Bottles, umu-run or a script) gets the soft refusal `no-launcher`. Accept it under **Needs your OK**
+(Zenity: **Install anyway**; command line: `--accept no-launcher`). Setup then installs the files as usual, changes no
+launcher entry and prints the environment variables, and any game arguments, to add to that launcher; in Setup's window
+they are under **Installer output**. In Faugus, put the `KEY=value` lines under **Launch Arguments**; on a command line,
+put them before the command; where a launcher takes each name and value separately, leave out the quotes around a
+value. Faugus's global environment variables override a game's own, so keep `WINEDLLOVERRIDES` out of them.
 
 Status shows the settings again, an update or Rollback that changes them prints the new values, and Restore lists them
 for removal. Setup cannot check that launcher for GE-Proton's `PROTON_USE_OPTISCALER` or `PROTON_*_UPGRADE`; leave them
@@ -61,31 +65,32 @@ python3 install.py restore GAME.exe      # restore the original installation
 
 ## Updates and recovery
 
-Extract the new release before updating. Setup's **Library** shows versions, providers, last-session logs and recovery
-state. Select entries and choose **Update selected**, or preview **Update all**. On the command line, run
+Extract the new release before updating. Setup’s sidebar lists games by state; each game’s page shows its provider,
+last-session logs and recovery actions. Choose **Update…** on a game page, or **Update All Games…** from the menu.
+Review the grouped plan before applying it. On the command line, run
 `python3 install.py plan --all` followed by `python3 install.py update --all` to apply the plan.
 
 Update all combines Steam, Heroic and Lutris discovery with the optional local index; it can find installations you
-did not select. Use **Update selected** or name specific executables to limit the scope. Running, missing, blocked,
+did not select. Use a game’s **Update…** or name specific executables to limit the scope. Running, missing, blocked,
 pinned or deferred games are reported separately. Successful games remain updated; a nonzero update exit status
 signals deferred or failed work. There is no atomic transaction across games.
 
-Compatible 1.1.3.1, 1.1.4 and 1.1.5 installations update in place. Updates cover the compatible FreeFG/Intel set,
+Compatible 1.1.3.1, 1.1.4, 1.1.5 and 1.1.6 installations update in place. Updates cover the compatible FreeFG/Intel set,
 selected upscaler, OptiScaler integration and owned launcher fields while retaining user additions and original
-backups. Close launchers if the plan changes their entries. **Update upscalers** keeps the FreeFG core; the CLI
+backups. Close launchers if the plan changes their entries. Choose **Upscalers only** in the update review to keep the FreeFG core; the CLI
 supports `--component core|upscaler`. Unprepared providers can be deferred, and changed owned binaries block the
 coupled transaction. `--loader winmm.dll` on `plan` or `update` moves the loader and its Wine override together;
 an occupied name is refused.
 
-- **Pin** / **Unpin** holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
-- **Register** adds an existing installation to the optional index. The index can be rebuilt; game files and recovery
+- **Keep this release** on a game page holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
+- **Track** on an untracked installation’s page adds that installation to the optional index. The index can be rebuilt; game files and recovery
   do not depend on it.
 - **Rollback** restores the saved state before the most recent update **or provider switch**. Each game retains one
   completed generation; later settings edits are preserved where possible, and conflicting binary edits are refused.
 - **Restore** removes owned files and launcher changes and restores originals, preserving later user edits where
   possible. It reports conflicts and leaves backups and logs in a `.bc250-xefg-experimental-restored-…` folder.
 
-If an update is interrupted, retry Update or use Rollback. Use **Refresh recipe** for a gameplay-qualified input and
+If an update is interrupted, retry Update or use Rollback. Use **Preview…** beside **Refresh recipe** for a gameplay-qualified input and
 launcher recipe; the equivalent is `plan GAME.exe --refresh-recipe`, then `update GAME.exe --refresh-recipe`. Game
 settings are manual and saves are not changed by refresh. For a custom input, use OptiScaler's menu and restart.
 

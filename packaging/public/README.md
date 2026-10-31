@@ -13,15 +13,19 @@ the game's simulation rate. Optional generated-frame scaling can reduce cost, an
 Cyberpunk 2.5 on one BC-250, FreeFG 1.1.3.1, HelixSR Quality at 1440p; four headless runs per condition. Higher
 factors require MFG Unlocker. [Methods, data and limitations](MEASUREMENTS.md#cyberpunk-25-with-helixsr).
 
+**1.2.0** adds a GTK library window, reviewed wiki settings and a GTA V Enhanced startup fix that preserves Social
+Club. The FreeFG runtime and shaders retain 1.1.6 bytes; the bundled OptiScaler integration is updated.
+
 ## Requirements
 
 - AMD BC-250, x86-64 Linux, Mesa RADV and Proton. [Other GPUs are experimental](TROUBLESHOOTING.md#other-gpus).
 - A 64-bit DirectX 12 game with a supported input, registered in Steam, Heroic or Lutris
   ([or another launcher](INSTALLATION.md#other-launchers)), in an ASCII-only path.
-- Python 3.11+, `bsdtar` and Zenity for Setup; internet access for uncached dependencies.
+- Python 3.11+ and `bsdtar`; PyGObject, GTK 4 and libadwaita 1.5+ for Setup’s window (Zenity fallback).
+  Internet access for uncached dependencies.
 - gamescope for automatic pacing. A BC-250 driver with a compute queue also needs the matching kernel fixes.
 
-Run **Check system** or `python3 install.py doctor` to inspect the host. Detected anti-cheat blocks installation
+Run **System Check** or `python3 install.py doctor` to inspect the host. Detected anti-cheat blocks installation
 unless you explicitly accept the [per-game risk](COMPATIBILITY.md#anti-cheat).
 
 ## Install
@@ -30,9 +34,9 @@ unless you explicitly accept the [per-game risk](COMPATIBILITY.md#anti-cheat).
 
 1. Extract the [latest release](https://github.com/daniel-h-0/freefg/releases/latest) and run `Start-freefg.sh` in
    Desktop Mode.
-2. Choose **Add games**, then select each rendering `.exe`—often under `Binaries/Win64` for Unreal Engine games.
-3. Choose **Install**, **Automatic per game** and an upscaler. Read the verdict and close games and launchers when
-   prompted. Enable the requested input in the game after installation.
+2. Choose **Add a Game**, pick an installed game or choose its rendering `.exe`, then open its page.
+3. Choose **Install…**, keep **Automatic** or select an input, and choose an upscaler. Read the verdict and close
+   games and launchers when prompted. Enable the requested input in the game after installation.
 
 [Installation and updates](INSTALLATION.md) covers input choices, the command line, Library, pins and recovery.
 <a id="in-the-game"></a>
@@ -46,7 +50,7 @@ unless you explicitly accept the [per-game risk](COMPATIBILITY.md#anti-cheat).
 
 <a id="restore-and-uninstall"></a>
 
-Extract a new release, choose games in **Library**, then use **Update selected**; or choose **Update all**. Update all
+Extract a new release and use **Update…** on a game’s page, or **Update All Games…** in the menu. Update All Games
 discovers installations through launchers as well as the local index; choose specific games for a narrower scope.
 **Rollback** undoes the most recent update or provider switch. **Restore** returns the original installation files.
 
@@ -60,12 +64,13 @@ per-game, so a blocked game does not prevent other selected games from updating.
 
 ## Configuration
 
-**Settings** controls generated-frame size and filters. **Upscaler** selects AMD FSR 4, HLX DLSS or HLX FSR 4;
+Each game’s page controls generated-frame size and filters. **Change…** beside **Upscaler** selects AMD FSR 4, HLX DLSS or HLX FSR 4;
 HLX needs a one-time local preparation. MFG Unlocker is separate and is not shipped with FreeFG.
+**Wiki settings** reviews additional INI suggestions, their sources and conditions before applying selected values.
 [Configuration guide](CONFIGURATION.md) · [Troubleshooting](TROUBLESHOOTING.md).
 
 <a id="status"></a>
-**Status** reports the installation and last recorded session. [Logs and diagnostics](TROUBLESHOOTING.md#logs).
+The game page shows the last recorded session; **Installation details** reports the owned files. [Logs and diagnostics](TROUBLESHOOTING.md#logs).
 
 Default FP16 shaders can change generated pixels. `BC250_XEFG_EXACT=1` disables those forms; the remaining F4Q
 paths matched the reported tests but are not proven equivalent for every input. Scaling also changes the generated

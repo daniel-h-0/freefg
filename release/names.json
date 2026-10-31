@@ -170,14 +170,14 @@
    "id": "setup-title",
    "class": "user-visible",
    "default": true,
-   "current": "zenity window title 'BC250 FSR4 + XeMFG' (NAME = 'FSR4 + XeMFG' for xemfg packages, which also fills 'Install … into selected games' and 'Setup will configure …')",
+   "current": "zenity window title 'BC250 FSR4 + XeMFG' (NAME = 'FSR4 + XeMFG' for xemfg packages, which also fills 'Install \u2026 into selected games' and 'Setup will configure \u2026')",
    "appears_in": [
     "packaging/mfg/setup.py (NAME and four '--title=' arguments)",
     "scripts/test_setup_front_end.py (asserts NAME)"
    ],
    "patterns": [
     "'--title=BC250 '\\+NAME",
-    "NAME='FSR4 \\+ XeMFG' if MFG else 'FSR4 \\+ XeFG 2×'",
+    "NAME='FSR4 \\+ XeMFG' if MFG else 'FSR4 \\+ XeFG 2\u00d7'",
     "self\\.setup\\.NAME, 'FSR4 \\+ XeMFG'"
    ],
    "replacements": [
@@ -189,7 +189,7 @@
      ]
     },
     {
-     "pattern": "NAME='FSR4 \\+ XeMFG' if MFG else 'FSR4 \\+ XeFG 2×'",
+     "pattern": "NAME='FSR4 \\+ XeMFG' if MFG else 'FSR4 \\+ XeFG 2\u00d7'",
      "template": "NAME='{name}'",
      "files": [
       "packaging/mfg/setup.py"
@@ -207,7 +207,7 @@
    "rebuild": [],
    "alias_required": false,
    "policy": "rename",
-   "recommendation": "Rename. Setup's other old-name text ('XeMFG defaults to 2×.', 'Private BC250 Linux/Proton test build.') is listed under old-name for a hand rewrite."
+   "recommendation": "Rename. Setup's other old-name text ('XeMFG defaults to 2\u00d7.', 'Private BC250 Linux/Proton test build.') is listed under old-name for a hand rewrite."
   },
   {
    "id": "package-name",
@@ -219,7 +219,7 @@
     "release/assemble.py (package_naming: bc250-fsr4-xemfg-private-test-NN[-variant], or public_template)",
     "scripts/test_game_install.py (fixture name)"
    ],
-   "public_template": "{slug}-1.1.6",
+   "public_template": "{slug}-1.2.0",
    "public_receipt_template": "{slug}-{version}-package.json",
    "patterns": [
     "(?:bc250-fsr4-xemfg-)?private-test-(?:\\d+|NN|\\(\\\\d\\+\\))(?:-[a-z0-9]+)*"
@@ -227,7 +227,7 @@
    "replacements": [
     {
      "pattern": "(\"name\": \")bc250-fsr4-xemfg-private-test-(\\d+)-intel-free-mfg(\")",
-     "template": "\\1{slug}-1.1.6\\3",
+     "template": "\\1{slug}-1.2.0\\3",
      "files": [
       "release/package.json"
      ]

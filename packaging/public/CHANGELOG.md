@@ -4,6 +4,31 @@ Release summaries are below; [measurements](MEASUREMENTS.md) describe their spec
 [detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
 retains earlier release notes.
 
+## 1.2.0 – 2026-10-30
+
+- Replace Setup's chain of Zenity dialogs with a window built on GTK 4 and libadwaita 1.5+: the game library grouped by
+  what needs attention, a page per game with its state and only the actions that state allows, and every change run
+  as an `install.py` command with its progress, outcome and next steps in view. Zenity remains the fallback.
+- Add games from the installed Steam and Heroic games with their rendering executable proposed; each is checked as
+  soon as it is listed. Install shows the verdict for the chosen input, and soft refusals are accepted per game.
+- Review every game's update plan, grouped by outcome, before one confirmation. A game's page checks its program files
+  and launch settings against the installation record and edits generated-frame settings in place.
+- Cancel pending Install checks without starting a command; re-check input choices changed while a check is running.
+- Keep newer installations read-only in this Setup and isolate malformed records in the library.
+- Reuse checked, installer-owned HLX files after the shared preparation cache is removed; distinguish legacy HelixSR
+  from its HLX successor when switching providers.
+- Share wiki compatibility planning with Proton integrations. Add per-game Wiki settings review: show sources, current
+  INI values and conditions; apply only selected rows, confirm unknown conditions explicitly, and reject stale plans.
+  Selection uses an INI-only rollback generation while retaining the installed release, runtime and user additions.
+- Refresh the bundled wiki to 30 October: 761 entries and 295 INI instructions. Verified Steam identities make the
+  six existing promoted fixes and Ragnarök's negative FG evidence match reliably. Record the exact OptiScaler builds
+  that own runtime fixes and show wiki requirements/test context. The original 19 curated BC-250 rows are preserved.
+- Keep 1.1.6's FreeFG runtime, shaders and dependency pins. Update OptiScaler to isolate Social Club's auxiliary
+  swapchains and resolve zero descriptor dimensions for tiny-window checks. GTA V Enhanced has a Story Mode
+  recipe qualified at 2× on GE-Proton11-11; see COMPATIBILITY.md for settings and limits.
+- Stop queued Setup reads and suppress late callbacks after the window closes.
+- Update preview installations to final 1.2.0, preserve exact rollback, and reject a final-to-preview downgrade.
+
 ## 1.1.6 – 2026-10-30
 
 - Update compatible installations in place, including OptiScaler, owned launcher fields and the selected upscaler.

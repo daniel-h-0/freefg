@@ -231,14 +231,62 @@ class BuildTests(unittest.TestCase):
         self.assertIn('-dx12', odd['other_launch_args'])
 
     def test_sources_and_backports_follow_the_shipped_build(self):
-        self.assertEqual(self.data['sources']['optiscaler_pinned'], '03db4f8692878e65748769ebe583c053cae96360')
-        self.assertTrue(self.data['sources']['wiki'].startswith('9812e2d'))
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root/'release/package.json').read_text())
+        self.assertEqual(self.data['sources']['optiscaler_pinned'], spec['manifest']['optiscaler']['source_commit'])
+        review = json.loads((root/'research/recipes/utilization-review-20261030.json').read_text())
+        self.assertTrue(self.data['sources']['wiki'].startswith(review['wiki']))
         # The October 25 build includes the previous BeamNG backport.
         self.assertEqual(self.data['backports'], {})
         self.assertEqual(sorted(self.data['leave_auto']), ['dcs.exe', 'endfield.exe', 'granblue_fantasy_relink.exe'])
         # Q2 answered: the shipped build itself keeps CONTROL Resonant's FG swap chain unpreserved (a runtime quirk).
         control = self.data['quirk_keys']['controlresonant.exe']
         self.assertEqual([v for k, v in control.items() if 'PreserveSwapChain' in k], ['false'])
+
+    def test_store_ids_unlock_all_six_existing_promotions(self):
+        count = 0
+        for entry in self.data['wiki']:
+            if not entry.get('promoted'):
+                continue
+            identities = {'steam': entry['match']['steam'], 'exe': 'unidentified.exe'}
+            plan = self.compat.wiki_plan(self.data, identities, {'fg_input': 'upscaler'})
+            for item in entry['promoted']:
+                self.assertEqual(plan['automatic'].get(item['key']), item['value'], entry['title'])
+                count += 1
+        self.assertEqual(count, 6)
+        plan = self.compat.wiki_plan(self.data, {'steam': ['2322010']})
+        self.assertIn('upscaler', plan['vetoes'])
+
+    def test_refreshed_data_survives_runtime_compaction(self):
+        compact = self.b.compact(self.data, 'test')
+        for title in ('Kena: Bridge of Spirits', 'FINAL FANTASY XIV: Dawntrail', 'METRO Redux', 'Gears of War: E-Day'):
+            full = next(w for w in self.data['wiki'] if w['title'] == title)
+            runtime = next(w for w in compact['wiki'] if w['title'] == title)
+            self.assertEqual(runtime.get('ini'), full.get('ini'))
+            self.assertEqual(runtime.get('requirements'), full.get('requirements'))
+        kena = next(w for w in compact['wiki'] if w['title'] == 'Kena: Bridge of Spirits')
+        self.assertTrue(any(i.get('when', {}).get('gpu') == 'non-nvidia' for i in kena['ini']))
+        self.assertEqual(compact['optiscaler_builds'], self.data['optiscaler_builds'])
+        self.assertEqual(len(self.data['wiki']), 761)
+
+    def test_dependency_missing_cannot_be_confirmed_away(self):
+        ids = {'exe': 'ffxiv_dx11.exe', 'titles': ['final fantasy xiv dawntrail']}
+        base = {'upscaler_input': 'fsr31_12', 'files': []}
+        missing = self.compat.wiki_plan(self.data, ids, base)
+        row = next(r for r in missing['rows'] if r['key'] == 'FSR.FsrAgilitySDKUpgrade')
+        self.assertEqual(row['action'], 'inapplicable')
+        with self.assertRaisesRegex(ValueError, 'required file'):
+            self.compat.select_wiki_settings(missing, [row['id']], [row['id']])
+        present = self.compat.wiki_plan(self.data, ids, dict(base, files=['D3D12_Optiscaler/D3D12Core.dll']))
+        row = next(r for r in present['rows'] if r['key'] == 'FSR.FsrAgilitySDKUpgrade')
+        self.assertEqual(row['action'], 'conditional')  # symptom still needs the player's confirmation
+        self.assertTrue(present['requirements'])
+
+    def test_context_uses_actual_api_proxy_and_upscaler_input(self):
+        for key, expected, actual in [('api', 'dx12', 'dx11'), ('proxy', 'dxgi.dll', 'winmm.dll'),
+                                      ('upscaler_input', 'dlss', 'fsr2')]:
+            self.assertIs(self.compat.evaluate({key: expected}, {key: actual})[0], False)
+            self.assertIs(self.compat.evaluate({key: expected}, {key: expected})[0], True)
 
     def test_every_verified_recipe_has_its_evidence(self):
         for v in self.data['verified']:
@@ -343,6 +391,23 @@ class RecipeInstallTests(unittest.TestCase):
         self.assertEqual(self.config.read_bytes(), self.original_config)
         for name, data in self.original.items():
             self.assertEqual((self.game/name).read_bytes(), data)
+
+    def test_gta_recipe_enables_optifg_and_restores_originals(self):
+        catalog = r.load(Path(__file__).resolve().parents[1]/'packaging/recipes/recipes.json')
+        entry = copy.deepcopy(next(v for v in catalog['verified'] if '3240220' in v['match'].get('steam', [])))
+        entry['match'] = dict(exe=['game.exe'], steam=['4242'])
+        self.recipes(entry)
+        self.install_quietly(fg_input='upscaler')
+        ini = self.current_ini()
+        self.assertEqual(ini[('framegen', 'enabled')], 'true')
+        self.assertEqual(ini[('framegen', 'fginput')].lower(), 'upscaler')
+        self.assertEqual(ini[('framegen', 'fgoutput')].lower(), 'xefg')
+        self.assertNotEqual(ini.get(('spoofing', 'dxgifactorywrapping')), 'true')
+        self.assertNotIn('socialclub', self.options().lower())
+        self.assertIn('-nobattleye', self.options())
+        self.assertEqual(self.renderer.read_bytes(), RENDERER)
+        self.restore_quietly()
+        self.assertOriginal()
 
     def test_install_applies_recipe_and_restore_reverts(self):
         self.m.install(self.package, self.exe, route='opti', fg_input='dlssg')
@@ -718,7 +783,10 @@ class CompactRecipeTests(unittest.TestCase):
         built = json.dumps(self.builder.compact(json.loads(raw), hashlib.sha256(raw).hexdigest()), ensure_ascii=False,
                            separators=(',', ':')) + '\n'
         self.assertEqual(self.COMPACT.read_text(), built, 'stale: run research/recipes/build_recipes.py --compact')
-        self.assertLess(len(self.COMPACT.read_bytes()), len(raw) // 2)
+        # Supported-key metadata now covers two exact OptiScaler builds. Bound
+        # shipped bytes rather than a ratio to the source JSON's indentation.
+        self.assertLess(len(self.COMPACT.read_bytes()), len(raw))
+        self.assertLess(len(self.COMPACT.read_bytes()), 256 * 1024)
 
     @staticmethod
     def ids(exe, steam=(), gog=(), epic=(), titles=(), folders=()):
@@ -809,6 +877,25 @@ class CompactRecipeTests(unittest.TestCase):
             self.assertEqual(found[1]['title'], 'CONTROL Resonant')
             self.assertEqual(found[1]['fg_input'], 'dlssg')
 
+
+
+class GtaQualificationTests(unittest.TestCase):
+    def test_recipe_identity_preserves_anticheat_refusal_and_other_rows(self):
+        import compat
+        from test_compat import scan, ids
+        root = Path(__file__).resolve().parents[1]
+        data = r.load(root/'packaging/recipes/recipes.json')
+        entry = next(v for v in data['verified'] if '3240220' in v['match'].get('steam', []))
+        self.assertEqual(entry, json.loads((root/'research/recipes/verified/gta-v-enhanced.json').read_text()))
+        self.assertEqual(len(data['verified']), 20)
+        self.assertEqual(sum(len(w.get('promoted', [])) for w in data['wiki']), 6)
+        identity = ids('gta5_enhanced.exe', ('3240220',), ('grand theft auto v',))
+        verdict = compat.decide(scan(exe=dict(name='GTA5_Enhanced.exe'),
+            anticheat=[dict(name='BattlEye', evidence=['BattlEye/BEClient_x64.cfg'])]), data, identity)
+        self.assertTrue(any(item['code']=='anticheat' for item in verdict['blocking']))
+        self.assertEqual(verdict['fg_input'], 'upscaler')
+        self.assertNotIn(('Spoofing','DxgiFactoryWrapping'), verdict['ini'])
+        self.assertIsNone(r.match(data, ids('gta5.exe', ('271590',), ('grand theft auto v',)))[0])
 
 if __name__ == '__main__':
     unittest.main()

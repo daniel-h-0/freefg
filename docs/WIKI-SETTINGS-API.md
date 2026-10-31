@@ -1,0 +1,84 @@
+# Wiki settings API (format 1)
+
+This is the shared planner/installer contract for the FreeFG 1.2.0 candidate and
+Proton integrations. It does not require or import a GUI. Runtime/shader/provider
+versions are unchanged by an INI-only application.
+
+## Installed-game preview and application
+
+`install.wiki_settings_plan(package, exe)` is read-only and returns a JSON-safe
+object with `format`, `digest`, `context`, `rows`, `automatic`, `vetoes`,
+`weak_vetoes`, `quirks_current`, and `requirements` (title, text and page links).
+
+Each row contains `id`, `key`, `value`, `current`, `when`, `condition`
+(`true`, `false`, or `null`), `strength`, `action`, `reason`, `confirmations`,
+and `source` (title, page links, wiki revision, tested context and reviewed status).
+
+- `automatic`: a reviewed, strongly matched fix whose conditions hold. The
+  ordinary installation planner uses these defaults where the user left auto.
+- `prefill`: a ready INI value the player may explicitly select. Start unselected.
+- `conditional`: requires explicit confirmation of the displayed identity and/or
+  conditions. It is not an automatic default.
+- `handled`, `inapplicable`, `unsupported`, `conflict`, `advice`: display the
+  reason; these rows cannot be applied through this interface.
+
+Apply only the selected row IDs, with the digest of the displayed preview:
+
+```python
+install.apply_wiki_settings(
+    exe, selected_ids, confirmed_ids,
+    package=package, expected=preview['digest'],
+)
+```
+
+`confirmed_ids` must be a subset of `selected_ids`; include a row only when the
+player confirmed its displayed game/unknown conditions. Confirmation cannot
+bypass a known false condition, unsupported key, runtime-owned fix or incompatible
+output policy. A changed preview is refused. An explicit selection can replace
+an existing value; show `current → value` before applying.
+
+Writes use the normal installation lock and recoverable generation transaction.
+They change only OptiScaler.ini and its ownership/provenance record. Rollback and
+Restore preserve their existing merge rules, including later player edits. No
+release/provider upgrade or game configuration edit is implied. The installation
+must already be managed; this first API does not add a second mutation to Install.
+
+For a subprocess-based GUI:
+
+```text
+python install.py wiki-plan GAME.exe
+python install.py wiki-apply GAME.exe --wiki-setting ROW_ID \
+  --wiki-plan-digest DIGEST [--wiki-confirm ROW_ID]
+```
+
+Repeat `--wiki-setting` and `--wiki-confirm` as needed. `wiki-plan` emits JSON;
+`wiki-apply` uses the normal operation output and exit status. It accepts one game
+per reviewed plan. The native GUI should run preview off its UI thread, discard
+stale preview results, and check that the game is closed before application.
+
+## Pure catalogue interface
+
+`compat.wiki_plan(data, ids, context, supported_keys=..., current=...,
+recipe_ini=..., quirk_exe=..., optiscaler_commit=...)` performs no filesystem or
+network access. Identity uses FreeFG's `wiki_matches` convention: store ID or
+executable plus title/folder is strong; title alone is weak. Integrations should
+provide the actual input/output, provider, store and proxy context, plus the keys
+supported by the selected OptiScaler build. `current` and `recipe_ini` use
+`Section.Key` strings.
+
+`compat.select_wiki_settings(plan, selected_ids, confirmed_ids)` validates the
+selection and returns `settings` (`Section.Key → value`), `selected` provenance
+rows and `plan_digest`. Proton stores these as explicit per-game settings and
+uses its own prefix transaction; it must not run the game-local installer.
+
+The October 30 catalogue review covers wiki commit `5f927893`, with 761 titles
+and 295 INI instructions. Six existing automatic values now have verified Steam
+identities; other usable values remain explicit prefills. The review record is
+[`utilization-review-20261030.json`](../research/recipes/utilization-review-20261030.json).
+No new automatic promotion or gameplay qualification is implied.
+
+The installed planner identifies supported keys from the actual OptiScaler DLL's
+hash and a pinned INI key manifest, falling back to keys in the current INI for
+an unrecognized build. Integrations may provide `files` (relative dependency
+paths) and `upscaler_input` when known. A known missing file cannot be confirmed
+away; unknown symptoms or input choices still need explicit confirmation.

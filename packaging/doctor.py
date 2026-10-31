@@ -184,7 +184,7 @@ def helixsr_row(home, package=None):
                 try:hlx.find(folder,provider);ready.append(hlx.NAMES[provider])
                 except (OSError,ValueError):missing.append(hlx.NAMES[provider])
             text=('Prepared: '+', '.join(ready)+'. ' if ready else '')
-            if missing:text+='Prepare '+', '.join(missing)+' once in Setup → Upscaler, or import a prepared HelixSR release.'
+            if missing:text+='Prepare '+', '.join(missing)+' once with Prepare HLX in Setup, or import a prepared HelixSR release.'
             return ('OK' if not missing else 'INFO','HLX',text)
     except (OSError,ValueError):pass
     try:
