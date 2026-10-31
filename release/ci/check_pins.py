@@ -8,12 +8,16 @@ Pins checked, each downloaded in full and hashed (nothing downloaded is executed
   installer packaging/dependencies.json "inputs": every download an installation makes, with its size when pinned;
             then the installer's own dependencies.prepare() runs on those downloads in a scratch cache, which unpacks
             each pinned member and checks it against its per-file pin, exactly as a player's first install does.
-            Not checked: the release of HelixSR (the "helixsr" entry's input), a separate project that a player's
-            installer downloads only when that player chooses HelixSR; this check never fetches it
+            Also the downloads of "hlx" (Prepare HLX): the HelixSR release archive and both DXC compiler releases.
+            Not checked: the release of HelixSR 2.0.0 (the "helixsr" entry's input), which a player's installer
+            downloads only when that player chooses classic HelixSR; this check never fetches it
   ci        release/ci/ci.lock.json: the Arch Linux Archive package files (snapshot and package archive), the DXC
             release, and the container image digest (a registry manifest request, no layers downloaded)
+  upstream  a warning, never a failure: Intel's XeFG runtime (bin/libxess_fg.dll of intel/xess) changed upstream after
+            the commit inputs.lock.json pins (the newest commit that touches it, then its bytes against the pin). A
+            newer runtime needs the proxy's own qualification before it may be pinned.
 
-  python3 release/ci/check_pins.py [--only build,installer,ci] [--list] [--report FILE]
+  python3 release/ci/check_pins.py [--only build,installer,ci,upstream] [--list] [--report FILE]
 
 --list prints the URLs without any network access. Exit status 1 when a download fails (after retries), differs from
 its pin, or the installer's preparation fails. A pin that has moved upstream must be changed in its lock and the
@@ -38,7 +42,8 @@ MANIFEST_TYPES = ', '.join(('application/vnd.oci.image.index.v1+json', 'applicat
                             'application/vnd.oci.image.manifest.v1+json',
                             'application/vnd.docker.distribution.manifest.v2+json'))
 RETRIES = 3
-KINDS = ('build', 'installer', 'ci')
+KINDS = ('build', 'installer', 'ci', 'upstream')
+GITHUB_API = 'https://api.github.com'
 
 
 def pins_build():
@@ -62,6 +67,46 @@ def pins_installer():
             continue
         yield dict(kind='installer', name=f'inputs.{key} ({item.get("file", "")})', url=item['url'], sha256=item['sha256'],
                    bytes=item.get('size'), key=key, file=item.get('file'))
+
+
+def pins_hlx():
+    """dependencies.json "hlx": the HelixSR release archive and the DXC compilers Prepare HLX downloads."""
+    hlx = json.loads(DEPENDENCIES.read_text()).get('hlx') or {}
+    entries = ([('archive', hlx['archive'])] if hlx.get('archive') else []) + sorted((hlx.get('compilers') or {}).items())
+    for key, item in entries:
+        yield dict(kind='installer', name=f'hlx.{key} ({item.get("file", "")})', url=item['url'], sha256=item['sha256'],
+                   bytes=item.get('size'))
+
+
+def pins_upstream():
+    """The pinned Intel runtime of inputs.lock.json, to compare with the newest upstream commit that touches it."""
+    group = load_lock()['fetch']['intel-xess-runtime']
+    repository = group['repository'].removeprefix('https://github.com/')
+    for path, item in group['files'].items():
+        yield dict(kind='upstream', name=f'{repository} {path} newer than {group["commit"][:12]}', repository=repository,
+                   path=path, commit=group['commit'], sha256=item['sha256'],
+                   url=f'{GITHUB_API}/repos/{repository}/commits?path={path}&per_page=1')
+
+
+def check_upstream(pin):
+    """ok always; warning when the newest commit touching the file serves other bytes than the pin."""
+    def fetch():
+        request = urllib.request.Request(pin['url'], headers={'User-Agent': USER_AGENT, 'Accept': 'application/vnd.github+json'})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.load(response)
+    commits = with_retries(fetch)
+    if not commits:
+        return dict(ok=True, warning=f'no upstream commit touches {pin["path"]}')
+    latest, date = commits[0]['sha'], commits[0].get('commit', {}).get('committer', {}).get('date', '')
+    if latest == pin['commit']:
+        return dict(ok=True, latest=latest)
+    digest, size = with_retries(lambda: download(f'https://raw.githubusercontent.com/{pin["repository"]}/{latest}/{pin["path"]}',
+                                                  limit=1 << 28))
+    result = dict(ok=True, latest=latest, latest_date=date, served_sha256=digest, served_bytes=size)
+    if digest != pin['sha256']:
+        result['warning'] = (f'{pin["repository"]} has a newer {pin["path"]} (commit {latest[:12]}, {date}, sha256 {digest[:12]}…) '
+                             f'than the pinned {pin["commit"][:12]} ({pin["sha256"][:12]}…): qualify it before pinning it')
+    return result
 
 
 def pins_ci():
@@ -148,13 +193,13 @@ def main():
     unknown = sorted(set(kinds) - set(KINDS))
     if unknown:
         parser.error('unknown kinds: ' + ', '.join(unknown))
-    sources = dict(build=pins_build, installer=pins_installer, ci=pins_ci)
+    sources = dict(build=pins_build, installer=lambda: [*pins_installer(), *pins_hlx()], ci=pins_ci, upstream=pins_upstream)
     pins = [pin for kind in kinds for pin in sources[kind]()]
     if args.list:
         print(json.dumps([{k: v for k, v in pin.items() if k in ('kind', 'name', 'url', 'sha256', 'digest', 'bytes')}
                           for pin in pins], indent=2))
         return
-    results, problems = [], []
+    results, problems, warnings = [], [], []
     with tempfile.TemporaryDirectory(prefix='pin-check-') as scratch_name:
         scratch = Path(scratch_name)
         installer_cache = None
@@ -172,12 +217,16 @@ def main():
             try:
                 if 'image' in pin:
                     outcome = check_image(pin)
+                elif pin['kind'] == 'upstream':
+                    outcome = check_upstream(pin)
                 else:
                     outcome = check_download(pin, installer_cache if pin['kind'] == 'installer' else None)
             except Exception as error:  # noqa: BLE001 - every failure is reported, the remaining pins still run
                 outcome = dict(ok=False, error=f'{type(error).__name__}: {error}')
             outcome['seconds'] = round(time.monotonic() - started, 1)
             results.append(dict(pin, **outcome))
+            if outcome.get('warning'):
+                warnings.append(f'{pin["name"]}: {outcome["warning"]}')
             if not outcome['ok']:
                 problems.append(f'{pin["name"]}: ' + outcome.get('error', f'served {outcome.get("served_sha256") or outcome.get("served_digest")}'))
             print(('ok    ' if outcome['ok'] else 'FAIL  ') + f'{pin["name"]}  {pin["url"]}', flush=True)
@@ -189,8 +238,8 @@ def main():
             except Exception as error:  # noqa: BLE001
                 prepared = dict(error=f'{type(error).__name__}: {error}')
                 problems.append(f'installer preparation (dependencies.prepare): {prepared["error"]}')
-    report = dict(checked=len(results), failed=len(problems), problems=problems, installer_preparation=prepared,
-                  results=results)
+    report = dict(checked=len(results), failed=len(problems), problems=problems, warnings=warnings,
+                  installer_preparation=prepared, results=results)
     if args.report:
         write_json(args.report, report)
     rows = '\n'.join(f'| {"ok" if r["ok"] else "**FAIL**"} | {r["kind"]} | {r["name"]} |' for r in results)
@@ -199,6 +248,8 @@ def main():
                  + (f'**{len(problems)} problem(s).**' if problems else f'All {len(results)} pins serve their bytes.'))
     for problem in problems:
         annotate('error', problem, title='pinned download')
+    for warning in warnings:
+        annotate('warning', warning, title='upstream')
     print(json.dumps(dict(checked=len(results), failed=len(problems), installer_preparation=prepared), indent=2))
     if problems:
         sys.exit(1)

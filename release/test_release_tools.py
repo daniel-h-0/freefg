@@ -1996,7 +1996,8 @@ class OptiScalerForkLock(unittest.TestCase):
 class HelixSRNeverShipped(unittest.TestCase):
     """HelixSR (a separate project, optional) never reaches a package or the scheduled pin check: assemble.py refuses a
     HelixSR DLL its setup has built (NVIDIA's network appended behind the HXSRNET1 footer), and release/ci/check_pins.py
-    never downloads HelixSR's release (players download it only by their own choice)."""
+    never downloads the classic HelixSR 2.0.0 release (players download it only by their own choice); it does check the
+    pinned downloads of Prepare HLX (dependencies.json "hlx": the HelixSR 3.1.0 archive and the DXC compilers)."""
 
     def test_assembly_refuses_a_built_helixsr_dll(self):
         import struct
@@ -2036,7 +2037,10 @@ class HelixSRNeverShipped(unittest.TestCase):
         self.assertTrue(names)
         self.assertFalse([n for n in names if n.startswith('inputs.' + pins['helixsr']['Input'] + ' ')], names)
         self.assertNotIn(pins['inputs'][pins['helixsr']['Input']]['url'], [pin['url'] for pin in listed])
-        self.assertEqual(len(names), len(pins['inputs']) - 1)
+        hlx = pins.get('hlx') or {}
+        hlx_urls = ([hlx['archive']['url']] if hlx.get('archive') else []) + [c['url'] for c in (hlx.get('compilers') or {}).values()]
+        self.assertEqual(sorted(pin['url'] for pin in listed if pin['name'].startswith('hlx.')), sorted(hlx_urls))
+        self.assertEqual(len(names), len(pins['inputs']) - 1 + len(hlx_urls))
 
 
 MFG_DEFINITION = Path(__file__).resolve().parent / 'intel_free_mfg.json'
