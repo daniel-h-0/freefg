@@ -488,9 +488,9 @@ def _pick(entry, fields):
 
 
 def _nvidia_only(item):
-    """Wiki advice and settings recipes.suggestions never shows (it skips NVIDIA-only conditions)."""
+    """Wiki advice and settings for NVIDIA GPUs alone, which recipes.suggestions never shows (recipes.nvidia_only)."""
     gpu = str(item.get('when', {}).get('gpu', '')).lower()
-    return 'nvidia' in gpu and not re.search(r'non[- ]?nvidia|not nvidia|amd|radeon|rdna|intel|steam deck', gpu)
+    return bool(re.search(r'nvidia|gtx|rtx', gpu)) and not re.search(r'non[- ]?nvidia|not nvidia|amd|radeon|rdna|intel|steam deck|dp4a', gpu)
 
 
 def compact(data, full_sha256):

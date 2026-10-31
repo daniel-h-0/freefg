@@ -554,6 +554,13 @@ def settings_plan(verified, user, route, fg_input, previous=None, create_ini=Fal
     return plan
 
 
+def nvidia_only(when):
+    """A wiki condition for NVIDIA GPUs alone ("nvidia", "RTX 4090"), not one naming them beside others ("non-NVIDIA",
+    "AMD, NVIDIA"), as compat.py reads it: what the install notes leave out (build_recipes.py compacts the same way)."""
+    gpu = str((when or {}).get('gpu', '')).lower()
+    return bool(re.search(r'nvidia|gtx|rtx', gpu)) and not re.search(r'non[- ]?nvidia|not nvidia|amd|radeon|rdna|intel|steam deck|dp4a', gpu)
+
+
 def when_text(when):
     """A wiki item's conditions in words, as Check words them (compat.condition_text)."""
     try:
@@ -573,7 +580,7 @@ def suggestions(verified, wiki, fg_input, route):
         return lines
     # One block per game, however many wiki pages mention it (a game page, the FG options list, the compatibility list).
     title = max((w['title'] for w in wiki), key=len)
-    advice = [a for w in wiki for a in w.get('fg_advice', []) if 'nvidia' not in str(a.get('when', {}).get('gpu', '')).lower()]
+    advice = [a for w in wiki for a in w.get('fg_advice', []) if not nvidia_only(a.get('when'))]
     prefer = sorted({INPUT_NAMES.get(a['input'], a['input']) for a in advice if a['advice'] == 'prefer'})
     broken = sorted({INPUT_NAMES.get(a['input'], a['input']) for a in advice if a['advice'] in ('broken', 'avoid')})
     if here in {a['input'] for a in advice if a['advice'] in ('broken', 'avoid')}:
@@ -583,7 +590,7 @@ def suggestions(verified, wiki, fg_input, route):
     keys = []
     for w in wiki:
         for i in w.get('ini', []):
-            if 'nvidia' in str(i.get('when', {}).get('gpu', '')).lower():
+            if nvidia_only(i.get('when')):
                 continue
             text = f"{i['key']}={i['value']}" + (f" ({when_text(i['when'])})" if i.get('when') else '')
             if text not in keys:
@@ -596,7 +603,7 @@ def suggestions(verified, wiki, fg_input, route):
     for w in wiki:
         for i in w.get('launch', []):
             when = i.get('when') or {}
-            if ('nvidia' in str(when.get('gpu', '')).lower() or re.search(r'windows|\bw1[01]\b|win1[01]', str(when.get('os', '')).lower())
+            if (nvidia_only(when) or re.search(r'windows|\bw1[01]\b|win1[01]', str(when.get('os', '')).lower())
                     or any(c.lower() in OFF_DX12_ARGS for c in i.get('conflicts', []))):
                 continue
             text = i['text'] + (f" ({when_text(when)})" if when else '')

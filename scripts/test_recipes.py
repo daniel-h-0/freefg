@@ -214,6 +214,15 @@ class MatchTests(unittest.TestCase):
                          ('grand theft auto v enhanced', 'grand theft auto v'))
         self.assertEqual((r.loose('Nioh 2: The Complete Edition'), r.norm('Kingdom Come: Deliverance II')), ('nioh 2', 'kingdom come deliverance 2'))
 
+    def test_suggestions_keep_advice_that_names_other_gpus_too(self):
+        wiki = [dict(title='Hero', ini=[dict(key='Hotfix.A', value='1', when=dict(gpu='non-NVIDIA')), dict(key='Hotfix.B', value='1', when=dict(gpu='RTX 4090'))],
+                     fg_advice=[dict(advice='prefer', input='fsrfg', when=dict(gpu='AMD, NVIDIA')), dict(advice='prefer', input='dlssg', when=dict(gpu='nvidia'))])]
+        text = '\n'.join(r.suggestions(None, wiki, 'upscaler', 'opti'))
+        self.assertIn('Hotfix.A=1 (on non-NVIDIA)', text)
+        self.assertIn('prefers: FSR 3.1 FG.', text)
+        self.assertNotIn('Hotfix.B', text)
+        self.assertNotIn('DLSS FG', text)
+
     def test_wiki_launch_items_are_suggested_whole(self):
         wiki = [dict(title='Hero', launch=[
             dict(text='-unlockReflexOptions', kind='args'), dict(text='-forceReflexMarkers', kind='args', when=dict(fg_input='dlssg')),
@@ -481,6 +490,14 @@ class BuildTests(unittest.TestCase):
         self.assertFalse(any('other_launch_args' in w for w in self.data['wiki']))  # no token lists any more
         ghost = next(w for w in self.data['wiki'] if w['title'].startswith('Ghost of Tsushima'))
         self.assertEqual([i['text'] for i in ghost['launch']], ['-unlockReflexOptions', '-disallowDLSSGOffInMenu'])
+
+    def test_one_nvidia_only_rule(self):
+        # The compact file drops what the install notes never show, and Check reads such a condition as NVIDIA only.
+        for w in self.data['wiki']:
+            for i in w.get('ini', []) + w.get('fg_advice', []) + w.get('launch', []):
+                self.assertEqual(self.b._nvidia_only(i), r.nvidia_only(i.get('when')), (w['title'], i))
+                if r.nvidia_only(i.get('when')):
+                    self.assertEqual(self.compat.evaluate({'gpu': i['when']['gpu']}, {})[1], ['NVIDIA GPUs only'], w['title'])
 
     def test_identity_strength_is_data(self):
         # Exact titles match; a title without its store edition (alias) and an exe name many games share never do, so no
