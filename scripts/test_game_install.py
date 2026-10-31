@@ -104,6 +104,21 @@ class EventTests(unittest.TestCase):
         self.assertEqual(events,[{'v':1,'type':'outcome','exe':missing,'result':'failed'}])
         self.assertEqual([line for line in with_events.stdout.splitlines() if not line.startswith(m.EVENT_PREFIX)],plain.stdout.splitlines())
 
+    def test_output_errors_never_stop_the_installer(self):
+        # A reader that went away (Setup closed or killed): output is dropped from then on, the command runs to its end.
+        missing=str(Path(tempfile.mkdtemp())/'Game.exe')
+        read,closed=os.pipe();os.close(read)
+        try:
+            run=__import__('subprocess').run([sys.executable,'-I',str(PACKAGING/'install.py'),'status',missing,'--events'],
+                                             stdout=closed,stderr=__import__('subprocess').PIPE,text=True)
+        finally:os.close(closed)
+        self.assertEqual(run.returncode,1);self.assertIn('No such file',run.stderr);self.assertNotIn('BrokenPipeError',run.stderr)
+        class Gone(io.StringIO):
+            def write(self,text):raise BrokenPipeError(32,'Broken pipe')
+        stream=m.Unbroken(Gone())
+        with contextlib.redirect_stdout(stream):print('lost');m.say('lost too');print('and this',flush=True)
+        self.assertTrue(stream.broken)
+
 class InstallationTests(GameFixture):
     def test_round_trip(self):
         m.install(self.package,self.exe);self.assertFalse((self.game/'OptiScaler/libxell.dll').exists())

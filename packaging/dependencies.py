@@ -42,7 +42,9 @@ def sha(path):
 
 
 def cache_dir():
-    return Path(os.environ.get('XDG_CACHE_HOME', str(Path.home()/'.cache')))/'bc250-xefg-testers'
+    # The XDG Base Directory specification: a relative (or empty) XDG_CACHE_HOME is invalid and is ignored.
+    root = Path(os.environ.get('XDG_CACHE_HOME') or '.')
+    return (root if root.is_absolute() else Path.home()/'.cache')/'bc250-xefg-testers'
 
 
 def pinned_files(pins, groups):

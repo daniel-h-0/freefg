@@ -1980,6 +1980,10 @@ def integration_plan(root,record,pins,files,loader=None):
     if owner not in available:raise ValueError('OptiScaler bytes changed or its loader ownership is ambiguous; reconcile before updating')
     selected=loader or owner
     if selected not in OPTI_PROXIES:raise ValueError('Unsupported OptiScaler loader: '+str(selected))
+    # No game loads OptiScaler.dll or OptiScaler.asi by itself (an .asi needs an ASI loader): OptiScaler would stop loading.
+    if selected!=owner and selected in ('OptiScaler.dll','OptiScaler.asi'):
+        raise ValueError('No game loads '+selected+' by itself (an .asi file needs an ASI loader), so OptiScaler would stop loading; '
+                         'choose '+joined([name for name in OPTI_PROXIES if not name.startswith('OptiScaler.')])+' as the loader.')
     if selected!=owner and selected not in items and file_digest(root,selected) is not None:
         raise ValueError('The requested loader filename belongs to another file: '+selected+'; choose a free loader name')
     desired={};retired=[]
@@ -2182,13 +2186,14 @@ def wiki_settings_plan(package, exe):
     return plan
 
 
-def _wiki_update_plan(package, root, record, selected, confirmed, expected):
+def _wiki_update_plan(package, root, record, selected, confirmed, expected, exe):
     import compat
     if record.get('addon_entry') != PROXY_ENTRY or record.get('runtime') != 'xemfg':
         raise ValueError('Wiki INI transactions require a current FreeFG proxy installation')
     if record.get('update_contract', LEGACY_CONTRACT) not in (UPDATE_CONTRACT, LEGACY_CONTRACT):
         raise ValueError('Unsupported installation contract; use its matching installer')
-    plan = wiki_settings_plan(package, Path(record.get('game') or root / 'unknown.exe'))
+    # Planned from the executable the preview was made for: record['game'] still names the old folder of a moved game.
+    plan = wiki_settings_plan(package, exe)
     if expected != plan['digest']:
         raise ValueError('Wiki settings preview changed; review the current plan before applying')
     choice = compat.select_wiki_settings(plan, selected, confirmed)
@@ -2222,8 +2227,18 @@ def apply_wiki_settings(exe, selected, confirmed=(), *, package=None, expected=N
     """
     if not expected:
         raise ValueError('Review wiki_settings_plan and supply its digest before applying')
+    # The selection first, before the game-closed check and the locks: a stale preview or a selection that cannot apply
+    # together (two values for one key, a confirmation missing) is refused at once, with what to change.
+    import compat
+    plan = wiki_settings_plan(Path(package or Path(__file__).resolve().parent), exe)
+    try:
+        if expected != plan['digest']:
+            raise ValueError('Wiki settings preview changed; review the current plan before applying')
+        compat.select_wiki_settings(plan, selected, confirmed)
+    except ValueError as error:
+        raise Refusal(str(error)) from None
     return update(exe, package=package, _planner=lambda p, r, record:
-                  _wiki_update_plan(p, r, record, selected, confirmed, expected))
+                  _wiki_update_plan(p, r, record, selected, confirmed, expected, exe))
 
 
 def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None,upscaler=None,refresh_recipe=False):
@@ -2908,6 +2923,10 @@ def run_scope(record):
 def status(exe):
     root=exe.parent.resolve();record=json.loads(safe(root,STATE+'/state.json').read_text())
     print(record['status']+' — '+record.get('route','native'))
+    if record['status']!='restored' and record.get('game') and not same_exe(record['game'],exe):
+        # A moved game folder: its launch settings name the layer, wave table and shader cache in the old one.
+        print('Moved since installation (installed at '+str(Path(record['game']).parent)+'): its launch settings still name '
+              'files in that folder. Restore here, then Install again.')
     if record.get('package'):print('Package: '+record['package'])
     if record.get('pending_update'):
         print('An update was interrupted: run install.py update again, or install.py rollback.' if record['pending_update'].get('generation') else
@@ -3252,6 +3271,26 @@ def refusal(error):
     index held by another process."""
     return isinstance(error,(Refusal,freefg_library.Busy,getattr(sys.modules.get('compat'),'Refused',Refusal)))
 
+class Unbroken:
+    """A text stream (sys.stdout, sys.stderr) whose write errors are dropped, and with them its later output: a reader
+    that went away (Setup closed or killed) never stops a transaction half way. The stream's descriptor then points at
+    /dev/null, so Python's own flush at exit does not fail either (the signal module's note on SIGPIPE)."""
+    def __init__(self,stream):self.stream,self.broken=stream,False
+    def write(self,text):
+        if not self.broken:
+            try:return self.stream.write(text)
+            except OSError:self.drop()
+        return len(text)
+    def flush(self):
+        if not self.broken:
+            try:self.stream.flush()
+            except OSError:self.drop()
+    def drop(self):
+        self.broken=True
+        with contextlib.suppress(OSError,ValueError,AttributeError):
+            null=os.open(os.devnull,os.O_WRONLY);os.dup2(null,self.stream.fileno());os.close(null)
+    def __getattr__(self,name):return getattr(self.stream,name)
+
 def batch_summary(command,outcomes):
     """One line about plan or update across several games: how many of each outcome, naming the games that need attention."""
     words={'plan':{'update':'to update','current':'up to date','pinned':'pinned','deferred':'deferred','interrupted':'interrupted','blocked':'need attention','unavailable':'unavailable','running':'running','refused':'refused','failed':'failed'},
@@ -3261,4 +3300,6 @@ def batch_summary(command,outcomes):
         names=[exe.name for exe,outcome in outcomes if outcome==status]
         if names:parts.append(str(len(names))+' '+word+(' ('+', '.join(names)+')' if status in ('partial','pinned','deferred','interrupted','blocked','unavailable','running','refused','failed') else ''))
     return ('Plan: ' if command=='plan' else 'Update: ')+'; '.join(parts)+'.'
-if __name__=='__main__':sys.exit(main())
+if __name__=='__main__':
+    sys.stdout,sys.stderr=Unbroken(sys.stdout),Unbroken(sys.stderr)
+    sys.exit(main())

@@ -70,6 +70,18 @@ class LibraryIndexTests(UpdateFixture):
         self.assertIn('registration needs attention',out)
         self.assertEqual(m.library_inventory()[0]['package'],NEW)
 
+    def test_relative_xdg_folders_are_ignored(self):
+        # The XDG Base Directory specification: a relative path is invalid and is ignored (it made every update refuse).
+        import dependencies
+        m.install(self.package,self.exe,route='opti')
+        with patch.dict(os.environ,{'XDG_DATA_HOME':'share','XDG_CACHE_HOME':'cache'}):
+            os.environ.pop('FREEFG_LIBRARY',None)
+            self.assertEqual(m.freefg_library.location(),self.root/'.local/share/freefg/library.json')
+            self.assertEqual(dependencies.cache_dir(),self.root/'.cache/bc250-xefg-testers')
+            self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
+            os.environ['XDG_CACHE_HOME']='';self.assertEqual(dependencies.cache_dir(),self.root/'.cache/bc250-xefg-testers')
+        self.assertEqual(m.freefg_library.entries()[0]['package'],NEW)
+
     def test_index_symlink_is_not_followed(self):
         m.install(self.package,self.exe,route='opti');path=m.freefg_library.location();path.unlink()
         other=self.root/'other.json';other.write_text('untouched');path.symlink_to(other)

@@ -22,6 +22,14 @@ class IntegrationUpdateTests(UpdateFixture):
         status,_=self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')
         self.assertEqual(status,'blocked');self.assertEqual(self.snapshot(),before)
 
+    def test_loader_names_no_game_loads_are_refused(self):
+        # OptiScaler.dll and OptiScaler.asi are not loaded by a game itself: moving there would stop OptiScaler loading.
+        self.install_old();before=self.snapshot()
+        for loader in ('OptiScaler.asi','OptiScaler.dll'):
+            status,out=self.run_quiet(m.update,self.exe,self.new,loader=loader)
+            self.assertEqual(status,'blocked');self.assertIn('No game loads '+loader+' by itself',out)
+        self.assertEqual(self.snapshot(),before)
+
     def test_integration_defaults_and_loader_change_round_trip(self):
         self.install_old();before=self.snapshot()
         status,out=self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')

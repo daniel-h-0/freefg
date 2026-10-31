@@ -24,10 +24,9 @@ def location(home=None):
         if not path.is_absolute():
             raise ValueError('FREEFG_LIBRARY must name an absolute index file')
         return path
-    root = Path(os.environ.get('XDG_DATA_HOME') or Path.home() / '.local/share')
-    if not root.is_absolute():
-        raise ValueError('XDG_DATA_HOME must be absolute')
-    return root / 'freefg/library.json'
+    # The XDG Base Directory specification: a relative path in XDG_DATA_HOME is invalid and is ignored.
+    root = Path(os.environ.get('XDG_DATA_HOME') or '.')
+    return (root if root.is_absolute() else Path.home() / '.local/share') / 'freefg/library.json'
 
 
 def load(home=None):
