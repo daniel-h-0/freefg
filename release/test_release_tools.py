@@ -2356,6 +2356,47 @@ class WaveTable(unittest.TestCase):
                 self.assertEqual(path.read_text(), before)  # nothing written on a refusal
 
 
+class LayerGlibc(unittest.TestCase):
+    """release/build_layer.py's glibc check on synthetic ELF files: the symbol versions a shared object needs
+    (.gnu.version_r) and the newest GLIBC_ one against GLIBC_LIMIT. No build."""
+
+    @staticmethod
+    def elf(needs):
+        """A minimal x86-64 ELF: a null section, a string table and .gnu.version_r with needs {library: [versions]}."""
+        import struct
+        strings = bytearray(b'\0')
+
+        def add(text):
+            strings.extend(text.encode() + b'\0')
+            return len(strings) - len(text) - 1
+        entries = [(add(library), [add(name) for name in names]) for library, names in needs.items()]
+        verneed = b''
+        for i, (library, names) in enumerate(entries):
+            verneed += struct.pack('<HHIII', 1, len(names), library, 16, 16 + 16 * len(names) if i < len(entries) - 1 else 0)
+            for j, name in enumerate(names):
+                verneed += struct.pack('<IHHII', 0, 0, j + 2, name, 16 if j < len(names) - 1 else 0)
+        verneed_at = 64 + len(strings)
+        shoff = verneed_at + len(verneed) + (-(verneed_at + len(verneed)) % 8)
+        header = b'\x7fELF\x02\x01\x01' + bytes(9) + struct.pack('<HHIQQQIHHHHHH', 3, 62, 1, 0, 0, shoff, 0, 64, 0, 0, 64, 3, 0)
+        sections = (bytes(64) + struct.pack('<IIQQQQIIQQ', 0, 3, 0, 0, 64, len(strings), 0, 0, 1, 0)
+                    + struct.pack('<IIQQQQIIQQ', 0, 0x6ffffffe, 0, 0, verneed_at, len(verneed), 1, len(entries), 8, 0))
+        return header + bytes(strings) + verneed + bytes(shoff - verneed_at - len(verneed)) + sections
+
+    def test_needs_and_limit(self):
+        import build_layer
+        from config import ReleaseError
+        needs = {'libc.so.6': ['GLIBC_2.2.5', 'GLIBC_2.34', 'GLIBC_2.3.2'], 'libm.so.6': ['GLIBC_2.29']}
+        self.assertEqual(build_layer.version_needs(self.elf(needs)),
+                         {'libc.so.6': ['GLIBC_2.2.5', 'GLIBC_2.3.2', 'GLIBC_2.34'], 'libm.so.6': ['GLIBC_2.29']})
+        self.assertEqual(build_layer.check_glibc(build_layer.version_needs(self.elf(needs)))['minimum'], '2.34')
+        self.assertEqual(build_layer.check_glibc({'libc.so.6': ['GLIBC_2.2.5']})['minimum'], '2.2.5')
+        with self.assertRaisesRegex(ReleaseError, 'GLIBC_2.38'):  # __isoc23_sscanf under _GNU_SOURCE (glibc 2.38+)
+            build_layer.check_glibc(build_layer.version_needs(self.elf({'libc.so.6': ['GLIBC_2.34', 'GLIBC_2.38']})))
+        self.assertEqual(build_layer.check_glibc({'libgcc_s.so.1': ['GCC_3.0']})['minimum'], '0')
+        with self.assertRaises(ReleaseError):
+            build_layer.version_needs(b'MZ' + bytes(62))
+
+
 class F4QRelease(unittest.TestCase):
     """F4Q in release form (src/model_f4q.h, src/game/f4q.h; intel_free_mfg.json "added_defines" and profile "add"): on
     by default with its switch in the package's settings file, release names only, the two F(4x4) kernels at wave 32,

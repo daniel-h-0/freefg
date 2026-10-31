@@ -89,7 +89,7 @@ outputs. Neither route establishes GPU/game qualification.
 
 | Step | Checks and record |
 | --- | --- |
-| `build_layer.py` | Pacer, wave-layer and concurrent-present tests under ASan/UBSan and TSan; two matching builds; `build/layer/build.json`. |
+| `build_layer.py` | Pacer, wave-layer and concurrent-present tests under ASan/UBSan and TSan; two matching builds; no glibc symbol version newer than 2.34 (the manifest's `present_pacing.glibc`, which System Check compares with the host's); `build/layer/build.json`. |
 | `build_proxy.py` | Pinned inputs, profile manifest, two matching DLLs, 57 Intel exports (8 wrapped/49 forwarded) plus 4 own exports, and imports limited to `kernel32.dll`/`ucrtbase.dll`; `build/addon-intel-free-mfg/build.json`. |
 | `check_proxy_wine.py` | Forwarding to the pinned runtime; refusal of missing/altered runtimes; caller preservation with stand-in hooks; coexistence bookkeeping; copied-history invalidation and abandoned/submitted recordings. Private Wine prefix, no GPU/display. |
 | `assemble.py` | Installer tests, build freshness, allowed package contents, manifest hashes and static material scan. `--archive` also requires a passed qualification receipt and completed public documents. |

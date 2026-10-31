@@ -280,8 +280,8 @@ WAVE_LINE = re.compile(r'([0-9a-f]{16})[ \t]+(32|64)[ \t\r]*')
 
 def wave_table(text):
     """{module hash: wave} of a waves.txt text as the pacing layer reads it; ReleaseError where the layer would read no
-    table at all. Slightly stricter than the layer (the wave as written, whitespace between the fields, lines of at
-    most 100 characters), so a table accepted here is read in full."""
+    table at all. Slightly stricter than the layer (the wave as written, lines of at most 100 characters), so a table
+    accepted here is read in full."""
     table = {}
     for number, line in enumerate(text.split('\n'), 1):
         if not line.strip(' \t\r'):

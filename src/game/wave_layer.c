@@ -35,14 +35,24 @@ static unsigned choice_count;
 static PFN_vkVoidFunction VKAPI_CALL gipa(VkInstance,const char*);
 static PFN_vkVoidFunction VKAPI_CALL gdpa(VkDevice,const char*);
 
+/* One table line: 16 lower-case hex digits, blanks, the wave, optional trailing blanks. Read by hand: with _GNU_SOURCE,
+ * glibc 2.38 and later turn sscanf into __isoc23_sscanf, which would make the layer need glibc 2.38 instead of 2.34. */
+static int wave_line(const char*s,char hash[17],unsigned*wave){
+ size_t n=0;while(n<16&&((s[n]>='0'&&s[n]<='9')||(s[n]>='a'&&s[n]<='f')))n++;
+ if(n!=16||(s[n]!=' '&&s[n]!='\t'))return 0;
+ memcpy(hash,s,16);hash[16]=0;s+=16;while(*s==' '||*s=='\t')s++;
+ unsigned v=0,digits=0;while(*s>='0'&&*s<='9'&&digits<3){v=v*10+(unsigned)(*s++-'0');digits++;}
+ while(*s==' '||*s=='\t'||*s=='\r'||*s=='\n')s++;
+ if(!digits||*s)return 0;*wave=v;return 1;
+}
 static void configuration(void){
  const char*path=getenv("XEFG_WAVE_CONFIG");if(!path)return;
  FILE*f=fopen(path,"r");if(!f)return;
  char line[128];unsigned count=0;int ok=1;
  while(fgets(line,sizeof(line),f)){
   if(strspn(line," \t\r\n")==strlen(line))continue;
-  char hash[17],extra;unsigned wave;
-  if(count==512||sscanf(line,"%16[0123456789abcdef] %u %c",hash,&wave,&extra)!=2||strlen(hash)!=16||(wave!=32&&wave!=64)){ok=0;break;}
+  char hash[17];unsigned wave;
+  if(count==512||!wave_line(line,hash,&wave)||(wave!=32&&wave!=64)){ok=0;break;}
   for(unsigned i=0;i<count;i++)if(!strcmp(choices[i].name,hash))ok=0;
   if(!ok)break;
   strcpy(choices[count].name,hash);choices[count++].wave=wave;

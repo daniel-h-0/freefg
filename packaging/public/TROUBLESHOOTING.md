@@ -59,6 +59,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | `Cannot download …` | The first installation needs internet access, or the file already in `~/.cache/bc250-xefg-testers`. |
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |
 | Setup opens Zenity dialogs instead of its window, or its window misbehaves | The window needs PyGObject, GTK 4 and libadwaita 1.5 or newer (`python-gobject gtk4 libadwaita` on Arch-based systems); started from a terminal, Setup prints what is missing. `FREEFG_SETUP_UI=zenity ./Start-freefg.sh` chooses the dialogs. |
+| System Check: `Pacing layer` WARN | The Vulkan loader cannot load FreeFG's layer: the system's glibc is older than the layer needs (2.34), or the line names the loader's reason. Presents are not paced and the layer's wave sizes are not applied; frame generation still runs. |
 | Setup does not find HLX | Prepare HelixSR 3.1.0 once, select a matching prepared folder with `--helixsr`, or reuse a checked game-local provider. See [upscalers](CONFIGURATION.md#upscalers). |
 
 ## Shader-cache behavior
