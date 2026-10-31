@@ -206,13 +206,53 @@ def environment(root, owner, current, runtime='xemfg', route='opti', extra=None,
 
 
 API_ARGS = {'-dx11', '-d3d11', '-dx12', '-d3d12', '-force-d3d11', '-force-d3d12', '-vulkan', '-force-vulkan'}
+# Godot's graphics-API switch is this option and its value (gamescan: --rendering-driver d3d12).
+API_OPTION = '--rendering-driver'
 
 
-def with_args(tokens, args):
-    """Game arguments from a recipe (a DX12 switch), unless the user already chose a graphics API."""
-    if not args or any(t.lower() in API_ARGS for t in tokens):
-        return tokens
-    return tokens + [a for a in args if a not in tokens]
+def split_args(args, required=()):
+    """(graphics-API switch, arguments the game always needs) of a game's launch arguments: an API_ARGS word, or
+    API_OPTION with its value, is the switch; every other word is always needed (records and recipes before
+    required_args kept GTA V Enhanced's -nobattleye among them). required: further arguments the game always needs."""
+    api, needed, words = [], [], list(args)
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word.lower() == API_OPTION:
+            api += words[index:index+2]
+            index += 1
+        elif word.lower() in API_ARGS:
+            api.append(word)
+        else:
+            needed.append(word)
+        index += 1
+    return api, list(dict.fromkeys([*needed, *required]))
+
+
+def chooses_api(tokens):
+    """Whether launch arguments already choose a graphics API."""
+    return any(t.lower() in API_ARGS or t.lower() == API_OPTION for t in tokens)
+
+
+def with_args(tokens, args, required=()):
+    """tokens (the user's game arguments) with a recipe's: its graphics-API switch unless the user already chose a
+    graphics API, then the arguments the game always needs (required, and args' other words: split_args), each once."""
+    api, needed = split_args(args, required)
+    out = list(tokens)
+    if api and not chooses_api(tokens):
+        out += [a for a in api if a not in out]
+    return out + [a for a in needed if a not in out]
+
+
+def added_to(text, args, required=()):
+    """Argument text (Heroic's launcherArgs, a Steam entry's options) with what with_args() adds appended in shell
+    quoting. The user's own text stays as written, so a ~ or the quoting in it keeps its meaning; with nothing to add,
+    text is returned as it is (None too)."""
+    tokens = shlex.split(text or '')
+    added = with_args(tokens, args, required)[len(tokens):]
+    if not added:
+        return text
+    return ' '.join([*([text.rstrip()] if (text or '').strip() else []), *map(shlex.quote, added)])
 
 
 # One shell word: quoted or unquoted parts, no unquoted whitespace.
@@ -270,8 +310,8 @@ def _join_steam(env, rest, written=None):
     return ' '.join([*(key+'='+spelled(key, val) for key, val in env.items()), *([rest] if rest else [])])
 
 
-def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
-    """Transform ordinary launch options; never execute shell text while editing."""
+def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, required=()):
+    """Transform ordinary launch options; never execute shell text while editing. args, required: with_args()."""
     current, rest, written = split_steam(value)
     # Wrappers of earlier wrapper-based installs (either layout; the lib2x/XeFG route's lives under OptiScaler/).
     rest = _drop_words(rest, [str(root/'BC250-XeFG/run.sh'), str(root/'OptiScaler/BC250-XeFG/run.sh')])
@@ -289,7 +329,7 @@ def steam_options(value, root, owner, runtime='xemfg', route='opti', args=(), ex
     if any(';' in token for token in tokens):
         raise ValueError('Shell commands in Steam launch options need explicit reconciliation')
     env = environment(root, owner, current, runtime, route, extra_env, vkd3d_cache)
-    added = with_args(tokens, args)[len(tokens):]
+    added = with_args(tokens, args, required)[len(tokens):]
     return _join_steam(env, ' '.join([rest, *map(shlex.quote, added)]), written)
 
 
@@ -609,19 +649,41 @@ def _ge_variables(env):
     return sorted(str(k) for k, v in env.items() if GE_UPSCALER.fullmatch(str(k)) and str(v).strip() not in ('', '0'))
 
 
-def conflicts(exe, targets, environ=None):
+def lutris_arguments(data):
+    """The game arguments of a Lutris game file (game: args), split as Lutris splits them; [] when it has none."""
+    from vendor import yaml
+    doc = yaml.safe_load(data)
+    game = doc.get('game') if isinstance(doc, dict) else None
+    value = game.get('args') if isinstance(game, dict) else None
+    try:
+        return shlex.split(value) if isinstance(value, str) else []
+    except ValueError:
+        return []
+
+
+def conflicts(exe, targets, environ=None, required=()):
     """Refusals that the launcher entries of exe call for, found before anything is downloaded or written:
     [dict(code, kind, text, way)]. shared-entry: an entry already loads an installation from another folder (two
     installations on one entry cannot both be restored exactly). ge-optiscaler: GE-Proton is told to place its own
-    OptiScaler or upscaler DLLs (in the entry, or in environ: the environment Setup runs in). An entry that cannot be
-    read is left to plan(), which reports it."""
+    OptiScaler or upscaler DLLs (in the entry, or in environ: the environment Setup runs in). required-args: a Lutris
+    entry lacks an argument the game always needs (required; Lutris's game arguments are not managed here, and a game
+    started without it would run as the recipe was never qualified, GTA V Enhanced with BattlEye on). An entry that
+    cannot be read is left to plan(), which reports it."""
     root = Path(exe).parent.resolve()
     found = []
     for target in targets:
         try:
-            env = entry_environment(target, Path(target['path']).read_bytes())
+            data = Path(target['path']).read_bytes()
+            env = entry_environment(target, data)
+            missing = [a for a in required if a not in lutris_arguments(data)] if target['launcher'] == 'lutris' else []
         except Exception:  # noqa: BLE001 - plan() reports an unreadable entry
             continue
+        if missing:
+            found.append(dict(code='required-args', kind='hard',
+                              text='This game needs the game argument' + ('s ' if len(missing) > 1 else ' ') + ' '.join(missing) +
+                                   ', and this installer does not edit Lutris\'s game arguments.',
+                              way='In Lutris, add ' + ' '.join(missing) + ' to the game\'s Arguments (Configure, Game options), '
+                                  'then install again.'))
         others = sorted({str(r) for r in layer_roots(env) if r.resolve() != root})
         if others:
             found.append(dict(code='shared-entry', kind='hard',
@@ -645,7 +707,10 @@ def conflicts(exe, targets, environ=None):
     return list(unique.values())
 
 
-def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, manual=False):
+def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, manual=False,
+         required=()):
+    """The launcher operations of an installation: each entry's fields before and after. args: the graphics-API switch
+    (added where the user's options choose no API); required: arguments the game always needs (always added; with_args)."""
     targets = discover(exe, home)
     if not targets:
         # manual: the user accepted the no-launcher refusal and sets manual_settings() in a launcher this module does not edit.
@@ -655,7 +720,7 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
     require_stopped(t['launcher'] for t in targets)
     root = exe.parent.resolve()
     # The checks Install also runs before its downloads (compat.preflight); here they guard every other caller.
-    for refusal in conflicts(exe, targets):
+    for refusal in conflicts(exe, targets, required=split_args(args, required)[1]):
         raise ValueError(f'{refusal["text"]} {refusal["way"]} [{refusal["code"]}]')
     # Wrappers of earlier wrapper-based installs (either layout) give way to the launcher fields.
     wrappers = {str(root/'BC250-XeFG/run.sh'), str(root/'OptiScaler/BC250-XeFG/run.sh')}
@@ -664,15 +729,15 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
         path = Path(target['path'])
         if path.is_symlink() or not path.is_file():
             raise ValueError('Expected a regular launcher configuration: '+str(path))
-        if args and target['launcher'] == 'heroic':
-            target = dict(target, args=list(args))
+        if (args or required) and target['launcher'] == 'heroic':
+            target = dict(target, args=[*args, *required])
         data = path.read_bytes()
         before = fields(target, data)
         if target['launcher'] == 'steam' and target.get('format') != 'shortcuts':
             target = dict(target, created_app=not Document(data).has_object(APP+[target['id']]))
         if target['launcher'] == 'steam':
             after = {'LaunchOptions': steam_options(before['LaunchOptions'] or '', root, owner, runtime, route, args, extra_env,
-                                                    vkd3d_cache)}
+                                                    vkd3d_cache, required)}
         elif target['launcher'] == 'heroic':
             entries = before['enviromentOptions'] or []
             current = {e['key']: e['value'] for e in entries}
@@ -682,8 +747,7 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
                                             environment(root, owner, current, runtime, route, extra_env, vkd3d_cache).items()],
                          wrapperOptions=[r for r in (before['wrapperOptions'] or []) if r.get('exe') not in wrappers])
             if 'launcherArgs' in before:
-                tokens = with_args(shlex.split(before['launcherArgs'] or ''), args)
-                after['launcherArgs'] = shlex.join(tokens) if tokens else before['launcherArgs']
+                after['launcherArgs'] = added_to(before['launcherArgs'], args, required)
         else:
             prefix = before['prefix_command'] or ''
             # Remove only this installation's old wrapper, preserving other tools.
@@ -694,27 +758,36 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
     return operations
 
 
-def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
+def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, required=()):
     """The launch settings a new launcher entry would get from plan(), for a launcher this module does not edit (an
-    accepted no-launcher refusal): dict(env, args). The user sets them; the installation records them, and Status, Update
-    and Restore show them again."""
-    return dict(env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=list(args))
+    accepted no-launcher refusal): dict(env, args, required_args). The user sets them; the installation records them, and
+    Status, Update and Restore show them again."""
+    api, needed = split_args(args, required)
+    return dict(env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=api,
+                **({'required_args': needed} if needed else {}))
 
 
 def manual_lines(settings):
     """manual_settings() as the user copies them: one KEY=value per line, quoted as a shell reads it (launchers that take
-    a command line, Faugus's launch arguments among them, read them so), then the game's arguments."""
+    a command line, Faugus's launch arguments among them, read them so), then the game's arguments (manual_args)."""
     lines = [key + '=' + shlex.quote(value) for key, value in settings['env'].items()]
-    if settings.get('args'):
-        lines.append('Game arguments (after the .exe): ' + shlex.join(settings['args']))
+    if manual_args(settings):
+        lines.append('Game arguments (after the .exe): ' + shlex.join(manual_args(settings)))
     return lines
 
 
 def manual_args(settings):
     """The game arguments of manual_settings(): the graphics-API switch (args; skip it where the user's launcher already
-    chooses an API), then the arguments the game always needs (required_args)."""
-    args = list(settings.get('args') or [])
-    return args + [a for a in settings.get('required_args') or [] if a not in args]
+    chooses an API), then the arguments the game always needs (required_args, and any other word of args: settings
+    recorded before required_args kept them there)."""
+    api, needed = split_args(settings.get('args') or [], settings.get('required_args') or [])
+    return api + [a for a in needed if a not in api]
+
+
+def manual_effect(settings):
+    """What a launcher keeps of manual_settings(): its variables and the game's arguments (manual_args). Two settings
+    with the same effect differ only in how a record states them."""
+    return dict(settings.get('env') or {}), manual_args(settings)
 
 
 def manual_removals(settings):
@@ -735,8 +808,8 @@ def manual_steam_line(settings):
 
 def added_args(operations):
     """Game arguments the planned launcher fields add (Steam LaunchOptions after %command%, Heroic launcherArgs), in
-    order and once each: with_args adds none where the user's options already choose a graphics API, and Lutris's
-    arguments are not managed."""
+    order and once each: with_args adds no API switch where the user's options already choose a graphics API, and
+    Lutris's arguments are not managed (plan() refuses an entry that lacks a required one)."""
     added = []
     for row in operations:
         if row['launcher'] == 'steam':

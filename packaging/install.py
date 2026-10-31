@@ -516,6 +516,19 @@ def recipe_for(package,exe,launcher_home=None):
     verified,wiki,leave,backports=rm.match(data,rm.identity(exe,found,launcher_home))
     return rm,verified,wiki,leave,backports,found
 
+def recipe_required_args(rm,verified):
+    """The arguments a verified recipe says the game always needs (recipes.required_args; wiki data never supplies them).
+    A recipes.py without that function reads the recipe's own required_args field."""
+    if hasattr(rm,'required_args'):return list(rm.required_args(verified))
+    return list((verified or {}).get('required_args') or [])
+
+def record_arguments(record):
+    """(graphics-API switch, arguments the game always needs) of an installation record. Records before required_args
+    kept a needed argument among launch_args (GTA V Enhanced's -nobattleye, 1.2.0): any word there that is not an API
+    switch counts as required (launcher_config.split_args)."""
+    import launcher_config
+    return launcher_config.split_args(record.get('launch_args') or [],record.get('required_args') or [])
+
 def settings_record(item):
     """The installation record of one planned recipe game setting (recipes.settings_plan). originals marks records
     that Restore can revert key by key; v26 records lack it."""
@@ -767,7 +780,10 @@ def compat_verdict(package,exe,route=None,fg_input=None,launcher_home=None,accep
         # One matcher for verified recipes: the one the installer applies them with (recipe_for, recipes.match).
         recipe=recipe_for(package,exe,launcher_home)
         scan=gamescan.scan_exe(exe,Path(launcher_home) if launcher_home else Path.home())
-        conflicts=launcher_config.conflicts(exe,launchers,os.environ)
+        # A verified recipe's required arguments: a launcher entry that cannot carry them is a refusal (required-args).
+        required=launcher_config.split_args(recipe[0].launch_args(recipe[1],recipe[2]),recipe_required_args(recipe[0],recipe[1]))[1] \
+            if recipe and recipe[1] else ()
+        conflicts=launcher_config.conflicts(exe,launchers,os.environ,required=required)
         choice=dict(route=route,fg_input=fg_input) if route else None
         setup=preconditions(package,exe,recipe)
         return compat.decide(scan,data,ids,choice,None,accept,conflicts,launchers,verified=recipe[1] if recipe else None,setup=setup,
@@ -1100,6 +1116,11 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         for arg in extra_args:
             if arg.lower() in launcher_config.API_ARGS:launch_args=[a for a in launch_args if a.lower() not in launcher_config.API_ARGS]
             if arg not in launch_args:launch_args.append(arg)
+    # The graphics-API switch (added where the user's options choose no API) and the arguments the game always needs,
+    # always added: the verified recipe's required_args, and any other word among the launch arguments (recipes before
+    # required_args kept GTA V Enhanced's -nobattleye there).
+    import launcher_config
+    launch_args,required_args=launcher_config.split_args(launch_args,recipe_required_args(recipe[0],recipe[1]) if recipe else ())
     kept=[]
     if not fresh:carried_ini={}  # an existing OptiScaler INI stays as the user left it anyway
     for (section,key),value in carried_ini.items():
@@ -1122,9 +1143,9 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     # printed, for the user to set in a launcher this installer does not edit; Status, Update and Restore name them again.
     launchers=launcher_config.plan(exe,owner_module,home=launcher_home,runtime='xemfg-proxy' if proxy else 'xemfg',route=route,args=launch_args,
                                    extra_env=(verdict or {}).get('extra_env'),vkd3d_cache=vkd3d_cache,
-                                   manual='no-launcher' in (verdict or {}).get('accepted',[]))
+                                   manual='no-launcher' in (verdict or {}).get('accepted',[]),required=required_args)
     manual_launch=None if launchers else launcher_config.manual_settings(root,owner_module,'xemfg-proxy' if proxy else 'xemfg',route,launch_args,
-                                                                         (verdict or {}).get('extra_env'),vkd3d_cache)
+                                                                         (verdict or {}).get('extra_env'),vkd3d_cache,required_args)
     # The runtime: the package's own copies when it carries them all (checked above), otherwise the pinned downloads,
     # fetched below once every check has passed.
     packaged_runtime={source:files[name] for name,source in layout.items() if name in files}
@@ -1220,7 +1241,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     # wrapper=None: records of wrapper-based builds named their run.sh here.
     record=dict(status='prepared',runtime='xemfg',route=route,fresh=fresh,wrapper=None,game=str(exe.resolve()),files=plan,package=package_record.get('name'),
                 ini_changes=[dict(section=s,key=k,value=v) for (s,k),v in changes.items()],launchers=launchers,launch_args=launch_args,
-                launch_args_added=launcher_config.added_args(launchers))
+                required_args=required_args,launch_args_added=launcher_config.added_args(launchers))
     record['installation_id']=uuid.uuid4().hex
     record['created_dirs']=created_dirs
     if manual_launch:record['manual_launch']=manual_launch
@@ -1237,7 +1258,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if recipe:
         entry=recipe[1] or community
         record['recipe']=dict(title=(entry or {}).get('title'),status='verified-bc250' if recipe[1] else 'community-bc250' if entry else None,
-                              wiki=[w['title'] for w in recipe[2]],launch_args=launch_args)
+                              wiki=[w['title'] for w in recipe[2]],launch_args=launch_args,required_args=required_args)
         if (recipe[1] or {}).get('upscaler_ini'):record['recipe']['upscaler_ini']=recipe[1]['upscaler_ini']
         record['game_settings']=[settings_record(item) for item in settings_plan]
     staging=Path(tempfile.mkdtemp(prefix=STATE+'-preparing-',dir=root))
@@ -1671,7 +1692,8 @@ LEGACY_UPDATE_TARGETS=frozenset(UPDATES_FROM)
 UPDATE_CONTRACT={'format':2,'layout':'game-local-xemfg-proxy','configuration':1}
 LEGACY_CONTRACT={'format':1,'layout':'game-local-xemfg-proxy','configuration':1}
 RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler','ini_changes','launchers','manual_launch',
-                'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input','wiki_settings')
+                'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input','wiki_settings',
+                'required_args')
 # Generations kept for rollback: the release before the last update.
 GENERATIONS='generations'
 GENERATIONS_KEPT=1
@@ -1948,18 +1970,23 @@ def recipe_migration(package,root,record,ini):
     if route=='opti' and fg in ('fsrfg','fsrfg30'):changes[('FrameGen','DisableHudless')]='true'
     if route=='opti' and fg in ('upscaler','fsrfg','fsrfg30') and parsed.get(('fakenvapi','forcereflex'),'auto').strip().lower() in ('','auto'):
         changes[('fakenvapi','ForceReflex')]='2'
-    old_args=set((record.get('recipe') or {}).get('launch_args') or [])
-    args=list(rm.launch_args(verified,found[2]))
-    args.extend(x for x in record.get('launch_args',[]) if x not in old_args and x not in args)
+    # The refreshed recipe's API switch and required arguments, and those of the installation's own that its earlier
+    # recipe did not ask for (a caller's); a record before required_args kept them among launch_args (record_arguments).
+    import launcher_config
+    old_api,old_required=record_arguments(record.get('recipe') or {})
+    new_api,new_required=launcher_config.split_args(rm.launch_args(verified,found[2]),recipe_required_args(rm,verified))
+    api,required=record_arguments(record)
+    args=new_api+[x for x in api if x not in old_api and x not in new_api]
+    required=new_required+[x for x in required if x not in old_required and x not in new_required]
     recipe=dict(title=verified['title'],status='verified-bc250',wiki=[w['title'] for w in found[2]],
-                launch_args=list(rm.launch_args(verified,found[2])),evidence=verified.get('evidence'),observed=verified.get('observed'))
+                launch_args=new_api,required_args=new_required,evidence=verified.get('evidence'),observed=verified.get('observed'))
     if verified.get('upscaler_ini'):recipe['upscaler_ini']=verified['upscaler_ini']
     # Original game-setting ownership stays available for Restore. Obsolete pending settings are never reasserted.
     settings=json.loads(json.dumps(record.get('game_settings') or []))
     for row in settings:
         if not any(all(row.get(k)==entry.get(k) for k in ('file','format','section','values')) for entry in verified.get('game_settings',[])):
             row['active']=False
-    metadata=dict(route=route,fg_input=fg,launch_args=args,recipe=recipe,game_settings=settings,
+    metadata=dict(route=route,fg_input=fg,launch_args=args,required_args=required,recipe=recipe,game_settings=settings,
                   ini_changes=own_ini_changes(record,changes))
     notes=['Recipe refresh: '+verified['title']+'; '+route+'/'+fg+'. Game settings and saves are not written.']
     notes+=['After update: '+step for step in verified.get('manual_steps',[])]
@@ -2113,11 +2140,12 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
         integration['edits']['OptiScaler.ini']=changed;integration['metadata'].update(metadata);out['notes']+=notes
         policy_record=dict(record,**metadata)
     cache=root/STATE/VKD3D_CACHE if record.get('vkd3d_cache')==VKD3D_CACHE else None
+    api_args,required_args=record_arguments(policy_record)
     migrations=launcher_migrations.plan(record,root,integration['owner'],
-                 route=policy_record.get('route'),args=policy_record.get('launch_args'),
+                 route=policy_record.get('route'),args=api_args,
                  extra=(record.get('compat') or {}).get('extra_env'),
                  cache=cache,
-                 previous_owner=integration['previous_owner'])
+                 previous_owner=integration['previous_owner'],required=required_args)
     out['launcher_ops']=migrations['operations']
     if migrations['records']!=record.get('launchers',[]):out['metadata']['launchers']=migrations['records']
     if migrations['operations']:out['metadata']['launcher_policy_keys']=migrations['policy_keys']
@@ -2125,8 +2153,10 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
         # Settings the user keeps in a launcher this installer does not edit: this release's, shown when they change.
         import launcher_config
         manual=launcher_config.manual_settings(root,integration['owner'],'xemfg-proxy',policy_record.get('route') or record.get('route','native'),
-                                               policy_record.get('launch_args') or [],(record.get('compat') or {}).get('extra_env'),cache)
-        if manual!=record['manual_launch']:out['metadata']['manual_launch']=manual
+                                               api_args,(record.get('compat') or {}).get('extra_env'),cache,required_args)
+        # Only what the user keeps in that launcher counts (the variables and the game's arguments), not the form a
+        # record of an earlier build stores them in.
+        if launcher_config.manual_effect(manual)!=launcher_config.manual_effect(record['manual_launch']):out['metadata']['manual_launch']=manual
     out['metadata'].update({key:value for key,value in integration['metadata'].items() if record.get(key)!=value})
     edits=integration['edits']
     # What the package places, as install() places it: its own payload files, and the pinned runtime (the package's copy

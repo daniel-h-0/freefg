@@ -194,6 +194,61 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(dict(l.manual_env_table(settings)), settings['env'])
         self.assertEqual(l.manual_removals(settings), [])
 
+    def test_required_arguments_are_added_beside_the_users_api_switch(self):
+        # A graphics-API switch only where the user chose none; an argument the game always needs (GTA V Enhanced's
+        # -nobattleye) always, once. 1.2.0's recipes and records kept it among the launch arguments: it counts as required.
+        self.assertEqual(l.with_args(['-dx12'], ['-nobattleye']), ['-dx12', '-nobattleye'])
+        self.assertEqual(l.with_args(['-dx11'], ['-dx12'], ['-nobattleye']), ['-dx11', '-nobattleye'])
+        self.assertEqual(l.with_args(['%command%'], ['-dx12'], ['-nobattleye']), ['%command%', '-dx12', '-nobattleye'])
+        self.assertEqual(l.with_args(['-NoBattlEye', '-nobattleye'], [], ['-nobattleye']), ['-NoBattlEye', '-nobattleye'])
+        self.assertEqual(l.split_args(['--rendering-driver', 'd3d12', '-nobattleye', '-D3D12']),
+                         (['--rendering-driver', 'd3d12', '-D3D12'], ['-nobattleye']))
+        self.assertTrue(l.chooses_api(['--rendering-driver', 'vulkan']))
+        self.assertEqual(l.with_args(['--rendering-driver', 'vulkan'], ['-dx12']), ['--rendering-driver', 'vulkan'])
+        result = l.steam_options('-dx12', self.game, 'dxgi.dll', args=['-nobattleye'])
+        self.assertTrue(result.endswith('%command% -dx12 -nobattleye'), result)
+        self.assertEqual(l.steam_options(result, self.game, 'dxgi.dll', required=['-nobattleye']), result)  # once
+        code = 'import sys,json;print(json.dumps(sys.argv[1:]))'
+        command = result.replace('%command%', shlex.join([sys.executable, '-c', code]))
+        self.assertEqual(json.loads(subprocess.check_output(['/bin/sh', '-c', command], text=True)), ['-dx12', '-nobattleye'])
+
+    def test_heroic_arguments_keep_the_users_text(self):
+        # Heroic's launcherArgs as the user wrote them (a ~ stays unquoted); the installation's words are appended and
+        # taken out again by Restore.
+        config = self.heroic()
+        doc = json.loads(config.read_text());doc['123']['launcherArgs'] = '~/saves -dx11';config.write_text(json.dumps(doc))
+        operations = l.plan(self.exe, 'dxgi.dll', self.home, args=['-dx12'], required=['-nobattleye'])
+        self.assertEqual(operations[0]['after']['launcherArgs'], '~/saves -dx11 -nobattleye')
+        self.assertEqual(l.added_args(operations), ['-nobattleye'])
+        l.apply(operations, self.write)
+        doc = json.loads(config.read_text());doc['123']['launcherArgs'] += ' --later';config.write_text(json.dumps(doc))
+        l.apply(operations, self.write, restore=True)
+        self.assertEqual(json.loads(config.read_text())['123']['launcherArgs'], '~/saves -dx11 --later')
+        self.assertEqual(l.added_to(None, [], []), None)
+        self.assertEqual(l.added_to('', ['-dx12']), '-dx12')
+        self.assertEqual(l.added_to("'a b' ", [], ['-x y']), "'a b' '-x y'")
+
+    def test_lutris_entry_without_a_required_argument_is_refused(self):
+        # Lutris's game arguments are not edited here: an entry that lacks a required argument is a refusal with the
+        # way to fix it, never a note after the files were installed; with the argument in place it installs.
+        from vendor import yaml
+        config = self.home/'.config/lutris/games/test.yml'
+        doc = dict(game={'exe': str(self.exe), 'args': '-dx12'}, system={'env': {}})
+        self.write(config, yaml.safe_dump(doc).encode())
+        found = l.conflicts(self.exe, l.discover(self.exe, self.home), required=['-nobattleye'])
+        self.assertEqual([(c['code'], c['kind']) for c in found], [('required-args', 'hard')])
+        self.assertIn('add -nobattleye', found[0]['way'])
+        with self.assertRaisesRegex(ValueError, r'-nobattleye.*\[required-args\]'):
+            l.plan(self.exe, 'dxgi.dll', self.home, args=['-nobattleye'])
+        self.assertEqual(l.conflicts(self.exe, l.discover(self.exe, self.home), required=[]), [])
+        doc['game']['args'] = "-dx12 -nobattleye 'a b'"
+        self.write(config, yaml.safe_dump(doc).encode())
+        self.assertEqual(l.conflicts(self.exe, l.discover(self.exe, self.home), required=['-nobattleye']), [])
+        operations = l.plan(self.exe, 'dxgi.dll', self.home, required=['-nobattleye'])
+        self.assertEqual(l.added_args(operations), [])  # Lutris's arguments are the user's
+        self.assertEqual(l.lutris_arguments(config.read_bytes()), ['-dx12', '-nobattleye', 'a b'])
+        self.assertEqual(l.lutris_arguments(b'game: {args: "unbalanced \'"}'), [])
+
     def test_removes_only_exact_old_wrapper(self):
         value = 'gamemoderun '+shlex.quote(str(self.game/'BC250-XeFG/run.sh'))+' %command% --intro-skip'
         result = l.steam_options(value,self.game,'dxgi.dll')
@@ -634,6 +689,55 @@ class LauncherInstallationTests(unittest.TestCase):
         m.restore(self.exe)
         self.assertEqual(json.loads(self.config.read_text()),self.original_config)
         for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data)
+
+    def recipe(self, **fields):
+        """A verified recipe for the fixture game (its Heroic GOG ID 123; without a launcher ID, Game.exe in its folder
+        'game') in the package."""
+        entry = dict(dict(title='Test Game', match=dict(gog=['123'], exe=['game.exe'], title=['game']), status='verified-bc250',
+                          route='opti', fg_input='upscaler', ini={}, game_settings=[], launch_args=[]), **fields)
+        self.fixtures.set_package_file(self.package, 'recipes/recipes.json', json.dumps(dict(
+            schema=1, verified=[entry], wiki=[], leave_auto={}, backports={})).encode())
+
+    def test_required_argument_is_installed_beside_the_users_api_switch(self):
+        # GTA V Enhanced: -nobattleye with the user's own -dx12 in the entry, from 1.2.0's recipe form (among launch_args)
+        # and from required_args. 1.2.0 left it out ("Launch option not added").
+        m = self.fixtures.m
+        doc = json.loads(self.config.read_text());doc['123']['launcherArgs'] = '~/saves -dx12';self.config.write_text(json.dumps(doc))
+        original = self.config.read_bytes()
+        for fields in (dict(launch_args=['-nobattleye']), dict(required_args=['-nobattleye'])):
+            with self.subTest(fields=fields):
+                self.recipe(**fields)
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    m.install(self.package, self.exe, route='opti')
+                self.assertEqual(json.loads(self.config.read_text())['123']['launcherArgs'], '~/saves -dx12 -nobattleye')
+                record = json.loads((self.game/m.STATE/'state.json').read_text())
+                self.assertEqual((record['launch_args'], record['required_args'], record['launch_args_added']), ([], ['-nobattleye'], ['-nobattleye']))
+                self.assertEqual(record['recipe']['required_args'], ['-nobattleye'])
+                self.assertIn('Launch option added: -nobattleye', out.getvalue())
+                self.assertNotIn('Launch option not added', out.getvalue())
+                m.restore(self.exe)
+                self.assertEqual(self.config.read_bytes(), original)
+
+    def test_lutris_entry_without_the_required_argument_refuses_before_any_change(self):
+        from vendor import yaml
+        m = self.fixtures.m
+        self.config.unlink()
+        lutris = self.root/'.config/lutris/games/game.yml'
+        doc = dict(game={'exe': str(self.exe), 'args': '-dx12'}, system={'env': {'VKD3D_CONFIG': 'dxr'}})
+        m.write(lutris, yaml.safe_dump(doc).encode())
+        self.recipe(required_args=['-nobattleye'])
+        verdict = m.compat_verdict(self.package, self.exe, 'opti', 'upscaler')[0]
+        self.assertEqual([r['code'] for r in verdict['blocking']], ['required-args'])
+        with self.assertRaisesRegex(ValueError, 'add -nobattleye'):
+            m.install(self.package, self.exe, route='opti')
+        self.assertFalse((self.game/m.STATE).exists())
+        for name, data in self.original.items():self.assertEqual((self.game/name).read_bytes(), data)
+        doc['game']['args'] = '-dx12 -nobattleye'
+        m.write(lutris, yaml.safe_dump(doc).encode())
+        m.install(self.package, self.exe, route='opti')
+        self.assertEqual(yaml.safe_load(lutris.read_text())['game']['args'], '-dx12 -nobattleye')
+        m.restore(self.exe)
+        self.assertEqual(yaml.safe_load(lutris.read_text()), doc)
 
     def test_missing_launcher_is_preflight_failure(self):
         m=self.fixtures.m
