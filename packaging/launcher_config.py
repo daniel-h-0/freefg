@@ -758,13 +758,28 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
     return operations
 
 
-def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, required=()):
+# The format of manual_settings(): 1 adds required_args, remove, merge and notes to the env and args of the first
+# manual installations (no format), which stay valid.
+MANUAL_FORMAT = 1
+# Without its own vkd3d-proton cache folder (the path is too long for vkd3d-proton's file names), an installation sets
+# neither cache setting (install.py).
+CACHE_PATH_NOTE = ('Game folder path too long for vkd3d-proton’s cache file names: its shader cache stays the game’s own, '
+                   'and wave sizes apply only to pipelines Mesa’s cache does not already hold.')
+
+
+def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, required=(), notes=()):
     """The launch settings a new launcher entry would get from plan(), for a launcher this module does not edit (an
-    accepted no-launcher refusal): dict(env, args, required_args). The user sets them; the installation records them, and
+    accepted no-launcher refusal): dict(format, env, args, required_args, remove, merge, notes). env: the variables, as a
+    new entry gets them; args: the graphics-API switch, for a launcher whose arguments choose no API; required_args:
+    arguments the game always needs; remove: variables to delete where the launcher sets them; merge: the launch
+    contract's operations on env's variables (contract()), how each combines with a value the launcher already has;
+    notes: what else the user should know (CACHE_PATH_NOTE). The user sets them; the installation records them, and
     Status, Update and Restore show them again."""
+    ops = contract(root, owner, runtime, route, extra_env, vkd3d_cache)
     api, needed = split_args(args, required)
-    return dict(env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=api,
-                **({'required_args': needed} if needed else {}))
+    return dict(format=MANUAL_FORMAT, env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=api,
+                required_args=needed, remove=[op['var'] for op in ops if op['op'] == 'remove'],
+                merge=[op for op in ops if op['op'] != 'remove'], notes=list(notes))
 
 
 def manual_lines(settings):
@@ -804,6 +819,74 @@ def manual_env_table(settings):
 def manual_steam_line(settings):
     """manual_settings() as one launch-options line in Steam's form: assignments, %command%, then the game's arguments."""
     return _join_steam(dict(settings['env']), ' '.join(['%command%', *map(shlex.quote, manual_args(settings))]))
+
+
+def manual_merge_lines(settings):
+    """How each variable of manual_settings() combines with a value the launcher already sets (its merge operations), one
+    line each; none for a variable whose value simply replaces the launcher's, and none for settings recorded without
+    merge."""
+    lines = []
+    for op in settings.get('merge') or []:
+        var, kind, value, sep = op['var'], op['op'], op.get('value'), op.get('sep')
+        unless = ''.join(', unless ' + key + '=' + held + ' is set' for key, held in (op.get('unless') or {}).items())
+        if kind == 'dll-override':
+            names = ', '.join(entry.split('=', 1)[0] for entry in value.split(sep))
+            lines.append(f'{var}: keep your entries without any for {names}, then add {value} (entries separated by {sep})')
+        elif kind == 'prepend':
+            lines.append(f'{var}: {value} first, then yours (separated by {sep})')
+        elif kind == 'append-member':
+            lines.append(f'{var}: add {value} to yours (separated by {sep}){unless}')
+        elif kind == 'replace' and op.get('when') == 'unset':
+            lines.append(f'{var}: keep yours where you set one (0 included)')
+    return lines
+
+
+def manual_guide(settings):
+    """What a reader without Setup's window needs besides manual_lines(): the Steam form, the values a table of variables
+    takes without quotes, the API switch to leave out, the variables to delete, how to combine with the launcher's own
+    values and the notes. Lines without indentation; a sub-line starts with two spaces."""
+    lines = ['As one launch-options line (Steam’s form): ' + manual_steam_line(settings)]
+    quoted = [(key, value) for key, value in manual_env_table(settings) if shlex.quote(value) != value]
+    if quoted:
+        lines += ['In a table of variables (name, value), without the quotes:'] + ['  ' + key + ': ' + value for key, value in quoted]
+    api = split_args(settings.get('args') or [])[0]
+    if api:
+        lines.append('Leave out ' + shlex.join(api) + ' where the game’s arguments already choose a graphics API.')
+    if manual_removals(settings):
+        lines.append('Delete where present: ' + ', '.join(manual_removals(settings)))
+    merge = manual_merge_lines(settings)
+    if merge:
+        lines += ['Where the launcher already sets one of these, combine them:'] + ['  ' + line for line in merge]
+    return lines + list(settings.get('notes') or [])
+
+
+def manual_change_lines(before, after):
+    """What changes in the user's launcher from manual_settings() before to after: a line per variable that changes,
+    appears or goes, then the game's arguments; none when the effect is the same (manual_effect)."""
+    (old, old_args), (new, new_args) = manual_effect(before), manual_effect(after)
+    lines = []
+    for key in dict.fromkeys([*new, *old]):
+        if key not in old:
+            lines.append('Add ' + key + '=' + shlex.quote(new[key]))
+        elif key not in new:
+            lines.append('Delete ' + key + '=' + shlex.quote(old[key]))
+        elif old[key] != new[key]:
+            lines.append('Replace ' + key + '=' + shlex.quote(old[key]) + ' with ' + key + '=' + shlex.quote(new[key]))
+    if old_args != new_args:
+        lines.append('Game arguments: ' + (shlex.join(old_args) or 'none') + ' → ' + (shlex.join(new_args) or 'none'))
+    return lines
+
+
+def manual_delete_lines(settings):
+    """What to take out of a variable the user combined with their own value (merge), at Restore: the part manual_settings()
+    added, a line each (a variable set whole goes, as its line in manual_lines() says)."""
+    lines = []
+    for op in settings.get('merge') or []:
+        if op['op'] in ('dll-override', 'prepend', 'append-member'):
+            lines.append(op['var'] + ': ' + op['value'])
+        elif op['op'] == 'replace' and op.get('when') == 'unset':
+            lines.append(op['var'] + ': only where it is ' + op['value'])
+    return lines
 
 
 def added_args(operations):

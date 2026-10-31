@@ -177,7 +177,7 @@ class LauncherTests(unittest.TestCase):
         cache = self.game/'.bc250-xefg-experimental/vkd3d-cache'
         settings = l.manual_settings(self.game, 'dxgi.dll', 'xemfg-proxy', 'opti', ['-dx12'], {'PROTONFIXES_DISABLE': '1'}, cache)
         steam = l.steam_options('', self.game, 'dxgi.dll', 'xemfg-proxy', 'opti', ['-dx12'], {'PROTONFIXES_DISABLE': '1'}, cache)
-        self.assertEqual(settings, {'env': l.split_steam(steam)[0], 'args': ['-dx12']})
+        self.assertEqual({key: settings[key] for key in ('env', 'args')}, {'env': l.split_steam(steam)[0], 'args': ['-dx12']})
         lines = l.manual_lines(settings)
         self.assertEqual(lines[-1], 'Game arguments (after the .exe): -dx12')
         # On a command line, before the command (the game folder's name has a space and a quote).
@@ -192,7 +192,7 @@ class LauncherTests(unittest.TestCase):
         env, rest, _ = l.split_steam(line)
         self.assertEqual((env, shlex.split(rest)), (settings['env'], ['%command%', '-dx12', '-nobattleye']))
         self.assertEqual(dict(l.manual_env_table(settings)), settings['env'])
-        self.assertEqual(l.manual_removals(settings), [])
+        self.assertEqual(l.manual_removals(settings), ['XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP'])
 
     def test_required_arguments_are_added_beside_the_users_api_switch(self):
         # A graphics-API switch only where the user chose none; an argument the game always needs (GTA V Enhanced's
@@ -248,6 +248,29 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(l.added_args(operations), [])  # Lutris's arguments are the user's
         self.assertEqual(l.lutris_arguments(config.read_bytes()), ['-dx12', '-nobattleye', 'a b'])
         self.assertEqual(l.lutris_arguments(b'game: {args: "unbalanced \'"}'), [])
+
+    def test_manual_settings_name_every_form_and_every_change(self):
+        cache = self.game/'.bc250-xefg-experimental/vkd3d-cache'  # the fixture's folder name has a space and a quote
+        settings = l.manual_settings(self.game, 'dxgi.dll', 'xemfg-proxy', 'opti', ['-dx12'], None, cache, ['-nobattleye'])
+        guide = l.manual_guide(settings)
+        self.assertEqual(guide[0], 'As one launch-options line (Steam’s form): ' + l.manual_steam_line(settings))
+        self.assertIn('  VK_LAYER_PATH: ' + str(self.game/'BC250-XeFG/layer'), guide)  # a table takes the value without quotes
+        self.assertIn('Leave out -dx12 where the game’s arguments already choose a graphics API.', guide)
+        self.assertEqual(l.manual_args(settings), ['-dx12', '-nobattleye'])
+        # A launcher that already sets some of them: the guidance's result is the contract's.
+        own = dict(WINEDLLOVERRIDES='winmm=b;DXGI=n', VK_LAYER_PATH='/mine', VKD3D_CONFIG='dxr', VKD3D_SHADER_CACHE_PATH='0', XEFG_FLOW_CAP='1')
+        combined = l.apply_contract(own, settings['merge'] + [dict(var=key, op='remove') for key in settings['remove']])
+        self.assertEqual(combined, l.environment(self.game, 'dxgi.dll', own, 'xemfg-proxy', 'opti', None, cache))
+        self.assertEqual((combined['WINEDLLOVERRIDES'], combined['VKD3D_SHADER_CACHE_PATH']), ('winmm=b;dxgi=n,b', '0'))
+        # What changes, named exactly; a record's other form (PR #8: env and args only) and notes change nothing.
+        other = l.manual_settings(self.game, 'winmm.dll', 'xemfg-proxy', 'opti', [], None, None, ['-nobattleye'], [l.CACHE_PATH_NOTE])
+        self.assertEqual(l.manual_change_lines(settings, other), [
+            'Replace WINEDLLOVERRIDES=dxgi=n,b with WINEDLLOVERRIDES=winmm=n,b',
+            'Delete VKD3D_DISABLE_EXTENSIONS=VK_EXT_shader_module_identifier',
+            'Delete VKD3D_SHADER_CACHE_PATH=' + shlex.quote(str(cache)), 'Game arguments: -dx12 -nobattleye → -nobattleye'])
+        self.assertEqual(l.manual_change_lines({'env': settings['env'], 'args': ['-dx12', '-nobattleye']}, dict(settings, notes=['x'])), [])
+        self.assertEqual(l.manual_guide(other)[-1], l.CACHE_PATH_NOTE)
+        self.assertEqual(l.manual_delete_lines(settings)[:2], ['WINEDLLOVERRIDES: dxgi=n,b', 'VK_LAYER_PATH: ' + str(self.game/'BC250-XeFG/layer')])
 
     def test_removes_only_exact_old_wrapper(self):
         value = 'gamemoderun '+shlex.quote(str(self.game/'BC250-XeFG/run.sh'))+' %command% --intro-skip'
