@@ -1870,19 +1870,13 @@ class ForkSource(unittest.TestCase):
         self.assertEqual(self.archive('out-filled')[0]['warnings'], [])
 
     def test_the_fork_group_after_its_release(self):
-        """release_fetch's own instruction, followed literally: the group moves to "fetch" with the placeholders filled,
-        "enabled" (and the note) removed and the source record moved with it, and the work group is dropped. The
-        companion and the archive tool read the group there."""
-        about = json.loads((TREE / 'release/inputs.lock.json').read_text())['work']['optiscaler-fork']['release_fetch']
-        self.assertRegex(about['about'], r'"source" record \(commit, tree, tag, tag_commit, build_route, archive, '
-                                         r'\.\.\.\) moves with it')
+        """The group under "fetch" (as the real lock has it since the fork's release: placeholders filled, "enabled" and
+        the note removed, the source record moved with it, the work group dropped): the companion and the archive tool
+        read it there."""
         config = self.config()
         work = config.lock['work'].pop('optiscaler-fork')
-        template = dict(about, commit=self.tag_commit, files=work['files'])
-        fetch = {key: value.replace('[OPTISCALER-FORK-SOURCE-URL]', 'https://example.invalid/fork')
-                 .replace('[OPTISCALER-FORK-TAG]', 'bc250-test') if isinstance(value, str) else value
-                 for key, value in template.items() if key not in ('enabled', 'about')}
-        fetch['source'] = work['source']
+        fetch = dict(repository='https://example.invalid/fork', commit=self.tag_commit, files=work['files'],
+                     url='https://example.invalid/fork/releases/download/bc250-test/{path}', source=work['source'])
         config.lock['fetch']['optiscaler-fork'] = fetch
         files, pins = self.companion.fork_files(config)
         self.assertEqual((files['FORK.md'][0], pins['tag_commit']), (b'# Fork\n', self.tag_commit))
@@ -1970,13 +1964,15 @@ class OptiScalerNotices(unittest.TestCase):
 
 
 class OptiScalerForkLock(unittest.TestCase):
-    """inputs.lock.json's OptiScaler fork group: the build route and tag the source offer needs, the prepared (and
-    switched off) fetch group of the fork's release, and a public projection without internal notes."""
+    """inputs.lock.json's OptiScaler fork group: the build route and tag the source offer needs, the fetch group of the
+    fork's public release (moved from "work" as its release_fetch template said), and a public projection without
+    internal notes."""
 
     @classmethod
     def setUpClass(cls):
+        import config
         cls.lock = json.loads((TREE / 'release/inputs.lock.json').read_text())
-        cls.group = cls.lock['work']['optiscaler-fork']
+        cls.section, cls.group = config.fork_group(cls.lock)
 
     def test_build_route_and_tag(self):
         source = self.group['source']
@@ -1988,33 +1984,34 @@ class OptiScalerForkLock(unittest.TestCase):
                              (source['tag_commit'], source['commit'], source['tag']))
             self.assertEqual(archive['name'], f'OptiScaler-{source["tag"]}-source.tar.xz')
 
-    def test_release_fetch_template_is_off(self):
-        template = self.group['release_fetch']
-        self.assertIs(template['enabled'], False)
-        self.assertNotIn('optiscaler-fork', self.lock['fetch'])
-        self.assertEqual(template['files'], self.group['files'])
-        self.assertEqual(template['commit'], self.group['source']['tag_commit'])
-        self.assertIn('{path}', template['url'])
-        self.assertTrue({'[OPTISCALER-FORK-SOURCE-URL]', '[OPTISCALER-FORK-TAG]'} <= set(re.findall(r'\[[A-Z-]+\]',
-                                                                                                    template['url'])))
-        filled = template['url'].replace('[OPTISCALER-FORK-SOURCE-URL]', 'https://example.invalid/fork') \
-            .replace('[OPTISCALER-FORK-TAG]', 'bc250-test')
-        self.assertEqual(filled.format(commit=template['commit'], path='OptiScaler.dll'),
-                         'https://example.invalid/fork/releases/download/bc250-test/OptiScaler.dll')
+    def test_fetch_group_of_the_release(self):
+        """The fork's release is fetched by pinned hash: the group is under "fetch" only, at the tag commit, its URL the
+        release's download folder for the locked tag, without the template's placeholders or switches."""
+        self.assertEqual(self.section, 'fetch')
+        self.assertNotIn('optiscaler-fork', self.lock['work'])
+        group, source = self.group, self.group['source']
+        self.assertEqual(group['commit'], source['tag_commit'])
+        self.assertEqual(sorted(group['files']), ['OptiScaler.dll', 'OptiScaler.ini'])
+        self.assertFalse({'enabled', 'about', 'release_fetch'} & set(group))
+        self.assertEqual(group['url'].format(commit=group['commit'], path='OptiScaler.dll'),
+                         f'{group["repository"]}/releases/download/{source["tag"]}/OptiScaler.dll')
+        self.assertFalse(re.findall(r'\[[A-Z-]+\]', json.dumps(group)))
 
     def test_public_projection_has_no_internal_notes(self):
         import export_tree
         public, report = export_tree.public_lock(self.lock)
-        group = public['work']['optiscaler-fork']
+        group = public[self.section]['optiscaler-fork']
         # source.branch is the fork's branch until its public name is chosen
         text = json.dumps(group).replace(json.dumps(group['source']['branch']), '')
         for word in ('Private', 'private', 'tester', 'noreply', 'rewrite', 'research_record', 'evidence/', 'previous_build',
                      'source_in_work_note', 'fg-controls', 'slmutex'):
             self.assertNotIn(word, text)
-        self.assertEqual((group['path'], group['source']['source_in_work']), ('OptiScaler-build', 'OptiScaler'))
+        self.assertEqual(group['source']['source_in_work'], 'OptiScaler')
+        if self.section == 'work':
+            self.assertEqual(group['path'], 'OptiScaler-build')
+            self.assertEqual(group['release_fetch'], self.group['release_fetch'])
         self.assertNotIn('private', json.dumps(public['fetch']['optiscaler-license']))
         self.assertEqual(group['files'], self.group['files'])
-        self.assertEqual(group['release_fetch'], self.group['release_fetch'])
         for key in ('commit', 'tree', 'tag', 'tag_commit', 'build_route', 'upstream_base'):
             self.assertEqual(group['source'][key], self.group['source'][key])
         self.assertEqual(export_tree.public_lock(public)[0], public)
@@ -2023,7 +2020,8 @@ class OptiScalerForkLock(unittest.TestCase):
 class HelixSRNeverShipped(unittest.TestCase):
     """HelixSR (a separate project, optional) never reaches a package or the scheduled pin check: assemble.py refuses a
     HelixSR DLL its setup has built (NVIDIA's network appended behind the HXSRNET1 footer), and release/ci/check_pins.py
-    never downloads HelixSR's release (players download it only by their own choice)."""
+    never downloads the classic HelixSR 2.0.0 release (players download it only by their own choice); it does check the
+    pinned downloads of Prepare HLX (dependencies.json "hlx": the HelixSR 3.1.0 archive and the DXC compilers)."""
 
     def test_assembly_refuses_a_built_helixsr_dll(self):
         import struct
@@ -2063,7 +2061,10 @@ class HelixSRNeverShipped(unittest.TestCase):
         self.assertTrue(names)
         self.assertFalse([n for n in names if n.startswith('inputs.' + pins['helixsr']['Input'] + ' ')], names)
         self.assertNotIn(pins['inputs'][pins['helixsr']['Input']]['url'], [pin['url'] for pin in listed])
-        self.assertEqual(len(names), len(pins['inputs']) - 1)
+        hlx = pins.get('hlx') or {}
+        hlx_urls = ([hlx['archive']['url']] if hlx.get('archive') else []) + [c['url'] for c in (hlx.get('compilers') or {}).values()]
+        self.assertEqual(sorted(pin['url'] for pin in listed if pin['name'].startswith('hlx.')), sorted(hlx_urls))
+        self.assertEqual(len(names), len(pins['inputs']) - 1 + len(hlx_urls))
 
 
 MFG_DEFINITION = Path(__file__).resolve().parent / 'intel_free_mfg.json'
@@ -2148,6 +2149,9 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         self.assertNotIn(' result=original(', chain)
         for name in self.ORDINARY:
             self.assertNotIn('musttail', wrappers[name], name)
+            # Intel's entry resolved once (GetLastPresentStatus runs every frame; GetProcAddress takes the loader lock)
+            self.assertIn(f'static __typeof__(&{name}) original;', wrappers[name], name)
+            self.assertIn(f'if(!original&&!(original=(void*)resolve("{name}")))', wrappers[name], name)
             body = wrappers[name]
             self.assertLess(body.index('proxy_ready_first(hSwapChain);'), body.index(' result=original('), name)
         # Claims: by output pointer or the initialisation queue's device; at destruction by output pointer.
@@ -2163,6 +2167,27 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         self.assertIn('proxy_frames_changed(hSwapChain,numInterpolatedFrames)', wrappers['xefgSwapChainSetNumInterpolatedFrames'])
         for leftover in ('mfg_xell_pace', 'mfg_status_', 'mfg_enabler'):
             self.assertNotIn(leftover, code)
+
+    def test_declared_entries_tail_call(self):
+        """tail_declared: every other export Intel's headers declare becomes the proxy's own tail-calling entry (verified
+        runtime first, no DLL search path); unnamed and undeclared exports stay forwarders."""
+        import build_proxy
+        _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
+        self.assertIs(definition['addon'].get('tail_declared'), True)
+        hooks = build_proxy.proxy_hooks(definition)
+        headers = self.headers() + ('XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainGetVersion('
+                                    'xefg_swapchain_version_t* pVersion);\n')
+        exports = [(1, None, None), (27, 'xefgAILGetDecision', None), (31, 'xefgSwapChainD3D12CreateContext', None),
+                   (48, 'xefgSwapChainGetVersion', None)]
+        added = build_proxy.declared_tail_hooks(headers, exports, hooks)
+        self.assertEqual(added, {'xefgSwapChainGetVersion': dict(before='', always_tail=True)})
+        body = self.wrappers(build_proxy.exports_header(headers, dict(hooks, **added)))['xefgSwapChainGetVersion']
+        self.assertIn('if(!original&&!(original=(void*)resolve("xefgSwapChainGetVersion")))', body)
+        self.assertTrue(body.endswith('__attribute__((musttail)) return original(pVersion);}'), body)
+        definition_text = build_proxy.module_definition(exports, set(hooks) | set(added), [], 'bc250_xefg_original.dll')
+        self.assertIn(' xefgSwapChainGetVersion @48\n', definition_text)
+        self.assertIn(' xefgAILGetDecision=bc250_xefg_original.xefgAILGetDecision @27\n', definition_text)
+        self.assertIn(' bc250_ordinal_1=bc250_xefg_original.#1 @1 NONAME\n', definition_text)
 
     @unittest.skipUnless(TWO_DEFINITION.is_file(), '0.9.0\'s 2x proxy is not part of this tree (public export)')
     def test_the_2x_variant_is_unchanged(self):
@@ -2383,6 +2408,47 @@ class WaveTable(unittest.TestCase):
                 self.assertEqual(path.read_text(), before)  # nothing written on a refusal
 
 
+class LayerGlibc(unittest.TestCase):
+    """release/build_layer.py's glibc check on synthetic ELF files: the symbol versions a shared object needs
+    (.gnu.version_r) and the newest GLIBC_ one against GLIBC_LIMIT. No build."""
+
+    @staticmethod
+    def elf(needs):
+        """A minimal x86-64 ELF: a null section, a string table and .gnu.version_r with needs {library: [versions]}."""
+        import struct
+        strings = bytearray(b'\0')
+
+        def add(text):
+            strings.extend(text.encode() + b'\0')
+            return len(strings) - len(text) - 1
+        entries = [(add(library), [add(name) for name in names]) for library, names in needs.items()]
+        verneed = b''
+        for i, (library, names) in enumerate(entries):
+            verneed += struct.pack('<HHIII', 1, len(names), library, 16, 16 + 16 * len(names) if i < len(entries) - 1 else 0)
+            for j, name in enumerate(names):
+                verneed += struct.pack('<IHHII', 0, 0, j + 2, name, 16 if j < len(names) - 1 else 0)
+        verneed_at = 64 + len(strings)
+        shoff = verneed_at + len(verneed) + (-(verneed_at + len(verneed)) % 8)
+        header = b'\x7fELF\x02\x01\x01' + bytes(9) + struct.pack('<HHIQQQIHHHHHH', 3, 62, 1, 0, 0, shoff, 0, 64, 0, 0, 64, 3, 0)
+        sections = (bytes(64) + struct.pack('<IIQQQQIIQQ', 0, 3, 0, 0, 64, len(strings), 0, 0, 1, 0)
+                    + struct.pack('<IIQQQQIIQQ', 0, 0x6ffffffe, 0, 0, verneed_at, len(verneed), 1, len(entries), 8, 0))
+        return header + bytes(strings) + verneed + bytes(shoff - verneed_at - len(verneed)) + sections
+
+    def test_needs_and_limit(self):
+        import build_layer
+        from config import ReleaseError
+        needs = {'libc.so.6': ['GLIBC_2.2.5', 'GLIBC_2.34', 'GLIBC_2.3.2'], 'libm.so.6': ['GLIBC_2.29']}
+        self.assertEqual(build_layer.version_needs(self.elf(needs)),
+                         {'libc.so.6': ['GLIBC_2.2.5', 'GLIBC_2.3.2', 'GLIBC_2.34'], 'libm.so.6': ['GLIBC_2.29']})
+        self.assertEqual(build_layer.check_glibc(build_layer.version_needs(self.elf(needs)))['minimum'], '2.34')
+        self.assertEqual(build_layer.check_glibc({'libc.so.6': ['GLIBC_2.2.5']})['minimum'], '2.2.5')
+        with self.assertRaisesRegex(ReleaseError, 'GLIBC_2.38'):  # __isoc23_sscanf under _GNU_SOURCE (glibc 2.38+)
+            build_layer.check_glibc(build_layer.version_needs(self.elf({'libc.so.6': ['GLIBC_2.34', 'GLIBC_2.38']})))
+        self.assertEqual(build_layer.check_glibc({'libgcc_s.so.1': ['GCC_3.0']})['minimum'], '0')
+        with self.assertRaises(ReleaseError):
+            build_layer.version_needs(b'MZ' + bytes(62))
+
+
 class F4QRelease(unittest.TestCase):
     """F4Q in release form (src/model_f4q.h, src/game/f4q.h; intel_free_mfg.json "added_defines" and profile "add"): on
     by default with its switch in the package's settings file, release names only, the two F(4x4) kernels at wave 32,
@@ -2556,18 +2622,45 @@ class PinnedToolchain(unittest.TestCase):
 
     @staticmethod
     def package(path, members):
-        """A .pkg.tar.zst with pacman's metadata file and the given members: name -> bytes, or ('link', target)."""
+        """A .pkg.tar.zst with pacman's metadata file and the given members: name -> bytes, or ('link', target) or
+        ('hardlink', target). Python before 3.14 writes a plain tar and compresses it with the zstd program."""
         import io
+        import subprocess
         import tarfile
-        with tarfile.open(path, 'w:zst') as archive:
+        native = 'zst' in getattr(tarfile.TarFile, 'OPEN_METH', {})
+        plain = Path(str(path) + '.tar')
+        with tarfile.open(path if native else plain, 'w:zst' if native else 'w') as archive:
             for name, data in {'.PKGINFO': b'pkgname = test\n', **members}.items():
                 info = tarfile.TarInfo(name)
                 if isinstance(data, tuple):
-                    info.type, info.linkname = tarfile.SYMTYPE, data[1]
+                    info.type, info.linkname = tarfile.SYMTYPE if data[0] == 'link' else tarfile.LNKTYPE, data[1]
                     archive.addfile(info)
                 else:
                     info.size = len(data)
                     archive.addfile(info, io.BytesIO(data))
+        if not native:
+            subprocess.run(['zstd', '-qf', '--rm', '-o', str(path), str(plain)], check=True)
+
+    @unittest.skipUnless(shutil.which('zstd'), 'needs the zstd program')
+    def test_unpack_without_native_zstd(self):
+        """Python before 3.14 (no .tar.zst in tarfile): the zstd program decompresses first, and the result equals
+        the native route's, filter and hard links included."""
+        import tarfile
+        import toolchain
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            self.package(tmp / 'g.pkg.tar.zst', {'usr/bin/gcc': b'g', 'usr/bin/x86_64-pc-linux-gnu-gcc': ('hardlink', 'usr/bin/gcc'),
+                                                 'usr/lib/libx.so': ('link', '/usr/lib/libx.so.1')})
+            routes = [False] + (['native'] if 'zst' in getattr(tarfile.TarFile, 'OPEN_METH', {}) else [])
+            seen = []
+            for route in routes:
+                toolchain.unpack(tmp / 'g.pkg.tar.zst', tmp / str(route), 'gcc', native=route == 'native')
+                seen.append(sorted((str(p.relative_to(tmp / str(route))), p.read_bytes() if p.is_file() and not p.is_symlink()
+                                    else str(p.readlink())) for p in (tmp / str(route)).rglob('*') if not p.is_dir()))
+                self.assertEqual([p.name for p in tmp.iterdir() if p.name.endswith('.tar')], [])  # the temporary .tar is gone
+            self.assertEqual(seen[0], [('usr/bin/gcc', b'g'), ('usr/bin/x86_64-pc-linux-gnu-gcc', b'g'),
+                                       ('usr/lib/libx.so', 'libx.so.1')])
+            self.assertEqual(seen[0], seen[-1])
 
     def test_every_pinned_package_has_a_role(self):
         import toolchain

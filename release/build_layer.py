@@ -10,7 +10,9 @@ print no sanitizer report; UBSan reports are made fatal with -fno-sanitize-recov
   test_present_concurrency  ThreadSanitizer
   test_wave_layer           ThreadSanitizer
 The layer itself is built twice with v30's command (gcc -O2 -shared -fPIC -Wall -Wextra src/game/wave_layer.c
--lpthread) and both builds must be identical. <build>/layer/build.json records the result without absolute paths.
+-lpthread) and both builds must be identical. It may need no glibc symbol version newer than GLIBC_LIMIT (the oldest
+glibc it loads on; the package manifest records it for doctor.py). <build>/layer/build.json records the result without
+absolute paths.
 
 Exit status 0 when the build matches the reference hash in inputs.lock.json (or --no-reference-check), 1 otherwise.
 """
@@ -19,6 +21,7 @@ import hashlib
 import json
 import re
 import shutil
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -40,6 +43,53 @@ TESTS = [
     ('test_wave_layer', SANITIZE_TSAN),
 ]
 TEST_TIMEOUT = 600
+# The newest glibc symbol version the layer may need: 2.34 (pthread and dl* in libc). A newer need (glibc 2.38's
+# __isoc23_* scanf family under _GNU_SOURCE) would stop the layer from loading on systems that run everything else.
+GLIBC_LIMIT = (2, 34)
+
+
+def version_needs(data):
+    """{library: [version names]} of an x86-64 ELF shared object's .gnu.version_r (SHT_GNU_verneed): the symbol versions
+    it needs of each library, as the dynamic loader checks them at load time."""
+    if data[:4] != b'\x7fELF' or data[4:6] != b'\x02\x01':
+        raise ReleaseError('not a 64-bit little-endian ELF file')
+    shoff, = struct.unpack_from('<Q', data, 0x28)
+    shentsize, shnum = struct.unpack_from('<HH', data, 0x3a)
+    sections = [struct.unpack_from('<IIQQQQIIQQ', data, shoff + i * shentsize) for i in range(shnum)]
+    needs = {}
+    for _name, kind, _flags, _addr, offset, _size, link, count, _align, _entsize in sections:
+        if kind != 0x6ffffffe:
+            continue
+        strings = sections[link][4]
+
+        def text(at, strings=strings):
+            start = strings + at
+            return data[start:data.index(b'\0', start)].decode('ascii')
+        for _ in range(count):
+            _version, auxiliaries, library, aux, following = struct.unpack_from('<HHIII', data, offset)
+            names, entry = needs.setdefault(text(library), []), offset + aux
+            for _ in range(auxiliaries):
+                _hash, _flags, _other, name, next_aux = struct.unpack_from('<IHHII', data, entry)
+                names.append(text(name))
+                entry += next_aux
+            offset += following
+    return {library: sorted(set(names)) for library, names in sorted(needs.items())}
+
+
+def glibc_version(name):
+    """(2, 34) for 'GLIBC_2.34'; None for another version name."""
+    return tuple(int(part) for part in name[6:].split('.')) if re.fullmatch(r'GLIBC_\d+(\.\d+)+', name) else None
+
+
+def check_glibc(needs):
+    """The build record's glibc entry (the newest GLIBC_ version needed, as 'x.y'); ReleaseError when that is newer than
+    GLIBC_LIMIT."""
+    versions = {name: glibc_version(name) for names in needs.values() for name in names if glibc_version(name)}
+    newer = sorted(name for name, version in versions.items() if version > GLIBC_LIMIT)
+    if newer:
+        raise ReleaseError(f'The layer needs {", ".join(newer)}, newer than glibc {".".join(map(str, GLIBC_LIMIT))}: it would '
+                           'not load on older systems (a C23 scanf or strtol under _GNU_SOURCE?)')
+    return dict(minimum='.'.join(map(str, max(versions.values(), default=(0,)))), needs=needs)
 
 
 def layer_command(config, output):
@@ -88,6 +138,7 @@ def build(config, tests=True):
         digests.add(sha256(output))
     if len(digests) != 1:
         raise ReleaseError('Two builds of the layer differ')
+    glibc = check_glibc(version_needs(output.read_bytes()))
     depends = dependencies(config)
     own = [p for p in depends if p.is_relative_to(REPO) and not config.in_toolchain(p)
            and not (p.is_relative_to(config.build) or p.is_relative_to(config.cache))]
@@ -103,6 +154,7 @@ def build(config, tests=True):
         command=[relative(a, config) if a.startswith('/') else a for a in command],
         sources={str(p.relative_to(REPO)): sha256(p) for p in sorted(own)},
         system_headers=dict(count=len(system), sha256=hashlib.sha256(''.join(system).encode()).hexdigest()),
+        glibc=glibc,
         toolchain=dict(gcc=tool_version([config.gcc, '--version']),
                        pinned=config.toolchain()['id'] if config.pinned_toolchain else None),
         unit_tests=test_results or 'skipped',
@@ -138,7 +190,7 @@ def main():
     if locked and locked != record['system_headers']:
         print('warning: system headers differ from the locked toolchain; byte identity is not expected', file=sys.stderr)
     print(json.dumps(dict(output=relative(output, config), sha256=record['sha256'], reference=record['reference_sha256'],
-                          matches_reference=record['matches_reference'],
+                          matches_reference=record['matches_reference'], glibc=record['glibc']['minimum'],
                           unit_tests=[f'{t["test"]} ({t["sanitizer"]}): {t["result"]}' for t in record['unit_tests']]
                           if isinstance(record['unit_tests'], list) else record['unit_tests']), indent=2))
     if not record['matches_reference'] and not args.no_reference_check:

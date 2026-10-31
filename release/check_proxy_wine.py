@@ -5,14 +5,16 @@
 src/game/test_proxy_load.c is compiled to a console program and run under `wine` in a private prefix
 (<build>/proxy-wine-check/prefix), with no display and no D3D12 device, in three folders laid out as an installation:
   pinned     libxess_fg.dll (the proxy) + bc250_xefg_original.dll (Intel's runtime, the locked bytes) + Intel's libxell.dll
-             expected: the forwarded xefgSwapChainGetVersion reports Intel's version from bc250_xefg_original.dll; the
+             expected: xefgSwapChainGetVersion (the proxy's own entry with "tail_declared", else a forwarder) reports
+             Intel's version, and the forwarder xefgAILGetVersion resolves into bc250_xefg_original.dll; the
              wrapped xefgSwapChainD3D12CreateContext(NULL) reaches Intel's runtime (its own error for a NULL device, not
              CANT_LOAD_LIBRARY); the settings interface answers (Intel-free: no filters); version.dll is not loaded;
              BC250-MFG.log says the proxy is ready
              (--variant intel-free-mfg: and BC250-MFG.log has no FAST_COEXIST line: the runtime's entry table was read
              from the file and the unhooked runtime is not taken for a hooked one)
   altered    the same with one byte of bc250_xefg_original.dll changed
-             expected: the wrapped entry refuses (CANT_LOAD_LIBRARY, -11) without loading it, and the log says why
+             expected: the wrapped entry refuses (CANT_LOAD_LIBRARY, -11) without loading it, and the log says why, once
+             (a second call is refused without another check)
   missing    the proxy alone
              expected: the same refusal
   hooked     (--variant intel-free-mfg only) as pinned, then the program writes a jump at eight of Intel's entries in its
@@ -25,10 +27,18 @@ src/game/test_proxy_load.c is compiled to a console program and run under `wine`
              sees each module as the caller; only the OptiScaler one reaches the proxy's candidate check (CONTEXT_CALLER
              in the log, ended there by BC250_XEFG_DISABLE=1), while the program and the other module are logged as not
              accelerated beside another module (FAST_SKIP ... only OptiScaler's own contexts)
+  subfolder, second-original, two-runtimes
+             (variants with "tail_declared") the proxy and its runtime in a subfolder (OptiScaler's folder): an undeclared
+             export, a forwarder, resolved first finds nothing yet; the proxy's own entries verify and load the runtime
+             beside it and reach it, and the forwarder then resolves to it. second-original: another copy of the runtime
+             beside the program, which that forwarder loads first: the proxy refuses (two copies) and says so.
+             two-runtimes: a game's own Intel runtime loaded first as libxess_fg.dll, its entries pointed at the stub:
+             the proxy reaches only the runtime beside it
   unit       (--variant intel-free-mfg only) src/game/test_proxy_coexist.c: the proxy's bookkeeping beside another
              module (mfg_proxy_coexist.h with the real scoped forwarding objects and stand-ins for the rest; fake COM
              objects, no runtime): which contexts are scoped, claims by output pointer or device, releases, capacity,
-             the deferred initialisation work, frame counts, references all released at the end
+             the deferred initialisation work, frame counts, references all released at the end; and fast_set's
+             collection of the lists the runtime released once a list table is three quarters full
              expected: exit 0 and COEXIST_UNIT failures=0
   f4q-*      (variants built with XEFG_F4Q) src/game/test_f4q.c: the switches of F4Q and F4Q2, model segments, pipelines
              and geometry, fallback and diagnostic check (src/model_f4q.h, src/game/f4q.h and the real settings reader,
@@ -59,6 +69,9 @@ src/game/test_proxy_load.c is compiled to a console program and run under `wine`
                shadow-f4q2-off  the same with BC250_XEFG_F4Q2=false: F4Q's points 0..2 and F4Q3's 6..7, no F4Q2 line
                pack        (BC250_XEFG_EXACT=1) the model owner's segment of a 2304-, 4608-, 18432- and 73728-byte model
                            equal to an independent product
+               settings-env, settings-env-dos  BC250_XEFG_SETTINGS names another settings file (F4Q=0 there) as a Unix
+                           path (Wine maps it) or a Windows path: off from settings.ini, as ini-off
+               utf8-folder the profile in a folder whose name the ANSI code page cannot spell: as default
              1.1.2 (F4Q3 and the FP16 forms): every switch case also checks FP16_CONFIG and F4Q3_CONFIG, the pipeline
              and geometry of all eleven U-Net shaders and a shader no form replaces, the FP16 copies' sizes of every
              model size (SEGMENT3) and the FP16_REPLACE lines; by default (the FP16 forms' bits 1 and 2) seven are
@@ -171,7 +184,17 @@ F4Q_CASES = {
     'shadow': ('shadow', {'BC250_XEFG_F4Q_SHADOW': '1'}, 'package'),
     'shadow-f4q2-off': ('shadow', {'BC250_XEFG_F4Q_SHADOW': '1', 'BC250_XEFG_F4Q2': 'false'}, 'package'),
     'pack': ('pack', {'BC250_XEFG_EXACT': '1'}, 'package'),
+    # BC250_XEFG_SETTINGS names another settings file (F4Q=0 there, F4Q=1 in the package's file beside the program), as a
+    # Unix path (mapped through Wine) and as a Windows path
+    'settings-env': ('switch', {'BC250_XEFG_SETTINGS': '{unix}/elsewhere/settings.ini'}, 'package'),
+    'settings-env-dos': ('switch', {'BC250_XEFG_SETTINGS': '{dos}\\elsewhere\\settings.ini'}, 'package'),
+    # the profile in a folder whose name is not ASCII (F4Q_SHADER_FOLDERS): read through the wide-character API
+    'utf8-folder': ('switch', {}, 'package'),
 }
+# The scratch shader folder of a case (default "shaders"): a name the ANSI code page cannot spell.
+F4Q_SHADER_FOLDERS = {'utf8-folder': 'shaders-\u00fcn\u00ef-\u65e5\u672c'}
+# Files a case writes besides its settings.ini (relative to its folder).
+F4Q_FILES = {case: {'elsewhere/settings.ini': '[BC250]\nResolutionMode=0\nF4Q=0\n'} for case in ('settings-env', 'settings-env-dos')}
 
 
 def compile_f4q(config, xess, output):
@@ -191,15 +214,20 @@ def compile_f4q(config, xess, output):
 def run_f4q(program, work, case):
     mode, extra, ini = F4Q_CASES[case]
     folder = work / f'f4q-{case}'
-    (folder / 'shaders').mkdir(parents=True)
+    shaders_folder = F4Q_SHADER_FOLDERS.get(case, 'shaders')
+    (folder / shaders_folder).mkdir(parents=True)
     shutil.copy2(program, folder / program.name)
     if ini is not None:
         (folder / 'BC250-XeFG').mkdir()
         text = (REPO / 'release/files/BC250-XeFG-settings.ini').read_text() if ini == 'package' else ini
         (folder / 'BC250-XeFG/settings.ini').write_text(text)
+    for name, text in F4Q_FILES.get(case, {}).items():
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_text(text)
+    extra = {key: value.format(unix=folder, dos='Z:' + str(folder).replace('/', '\\')) for key, value in extra.items()}
     env = {k: v for k, v in os.environ.items() if not k.startswith(('WINE', 'DISPLAY', 'WAYLAND', 'XEFG_', 'BC250_'))}
     env.update(WINEPREFIX=str(work / 'prefix'), WINEDEBUG='-all', WINEDLLOVERRIDES='mscoree,mshtml=', **extra)
-    shaders = 'Z:' + str(folder / 'shaders').replace('/', '\\')
+    shaders = 'Z:' + str(folder / shaders_folder).replace('/', '\\')
     ran = subprocess.run(['wine', str(folder / program.name), mode, shaders], cwd=folder, env=env, capture_output=True,
                          text=True, timeout=600)
     return dict(returncode=ran.returncode, stdout=ran.stdout.replace('\r', ''), log=None)
@@ -299,6 +327,9 @@ def f4q_problems(results):
                     ('no-ini', 1, 'default', 7, 'on', 'default', 3, 'default'),
                     ('env-on', 1, 'BC250_XEFG_F4Q', 7, 'on', 'default', 3, 'default'),
                     ('ini-off', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('settings-env', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('settings-env-dos', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('utf8-folder', 1, 'default', 7, 'on', 'default', 3, 'default'),
                     ('env-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('shadow-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('f4q2-ini-off', 1, 'default', 0, 'off', 'settings.ini', 3, 'default'),
@@ -578,14 +609,63 @@ def compile_scale_history(config, output):
                     '-lkernel32', '-lucrtbase', '-o', str(output)], check=True, capture_output=True)
 
 
-def run(folder, prefix, forwarders, hooks=False):
+def run(folder, prefix, forwarders, hooks=False, sub=None, extra=None):
+    """The loader program in folder; sub: the proxy's subfolder (its log is there); extra: more environment."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(('WINE', 'DISPLAY', 'WAYLAND', 'XEFG_', 'BC250_'))}
     env.update(WINEPREFIX=str(prefix), WINEDEBUG='-all', WINEDLLOVERRIDES='mscoree,mshtml=', PROXY_CHECK_FORWARDERS='1' if forwarders else '0',
-               PROXY_CHECK_HOOKS='1' if hooks else '0')
+               PROXY_CHECK_HOOKS='1' if hooks else '0', **(extra or {}))
+    if sub:
+        env['PROXY_CHECK_PATH'] = f'{sub}\\libxess_fg.dll'
     out = subprocess.run(['wine', str(folder / 'test_proxy_load.exe')], cwd=folder, env=env, capture_output=True, text=True,
                          timeout=600)
-    log = folder / 'BC250-MFG.log'
+    log = folder / (sub or '.') / 'BC250-MFG.log'
     return dict(returncode=out.returncode, stdout=out.stdout.replace('\r', ''), log=log.read_text() if log.is_file() else None)
+
+
+# Layouts of the proxy's own exports (definition "tail_declared"): the proxy and its runtime in a subfolder (OptiScaler's
+# folder, not the program's), the entry a forwarder (still bound through the DLL search path) resolved first; the same
+# with another copy of the runtime beside the program, which that forwarder loads; a game's own copy of Intel's runtime
+# loaded first as libxess_fg.dll, its entries pointed at the stub. sub: the proxy's folder; beside: the runtime copied
+# beside the program as this name; env: the program's switches.
+LAYOUTS = {
+    'subfolder': dict(sub='opti', beside=None, env={'PROXY_CHECK_FORWARDER_FIRST': '1'}),
+    'second-original': dict(sub='opti', beside='bc250_xefg_original.dll', env={'PROXY_CHECK_FORWARDER_FIRST': '1'}),
+    'two-runtimes': dict(sub='opti', beside='libxess_fg.dll', env={'PROXY_CHECK_GAME_RUNTIME': '1'}),
+}
+
+
+def layout_problems(case, stdout, log, original):
+    """What a LAYOUTS case's output shows that it should not."""
+    problems = []
+    loaded = field(stdout, r'LOADED (.*)')
+    if not loaded or not loaded[0].lower().endswith('\\opti\\libxess_fg.dll'):
+        problems.append(f'{case}: the program did not load the proxy from its subfolder: {loaded}')
+    tailed = field(stdout, r'TAILED \S+ result=(-?\d+) version=(\S+) in_proxy=(\d)')
+    wrapped = field(stdout, r'WRAPPED \S+ result=(-?\d+) in_proxy=(\d) original_loaded=(\d)')
+    forwarded = field(stdout, r'FORWARDED \S+ found=(\d) module=(.*) in_proxy=(\d)')
+    if case == 'second-original':
+        first = field(stdout, r'FORWARDER_FIRST \S+ found=(\d) module=(.*) in_proxy=(\d)')
+        if not first or first[0] != '1' or '\\opti\\' in first[1].lower():
+            problems.append(f'{case}: the forwarder did not bind the copy beside the program first: {first}')
+        if not tailed or int(tailed[0]) != CANT_LOAD_LIBRARY or not wrapped or int(wrapped[0]) != CANT_LOAD_LIBRARY:
+            problems.append(f'{case}: the proxy did not refuse beside a second copy of the runtime: {tailed}, {wrapped}')
+        if 'MFG proxy: two copies of Intel\'s XeFG runtime' not in log:
+            problems.append(f'{case}: BC250-MFG.log does not name the two copies')
+        return problems
+    if not tailed or tailed[0] != '0' or tailed[2] != '1':
+        problems.append(f'{case}: the tail-calling entry did not reach the runtime beside the proxy: {tailed}')
+    if not wrapped or int(wrapped[0]) == CANT_LOAD_LIBRARY or wrapped[1] != '1' or wrapped[2] != '1':
+        problems.append(f'{case}: the wrapped entry did not reach the runtime beside the proxy: {wrapped}')
+    if not forwarded or forwarded[0] != '1' or not forwarded[1].lower().endswith('\\opti\\' + original):
+        problems.append(f'{case}: the forwarder does not resolve to the verified runtime once it is loaded: {forwarded}')
+    if 'MFG proxy ready' not in log:
+        problems.append(f'{case}: BC250-MFG.log lacks the ready line')
+    if case == 'two-runtimes':
+        if field(stdout, r'GAME_RUNTIME loaded=(\d) hooked=(\d)') != ('1', '1'):
+            problems.append(f'{case}: the game\'s own copy was not loaded and hooked first')
+        if field(stdout, r'GAME_RUNTIME stub_calls=(\d+)') != ('0',):
+            problems.append(f'{case}: the proxy called the game\'s own copy of Intel\'s runtime')
+    return problems
 
 
 def field(text, pattern):
@@ -613,7 +693,8 @@ def main():
     runtime = config.input_file(build_proxy.RUNTIME_GROUP, build_proxy.RUNTIME_FILE)
     xess = config.check_group('intel-xess')
     work = config.build / ('proxy-wine-check' if args.variant == build_proxy.DEFAULT_VARIANT else f'proxy-wine-check-{args.variant}')
-    cases = ('pinned', 'altered', 'missing') + (('hooked',) if coexist else ())
+    layouts = tuple(LAYOUTS) if definition['addon'].get('tail_declared') else ()
+    cases = ('pinned', 'altered', 'missing') + (('hooked',) if coexist else ()) + layouts
     for name in cases + ('unit', 'history') + tuple(f'f4q-{case}' for case in F4Q_CASES):
         shutil.rmtree(work / name, ignore_errors=True)
     work.mkdir(exist_ok=True)
@@ -638,6 +719,20 @@ def main():
         folder = work / case
         folder.mkdir()
         shutil.copy2(program, folder / program.name)
+        if case in LAYOUTS:
+            layout = LAYOUTS[case]
+            (folder / layout['sub']).mkdir()
+            shutil.copy2(proxy, folder / layout['sub'] / 'libxess_fg.dll')
+            shutil.copy2(runtime, folder / layout['sub'] / original)
+            if layout['beside']:
+                shutil.copy2(runtime, folder / layout['beside'])
+            results[case] = run(folder, work / 'prefix', forwarders=True, sub=layout['sub'], extra=layout['env'])
+            stdout, log = results[case]['stdout'], results[case]['log'] or ''
+            if results[case]['returncode'] or 'DONE' not in stdout:
+                problems.append(f'{case}: the program did not finish (exit {results[case]["returncode"]})')
+            else:
+                problems += layout_problems(case, stdout, log, original)
+            continue
         shutil.copy2(proxy, folder / 'libxess_fg.dll')
         if case == 'hooked':
             for name, built in callers.items():
@@ -690,11 +785,19 @@ def main():
                                 'stand_in_optiscaler.dll')
             continue
         if case == 'pinned':
-            forwarded = field(stdout, r'FORWARDED \S+ result=(-?\d+) version=(\S+) module=(.*) in_proxy=(\d)')
-            if not forwarded or forwarded[0] != '0' or not forwarded[2].lower().endswith(original) or forwarded[3] != '0':
+            # xefgSwapChainGetVersion: the proxy's own tail-calling entry where Intel's headers declare it (tail_declared),
+            # else a forwarder; xefgAILGetVersion (undeclared) is a forwarder either way
+            tailed = field(stdout, r'TAILED \S+ result=(-?\d+) version=(\S+) in_proxy=(\d)')
+            own = '1' if definition['addon'].get('tail_declared') else '0'
+            if not tailed or tailed[0] != '0' or tailed[2] != own:
+                problems.append(f'pinned: xefgSwapChainGetVersion did not reach Intel\'s runtime (own entry: {own}): {tailed}')
+            forwarded = field(stdout, r'FORWARDED \S+ found=(\d) module=(.*) in_proxy=(\d)')
+            if not forwarded or forwarded[0] != '1' or not forwarded[1].lower().endswith(original) or forwarded[2] != '0':
                 problems.append(f'pinned: the forwarded entry did not reach {original}: {forwarded}')
             if int(wrapped[0]) == CANT_LOAD_LIBRARY or wrapped[2] != '1':
                 problems.append(f'pinned: the wrapped entry did not reach Intel\'s runtime: {wrapped}')
+            if field(stdout, r'WRAPPED_AGAIN result=(-?\d+)') != (wrapped[0],):
+                problems.append(f'pinned: a second call did not reach Intel\'s runtime as the first did')
             masks = ('3', '29') if 'XEFG_OWN_FRAME_SCALING=1' in defines else ('0', '0')
             if not settings or settings[0] != '1' or settings[3:] != masks:
                 problems.append(f'pinned: settings interface {settings}')
@@ -708,6 +811,10 @@ def main():
                 problems.append(f'{case}: the wrapped entry was not refused before loading the runtime: {wrapped}')
             if 'not the pinned Intel XeFG runtime' not in log:
                 problems.append(f'{case}: BC250-MFG.log does not say why XeFG is unavailable')
+            # the refusal is latched: the second call is refused without a second check (one line in the log)
+            again, lines = field(stdout, r'WRAPPED_AGAIN result=(-?\d+)'), log.count('not the pinned Intel XeFG runtime')
+            if again != (str(CANT_LOAD_LIBRARY),) or lines != 1:
+                problems.append(f'{case}: a second call was not refused at once: {again}, {lines} log lines')
     if coexist:
         folder = work / 'unit'
         folder.mkdir()

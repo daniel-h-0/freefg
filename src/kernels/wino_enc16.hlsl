@@ -227,8 +227,8 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID) {
         }
     }
 #if PK16
-    // Flush this slice's chains: value * 2^8 (an integer), added in FP32 (exact: every partial sum of the
-    // slice results is an integer below 2^24, the bound the FLOAT_ALL kernels' owner proves with a margin).
+    // Flush this slice's chains: value * 2^8 (an integer), added in FP32, exact while the running sum stays below 2^24:
+    // the owner proves that for the exact sums, without a margin for the chains' rounding (pk16.hlsli).
     [unroll] for (uint p = 0; p < 16; p++) [unroll] for (uint j = 0; j < 4; j++) {
         m[p][2 * j] = mad(float(pk[p][j].x), 256.0, m[p][2 * j]); m[p][2 * j + 1] = mad(float(pk[p][j].y), 256.0, m[p][2 * j + 1]);
     }

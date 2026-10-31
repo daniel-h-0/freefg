@@ -80,7 +80,8 @@ API_HOOKS = {
               '"MFG_PRESENT enabled=%u status=%d presents=%u\\n",pPresentStatus->isFrameGenEnabled,'
               'pPresentStatus->frameGenResult,pPresentStatus->framesPresented);proxy_log(line);}'),
 }
-API_HEADERS = ['inc/xess_fg/xefg_swapchain.h', 'inc/xess_fg/xefg_swapchain_d3d12.h']
+# Intel's headers that declare the runtime's entries (the debug header: xefgSwapChainEnableDebugFeature)
+API_HEADERS = ['inc/xess_fg/xefg_swapchain.h', 'inc/xess_fg/xefg_swapchain_d3d12.h', 'inc/xess_fg/xefg_swapchain_debug.h']
 
 # The multi-frame proxy's wrapped entries (variant intel-free-mfg, release/intel_free_mfg.json "hooks": "MFG_PROXY_HOOKS";
 # C side: src/game/mfg_proxy_coexist.h). "before", "replace" and "after" are the ordinary path, as API_HOOKS (without the
@@ -280,8 +281,8 @@ WAVE_LINE = re.compile(r'([0-9a-f]{16})[ \t]+(32|64)[ \t\r]*')
 
 def wave_table(text):
     """{module hash: wave} of a waves.txt text as the pacing layer reads it; ReleaseError where the layer would read no
-    table at all. Slightly stricter than the layer (the wave as written, whitespace between the fields, lines of at
-    most 100 characters), so a table accepted here is read in full."""
+    table at all. Slightly stricter than the layer (the wave as written, lines of at most 100 characters), so a table
+    accepted here is read in full."""
     table = {}
     for number, line in enumerate(text.split('\n'), 1):
         if not line.strip(' \t\r'):

@@ -148,6 +148,49 @@ class Doctor(unittest.TestCase):
         self.assertTrue(text.startswith('No BC-250 GPU found'))
         self.assertIn('BC250_XEFG_ANY_GPU=1', text)
 
+    def layer_package(self, glibc='2.34'):
+        package = self.drm / 'package'
+        (package / 'payload/BC250-XeFG/layer').mkdir(parents=True, exist_ok=True)
+        (package / self.doctor.LAYER).write_bytes(b'\x7fELF')
+        manifest = dict(self.PROXY, variant='intel-free-mfg')
+        if glibc:
+            manifest['present_pacing'] = dict(layer_sha256='0' * 64, build='gcc', glibc=glibc)
+        (package / 'manifest.json').write_text(json.dumps(manifest))
+        return package
+
+    def test_pacing_layer_loads_and_names_its_glibc(self):
+        package = self.layer_package()
+        level, item, text = self.doctor.layer_row(package, glibc=(2, 44), load=lambda path: (True, ''))
+        self.assertEqual((level, item), ('OK', 'Pacing layer'))
+        self.assertIn('needs glibc 2.34; this system has glibc 2.44', text)
+        self.assertIsNone(self.doctor.layer_row(self.drm / 'elsewhere'))  # the source tree: no layer, no row
+
+    def test_pacing_layer_on_an_older_glibc(self):
+        package = self.layer_package()
+        loads = []
+        level, _item, text = self.doctor.layer_row(package, glibc=(2, 31), load=lambda path: loads.append(path) or (True, ''))
+        self.assertEqual(level, 'WARN')
+        self.assertIn('needs glibc 2.34; this system has glibc 2.31', text)
+        self.assertIn('not paced', text)
+        self.assertEqual(loads, [package / self.doctor.LAYER])  # the load is still tried, in a process of its own
+
+    def test_pacing_layer_that_does_not_load(self):
+        package = self.layer_package(glibc=None)  # a manifest from before the glibc record: the load decides
+        reason = "version `GLIBC_2.38' not found (required by libxefg_wave.so)"
+        level, _item, text = self.doctor.layer_row(package, glibc=(2, 36), load=lambda path: (False, reason))
+        self.assertEqual(level, 'WARN')
+        self.assertIn(reason, text)
+        self.assertIn('this system has glibc 2.36', text)
+        self.assertEqual(self.doctor.layer_row(package, glibc=(2, 36), load=lambda path: (None, 'TimeoutExpired'))[0], 'INFO')
+
+    def test_pacing_layer_load_runs_apart(self):
+        package = self.layer_package()
+        loaded, reason = self.doctor.layer_load(package / self.doctor.LAYER)  # not a loadable object: refused, no crash here
+        self.assertIs(loaded, False)
+        self.assertTrue(reason)
+        self.assertIn('Pacing layer', {item for _level, item, _text in self.doctor.checks(home=self.drm / 'home', drm=self.drm,
+                                                                                            package=package)})
+
 
 if __name__ == '__main__':
     unittest.main()

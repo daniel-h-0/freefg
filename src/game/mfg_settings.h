@@ -47,11 +47,29 @@ static struct bc250_fg_settings mfg_settings_read_saved(void) {
  if(!(MFG_SETTINGS_UPSCALE_MASK&(1u<<s.upscale)))s.upscale=BC250_FG_BILINEAR;
  return s;
 }
+/* BC250_XEFG_SETTINGS names the settings file in place of BC250-XeFG\settings.ini beside the game's executable (an
+ * integration that keeps per-game settings elsewhere): a Windows path, or a Unix path, which Wine maps to its drive. */
+static int mfg_settings_override(void) {
+ DWORD n=GetEnvironmentVariableW(L"BC250_XEFG_SETTINGS",mfg_settings_path,32768);
+ if(!n||n>=32768){mfg_settings_path[0]=0;return 0;}
+ if(mfg_settings_path[0]==L'/') {
+  static char unix_path[32768*3];
+  WCHAR*(CDECL*dos)(const char*)=(void*)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"wine_get_dos_file_name");
+  WCHAR*mapped=dos&&WideCharToMultiByte(CP_UTF8,0,mfg_settings_path,-1,unix_path,sizeof(unix_path),NULL,NULL)?dos(unix_path):NULL;
+  int fits=mapped&&wcslen(mapped)<32768;if(fits)wcscpy(mfg_settings_path,mapped);
+  if(mapped)HeapFree(GetProcessHeap(),0,mapped);
+  if(!fits){mfg_settings_path[0]=0;proxy_log("MFG_SETTINGS BC250_XEFG_SETTINGS could not be mapped to a Wine path; the default file is used\n");return 0;}
+ }
+ char line[600];snprintf(line,sizeof(line),"MFG_SETTINGS file from BC250_XEFG_SETTINGS: %.500ls\n",mfg_settings_path);proxy_log(line);
+ return 1;
+}
 static void mfg_settings_init(void) {
- DWORD n=GetModuleFileNameW(NULL,mfg_settings_path,32768);
- if(!n||n>=32700){mfg_settings_path[0]=0;return;}
- wchar_t*slash=wcsrchr(mfg_settings_path,L'\\');if(!slash){mfg_settings_path[0]=0;return;}
- wcscpy(slash+1,L"BC250-XeFG\\settings.ini");
+ if(!mfg_settings_override()){
+  DWORD n=GetModuleFileNameW(NULL,mfg_settings_path,32768);
+  if(!n||n>=32700){mfg_settings_path[0]=0;return;}
+  wchar_t*slash=wcsrchr(mfg_settings_path,L'\\');if(!slash){mfg_settings_path[0]=0;return;}
+  wcscpy(slash+1,L"BC250-XeFG\\settings.ini");
+ }
  mfg_settings_applied=mfg_settings_read_saved();
  wchar_t override[16];DWORD length=GetEnvironmentVariableW(L"BC250_XEFG_FRAME_CAP",override,16);
  if(length==1&&(override[0]==L'0'||override[0]==L'1')) {
@@ -104,16 +122,7 @@ __declspec(dllexport) BOOL WINAPI BC250MFGSaveFrameSettings(const struct bc250_f
  }
  return TRUE;
 }
-
-static void mfg_settings_note_context(xefg_swapchain_handle_t context) {
- HMODULE sdk=GetModuleHandleA("libxess_fg.dll");
- __typeof__(&xefgSwapChainD3D12GetSwapChainPtr) get=sdk?(void*)GetProcAddress(sdk,"xefgSwapChainD3D12GetSwapChainPtr"):NULL;
- IDXGISwapChain3*swap=NULL;DXGI_SWAP_CHAIN_DESC1 desc;
- if(get&&get(context,&IID_IDXGISwapChain3,(void**)&swap)==0&&swap) {
-  if(SUCCEEDED(IDXGISwapChain3_GetDesc1(swap,&desc)))mfg_settings_note_size(desc.Width,desc.Height);
-  IDXGISwapChain3_Release(swap);
- }
-}
+/* mfg_settings_note_context (src/game/mfg_proxy.c) records a context's sizes through the verified runtime. */
 static void mfg_settings_clear_context(void) {
  AcquireSRWLockExclusive(&mfg_settings_lock);mfg_settings_status.ready=0;
  mfg_settings_status.output_width=mfg_settings_status.output_height=0;

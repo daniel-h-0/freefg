@@ -31,6 +31,7 @@
       "XEFG_SCALE_RT_LAYOUT=1": "Allow lossless render-target compression of supported reduced-colour allocations."
     },
     "hooks": "MFG_PROXY_HOOKS",
+    "tail_declared": true,
     "extra_exports": [
       "BC250MFGGetFrameSettings",
       "BC250MFGInitialize",

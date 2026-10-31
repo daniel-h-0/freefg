@@ -35,14 +35,24 @@ static unsigned choice_count;
 static PFN_vkVoidFunction VKAPI_CALL gipa(VkInstance,const char*);
 static PFN_vkVoidFunction VKAPI_CALL gdpa(VkDevice,const char*);
 
+/* One table line: 16 lower-case hex digits, blanks, the wave, optional trailing blanks. Read by hand: with _GNU_SOURCE,
+ * glibc 2.38 and later turn sscanf into __isoc23_sscanf, which would make the layer need glibc 2.38 instead of 2.34. */
+static int wave_line(const char*s,char hash[17],unsigned*wave){
+ size_t n=0;while(n<16&&((s[n]>='0'&&s[n]<='9')||(s[n]>='a'&&s[n]<='f')))n++;
+ if(n!=16||(s[n]!=' '&&s[n]!='\t'))return 0;
+ memcpy(hash,s,16);hash[16]=0;s+=16;while(*s==' '||*s=='\t')s++;
+ unsigned v=0,digits=0;while(*s>='0'&&*s<='9'&&digits<3){v=v*10+(unsigned)(*s++-'0');digits++;}
+ while(*s==' '||*s=='\t'||*s=='\r'||*s=='\n')s++;
+ if(!digits||*s)return 0;*wave=v;return 1;
+}
 static void configuration(void){
  const char*path=getenv("XEFG_WAVE_CONFIG");if(!path)return;
  FILE*f=fopen(path,"r");if(!f)return;
  char line[128];unsigned count=0;int ok=1;
  while(fgets(line,sizeof(line),f)){
   if(strspn(line," \t\r\n")==strlen(line))continue;
-  char hash[17],extra;unsigned wave;
-  if(count==512||sscanf(line,"%16[0123456789abcdef] %u %c",hash,&wave,&extra)!=2||strlen(hash)!=16||(wave!=32&&wave!=64)){ok=0;break;}
+  char hash[17];unsigned wave;
+  if(count==512||!wave_line(line,hash,&wave)||(wave!=32&&wave!=64)){ok=0;break;}
   for(unsigned i=0;i<count;i++)if(!strcmp(choices[i].name,hash))ok=0;
   if(!ok)break;
   strcpy(choices[count].name,hash);choices[count++].wave=wave;
@@ -153,7 +163,8 @@ static VkResult VKAPI_CALL create_device(VkPhysicalDevice physical,const VkDevic
     &&state->queue_wait_idle&&state->device_wait_idle)state->pace_shared=1;
  pthread_mutex_lock(&mutex);state->link=devices;devices=state;pthread_mutex_unlock(&mutex);
  if(state->pace_shared)fprintf(stderr,"BC250_PACE on (application queue%s)\n",pace_app_queue()?", BC250_XEFG_PACE_QUEUE=app":": no dedicated compute queue");
- else fprintf(stderr,"BC250_PACE %s (compute family %d queue %u)\n",state->pace_queue?"on":"off",pace_family,pace_index);
+ else if(state->pace_queue)fprintf(stderr,"BC250_PACE on (compute family %d queue %u)\n",pace_family,pace_index);
+ else fprintf(stderr,"BC250_PACE off (%s)\n",pace_wanted()?"the driver lacks an entry point the pacer needs":pace_off_reason());
  fprintf(stderr,"XEFG_GAME_LAYER device=%04x:%04x enabled=%d choices=%u%s\n",properties.vendorID,properties.deviceID,enabled,choice_count,
          !bc250&&any_gpu?" (BC250_XEFG_ANY_GPU=1: untested outside the BC-250)":"");return result;
 }
@@ -270,8 +281,10 @@ static void pace_pin_self(void){
  static int pinned;Dl_info self;if(pinned||!dladdr((void*)pace_pin_self,&self)||!self.dli_fname)return;
  pinned=dlopen(self.dli_fname,RTLD_NOW|RTLD_NOLOAD|RTLD_NODELETE)!=NULL;
 }
+/* No vk_layerGetPhysicalDeviceProcAddr: the layer intercepts no physical-device function the loader does not know, and
+ * gipa is not one (the loader would take any name it answers for a physical-device entry point). */
 VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface*p){
  if(p->loaderLayerInterfaceVersion<2)return VK_ERROR_INITIALIZATION_FAILED;
  pace_pin_self();
- p->loaderLayerInterfaceVersion=2;p->pfnGetInstanceProcAddr=gipa;p->pfnGetDeviceProcAddr=gdpa;p->pfnGetPhysicalDeviceProcAddr=gipa;return VK_SUCCESS;
+ p->loaderLayerInterfaceVersion=2;p->pfnGetInstanceProcAddr=gipa;p->pfnGetDeviceProcAddr=gdpa;p->pfnGetPhysicalDeviceProcAddr=NULL;return VK_SUCCESS;
 }

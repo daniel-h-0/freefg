@@ -4,10 +4,9 @@
 
 The package is assembled exactly as `release/assemble.py --variant NAME --no-source-companion` would (the same
 functions, run in this process), with one CI difference: a component whose files are private work-directory inputs
-that this tree cannot supply is left out, and only the components named in OMITTABLE may be. Today that is the
-OptiScaler fork build (inputs.lock.json work group "optiscaler-fork", opti/OptiScaler.dll and its licence text),
-which is not published yet; every other component (installer, documents, add-on, layer, profile, licences, notices)
-must assemble. assemble.py then runs release/check_intel_free.py on the package (DXC needed, XEMFG_DXC) and removes
+that this tree cannot supply is left out, and only the components named in OMITTABLE may be. Today none is: the
+OptiScaler fork build is the fetch group "optiscaler-fork" (its public release, by pinned hash), so every component
+(installer, documents, add-on, layer, profile, OptiScaler, licences, notices) must assemble. assemble.py then runs release/check_intel_free.py on the package (DXC needed, XEMFG_DXC) and removes
 the package when it fails; this script additionally requires the result "pass" with intel_free_complete true and no
 allowed component, that the package's add-on is the build output and equals the lock's reference, and that no
 shipped file differs from the checked-out commit (manifest git_dirty). --allow-reference-mismatch turns the reference
@@ -27,10 +26,7 @@ from common import RELEASE, ReleaseError, annotate, build_config, sha256, step_s
 import assemble  # noqa: E402  (release/assemble.py, on the path through common)
 
 # Components CI may leave out, and why; any other component with an unavailable input fails the job.
-OMITTABLE = {
-    'optiscaler-fork': 'the OptiScaler fork build (GPL-3.0) is a private work-directory input until the fork is '
-                       'published and fetched by pinned hash',
-}
+OMITTABLE = {}
 
 
 def available(config, source):

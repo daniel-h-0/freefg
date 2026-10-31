@@ -8,7 +8,9 @@
 //     (v_pk_fma_f16), each rounded once to FP16 (round to nearest even). With the 2^-8 prescale every operand and partial
 //     sum is a multiple of 2^-8, so no value is subnormal, and no partial sum can overflow (16 * 512 * 1152 * 2^-8 = 36864;
 //     48 * 256 * 384 * 2^-8 = 18432 in wino_row16; plus at most 256 / 384 of rounding growth, below FP16's 65504).
-//   - Each slice's chains are flushed into FP32 as value * 2^8 (integers below 2^24: exact) and added exactly.
+//   - Each slice's chains are flushed into FP32 as value * 2^8 (an integer) and added there. The model owner proves the
+//     exact sum below 2^24 (model_enc16_whole_sum, with no margin); a rounded chain can exceed its exact value by
+//     256 * 2^8, so near that bound a sum over several slices can round once more in FP32.
 //   - The exact kernels' integer inverse transform and pooling follow, then the division by 4 (by 2 in wino_row16) rounded
 //     to nearest even (the exact kernels' floor shift is exact only for exact sums).
 // The FP16 chain rounds, so the outputs can differ from the exact F(2x2) kernels' outputs. mad() on half2 is not

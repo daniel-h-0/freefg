@@ -145,7 +145,7 @@ static int f4q_replaces(uint64_t h){return f4q_mode==F4Q_ON&&fq_target_shader(h)
 /* <hash><suffix>.dxil: its bytes (the caller frees them) and size, or NULL when it cannot be opened */
 static void*f4q_file(uint64_t h,const char*suffix,DWORD*size){
  char path[1200];snprintf(path,sizeof(path),"%s\\%016llx%s.dxil",patchdir,(unsigned long long)h,suffix);
- HANDLE f=CreateFileA(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);if(f==INVALID_HANDLE_VALUE)return NULL;
+ HANDLE f=profile_open(path);if(f==INVALID_HANDLE_VALUE)return NULL;
  DWORD n;*size=GetFileSize(f,NULL);void*bytes=malloc(*size);if(!bytes||!ReadFile(f,bytes,*size,&n,NULL)||n!=*size)ExitProcess(12);
  CloseHandle(f);return bytes;
 }
@@ -392,7 +392,7 @@ static HRESULT STDMETHODCALLTYPE fq_reset_hook(ID3D12GraphicsCommandList*l,ID3D1
 
 /* ---- own objects */
 static ID3D12PipelineState*fq_pipeline(const char*name){
- char path[1400];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=fopen(path,"rb");if(!f)return NULL;
+ char path[1400];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=profile_fopen(path,"rb");if(!f)return NULL;
  fseek(f,0,SEEK_END);long length=ftell(f);rewind(f);if(length<=0||length>4*1024*1024){fclose(f);return NULL;}
  void*bytes=malloc((size_t)length);if(!bytes||fread(bytes,1,(size_t)length,f)!=(size_t)length){fclose(f);free(bytes);return NULL;}fclose(f);
  D3D12_COMPUTE_PIPELINE_STATE_DESC d={.pRootSignature=fq_root_sig,.CS={bytes,(SIZE_T)length}};ID3D12PipelineState*p=NULL;

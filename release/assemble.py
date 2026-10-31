@@ -837,7 +837,9 @@ def assemble(config, spec, receipt_path=None, companion=True, archive_requested=
         fsr4=static['fsr4'],
         enabler=static['enabler'], status=static['status'], git_head=head,
         git_dirty=dirty,
-        present_pacing=dict(layer_sha256=layer_record['sha256'], build=LAYER_BUILD),
+        # glibc: the oldest glibc the layer loads on (build_layer.py's check; doctor.py warns below it)
+        present_pacing=dict(layer_sha256=layer_record['sha256'], build=LAYER_BUILD,
+                            **({'glibc': layer_record['glibc']['minimum']} if 'glibc' in layer_record else {})),
         frame_start_pacing=dict(addon_sha256=addon_record['sha256'], **static['frame_start_pacing']),
         installer={target: sha256(out / target) for target in installer},
         enabler_overlay=static['enabler_overlay'], extras=static['extras'],

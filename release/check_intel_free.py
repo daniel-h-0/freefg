@@ -52,7 +52,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import RELEASE, Config, ReleaseError, add_arguments  # noqa: E402
+from config import RELEASE, Config, ReleaseError, add_arguments, lock_group  # noqa: E402
 
 MATERIAL = RELEASE / 'intel_material.json'
 DEFINITION = RELEASE / 'intel_free.json'
@@ -253,8 +253,8 @@ def load_material():
 
 def third_party(config):
     """{sha256: label} of the pinned third-party binaries whose embedded shaders are their own (THIRD_PARTY_GROUPS)."""
-    return {entry['sha256']: f'{group}/{name}' for group in THIRD_PARTY_GROUPS
-            for name, entry in config.lock['work'][group]['files'].items()}
+    return {entry['sha256']: f'{group}/{name}' for group in THIRD_PARTY_GROUPS  # under "fetch" or "work"
+            for name, entry in (lock_group(config.lock, group) or {}).get('files', {}).items()}
 
 
 def refused_files(config, material):

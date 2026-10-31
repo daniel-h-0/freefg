@@ -7,8 +7,8 @@ has its own pinned source and build route.
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f` |
-| `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `6489938d63e7059d1b669681881cc11e93072bec921844868926386131b03ca8` |
+| `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `1f691dfd018f7d3d062704b9639e5ed7bfbcfe1e71d92c2299e08153b9f666b6` |
 
 The proxy and layer scripts build twice and require identical outputs. They also compare against
 `release/inputs.lock.json`; `--no-reference-check` skips that final comparison, not the other checks. A different hash
@@ -20,7 +20,7 @@ Reference build, x86-64 Linux:
 
 | Tool | Pinned version | Purpose |
 | --- | --- | --- |
-| Python | 3.14.7; build scripts require 3.11.4+ | Build scripts and archive extraction |
+| Python | 3.14.7; build scripts require 3.11.4+ (before 3.14, `toolchain.py` also needs the `zstd` program) | Build scripts and archive extraction |
 | clang / lld | 22.1.8 | Windows proxy DLL |
 | Wine | 11.16 | Headers/import libraries; CPU-only loader tests |
 | GCC | 16.2.1 | Pacing layer and sanitizer tests |
@@ -57,6 +57,7 @@ It does not execute downloaded files. The build tools accept `--offline` to use 
 | `intel-xess` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `inc/xess_fg/*.h`, `inc/xell/*.h`, `LICENSE.txt`, `third-party-programs.txt` | API types for the proxy; licence texts for the package |
 | `intel-xess-runtime` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `bin/libxess_fg.dll` | the proxy's export table, and the size and hash the proxy checks before loading the runtime; never copied into an output |
 | `optiscaler-license` | `optiscaler/OptiScaler` | `92337ebfbf07d533eabe3731fd8de1bb19437aea` | `LICENSE` | the package's `licenses/OptiScaler.txt` |
+| `optiscaler-fork` | `daniel-h-0/OptiScaler`, release `bc250-273e8d4` | `273e8d449763d0e9e051dee831dc42badcd15d00` | `OptiScaler.dll`, `OptiScaler.ini` | the package's `opti/` (the fork's own build: [below](#what-this-tree-does-not-build)) |
 | `fsr4-notices` | `daniel-h-0/bc250-fsr4-fork` | `b2ab949477b4d2745babae146393db5537d87fcb` | `dll/notices/*` | the package's `licenses/fsr4/` |
 | `minhook` | `TsudaKageyu/minhook` | `c3fcafdc10146beb5919319d0683e44e3c30d537` | sources, `LICENSE.txt` | nothing in FreeFG; fetched because `fetch.py` without arguments fetches every group |
 
@@ -76,22 +77,21 @@ python3 release/fetch.py
 python3 release/build_layer.py
 python3 release/build_proxy.py
 python3 release/check_proxy_wine.py
-export XEMFG_OPTISCALER=/path/to/folder  # contains the pinned OptiScaler.dll
 python3 release/assemble.py --variant intel-free-mfg --no-source-companion
 python3 release/check_intel_free.py check build/package-intel-free-mfg/<name>
 ```
 
-Take `opti/OptiScaler.dll` from the release archive; assembly verifies its hash. For a CI-style package without that
-DLL, use `release/ci/assemble_ci.py --variant intel-free-mfg`. It requires a clean checkout and matching reference
-outputs. Neither route establishes GPU/game qualification.
+`fetch.py` also downloads the OptiScaler fork's release files, which assembly verifies by hash.
+`release/ci/assemble_ci.py --variant intel-free-mfg` assembles the CI package; it requires a clean checkout and
+matching reference outputs. Neither route establishes GPU/game qualification.
 
 ### What each step checks
 
 | Step | Checks and record |
 | --- | --- |
-| `build_layer.py` | Pacer, wave-layer and concurrent-present tests under ASan/UBSan and TSan; two matching builds; `build/layer/build.json`. |
-| `build_proxy.py` | Pinned inputs, profile manifest, two matching DLLs, 57 Intel exports (8 wrapped/49 forwarded) plus 4 own exports, and imports limited to `kernel32.dll`/`ucrtbase.dll`; `build/addon-intel-free-mfg/build.json`. |
-| `check_proxy_wine.py` | Forwarding to the pinned runtime; refusal of missing/altered runtimes; caller preservation with stand-in hooks; coexistence bookkeeping; copied-history invalidation and abandoned/submitted recordings. Private Wine prefix, no GPU/display. |
+| `build_layer.py` | Pacer, wave-layer and concurrent-present tests under ASan/UBSan and TSan; two matching builds; no glibc symbol version newer than 2.34 (the manifest's `present_pacing.glibc`, which System Check compares with the host's); `build/layer/build.json`. |
+| `build_proxy.py` | Pinned inputs, profile manifest, two matching DLLs, 57 Intel exports (the 24 its headers declare are the proxy's own: 8 wrapped, 16 tail-calling; 26 unnamed and 7 undeclared forwarded) plus 4 own exports, and imports limited to `kernel32.dll`/`ucrtbase.dll`; `build/addon-intel-free-mfg/build.json`. |
+| `check_proxy_wine.py` | Own and forwarded entries reaching the pinned runtime, also from a subfolder and beside a game's own copy of it; refusal of missing/altered runtimes and of a second copy loaded elsewhere; caller preservation with stand-in hooks; coexistence bookkeeping; copied-history invalidation and abandoned/submitted recordings. Private Wine prefix, no GPU/display. |
 | `assemble.py` | Installer tests, build freshness, allowed package contents, manifest hashes and static material scan. `--archive` also requires a passed qualification receipt and completed public documents. |
 | `check_intel_free.py check` | Known Intel files/shaders, unrecognised embedded DXIL, shader model 6.4 and known warp-weight constants. Pinned OptiScaler shaders are recognised separately. Synthetic detector controls are in `release/ci/check_controls.py`. |
 
@@ -151,10 +151,11 @@ git config --system --add safe.directory <path-in-the-container>
 
 - **OptiScaler fork:** DLL SHA-256 `044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87`, built from
   `273e8d449763d0e9e051dee831dc42badcd15d00`, retaining upstream `e7e3872d410f704479d94d318d68d163b6b58947`.
-  Supply this DLL and its matching `OptiScaler.ini` with `--optiscaler`; provide its git checkout with
-  `--optiscaler-source`. `FORK.md` and `tools/bc250-build.py` describe the separate build. The source companion and
-  locked recursive source archive identify the complete corresponding source. The [fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-273e8d4) supplies the DLL and recursive source archive.
-  OptiScaler is the only component CI may omit from its test package.
+  `release/fetch.py` downloads this DLL and its matching `OptiScaler.ini` from the
+  [fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-273e8d4), which also has the recursive
+  source archive; the source companion needs the fork's git checkout (`--optiscaler-source`). `FORK.md` and
+  `tools/bc250-build.py` describe the separate build. The source companion and locked recursive source archive identify
+  the complete corresponding source.
 - **Source companion without its inputs:** normal assembly needs a fork checkout named by `XEMFG_OPTISCALER_SOURCE`.
   Use `--no-source-companion` only for a local build that does not distribute the complete source companion.
 - **GPU measurements:** the public tree reproduces binaries and CPU checks. The SDK scene and game benchmark harnesses

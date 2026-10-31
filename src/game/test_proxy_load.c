@@ -2,7 +2,12 @@
  * CPU-only check of the enabler-free libxess_fg.dll proxy under Wine (release/check_proxy_wine.py): Windows' loader resolves
  * its export forwarders to bc250_xefg_original.dll, its wrapped entry reaches Intel's runtime only after the size and hash
  * check, and its settings exports answer. No D3D12 device is created and no GPU work is submitted.
- * PROXY_CHECK_FORWARDERS=1 also calls a forwarded entry (xefgSwapChainGetVersion) first.
+ * PROXY_CHECK_FORWARDERS=1 also calls xefgSwapChainGetVersion first (the multi-frame proxy's own tail-calling entry: it
+ * verifies and loads the runtime) and, after the wrapped call, resolves xefgAILGetVersion (an export Intel's headers do
+ * not declare, still a forwarder) without calling it. PROXY_CHECK_FORWARDER_FIRST=1 resolves that forwarder before
+ * anything else, as a caller that looks up every entry at load time does. PROXY_CHECK_PATH loads the proxy from another
+ * path (a subfolder, as OptiScaler's own folder). PROXY_CHECK_GAME_RUNTIME=1 first loads a game's own copy of Intel's
+ * runtime as libxess_fg.dll beside the program and points its entries at the stub: the proxy must never call it.
  * PROXY_CHECK_HOOKS=1 (the multi-frame proxy) then stands in for another module that hooks Intel's runtime: it writes a
  * jump at eight of Intel's entries in this process to a stub that records its return address and returns -77, and calls
  * the proxy's entries: the lifecycle ones, D3D12GetSwapChainPtr and TagFrameConstants must reach the stub with this
@@ -62,22 +67,37 @@ static void caller_call(HMODULE fg,const char*module){
  xefg_swapchain_handle_t h=NULL;if(create)r=create((void*)GetProcAddress(fg,"xefgSwapChainD3D12CreateContext"),(ID3D12Device*)fake_device,&h);
  snprintf(line,sizeof(line),"CALLER %s loaded=%d result=%d caller_in_module=%d calls=%ld\n",module,m!=NULL,r,m&&stub_caller&&owner(stub_caller)==m,stub_calls);say(line);
 }
+/* Where an export of the proxy resolves to (the module of its address), without calling it. */
+static void resolved(HMODULE fg,const char*label,const char*export){
+ char line[600],name[MAX_PATH]={0};void*p=(void*)GetProcAddress(fg,export);HMODULE m=p?owner(p):NULL;if(m)GetModuleFileNameA(m,name,sizeof(name));
+ snprintf(line,sizeof(line),"%s %s found=%d module=%s in_proxy=%d\n",label,export,p!=NULL,name,m==fg);say(line);
+}
 void mainCRTStartup(void){
- out=GetStdHandle(STD_OUTPUT_HANDLE);char line[600],name[MAX_PATH];
- HMODULE fg=LoadLibraryA("libxess_fg.dll");
+ out=GetStdHandle(STD_OUTPUT_HANDLE);char line[600],name[MAX_PATH],path[MAX_PATH]="libxess_fg.dll";
+ char flag[8]={0};HMODULE game=NULL;
+ if(GetEnvironmentVariableA("PROXY_CHECK_GAME_RUNTIME",flag,sizeof(flag))&&flag[0]=='1'){
+  game=LoadLibraryA("libxess_fg.dll");int all=game!=NULL;for(int i=0;i<HOOKED&&game;i++)all&=hook_entry(game,hooked_names[i]);
+  stub_calls=0;snprintf(line,sizeof(line),"GAME_RUNTIME loaded=%d hooked=%d\n",game!=NULL,all);say(line);
+ }
+ DWORD length=GetEnvironmentVariableA("PROXY_CHECK_PATH",path,sizeof(path));if(!length||length>=sizeof(path))strcpy(path,"libxess_fg.dll");
+ HMODULE fg=LoadLibraryA(path);
  if(!fg){snprintf(line,sizeof(line),"LOAD_FAILED error=%lu\n",GetLastError());say(line);ExitProcess(2);}
  GetModuleFileNameA(fg,name,sizeof(name));snprintf(line,sizeof(line),"LOADED %s\n",name);say(line);
- char flag[8]={0};
- if(GetEnvironmentVariableA("PROXY_CHECK_FORWARDERS",flag,sizeof(flag))&&flag[0]=='1'){
+ if(GetEnvironmentVariableA("PROXY_CHECK_FORWARDER_FIRST",flag,sizeof(flag))&&flag[0]=='1')resolved(fg,"FORWARDER_FIRST","xefgAILGetVersion");
+ int forwarders=GetEnvironmentVariableA("PROXY_CHECK_FORWARDERS",flag,sizeof(flag))&&flag[0]=='1';
+ if(forwarders){
   __typeof__(&xefgSwapChainGetVersion) version=(void*)GetProcAddress(fg,"xefgSwapChainGetVersion");
   xefg_swapchain_version_t v={0};int r=version?version(&v):-9999;HMODULE target=version?owner((void*)version):NULL;
-  name[0]=0;if(target)GetModuleFileNameA(target,name,sizeof(name));
-  snprintf(line,sizeof(line),"FORWARDED xefgSwapChainGetVersion result=%d version=%u.%u.%u module=%s in_proxy=%d\n",r,v.major,v.minor,v.patch,name,target==fg);say(line);
+  snprintf(line,sizeof(line),"TAILED xefgSwapChainGetVersion result=%d version=%u.%u.%u in_proxy=%d\n",r,v.major,v.minor,v.patch,target==fg);say(line);
  }
  __typeof__(&xefgSwapChainD3D12CreateContext) create=(void*)GetProcAddress(fg,"xefgSwapChainD3D12CreateContext");
  xefg_swapchain_handle_t handle=NULL;int r=create?create(NULL,&handle):-9999;
  HMODULE original=GetModuleHandleA("bc250_xefg_original.dll");
  snprintf(line,sizeof(line),"WRAPPED xefgSwapChainD3D12CreateContext(NULL) result=%d in_proxy=%d original_loaded=%d\n",r,create&&owner((void*)create)==fg,original!=NULL);say(line);
+ /* A second call: a refused runtime is not checked again (one log line, no second 22 MB hash). */
+ r=create?create(NULL,&handle):-9999;snprintf(line,sizeof(line),"WRAPPED_AGAIN result=%d\n",r);say(line);
+ if(forwarders)resolved(fg,"FORWARDED","xefgAILGetVersion");
+ if(game){snprintf(line,sizeof(line),"GAME_RUNTIME stub_calls=%ld\n",stub_calls);say(line);}
  BOOL(WINAPI*get)(struct bc250_fg_status*)=(void*)GetProcAddress(fg,"BC250MFGGetFrameSettings");
  struct bc250_fg_status status={.size=sizeof(status),.version=BC250_FG_SETTINGS_VERSION};BOOL ok=get&&get(&status);
  snprintf(line,sizeof(line),"SETTINGS ok=%d ready=%u resolution=%u downscale_mask=%u upscale_mask=%u\n",ok,status.ready,status.applied.resolution,status.downscale_mask,status.upscale_mask);say(line);

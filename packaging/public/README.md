@@ -18,7 +18,7 @@ Club. The FreeFG runtime and shaders retain 1.1.6 bytes; the bundled OptiScaler 
 
 ## Requirements
 
-- AMD BC-250, x86-64 Linux, Mesa RADV and Proton. [Other GPUs are experimental](TROUBLESHOOTING.md#other-gpus).
+- AMD BC-250, x86-64 Linux with glibc 2.34 or newer, Mesa RADV and Proton. [Other GPUs are experimental](TROUBLESHOOTING.md#other-gpus).
 - A 64-bit DirectX 12 game with a supported input, registered in Steam, Heroic or Lutris
   ([or another launcher](INSTALLATION.md#other-launchers)), in an ASCII-only path.
 - Python 3.11+ and `bsdtar`; PyGObject, GTK 4 and libadwaita 1.5+ for Setup’s window (Zenity fallback).

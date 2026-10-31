@@ -17,6 +17,9 @@ static int profile_lists_replacement(uint64_t shader){
 #include "mfg_pipeline_cache.h"
 static void proxy_pair_note(ID3D12Device*,const D3D12_COMPUTE_PIPELINE_STATE_DESC*,ID3D12PipelineState*);static void proxy_owner_released(void);
 static UINT fast_scope;
+/* The owner context's model census at its initialisation (fast_ready): a failed check there may step aside instead of
+ * ending the game (mfg_proxy_coexist.h proxy_census_soft, proxy_aside_settle). */
+static volatile DWORD proxy_seal_thread;static void proxy_aside_settle(void);
 static LONG fast_claimed;
 static SRWLOCK fast_record_lock=SRWLOCK_INIT;
 static SRWLOCK fast_lifecycle_lock=SRWLOCK_INIT;
@@ -50,8 +53,9 @@ static HRESULT STDMETHODCALLTYPE fast_compute(ID3D12Device*d,const D3D12_COMPUTE
  if(SUCCEEDED(hr))proxy_pair_note(d,desc,*out);  /* beside another module: Intel's original next to a replacement */
  ReleaseSRWLockExclusive(&fast_record_lock);return hr;
 }
+#include "mfg_list_collect.h"
 static void STDMETHODCALLTYPE fast_set(ID3D12GraphicsCommandList*l,ID3D12PipelineState*p){
- AcquireSRWLockExclusive(&fast_record_lock);set_hook(l,p);ReleaseSRWLockExclusive(&fast_record_lock);
+ AcquireSRWLockExclusive(&fast_record_lock);fast_collect_lists(l);set_hook(l,p);ReleaseSRWLockExclusive(&fast_record_lock);
 }
 static void STDMETHODCALLTYPE fast_dispatch(ID3D12GraphicsCommandList*l,UINT x,UINT y,UINT z){
  AcquireSRWLockExclusive(&fast_record_lock);
@@ -63,7 +67,7 @@ static void STDMETHODCALLTYPE fast_dispatch(ID3D12GraphicsCommandList*l,UINT x,U
  tracing=0;ReleaseSRWLockExclusive(&fast_record_lock);
 }
 static int fast_profile_file(const char*path,UINT64 bytes,uint64_t expected){
- HANDLE f=CreateFileA(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);if(f==INVALID_HANDLE_VALUE)return 0;
+ HANDLE f=profile_open(path);if(f==INVALID_HANDLE_VALUE)return 0;
  LARGE_INTEGER size;int ok=GetFileSizeEx(f,&size)&&size.QuadPart==bytes;unsigned char data[1024];DWORD n;uint64_t h=0xcbf29ce484222325ULL;UINT64 total=0;
  while(ok&&total<bytes){if(!ReadFile(f,data,sizeof(data),&n,NULL)||!n){ok=0;break;}total+=n;for(DWORD i=0;i<n;i++)h=h*0x100000001b3ULL^data[i];}
  CloseHandle(f);return ok&&total==bytes&&h==expected;
@@ -73,30 +77,47 @@ static int fast_any_gpu(void){
  char v[8];DWORD n=GetEnvironmentVariableA("BC250_XEFG_ANY_GPU",v,sizeof(v));if(!n||n>=sizeof(v))return 0;
  return !strcmp(v,"1")||!lstrcmpiA(v,"on")||!lstrcmpiA(v,"true")||!lstrcmpiA(v,"yes");
 }
+/* One FAST_DECISION line for each context that reaches the check (a CreateContext with a device): whether it is a
+ * candidate for the accelerated path and, if not, why. Support for a game nobody has tested starts from this line. */
+static int fast_decision(int candidate,const char*why){
+ char line[600];snprintf(line,sizeof(line),"FAST_DECISION %s: %s\n",candidate?"candidate":"not accelerated",why);proxy_log(line);
+ return candidate;
+}
+/* Runs under fast_lifecycle_lock (both callers), which also guards its static buffers. */
 static int fast_candidate(ID3D12Device*d,void*caller){
- HMODULE caller_module=NULL;char caller_name[1024]={0},owner[128]={0};
- GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(const char*)caller,&caller_module);
- if(caller_module)GetModuleFileNameA(caller_module,caller_name,sizeof(caller_name));
- proxy_log("CONTEXT_CALLER ");proxy_log(caller_name);proxy_log("\n");
- DWORD owner_size=GetEnvironmentVariableA("BC250_XEFG_OWNER_MODULE",owner,sizeof(owner));
- if(owner_size&&(owner_size>=sizeof(owner)||!caller_module||GetModuleHandleA(owner)!=caller_module)){
-  proxy_log("FAST_SKIP context belongs to another integration\n");return 0;
+ static wchar_t caller_path[1100],path[1100];static char text[1400];
+ HMODULE caller_module=NULL;caller_path[0]=0;
+ GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCWSTR)caller,&caller_module);
+ if(caller_module&&!GetModuleFileNameW(caller_module,caller_path,1100))caller_path[0]=0;
+ if(!WideCharToMultiByte(CP_UTF8,0,caller_path,-1,text,sizeof(text),NULL,NULL))text[0]=0;
+ proxy_log("CONTEXT_CALLER ");proxy_log(text);proxy_log("\n");
+ /* BC250_XEFG_OWNER_MODULE: only that module's contexts. Compared by the caller's file name: several loaded modules can
+  * share a base name (OptiScaler as dxgi.dll beside the system's), so a lookup by name may find another one. */
+ wchar_t owner[128];DWORD owner_size=GetEnvironmentVariableW(L"BC250_XEFG_OWNER_MODULE",owner,128);
+ const wchar_t*leaf=wcsrchr(caller_path,L'\\');leaf=leaf?leaf+1:caller_path;
+ if(owner_size&&(owner_size>=128||!caller_module||lstrcmpiW(leaf,owner))){
+  proxy_log("FAST_SKIP context belongs to another integration\n");
+  return fast_decision(0,"BC250_XEFG_OWNER_MODULE names another module than this context's caller");
  }
- char disabled[16];if(GetEnvironmentVariableA("BC250_XEFG_DISABLE",disabled,sizeof(disabled))&&!strcmp(disabled,"1"))return 0;
- if(InterlockedCompareExchange(&fast_claimed,0,0))return 0;
- DWORD size=GetEnvironmentVariableA("XEFG_GAME_PROFILE",patchdir,sizeof(patchdir));
+ char disabled[16];if(GetEnvironmentVariableA("BC250_XEFG_DISABLE",disabled,sizeof(disabled))&&!strcmp(disabled,"1"))return fast_decision(0,"BC250_XEFG_DISABLE=1");
+ if(InterlockedCompareExchange(&fast_claimed,0,0))return fast_decision(0,"another context of this process has the accelerated path (one at a time)");
+ /* The profile folder as UTF-8: profile_io.h opens its files through the wide-character API, so any folder name works. */
+ DWORD size=GetEnvironmentVariableW(L"XEFG_GAME_PROFILE",path,1100);
+ if(size>=1100)return fast_decision(0,"XEFG_GAME_PROFILE is longer than this build reads");
  if(!size){
-  static wchar_t path[1100];if(wcslen(proxy_directory)+40>=1100)return 0;
-  wcscpy(path,proxy_directory);wcscat(path,L"BC250-XeFG\\shaders");BOOL lost=FALSE;
-  if(!WideCharToMultiByte(CP_ACP,WC_NO_BEST_FIT_CHARS,path,-1,patchdir,sizeof(patchdir),NULL,&lost)||lost)return 0;
- }else if(size>=sizeof(patchdir))return 0;
- HMODULE dxgi=GetModuleHandleA("dxgi.dll");if(!dxgi)return 0;
- HRESULT(WINAPI*create)(UINT,REFIID,void**)=(void*)GetProcAddress(dxgi,"CreateDXGIFactory2");if(!create)return 0;
+  if(wcslen(proxy_directory)+40>=1100)return fast_decision(0,"the game folder's path is longer than this build reads");
+  wcscpy(path,proxy_directory);wcscat(path,L"BC250-XeFG\\shaders");
+ }
+ if(!WideCharToMultiByte(CP_UTF8,0,path,-1,patchdir,sizeof(patchdir),NULL,NULL))return fast_decision(0,"the profile folder's path is longer than this build reads");
+ HMODULE dxgi=GetModuleHandleA("dxgi.dll");if(!dxgi)return fast_decision(0,"dxgi.dll is not loaded, so the device's adapter cannot be identified");
+ HRESULT(WINAPI*create)(UINT,REFIID,void**)=(void*)GetProcAddress(dxgi,"CreateDXGIFactory2");if(!create)return fast_decision(0,"the loaded dxgi.dll has no CreateDXGIFactory2");
  IDXGIFactory4*factory=NULL;IDXGIAdapter1*adapter=NULL;DXGI_ADAPTER_DESC1 desc={0};
- if(FAILED(create(0,&IID_IDXGIFactory4,(void**)&factory)))return 0;
- LUID luid=ID3D12Device_GetAdapterLuid(d);HRESULT hr=IDXGIFactory4_EnumAdapterByLuid(factory,luid,&IID_IDXGIAdapter1,(void**)&adapter);IDXGIFactory4_Release(factory);
- if(FAILED(hr))return 0;hr=IDXGIAdapter1_GetDesc1(adapter,&desc);IDXGIAdapter1_Release(adapter);
- if(FAILED(hr)){proxy_log("FAST_FALLBACK requires BC250 adapter\n");return 0;}
+ HRESULT hr=create(0,&IID_IDXGIFactory4,(void**)&factory);
+ if(FAILED(hr)){snprintf(text,sizeof(text),"CreateDXGIFactory2 failed (%lx)",(unsigned long)hr);return fast_decision(0,text);}
+ LUID luid=ID3D12Device_GetAdapterLuid(d);hr=IDXGIFactory4_EnumAdapterByLuid(factory,luid,&IID_IDXGIAdapter1,(void**)&adapter);IDXGIFactory4_Release(factory);
+ if(FAILED(hr)){snprintf(text,sizeof(text),"DXGI does not list the device's adapter (LUID %08lx:%08lx, %lx)",(unsigned long)luid.HighPart,(unsigned long)luid.LowPart,(unsigned long)hr);return fast_decision(0,text);}
+ hr=IDXGIAdapter1_GetDesc1(adapter,&desc);IDXGIAdapter1_Release(adapter);
+ if(FAILED(hr)){proxy_log("FAST_FALLBACK requires BC250 adapter\n");return fast_decision(0,"the adapter's description could not be read");}
  if(desc.VendorId!=0x1002||desc.DeviceId!=0x13fe){
   /* Another GPU runs Intel's shaders unless its user opts in (BC250_XEFG_ANY_GPU=1): the profile, prepared network and
    * scaling then run on hardware nobody has qualified, and the model/layout guards end the game on a contract they do
@@ -104,14 +125,17 @@ static int fast_candidate(ID3D12Device*d,void*caller){
   char line[200];int any=fast_any_gpu();
   snprintf(line,sizeof(line),any?"FAST_ANY_GPU adapter %04x:%04x: BC250 acceleration on untested hardware (BC250_XEFG_ANY_GPU=1)\n":
            "FAST_FALLBACK requires BC250 adapter (this one is %04x:%04x; BC250_XEFG_ANY_GPU=1 tries it anyway)\n",desc.VendorId,desc.DeviceId);
-  proxy_log(line);if(!any)return 0;
+  proxy_log(line);
+  if(!any){snprintf(text,sizeof(text),"the adapter is %04x:%04x, not the BC-250 (BC250_XEFG_ANY_GPU=1 tries it)",desc.VendorId,desc.DeviceId);return fast_decision(0,text);}
  }
- char file[1200];
  for(UINT i=0;i<sizeof(fast_files)/sizeof(*fast_files);i++){
-  snprintf(file,sizeof(file),"%s\\%s",patchdir,fast_files[i].name);
-  if(!fast_profile_file(file,fast_files[i].size,fast_files[i].hash)){proxy_log("FAST_FALLBACK profile verification failed: ");proxy_log(fast_files[i].name);proxy_log("\n");return 0;}
+  snprintf(text,sizeof(text),"%s\\%s",patchdir,fast_files[i].name);
+  if(!fast_profile_file(text,fast_files[i].size,fast_files[i].hash)){
+   proxy_log("FAST_FALLBACK profile verification failed: ");proxy_log(fast_files[i].name);proxy_log("\n");
+   snprintf(text,sizeof(text),"the shader profile's %s is missing or not this build's",fast_files[i].name);return fast_decision(0,text);
+  }
  }
- return 1;
+ return fast_decision(1,"the BC-250 (or BC250_XEFG_ANY_GPU=1) and a verified shader profile; the path is set up at its first initialisation (FAST_OWNER)");
 }
 static __attribute__((noinline)) int fast_prepare(ID3D12Device*d){
  static wchar_t path[1100];if(wcslen(proxy_directory)+32>=1100)return 0;
@@ -119,9 +143,10 @@ static __attribute__((noinline)) int fast_prepare(ID3D12Device*d){
  /* One log per game session: the first context of this process starts it afresh (Setup's status reads it as the last
   * session, and it would otherwise grow forever); later contexts append. */
  static LONG fast_log_started;
- output=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,NULL,InterlockedExchange(&fast_log_started,1)?OPEN_ALWAYS:CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
- if(output==INVALID_HANDLE_VALUE)return 0;
- SetFilePointer(output,0,NULL,FILE_END);logline("FAST_CONTEXT_BEGIN\n");
+ HANDLE log=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,NULL,InterlockedExchange(&fast_log_started,1)?OPEN_ALWAYS:CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+ if(log==INVALID_HANDLE_VALUE)return 0;
+ SetFilePointer(log,0,NULL,FILE_END);
+ AcquireSRWLockExclusive(&output_lock);output=log;ReleaseSRWLockExclusive(&output_lock);logline("FAST_CONTEXT_BEGIN\n");
  game_timing_prepare(d);
  char scale[1200];snprintf(scale,sizeof(scale),"%s\\dispatch-scale.txt",patchdir);load_dispatch_scale(scale,1);
  ID3D12CommandAllocator*a=NULL;ID3D12GraphicsCommandList*l=NULL;ID3D12CommandQueue*q=NULL;
@@ -163,10 +188,16 @@ static void fast_begin_init(xefg_swapchain_handle_t handle){
  ReleaseSRWLockShared(&scoped_lock);
  if(d&&!InterlockedCompareExchange(&fast_claimed,1,0)){
   if(fast_prepare((void*)d))proxy_log("FAST_OWNER first initialized context selected\n");
+  else proxy_log("FAST_DECISION not accelerated: BC250-XeFG-fast.log could not be opened beside the game's executable (write access?)\n");
  }
  if(d)scoped_release(d);ReleaseSRWLockExclusive(&fast_lifecycle_lock);
 }
-static void fast_ready(xefg_swapchain_handle_t handle){if(fast_scope&&fast_context_scope(handle)==fast_scope&&!graph_ready){model_seal_allocations();if(!proxy_aside_active())graph_initialize();}}
+static void fast_ready(xefg_swapchain_handle_t handle){
+ if(fast_scope&&fast_context_scope(handle)==fast_scope&&!graph_ready){
+  proxy_seal_thread=GetCurrentThreadId();model_seal_allocations();proxy_seal_thread=0;
+  proxy_aside_settle();if(!proxy_aside_active())graph_initialize();
+ }
+}
 static void fast_report(xefg_swapchain_handle_t handle){
  if(fast_scope&&fast_context_scope(handle)==fast_scope)frame_report();
  if(fast_scope&&fast_context_scope(handle)==fast_scope){char line[120];snprintf(line,sizeof(line),"FLOW_CAP frames=%llu\n",(unsigned long long)flow_frames);logline(line);}
@@ -202,7 +233,8 @@ static void fast_finish(xefg_swapchain_handle_t handle){
  /* Restore this context's private forwarding before allowing a fresh owner. */
  AcquireSRWLockExclusive(&scoped_lock);
  for(UINT i=0;i<16;i++)if(scoped_contexts[i].handle==handle){struct scoped_tables*t=scoped_contexts[i].device->tables;memcpy(t->device,scoped_device_vtable,sizeof(t->device));memcpy(t->list,scoped_list_vtable,sizeof(t->list));memcpy(t->queue,scoped_queue_vtable,sizeof(t->queue));break;}
- ReleaseSRWLockExclusive(&scoped_lock);fast_scope=0;fq_finish();CloseHandle(output);output=INVALID_HANDLE_VALUE;  /* F4Q: its last lines before the log closes */
+ ReleaseSRWLockExclusive(&scoped_lock);fast_scope=0;fq_finish();  /* F4Q: its last lines before the log closes */
+ AcquireSRWLockExclusive(&output_lock);CloseHandle(output);output=INVALID_HANDLE_VALUE;ReleaseSRWLockExclusive(&output_lock);
  proxy_log("FAST_RELEASED GPU completion verified; private resources released\n");
  fast_reset_tracking();
  proxy_owner_released();

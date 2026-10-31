@@ -4,6 +4,12 @@
 #include <assert.h>
 #include <math.h>
 struct run {double sd,mean,max_hold,last_hold;};
+/* This thread as a Wine thread with Windows pid pid (a fake TEB in GS, as pace_wine_pid reads it), or native for 0. */
+static unsigned long fake_teb[16];
+static void wine_thread(unsigned long pid){
+ fake_teb[0x30/8]=(unsigned long)fake_teb;fake_teb[0x40/8]=pid;assert(syscall(SYS_arch_prctl,0x1001 /* ARCH_SET_GS */,pid?(unsigned long)fake_teb:0UL)==0);
+ assert(pace_wine_pid()==pid);
+}
 /* Feeds ready times built from a repeating gap pattern (ms); release i happens at pace_target(ready i). */
 static struct run simulate(const double*gaps,int ngaps,int frames,int warmup,int hitch_at,double hitch_ms){
  pace_rn=0;pace_prev=0;pace_margin=0;pace_margin_t=0;pace_sn=0;for(int i=0;i<8;i++)pace_hold[i]=0;
@@ -78,32 +84,48 @@ int main(void){
  new_longs=four_jitter(4,7,1,&new_hold,&max_hold);
  printf("4x nearly simultaneous completion +7 ms jitter: %d long, max hold %.2f ms\n",new_longs,max_hold*1e3);
  assert(new_longs<=2&&max_hold<.047); // a 3.5-period cap clips the reserve and leaves 79 long intervals
- /* Who gets output pacing: BC250_XEFG_PACE decides; otherwise every game under gamescope. The X nudge (stock gamescope)
-  * is on unless the patched gamescope's session variable is set; BC250_XEFG_PACE_NUDGE overrides. */
+ /* Who gets output pacing: BC250_XEFG_PACE decides; otherwise a Wine game thread (a Wine TEB and WINEPREFIX) under
+  * gamescope. A native program that inherits the game's environment (a nested gamescope, a launcher) is never paced.
+  * The X nudge (stock gamescope) is on unless the patched gamescope's session variable is set; BC250_XEFG_PACE_NUDGE
+  * overrides. */
  unsetenv("BC250_XEFG_PACE");unsetenv("BC250_XEFG_PACE_NUDGE");unsetenv("BC250_GAMESCOPE_READY_NUDGE");unsetenv("GAMESCOPE_WAYLAND_DISPLAY");
+ setenv("WINEPREFIX","/nonexistent/pfx",1);wine_thread(0x20);
  assert(!pace_wanted()&&pace_nudge_wanted());
  setenv("BC250_GAMESCOPE_READY_NUDGE","1",1);assert(!pace_wanted()&&!pace_nudge_wanted()); /* desktop session inheriting environment.d */
+ assert(!strcmp(pace_off_reason(),"not under gamescope"));
  setenv("GAMESCOPE_WAYLAND_DISPLAY","gamescope-0",1);assert(pace_wanted()&&!pace_nudge_wanted());  /* patched gamescope */
+ wine_thread(0);assert(!pace_wanted()&&strstr(pace_off_reason(),"not a Wine game thread"));    /* a native program */
+ wine_thread(0x20);unsetenv("WINEPREFIX");assert(!pace_wanted());setenv("WINEPREFIX","/nonexistent/pfx",1);  /* no prefix */
  unsetenv("BC250_GAMESCOPE_READY_NUDGE");assert(pace_wanted()&&pace_nudge_wanted());              /* stock gamescope */
  setenv("BC250_XEFG_PACE_NUDGE","0",1);assert(!pace_nudge_wanted());
  setenv("BC250_GAMESCOPE_READY_NUDGE","1",1);setenv("BC250_XEFG_PACE_NUDGE","1",1);assert(pace_nudge_wanted());
- setenv("BC250_XEFG_PACE","0",1);assert(!pace_wanted());
+ setenv("BC250_XEFG_PACE","0",1);assert(!pace_wanted()&&!strcmp(pace_off_reason(),"BC250_XEFG_PACE=0"));
  unsetenv("GAMESCOPE_WAYLAND_DISPLAY");setenv("BC250_XEFG_PACE","1",1);assert(pace_wanted());
+ wine_thread(0);assert(pace_wanted());wine_thread(0x20);  /* BC250_XEFG_PACE=1: every process, as before */
  setenv("BC250_XEFG_PACE","auto",1);setenv("GAMESCOPE_WAYLAND_DISPLAY","gamescope-0",1);assert(pace_wanted()&&!pace_forced());
  unsetenv("GAMESCOPE_WAYLAND_DISPLAY");assert(!pace_wanted());
+ wine_thread(0);unsetenv("WINEPREFIX");
  setenv("BC250_XEFG_PACE","1",1);assert(pace_forced());setenv("BC250_XEFG_PACE","0",1);assert(!pace_forced());unsetenv("BC250_XEFG_PACE");assert(!pace_forced());
  /* Intel's shaders (BC250_XEFG_DISABLE, another GPU): since v30 the add-on counts generation from the SDK's present
   * status there too, so they follow the signal instead of holding every present. */
  setenv("BC250_XEFG_DISABLE","1",1);assert(!pace_forced());
  setenv("BC250_XEFG_PACE","auto",1);assert(!pace_forced());setenv("BC250_XEFG_PACE","1",1);assert(pace_forced());
  unsetenv("BC250_XEFG_PACE");unsetenv("BC250_XEFG_DISABLE");
- puts("pace_wanted: every game under gamescope; X nudge unless the patched gamescope's variable; overrides; auto");
- /* XeFG signal: hold only while the add-on's count moves (250 ms window). No page, or an add-on that has not answered
-  * 3 s after the page was made: hold every present (v23 behaviour). */
+ puts("pace_wanted: Wine game threads under gamescope; X nudge unless the patched gamescope's variable; overrides; auto");
+ /* Presents reach the pacer only from the add-on's first heartbeat on, or from the first with BC250_XEFG_PACE=1; before
+  * that, without a page or with a silent add-on (a launcher, a game before its XeFG context, FSR 3 FG without the
+  * proxy), they go straight to the driver. */
+ static struct pace_signal_page quiet;
+ pace_engaged=0;pace_force=0;pace_sig=NULL;assert(!pace_engage());
+ pace_sig=&quiet;assert(!pace_engage());                     /* a page nobody answers */
+ quiet.beat=1;assert(pace_engage());quiet.beat=0;assert(pace_engage());  /* heard once: engaged for good */
+ pace_engaged=0;pace_sig=NULL;pace_force=1;assert(pace_engage());        /* BC250_XEFG_PACE=1 */
+ pace_engaged=0;pace_force=-1;pace_sig=NULL;
+ /* XeFG signal, once engaged: hold only while the add-on's count moves (250 ms window). */
  static struct pace_signal_page page;pace_force=0;
- assert(pace_holding(1.0));                                  /* no page */
- pace_sig=&page;pace_sig_made=1.0;assert(!pace_holding(1.5)); /* page, add-on not heard yet, within 3 s */
- assert(pace_holding(4.5));                                  /* add-on silent for 3.5 s */
+ assert(!pace_holding(1.0));                                 /* no page */
+ pace_sig=&page;pace_sig_made=1.0;assert(!pace_holding(1.5)); /* page, add-on not heard yet */
+ assert(!pace_holding(4.5));                                 /* add-on silent for 3.5 s: no hold either */
  page.beat=1;assert(!pace_holding(4.6));                     /* add-on alive, nothing generated */
  page.generated=7;page.beat=2;assert(pace_holding(5.0));assert(pace_holding(5.2));
  assert(!pace_holding(5.3));                                 /* stopped for 300 ms */
@@ -118,7 +140,14 @@ int main(void){
  assert(pace_signal_map(stale)&&pace_sig->beat==0&&pace_sig->generated==0&&pace_sig->multiplier==0&&pace_sig->owner==(uint32_t)getpid());
  addon->beat++;addon->generated++;assert(pace_sig->beat==1&&pace_sig->generated==1); /* the add-on's writes reach the layer */
  munmap(addon,4096);munmap(pace_sig,4096);unlink(stale);
+ /* /dev/shm is shared: a FIFO or a symbolic link under a page's name is refused at once (no blocking open, no write
+  * through the link), and the sweep reads only regular files of this user. */
+ pace_sig=NULL;assert(mkfifo(stale,0600)==0);assert(!pace_signal_map(stale)&&!pace_sig);pace_signal_sweep("");unlink(stale);
+ char target[64];snprintf(target,sizeof(target),"/dev/shm/bc250-xefg-pace-target-%d",(int)getpid());
+ int tfd=open(target,O_RDWR|O_CREAT|O_TRUNC,0600);assert(tfd>=0&&write(tfd,"keep",4)==4);close(tfd);
+ assert(symlink(target,stale)==0&&!pace_signal_map(stale)&&!pace_sig);
+ struct stat kept;assert(stat(target,&kept)==0&&kept.st_size==4);unlink(stale);unlink(target);
  pace_sig=NULL;pace_force=-1;
- puts("pace_holding: only while XeFG generates; forced, no page or silent add-on hold every present");
- puts("PASS present pacer: 2x and 3x patterns even, steady stream untouched, hitch backlog drains, pause resets, gate, stale signal page");return 0;
+ puts("pace_holding: only while XeFG generates, or forced; pace_engage: from the add-on's first heartbeat");
+ puts("PASS present pacer: 2x and 3x patterns even, steady stream untouched, hitch backlog drains, pause resets, Wine-only, engagement, gate, stale and foreign signal pages");return 0;
 }
