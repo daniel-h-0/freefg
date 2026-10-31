@@ -521,6 +521,14 @@ class BuildTests(unittest.TestCase):
         # The shared exe name with the title: a title match (weak): shown, never acted on.
         wuwa = dict(exe='client-win64-shipping.exe', steam=set(), gog=set(), epic=set(), titles={'wuthering waves'}, folders=set())
         self.assertEqual([(w['title'], s) for w, s in self.compat.wiki_matches(self.data, wuwa)], [('Wuthering Waves', 'weak')])
+        # The game's own exe with its title in another store edition (GOG's "The Witcher 3: Wild Hunt — Remastered" in a
+        # "... GOTY" folder): the exe already names the game, so the edition-less title is the wiki's (strong).
+        witcher = dict(exe='witcher3.exe', steam=set(), gog={'1495134320'}, epic=set(),
+                       titles={r.norm('The Witcher 3: Wild Hunt — Remastered')}, folders={r.norm('The Witcher 3 Wild Hunt GOTY')})
+        found = dict((w['title'], s) for w, s in self.compat.wiki_matches(self.data, witcher))
+        self.assertEqual(found.get('The Witcher 3: Wild Hunt'), 'strong')
+        # The same titles beside another exe stay unmatched (a title alone matches exactly or not at all).
+        self.assertNotIn('The Witcher 3: Wild Hunt', [w['title'] for w, _ in self.compat.wiki_matches(self.data, dict(witcher, exe='game.exe'))])
 
     def verified(self, name='voin'):
         return json.loads((self.ROOT/'research/recipes/verified'/(name + '.json')).read_text())

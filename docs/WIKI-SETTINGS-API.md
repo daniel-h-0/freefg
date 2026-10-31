@@ -66,10 +66,12 @@ recipe_ini=..., quirk_exe=..., optiscaler_commit=...)` performs no filesystem or
 network access. Identity uses FreeFG's `wiki_matches` convention: store ID or
 executable plus title/folder is strong; title alone is weak. Titles compare as
 `recipes.norm()` gives them, edition included ("grand theft auto v enhanced").
-`match.alias` (a title without its store edition, `recipes.loose()`) and
-`match.generic_exe` (an exe name many games share) are kept apart from `title`
-and `exe` and never matched: sometimes they name another game, so integrations
-should not act on them either. Integrations should provide the actual
+Beside a matching executable, a title or folder also matches without its store
+edition (`recipes.loose()`): GOG's "The Witcher 3: Wild Hunt — Remastered" with
+`witcher3.exe` is the wiki's "The Witcher 3: Wild Hunt". `match.alias` (a title
+without its store edition) and `match.generic_exe` (an exe name many games
+share) are kept apart from `title` and `exe` and never matched on their own:
+sometimes they name another game, so integrations should not act on them either. Integrations should provide the actual
 input/output, provider, store and proxy context, plus the keys supported by the
 selected OptiScaler build. `current` and `recipe_ini` use `Section.Key` strings.
 

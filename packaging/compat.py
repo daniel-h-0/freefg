@@ -245,16 +245,20 @@ def evaluate(when, ctx):
 # ---------------------------------------------------------------------------------------------- matching the wiki
 def wiki_matches(data, ids):
     """[(wiki entry, 'strong' | 'weak')]: strong = a launcher ID, or the exe name together with the game's title or one
-    of its folders; weak = the title alone, or a (non-generic) exe name alone."""
+    of its folders, also without its store edition (the exe already names the game: "The Witcher 3: Wild Hunt —
+    Remastered", folder "...GOTY", is the wiki's "The Witcher 3: Wild Hunt"); weak = the title alone (exactly), or a
+    (non-generic) exe name alone."""
+    from recipes import loose
     out = []
     exe = ids.get('exe', '')
     names = set(ids.get('titles') or ()) | set(ids.get('folders') or ())
+    loose_names = {loose(n) for n in names} - {''}
     for w in (data or {}).get('wiki', []):
         m = w.get('match', {})
         by_id = any(set(ids.get(k) or ()) & set(m.get(k, [])) for k in ('steam', 'gog', 'epic'))
         by_exe = exe in m.get('exe', [])
         by_title = bool(set(m.get('title', [])) & set(ids.get('titles') or ()))
-        named = bool(set(m.get('title', [])) & names)
+        named = bool(set(m.get('title', [])) & names) or (by_exe and bool({loose(t) for t in m.get('title', [])} & loose_names))
         if by_id or (by_exe and named):
             out.append((w, 'strong'))
         elif by_title or (by_exe and exe not in GENERIC_EXES):
