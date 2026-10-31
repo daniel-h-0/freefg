@@ -46,7 +46,11 @@ frame pacing and image equivalence were not tested.
 ## Recipe and integration
 
 Install selects OptiFG, enables XeFG and adds the Story Mode launch argument
-`-nobattleye` after the existing per-game anti-cheat acceptance. Select DLSS in GTA and leave its own
+`-nobattleye` after the existing per-game anti-cheat acceptance. The recipe
+lists it under `required_args`, not as its API switch (`launch_args` is
+empty), so it is added whatever API switch the user chose. Restore before
+playing GTA Online: without the argument, OptiScaler would load beside
+BattlEye. Select DLSS in GTA and leave its own
 frame generation off. Keep factory wrapping at auto/false and remove an old
 Social Club DLL-disable override. The overlay remains available. The normal
 per-game anti-cheat refusal still applies; the recipe does not accept it.

@@ -275,7 +275,8 @@ def community(folder=COMMUNITY, quirk_keys=None, readable=None):
 # ---------------------------------------------------------------------------------------------- the compact file
 # What packaging/recipes.py and install.py read from each part of the file; the compact runtime file keeps only these.
 # Keep in step with them: test_recipes.py proves the full and compact files resolve every game alike.
-VERIFIED_FIELDS = ('manual_steps', 'title', 'match', 'route', 'fg_input', 'ini', 'upscaler_ini', 'game_settings', 'launch_args', 'note', 'evidence', 'observed')
+VERIFIED_FIELDS = ('manual_steps', 'title', 'match', 'route', 'fg_input', 'ini', 'upscaler_ini', 'game_settings', 'launch_args', 'required_args',
+                   'note', 'evidence', 'observed')
 COMMUNITY_FIELDS = VERIFIED_FIELDS + ('status', 'manual_steps', 'known_problems')
 # requires_fg_input is kept whenever present, even as null: a missing key means "the recipe's own input".
 SETTING_FIELDS = ('file', 'format', 'section', 'values', 'requires_fg_input')

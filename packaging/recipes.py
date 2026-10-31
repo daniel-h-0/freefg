@@ -4,9 +4,9 @@
 A recipe is matched by launcher ID (Steam AppID, GOG/Epic app name), or by executable name together with the game's
 title or folder. Only recipes verified on a BC-250 are applied: their OptiScaler keys (only where the INI still says
 auto), frame-generation input, game-setting edits for the recipe's route (each key's original recorded, so Restore
-undoes them even in a file the game rewrote since) and DX12 launch arguments. OptiScaler's own per-game quirks keep
-working because keys they set are left at auto. OptiScaler wiki reports add DX12 launch arguments; everything
-else from the wiki is shown as suggestions with the page link.
+undoes them even in a file the game rewrote since), DX12 launch arguments and the arguments the game always needs
+(required_args). OptiScaler's own per-game quirks keep working because keys they set are left at auto. OptiScaler
+wiki reports add DX12 launch arguments; everything else from the wiki is shown as suggestions with the page link.
 """
 import hashlib, html, json, re
 from pathlib import Path
@@ -153,13 +153,23 @@ def ini_changes(verified, backports, parsed, fg_input, recipe_input, route=None,
     return {k: v for k, v in out.items() if parsed.get((k[0].lower(), k[1].lower()), 'auto').strip().lower() in ('', 'auto')}
 
 
+DX12_ARGS = ('-dx12', '-d3d12', '-force-d3d12')
+
+
 def launch_args(verified, wiki):
-    args = list((verified or {}).get('launch_args', []))
+    """The graphics-API switch a recipe asks for: at most one DX12 switch (required_args has the other arguments)."""
+    args = [a for a in (verified or {}).get('launch_args', []) if a.lower() in DX12_ARGS]
     if not verified:
         for w in wiki:
-            args += [a for a in w.get('launch_args', []) if a not in args]
+            args += [a for a in w.get('launch_args', []) if a not in args and a.lower() in DX12_ARGS]
     # One DX12 switch is enough; the verified or first-listed spelling wins.
     return args[:1] if args else []
+
+
+def required_args(verified):
+    """The arguments the verified recipe's game always needs, added whatever API switch the user chose (GTA V
+    Enhanced's -nobattleye: Story Mode only). Wiki data never supplies them."""
+    return list((verified or {}).get('required_args', []))
 
 
 def prefix_user(exe, launchers, home=None):

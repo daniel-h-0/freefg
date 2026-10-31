@@ -17,6 +17,8 @@ The bundled OptiScaler fixes Social Club's auxiliary swapchain crash without dis
 Story Mode starts on GE-Proton11-11 reached the bank prologue with sustained 2× generation, including a fresh
 start with XeFG enabled. Use OptiFG, select DLSS in GTA, and leave its own FG off. Factory wrapping stays at
 auto/false; remove any old Social Club DLL-disable override. The anti-cheat refusal below still applies.
+Install adds `-nobattleye` (Story Mode only) whatever API switch you chose. Restore FreeFG before playing GTA
+Online: without that argument, OptiScaler would load beside BattlEye.
 [Reproduction, fix and limits](https://github.com/daniel-h-0/freefg/blob/main/research/recipes/verified/gta-v-enhanced.md).
 
 ## Verdicts

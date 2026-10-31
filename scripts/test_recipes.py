@@ -193,6 +193,12 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(r.launch_args(dict(launch_args=['-force-d3d12']), [dict(launch_args=['-dx12'])]), ['-force-d3d12'])
         self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12', '-d3d12'])]), ['-dx12'])
         self.assertEqual(l.with_args(['%command%', '-dx11'], ['-dx12']), ['%command%', '-dx11'])
+        # Only an API switch: an argument the game always needs is a required argument (I-3), never taken from the wiki.
+        gta = dict(launch_args=[], required_args=['-nobattleye'])
+        self.assertEqual((r.launch_args(gta, []), r.required_args(gta)), ([], ['-nobattleye']))
+        self.assertEqual(r.launch_args(dict(launch_args=['-nobattleye']), [dict(launch_args=['-dx12'])]), [])
+        self.assertEqual(r.required_args(None), [])
+        self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12'], required_args=['-x'])]), ['-dx12'])
 
     def test_shipped_recipe_file(self):
         data = r.load()
@@ -535,8 +541,19 @@ class RecipeInstallTests(unittest.TestCase):
         self.assertEqual(ini[('framegen', 'fgoutput')].lower(), 'xefg')
         self.assertNotEqual(ini.get(('spoofing', 'dxgifactorywrapping')), 'true')
         self.assertNotIn('socialclub', self.options().lower())
-        self.assertIn('-nobattleye', self.options())
         self.assertEqual(self.renderer.read_bytes(), RENDERER)
+        self.restore_quietly()
+        self.assertOriginal()
+
+    @unittest.skipUnless('required_args' in (Path(__file__).resolve().parents[1]/'packaging/install.py').read_text(),
+                         'install.py adds a recipe\'s required arguments with the launch contract work (I-3, WP-L)')
+    def test_gta_recipe_adds_its_required_argument(self):
+        catalog = r.load(Path(__file__).resolve().parents[1]/'packaging/recipes/recipes.json')
+        entry = copy.deepcopy(next(v for v in catalog['verified'] if '3240220' in v['match'].get('steam', [])))
+        entry['match'] = dict(exe=['game.exe'], steam=['4242'])
+        self.recipes(entry)
+        self.install_quietly(fg_input='upscaler')
+        self.assertIn('-nobattleye', self.options().split())
         self.restore_quietly()
         self.assertOriginal()
 
@@ -1021,6 +1038,10 @@ class GtaQualificationTests(unittest.TestCase):
         data = r.load(root/'packaging/recipes/recipes.json')
         entry = next(v for v in data['verified'] if '3240220' in v['match'].get('steam', []))
         self.assertEqual(entry, json.loads((root/'research/recipes/verified/gta-v-enhanced.json').read_text()))
+        self.assertEqual((entry['launch_args'], r.required_args(entry)), ([], ['-nobattleye']))
+        self.assertTrue(any('GTA Online' in step for step in entry['manual_steps']))  # Restore first: BattlEye
+        runtime = r.load(root/'packaging/recipes/recipes-runtime.json')
+        self.assertEqual(r.required_args(next(v for v in runtime['verified'] if '3240220' in v['match'].get('steam', []))), ['-nobattleye'])
         self.assertEqual(len(data['verified']), 20)
         self.assertEqual(sum(len(w.get('promoted', [])) for w in data['wiki']), 6)
         identity = ids('gta5_enhanced.exe', ('3240220',), ('grand theft auto v',))
@@ -1028,6 +1049,7 @@ class GtaQualificationTests(unittest.TestCase):
             anticheat=[dict(name='BattlEye', evidence=['BattlEye/BEClient_x64.cfg'])]), data, identity)
         self.assertTrue(any(item['code']=='anticheat' for item in verdict['blocking']))
         self.assertEqual(verdict['fg_input'], 'upscaler')
+        self.assertEqual(verdict['launch_args'], [])  # no API switch; -nobattleye is required, not an API choice
         self.assertNotIn(('Spoofing','DxgiFactoryWrapping'), verdict['ini'])
         self.assertIsNone(r.match(data, ids('gta5.exe', ('271590',), ('grand theft auto v',)))[0])
 
