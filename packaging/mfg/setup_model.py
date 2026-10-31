@@ -1070,7 +1070,7 @@ def manual_settings(record):
 
 
 def launch_forms(settings):
-    """Launch settings in the forms Setup offers to copy (launcher_config's helpers, I-2): dict(line: Steam's one
+    """Launch settings in the forms Setup offers to copy (launcher_config's manual helpers): dict(line: Steam's one
     launch-options line; table: [(name, value)] for a launcher's environment table; args: the game's arguments; remove:
     names to delete where present; text: the lines install.py prints; merge: whether some values join the player's own).
     None when this build cannot read them (Installation Details still prints them)."""

@@ -193,7 +193,7 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(r.launch_args(dict(launch_args=['-force-d3d12']), [dict(launch_args=['-dx12'])]), ['-force-d3d12'])
         self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12', '-d3d12'])]), ['-dx12'])
         self.assertEqual(l.with_args(['%command%', '-dx11'], ['-dx12']), ['%command%', '-dx11'])
-        # Only an API switch: an argument the game always needs is a required argument (I-3), never taken from the wiki.
+        # Only an API switch: an argument the game always needs is a required argument, never taken from the wiki.
         gta = dict(launch_args=[], required_args=['-nobattleye'])
         self.assertEqual((r.launch_args(gta, []), r.required_args(gta)), ([], ['-nobattleye']))
         self.assertEqual(r.launch_args(dict(launch_args=['-nobattleye']), [dict(launch_args=['-dx12'])]), [])
@@ -717,8 +717,6 @@ class RecipeInstallTests(unittest.TestCase):
         self.restore_quietly()
         self.assertOriginal()
 
-    @unittest.skipUnless('required_args' in (Path(__file__).resolve().parents[1]/'packaging/install.py').read_text(),
-                         'install.py adds a recipe\'s required arguments with the launch contract work (I-3, WP-L)')
     def test_gta_recipe_adds_its_required_argument(self):
         catalog = r.load(Path(__file__).resolve().parents[1]/'packaging/recipes/recipes.json')
         entry = copy.deepcopy(next(v for v in catalog['verified'] if '3240220' in v['match'].get('steam', [])))
