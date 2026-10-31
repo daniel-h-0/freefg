@@ -43,7 +43,8 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | | `FP16_CONFIG mode=… source=… forms=…` | Approximate forms: `on` by default, or `off` with the source. `forms=3` enables both groups. `FP16_REPLACE` names loaded forms; `FP16_FALLBACK` and `F4Q_FALLBACK` report fallback. Status/Check summarize them in `Output:`. |
 | | `F4Q3_CONFIG mode=… layers=…` | F4Q3's state for the row layers `60edebbb` and `b3ddf030`: `on` by default and with the exact switch, `shadow` in the diagnostic, `off` with `source=F4Q` while F4Q is off. |
 | | `FAIL` | FreeFG closed the game because the runtime did something it does not recognise. Report it. |
-| The game's standard error (for Steam: launch option `PROTON_LOG=1 %command%`, then `$HOME/steam-<appid>.log`) | `BC250_PACE on …` | Pacing is active. |
+| The game's standard error (for Steam: launch option `PROTON_LOG=1 %command%`, then `$HOME/steam-<appid>.log`) | `BC250_PACE on …`, `BC250_PACE off (…)` | The layer can pace this process (a Wine game under gamescope), or why not. |
+| | `BC250_PACE the BC250 add-on answered …` | Presents go through the pacer from here; before it they go straight to the driver. |
 | | `BC250_PACE holding: XeFG generates frames`, `BC250_PACE passing presents through` | The layer holds presents, or passes them through. |
 
 ## Problems

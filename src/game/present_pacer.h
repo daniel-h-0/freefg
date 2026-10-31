@@ -27,7 +27,10 @@
  * Frames are held only while XeFG generates them (the BC250 add-on's signal, pace_holding): the uneven ready times come
  * from XeFG's real-frame copy, while FSR 3 FG paces its own presents (holding on top of it cost Cyberpunk 1.5%) and
  * frames without generation need no slot. Those go out as soon as they are rendered, still through the reserved queue
- * and with the nudge. BC250_XEFG_PACE=1 holds every present as before. */
+ * and with the nudge. Until the add-on has answered once (pace_engaged), presents and acquires go straight to the
+ * driver: a launcher, a game before its XeFG context or a process without the add-on gets no extra submit, wait, thread
+ * wakeup or X traffic. BC250_XEFG_PACE=1 holds every present from the first. Only Wine game threads under gamescope
+ * are paced at all (pace_wanted). */
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -72,7 +75,15 @@ static int pace_switch(const char*name){
  if(!strcmp(v,"1")||!strcasecmp(v,"on")||!strcasecmp(v,"true")||!strcasecmp(v,"yes"))return 1;
  fprintf(stderr,"BC250_PACE: %s=%s not understood (0/1, off/on); using auto\n",name,v);return -1;
 }
-static int pace_wanted(void){int v=pace_switch("BC250_XEFG_PACE");if(v>=0)return v;return getenv("GAMESCOPE_WAYLAND_DISPLAY")!=NULL;}
+static unsigned long pace_wine_pid(void);
+/* A Wine game's thread: a prefix, and a Wine TEB in GS (pace_wine_pid). Native programs that inherit the game's
+ * environment (a nested gamescope, a native launcher or tool) are never paced. */
+static int pace_in_wine(void){return getenv("WINEPREFIX")!=NULL&&pace_wine_pid()!=0;}
+static int pace_wanted(void){int v=pace_switch("BC250_XEFG_PACE");if(v>=0)return v;return getenv("GAMESCOPE_WAYLAND_DISPLAY")!=NULL&&pace_in_wine();}
+static const char*pace_off_reason(void){
+ return pace_switch("BC250_XEFG_PACE")==0?"BC250_XEFG_PACE=0":!getenv("GAMESCOPE_WAYLAND_DISPLAY")?"not under gamescope":
+  "not a Wine game thread (no WINEPREFIX or no Wine TEB): native programs are not paced";
+}
 /* BC250_XEFG_PACE=1 holds every present for its slot; otherwise presents are held only while XeFG generates frames
  * (the add-on's signal below): FSR 3 FG, frame generation off and menus go out as soon as they are rendered. The signal
  * also counts with Intel's original shaders (BC250_XEFG_DISABLE, another GPU): the add-on reads the SDK's present status
@@ -83,8 +94,8 @@ static int pace_forced(void){int forced=pace_switch("BC250_XEFG_PACE");return fo
  * ClientId, read on the Wine thread that presents; the add-on's GetCurrentProcessId) and the inode of the prefix's
  * drive_c (the add-on's C:\). /proc/self is no help there: Wine opens files in its server process. The add-on
  * (mfg_pace_signal.h) maps the page through Z: and stores the running count of generated frames (its accelerated
- * passes and the SDK's present status) every 20 ms. Frames are held while that count moved within the last 250 ms. Without a page, or when the add-on has not
- * answered 3 s after the page was made, every present is held as before. Pages whose unix owner has exited are removed
+ * passes and the SDK's present status) every 20 ms. Frames are held while that count moved within the last 250 ms. Without a page, or while the add-on has
+ * not answered (its heartbeat), presents pass straight through. Pages whose unix owner has exited are removed
  * when a new one is made, except this process's own name: Wine gives a game the same Windows pid on every launch, so after
  * an unclean exit the add-on may already have mapped the old page (it opens the page once); the layer reuses that file
  * and clears it rather than replacing it with a new one the add-on would never see. */
@@ -125,7 +136,7 @@ static void pace_signal_create(void){
  if(pace_sig)return;
  unsigned long wpid=pace_wine_pid();const char*prefix=getenv("WINEPREFIX");char drive[512];struct stat st;
  snprintf(drive,sizeof(drive),"%s/drive_c",prefix?prefix:"");
- if(!wpid||!prefix||stat(drive,&st)){fprintf(stderr,"BC250_PACE no XeFG signal (Windows pid %lu, prefix %s): holding every present\n",wpid,prefix?"found":"missing");return;}
+ if(!wpid||!prefix||stat(drive,&st)){fprintf(stderr,"BC250_PACE no XeFG signal (Windows pid %lu, prefix %s): presents pass through\n",wpid,prefix?"found":"missing");return;}
  snprintf(pace_sig_path,sizeof(pace_sig_path),"/dev/shm/bc250-xefg-pace-%llx-%lu",(unsigned long long)st.st_ino,wpid);
  pace_signal_sweep(pace_sig_path);
  if(pace_signal_map(pace_sig_path)){atexit(pace_signal_unlink);fprintf(stderr,"BC250_PACE XeFG signal page %s\n",pace_sig_path);}
@@ -140,11 +151,20 @@ static int pace_generating(double now){
 }
 static int pace_holding(double now){
  if(pace_force<0)pace_force=pace_forced();
- int gen=pace_generating(now),silent=!pace_sig||(!pace_sig_heard&&now-pace_sig_made>3.0);
- int h=pace_force||silent||gen,state=pace_force?2:silent?3:gen;
+ int gen=pace_generating(now),state=pace_force?2:gen;
  if(state!=pace_sig_state){pace_sig_state=state;fprintf(stderr,"BC250_PACE %s\n",state==2?"holding every present (BC250_XEFG_PACE=1)":
-  state==3?"holding every present (no signal from the BC250 add-on)":state?"holding: XeFG generates frames":"passing presents through: XeFG is not generating");}
- return h;
+  state?"holding: XeFG generates frames":"passing presents through: XeFG is not generating");}
+ return pace_force||gen;
+}
+/* Whether presents go through the pacer: from the add-on's first heartbeat on (it never stops once on), or always with
+ * BC250_XEFG_PACE=1. Before that, queue_present and the acquires call the driver directly. Called after pace_ready. */
+static int pace_engaged;
+static int pace_engage(void){
+ if(__atomic_load_n(&pace_engaged,__ATOMIC_ACQUIRE))return 1;
+ if(pace_force<=0&&!(pace_sig&&pace_sig->beat))return 0;  /* pace_force: set by pace_ready */
+ if(!__atomic_exchange_n(&pace_engaged,1,__ATOMIC_ACQ_REL))
+  fprintf(stderr,"BC250_PACE %s\n",pace_force>0?"pacing every present (BC250_XEFG_PACE=1)":"the BC250 add-on answered: presents go through the pacer");
+ return 1;
 }
 /* Stock gamescope needs the X nudge; the patched build (its session variable) and BC250_XEFG_PACE_NUDGE=0 do without. */
 static int pace_nudge_wanted(void){
@@ -286,8 +306,9 @@ static int pace_ready(struct device_state*d){
   ok=d->create_fence(d->device,&fi,NULL,&pq.fences[i])==VK_SUCCESS&&d->create_sem(d->device,&si,NULL,&pq.sems[i])==VK_SUCCESS;}
  if(ok&&!pq.threads){pthread_t a,b;ok=pthread_create(&a,NULL,pace_watch,NULL)==0&&pthread_create(&b,NULL,pace_release,NULL)==0;if(ok){pthread_detach(a);pthread_detach(b);pq.threads=1;}}
  if(ok){pq.d=d;pq.ring=1;pq.head=pq.tail=pq.watch=0;pace_rn=0;pace_prev=0;pace_nudge_on=pace_nudge_wanted();
+  pace_force=pace_forced();  /* here, under the lock: presenting threads read it in pace_engage */
   pace_signal_create();
-  fprintf(stderr,"BC250_PACE hold%s%s\n",pace_forced()?"":" while XeFG generates",pace_nudge_on?" + X nudge (stock gamescope)":" (gamescope repaints for ready commits)");}
+  fprintf(stderr,"BC250_PACE hold%s%s\n",pace_forced()?"":" while XeFG generates, once the BC250 add-on answers",pace_nudge_on?" + X nudge (stock gamescope)":" (gamescope repaints for ready commits)");}
  const char*path=getenv("BC250_XEFG_PACE_TRACE");if(ok&&path&&!pace_log)pace_log=fopen(path,"a");
  pthread_mutex_unlock(&pq.lock);return ok;
 }
@@ -318,7 +339,7 @@ static VkResult VKAPI_CALL queue_present(VkQueue queue,const VkPresentInfoKHR*in
  struct device_state*d=device_by_key(*(void**)queue);if(!d||!d->present)return VK_ERROR_INITIALIZATION_FAILED;
  double t0=pace_now();VkResult pending=VK_SUCCESS;
  pthread_mutex_lock(&pq.lock);if(pq.error&&info->swapchainCount==1&&pq.error_chain==info->pSwapchains[0]){pending=pq.error;pq.error=VK_SUCCESS;}pthread_mutex_unlock(&pq.lock);
- int pace=pace_on(d)&&pending==VK_SUCCESS&&info->swapchainCount==1&&info->waitSemaphoreCount<=8&&pace_chain_ok(info->pNext)&&pace_ready(d);
+ int pace=pace_on(d)&&pending==VK_SUCCESS&&info->swapchainCount==1&&info->waitSemaphoreCount<=8&&pace_chain_ok(info->pNext)&&pace_ready(d)&&pace_engage();
  if(pace){
   pthread_mutex_lock(&pace_enqueue);
   pthread_mutex_lock(&pq.lock);while((pq.tail+1)%PACE_SLOTS==pq.head)pthread_cond_wait(&pq.cv,&pq.lock);unsigned slot=pq.tail;pthread_mutex_unlock(&pq.lock);
@@ -358,12 +379,13 @@ static VkResult acquire_once(void*p){struct acquire_args*a=p;return a->d->acquir
 static VkResult acquire2_once(void*p){struct acquire_args*a=p;VkAcquireNextImageInfoKHR copy=*a->info;copy.timeout=0;return a->d->acquire2(a->device,&copy,a->index);}
 static VkResult VKAPI_CALL acquire_image(VkDevice device,VkSwapchainKHR chain,uint64_t timeout,VkSemaphore sem,VkFence fence,uint32_t*index){
  struct device_state*d=device_by_key(*(void**)device);if(!d||!d->acquire)return VK_ERROR_INITIALIZATION_FAILED;
- if(!pace_on(d))return d->acquire(device,chain,timeout,sem,fence,index);
+ /* Before the pacer is engaged no present runs on its threads, so the acquire needs neither the lock nor polling. */
+ if(!pace_on(d)||!__atomic_load_n(&pace_engaged,__ATOMIC_ACQUIRE))return d->acquire(device,chain,timeout,sem,fence,index);
  struct acquire_args a={d,device,chain,sem,fence,index,NULL};return pace_acquire_loop(acquire_once,&a,timeout);
 }
 static VkResult VKAPI_CALL acquire_image2(VkDevice device,const VkAcquireNextImageInfoKHR*info,uint32_t*index){
  struct device_state*d=device_by_key(*(void**)device);if(!d||!d->acquire2)return VK_ERROR_INITIALIZATION_FAILED;
- if(!pace_on(d))return d->acquire2(device,info,index);
+ if(!pace_on(d)||!__atomic_load_n(&pace_engaged,__ATOMIC_ACQUIRE))return d->acquire2(device,info,index);
  struct acquire_args a={d,device,VK_NULL_HANDLE,VK_NULL_HANDLE,VK_NULL_HANDLE,index,info};return pace_acquire_loop(acquire2_once,&a,info->timeout);
 }
 static VkResult VKAPI_CALL create_swapchain(VkDevice device,const VkSwapchainCreateInfoKHR*info,const VkAllocationCallbacks*a,VkSwapchainKHR*out){

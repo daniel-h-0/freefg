@@ -163,7 +163,8 @@ static VkResult VKAPI_CALL create_device(VkPhysicalDevice physical,const VkDevic
     &&state->queue_wait_idle&&state->device_wait_idle)state->pace_shared=1;
  pthread_mutex_lock(&mutex);state->link=devices;devices=state;pthread_mutex_unlock(&mutex);
  if(state->pace_shared)fprintf(stderr,"BC250_PACE on (application queue%s)\n",pace_app_queue()?", BC250_XEFG_PACE_QUEUE=app":": no dedicated compute queue");
- else fprintf(stderr,"BC250_PACE %s (compute family %d queue %u)\n",state->pace_queue?"on":"off",pace_family,pace_index);
+ else if(state->pace_queue)fprintf(stderr,"BC250_PACE on (compute family %d queue %u)\n",pace_family,pace_index);
+ else fprintf(stderr,"BC250_PACE off (%s)\n",pace_wanted()?"the driver lacks an entry point the pacer needs":pace_off_reason());
  fprintf(stderr,"XEFG_GAME_LAYER device=%04x:%04x enabled=%d choices=%u%s\n",properties.vendorID,properties.deviceID,enabled,choice_count,
          !bc250&&any_gpu?" (BC250_XEFG_ANY_GPU=1: untested outside the BC-250)":"");return result;
 }

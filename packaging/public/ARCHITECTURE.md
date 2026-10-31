@@ -222,7 +222,7 @@ Status and Check report the last session's mode from `FP16_CONFIG`; this is not 
 `libxefg_wave.so` runs below vkd3d-proton. Launcher settings enable the layer and select its wave table. Automatic
 pacing is enabled when gamescope's environment is present; explicit pacing outside gamescope is unqualified.
 
-### Present pacing (gamescope only)
+### Present pacing (Wine games under gamescope)
 
 The layer waits for rendered frames, then spaces their release using a moving output-period estimate. After late
 frames it adds a bounded jitter margin, which decays when timing settles.
@@ -236,10 +236,12 @@ frames it adds a bounded jitter margin, which decays when timing settles.
 Presents use a reserved compute queue when available, otherwise the application's queue under a lock. On stock
 gamescope, a short series of X-property changes wakes the compositor after a ready frame is released.
 
-The layer creates a `0600` shared-memory page in `/dev/shm`; the proxy updates it. Generation within the last 250 ms
-activates holding. With a healthy signal and no generation, presents pass through. If the page is unavailable or no
-heartbeat arrives within three seconds, the fallback holds every present. `BC250_XEFG_PACE=0` disables pacing;
-`=1` forces holding. An older signal producer with no factor field retains the 5 ms margin ceiling.
+The layer creates a `0600` shared-memory page in `/dev/shm`; the proxy updates it. Until the proxy's first heartbeat,
+presents and acquires go straight to the driver, so launchers, a game before its XeFG context and processes without the
+proxy are not paced. After it, generation within the last 250 ms activates holding; with no generation, presents pass
+through. Native programs that inherit a game's environment (a nested gamescope, a native launcher) are never paced.
+`BC250_XEFG_PACE=0` disables pacing; `=1` forces holding of every present. An older signal producer with no factor
+field retains the 5 ms margin ceiling.
 
 These bounds are scheduling controls, not measured end-to-end latency. [TV evidence and remaining stalls](MEASUREMENTS.md#checks-of-113).
 

@@ -8,7 +8,7 @@ has its own pinned source and build route.
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
 | `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `43920cbd9ed0476a8de9b6b37c9e484dd3585142c7aab6170247a9d1c103948b` |
-| `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `e165ba9896b9cad9da6d0716a70f3e71c6b7e79fb8de155ea8c502cc164e330d` |
+| `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `1f691dfd018f7d3d062704b9639e5ed7bfbcfe1e71d92c2299e08153b9f666b6` |
 
 The proxy and layer scripts build twice and require identical outputs. They also compare against
 `release/inputs.lock.json`; `--no-reference-check` skips that final comparison, not the other checks. A different hash

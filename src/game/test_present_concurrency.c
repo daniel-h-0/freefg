@@ -18,6 +18,9 @@ static VkResult VKAPI_CALL f_submit(VkQueue q,uint32_t n,const VkSubmitInfo*s,Vk
 static VkResult VKAPI_CALL f_present(VkQueue q,const VkPresentInfoKHR*p){(void)q;
  for(uint32_t i=0;i<p->waitSemaphoreCount;i++)__atomic_sub_fetch(&signals[((uintptr_t)p->pWaitSemaphores[i]-1)%PACE_SLOTS],1,__ATOMIC_SEQ_CST);
  __atomic_add_fetch(&presents,1,__ATOMIC_SEQ_CST);return present_result;}
+static uint64_t acquire_timeout;static int acquires;
+static VkResult VKAPI_CALL f_acquire(VkDevice d,VkSwapchainKHR c,uint64_t timeout,VkSemaphore s,VkFence f,uint32_t*index){
+ (void)d;(void)c;(void)s;(void)f;acquire_timeout=timeout;acquires++;*index=0;return VK_SUCCESS;}
 static uint32_t created_images,surface_maximum;static VkResult caps_result=VK_SUCCESS;
 static VkResult VKAPI_CALL f_caps(VkPhysicalDevice d,VkSurfaceKHR surface,VkSurfaceCapabilitiesKHR*caps){(void)d;(void)surface;memset(caps,0,sizeof(*caps));caps->maxImageCount=surface_maximum;return caps_result;}
 static VkResult VKAPI_CALL f_create_chain(VkDevice d,const VkSwapchainCreateInfoKHR*i,const VkAllocationCallbacks*a,VkSwapchainKHR*o){(void)d;(void)a;created_images=i->minImageCount;*o=(VkSwapchainKHR)9;return VK_SUCCESS;}
@@ -68,6 +71,17 @@ int main(void){
  present_result=VK_SUBOPTIMAL_KHR;assert(present_on((VkSwapchainKHR)2)==VK_SUCCESS);pace_drain();present_result=VK_SUCCESS;
  destroy_swapchain((VkDevice)&queue_a,(VkSwapchainKHR)2,NULL);assert(pq.error==VK_SUCCESS);
  assert(present_on((VkSwapchainKHR)2)==VK_SUCCESS);pace_drain();
- printf("PASS concurrent presents on two queues, deferred errors per swapchain, pace switch values\n");
+ /* Not forced (BC250_XEFG_PACE unset): until the add-on's first heartbeat a present goes straight to the driver (no ring
+  * submit) and an acquire too (the application's own timeout, no polling); from then on both go through the pacer. */
+ s->acquire=f_acquire;uint32_t image;
+ pace_drain();pace_engaged=0;pace_force=0;pace_sig=NULL;int submits_before=submits,presents_before=presents;
+ assert(present_on((VkSwapchainKHR)1)==VK_SUCCESS&&presents==presents_before+1&&submits==submits_before);
+ assert(acquire_image((VkDevice)&queue_a,(VkSwapchainKHR)1,UINT64_MAX,VK_NULL_HANDLE,VK_NULL_HANDLE,&image)==VK_SUCCESS&&acquire_timeout==UINT64_MAX);
+ static struct pace_signal_page page;pace_sig=&page;
+ assert(present_on((VkSwapchainKHR)1)==VK_SUCCESS&&submits==submits_before);  /* a page, no heartbeat yet */
+ page.beat=1;assert(present_on((VkSwapchainKHR)1)==VK_SUCCESS);pace_drain();assert(submits==submits_before+1);
+ assert(acquire_image((VkDevice)&queue_a,(VkSwapchainKHR)1,UINT64_MAX,VK_NULL_HANDLE,VK_NULL_HANDLE,&image)==VK_SUCCESS&&acquire_timeout==0);
+ assert(presents==presents_before+3&&acquires==2);pace_sig=NULL;
+ printf("PASS concurrent presents on two queues, deferred errors per swapchain, pace switch values, pass-through until the add-on answers\n");
  return 0;
 }
