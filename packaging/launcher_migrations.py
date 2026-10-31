@@ -194,7 +194,10 @@ def plan(record, root, owner, *, runtime='xemfg-proxy', route=None, args=None, e
         path = Path(target['path'])
         if path.is_symlink() or not path.is_file():
             raise ValueError('Launcher configuration is unavailable; reconnect or register its new location: ' + str(path))
-        data = path.read_bytes();current = lc.fields(target, data)
+        data = path.read_bytes()
+        try:current = lc.fields(target, data)
+        except lc.Missing as error:
+            raise ValueError('Launcher entry is no longer present; use Restore, then Install again: ' + str(path) + ' (' + str(error) + ')') from error
         if target['launcher'] == 'heroic' and 'launcherArgs' not in row['before'] and 'launcherArgs' in target['before']:
             target['before']['launcherArgs'] = current['launcherArgs']
             target['after']['launcherArgs'] = current['launcherArgs']

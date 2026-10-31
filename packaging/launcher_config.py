@@ -63,11 +63,18 @@ def shortcut_entries(data):
     return root['shortcuts']['value']
 
 
+class Missing(ValueError):
+    """A recorded launcher entry is no longer in its file, which is still there: the user removed the game or shortcut
+    from the launcher. Restore reports it and goes on; Install and Update refuse."""
+
+
 def shortcut(data, appid):
     matches = [r for r in shortcut_entries(data).values()
                if r['kind'] == 0 and str(r['value'].get('appid', {}).get('value')) == appid]
+    if not matches:
+        raise Missing('Steam shortcut '+appid+' no longer exists')
     if len(matches) != 1:
-        raise ValueError('Shortcut AppID is missing or ambiguous')
+        raise ValueError('Shortcut AppID is ambiguous')
     return matches[0]
 
 
@@ -419,7 +426,10 @@ def fields(target, data):
             return {'LaunchOptions': shortcut(data, target['id'])['value'].get('launchoptions', {}).get('value')}
         return {'LaunchOptions': Document(data).get(APP+[target['id'], 'LaunchOptions'])}
     if target['launcher'] == 'heroic':
-        settings = json.loads(data)[target['id']]
+        doc = json.loads(data)
+        if not isinstance(doc, dict) or target['id'] not in doc:
+            raise Missing('Heroic game '+target['id']+' no longer exists')
+        settings = doc[target['id']]
         # launcherArgs only when this installation manages them (records before recipes lack the field).
         keys = tuple(target['before']) if 'before' in target else ('enviromentOptions', 'wrapperOptions') + (
             ('launcherArgs',) if target.get('args') else ())
@@ -724,7 +734,12 @@ def apply(operations, writer, restore=False, originals=None):
             if restore:
                 continue
             raise ValueError('Launcher configuration was replaced: '+str(path))
-        current = fields(row, path.read_bytes())
+        try:
+            current = fields(row, path.read_bytes())
+        except Missing:
+            if restore:
+                continue
+            raise
         if current != row['before'] and current != row['after'] and not restore:
             raise ValueError('Launcher settings changed; preserving '+row['path'])
     for index, row in enumerate(operations):
@@ -733,7 +748,13 @@ def apply(operations, writer, restore=False, originals=None):
             messages.append('Launcher entry no longer present, nothing to undo: '+row['path'])
             continue
         data = path.read_bytes()
-        current = fields(row, data)
+        try:
+            current = fields(row, data)
+        except Missing as error:
+            if not restore:
+                raise
+            messages.append('Launcher entry no longer present, nothing to undo: '+row['path']+' ('+str(error)+')')
+            continue
         if not restore:
             if current != row['before'] and current != row['after']:
                 raise ValueError('Launcher settings changed during installation')

@@ -2602,8 +2602,12 @@ def status(exe):
     if record.get('launchers'):
         import launcher_config
         for target in record['launchers']:
-            current=launcher_config.fields(target,Path(target['path']).read_bytes())
-            print(target['launcher']+' launch settings: '+('installed' if current==target['after'] else 'changed since installation'))
+            # A launcher file or entry the user removed: the game's files stay installed, and Restore still works.
+            path=Path(target['path']);current=None
+            if path.is_file() and not path.is_symlink():
+                try:current=launcher_config.fields(target,path.read_bytes())
+                except launcher_config.Missing:pass
+            print(target['launcher']+' launch settings: '+('no longer present' if current is None else 'installed' if current==target['after'] else 'changed since installation'))
     if record.get('vkd3d_cache')==VKD3D_CACHE:
         cache=root/STATE/VKD3D_CACHE
         size=sum(p.stat().st_size for p in cache.rglob('*') if p.is_file() and not p.is_symlink()) if cache.is_dir() else 0

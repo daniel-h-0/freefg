@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Exercise actual shell launch semantics and reversible launcher field edits."""
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -294,6 +296,29 @@ class LauncherTests(unittest.TestCase):
         l.apply(operations,self.write,restore=True)
         self.assertEqual(config.read_bytes(),original)
 
+    def test_restore_reports_a_removed_steam_shortcut_and_restores_the_other_entries(self):
+        def text(key,value):return b'\x01'+key.encode()+b'\0'+value.encode()+b'\0'
+        game=b'\x02appid\0'+struct.pack('<I',3456789012)+text('Exe',shlex.quote(str(self.exe)))+text('appname','Test title')
+        config=self.home/'.local/share/Steam/userdata/42/config/shortcuts.vdf';self.write(config,b'\x00shortcuts\0\x000\0'+game+b'\x08\x08\x08')
+        heroic=self.heroic();original=json.loads(heroic.read_text())
+        operations=l.plan(self.exe,'dxgi.dll',self.home);self.assertEqual([row['launcher'] for row in operations],['steam','heroic'])
+        l.apply(operations,self.write)
+        # The user removes the shortcut from Steam: shortcuts.vdf stays, without it.
+        self.write(config,b'\x00shortcuts\0\x08\x08')
+        self.assertEqual(l.apply(operations,self.write,restore=True),
+                         ['Launcher entry no longer present, nothing to undo: '+str(config)+' (Steam shortcut 3456789012 no longer exists)'])
+        self.assertEqual(json.loads(heroic.read_text()),original);self.assertEqual(config.read_bytes(),b'\x00shortcuts\0\x08\x08')
+        # Installing is still refused: the entry it would write is gone.
+        with self.assertRaisesRegex(ValueError,'Steam shortcut 3456789012 no longer exists'):l.apply(operations,self.write)
+
+    def test_restore_reports_a_removed_heroic_game(self):
+        config=self.heroic()
+        operations=l.plan(self.exe,'dxgi.dll',self.home);l.apply(operations,self.write)
+        self.write(config,json.dumps({'456':{'enableHDR':False}}).encode())
+        self.assertEqual(l.apply(operations,self.write,restore=True),
+                         ['Launcher entry no longer present, nothing to undo: '+str(config)+' (Heroic game 123 no longer exists)'])
+        self.assertEqual(json.loads(config.read_text()),{'456':{'enableHDR':False}})
+
     def test_steam_missing_value_insert_restore(self):
         target=dict(launcher='steam',id='12')
         original=b'"UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" { "12" { "name" "Test" } } } } } }'
@@ -482,6 +507,18 @@ class LauncherInstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'No launcher entry'):m.install(self.package,self.exe,route='native')
         self.assertFalse((self.game/m.STATE).exists())
         for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data)
+
+    def test_status_and_restore_after_the_game_left_the_launcher(self):
+        m=self.fixtures.m
+        m.install(self.package,self.exe,route='native')
+        self.config.write_text(json.dumps({}))  # removed from Heroic; its settings file stays
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.status(self.exe);m.restore(self.exe)
+        self.assertIn('heroic launch settings: no longer present',out.getvalue())
+        self.assertIn('Launcher entry no longer present, nothing to undo: '+str(self.config)+' (Heroic game 123 no longer exists)',out.getvalue())
+        self.assertEqual(json.loads((self.game/m.STATE/'state.json').read_text())['status'],'restored')
+        for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data)
+        self.assertEqual(json.loads(self.config.read_text()),{})
 
     def test_interrupted_launcher_apply_is_recoverable(self):
         m=self.fixtures.m

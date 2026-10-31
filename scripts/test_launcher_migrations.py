@@ -53,6 +53,12 @@ class LauncherMigrationTests(UpdateFixture):
         self.assertEqual(json.loads(self.config.read_text())['another-game'],{'quality':'new'})
         self.assertEqual(lm.lc.fields(self.record()['launchers'][0],self.config.read_bytes()),plan['operations'][0]['before'])
 
+    def test_a_removed_entry_blocks_with_its_remedy(self):
+        m.install(self.package,self.exe,route='opti')
+        self.config.write_text(json.dumps({}))
+        with self.assertRaisesRegex(ValueError,r'Launcher entry is no longer present; use Restore, then Install again: .* \(Heroic game 123 no longer exists\)'):
+            self.planned()
+
     def test_late_file_change_blocks_the_commit_preflight(self):
         m.install(self.package,self.exe,route='opti');plan=self.planned()
         self.config.write_bytes(self.config.read_bytes()+b'\n')
