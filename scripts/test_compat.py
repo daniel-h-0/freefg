@@ -402,6 +402,14 @@ class RefusalTests(unittest.TestCase):
         self.assertEqual(v['blocking'][0]['code'], 'shared-entry')
         self.assertEqual(c.decide(scan(), data(), ids(), launchers=[])['blocking'][0]['code'], 'no-launcher')
 
+    def test_no_launcher_is_soft(self):
+        # Accepted, Install sets no launcher entry and prints the launch settings for the user's own launcher.
+        refusal = c.decide(scan(), data(), ids(), launchers=[])['blocking'][0]
+        self.assertEqual((refusal['code'], refusal['kind']), ('no-launcher', 'soft'))
+        self.assertIn('Install anyway', refusal['way'])
+        v = c.decide(scan(), data(), ids(), launchers=[], accept=('no-launcher',))
+        self.assertEqual((v['blocking'], v['accepted']), ([], ['no-launcher']))
+
 
 class VerifiedUnchangedTests(unittest.TestCase):
     """Every verified recipe in the shipped recipe file decides as 0.9.0 did: route, input, launch argument, no extra

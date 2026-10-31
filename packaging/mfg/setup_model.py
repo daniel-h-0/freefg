@@ -901,8 +901,9 @@ def failure_reason(lines):
 
 
 def next_steps(lines):
-    """What the installer asks of the player after a change: its 'In game:' and 'Game setting pending:' lines."""
-    return [line.strip() for _, line in lines if line.strip().startswith(('In game:', 'Game setting pending:'))]
+    """What the installer asks of the player after a change: its 'In your launcher:' (a game without a launcher entry it
+    edits), 'In game:' and 'Game setting pending:' lines."""
+    return [line.strip() for _, line in lines if line.strip().startswith(('In your launcher:', 'In game:', 'Game setting pending:'))]
 
 
 # The installer's lines that say what a change did (install, update, rollback, restore, configure), for its outcome.

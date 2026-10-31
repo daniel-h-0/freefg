@@ -63,11 +63,18 @@ def shortcut_entries(data):
     return root['shortcuts']['value']
 
 
+class Missing(ValueError):
+    """A recorded launcher entry is no longer in its file, which is still there: the user removed the game or shortcut
+    from the launcher. Restore reports it and goes on; Install and Update refuse."""
+
+
 def shortcut(data, appid):
     matches = [r for r in shortcut_entries(data).values()
                if r['kind'] == 0 and str(r['value'].get('appid', {}).get('value')) == appid]
+    if not matches:
+        raise Missing('Steam shortcut '+appid+' no longer exists')
     if len(matches) != 1:
-        raise ValueError('Shortcut AppID is missing or ambiguous')
+        raise ValueError('Shortcut AppID is ambiguous')
     return matches[0]
 
 
@@ -419,7 +426,10 @@ def fields(target, data):
             return {'LaunchOptions': shortcut(data, target['id'])['value'].get('launchoptions', {}).get('value')}
         return {'LaunchOptions': Document(data).get(APP+[target['id'], 'LaunchOptions'])}
     if target['launcher'] == 'heroic':
-        settings = json.loads(data)[target['id']]
+        doc = json.loads(data)
+        if not isinstance(doc, dict) or target['id'] not in doc:
+            raise Missing('Heroic game '+target['id']+' no longer exists')
+        settings = doc[target['id']]
         # launcherArgs only when this installation manages them (records before recipes lack the field).
         keys = tuple(target['before']) if 'before' in target else ('enviromentOptions', 'wrapperOptions') + (
             ('launcherArgs',) if target.get('args') else ())
@@ -597,9 +607,12 @@ def conflicts(exe, targets, environ=None):
     return list(unique.values())
 
 
-def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
+def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, manual=False):
     targets = discover(exe, home)
     if not targets:
+        # manual: the user accepted the no-launcher refusal and sets manual_settings() in a launcher this module does not edit.
+        if manual:
+            return []
         raise ValueError('No launcher entry found for this executable. Add the game to Steam, Heroic or Lutris first.')
     require_stopped(t['launcher'] for t in targets)
     root = exe.parent.resolve()
@@ -641,6 +654,22 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
                          prefix_command=shlex.join(t for t in tokens if t not in wrappers))
         operations.append(dict({k: v for k, v in target.items() if k != 'args'}, before=before, after=after))
     return operations
+
+
+def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
+    """The launch settings a new launcher entry would get from plan(), for a launcher this module does not edit (an
+    accepted no-launcher refusal): dict(env, args). The user sets them; the installation records them, and Status, Update
+    and Restore show them again."""
+    return dict(env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=list(args))
+
+
+def manual_lines(settings):
+    """manual_settings() as the user copies them: one KEY=value per line, quoted as a shell reads it (launchers that take
+    a command line, Faugus's launch arguments among them, read them so), then the game's arguments."""
+    lines = [key + '=' + shlex.quote(value) for key, value in settings['env'].items()]
+    if settings.get('args'):
+        lines.append('Game arguments (after the .exe): ' + shlex.join(settings['args']))
+    return lines
 
 
 def added_args(operations):
@@ -724,7 +753,12 @@ def apply(operations, writer, restore=False, originals=None):
             if restore:
                 continue
             raise ValueError('Launcher configuration was replaced: '+str(path))
-        current = fields(row, path.read_bytes())
+        try:
+            current = fields(row, path.read_bytes())
+        except Missing:
+            if restore:
+                continue
+            raise
         if current != row['before'] and current != row['after'] and not restore:
             raise ValueError('Launcher settings changed; preserving '+row['path'])
     for index, row in enumerate(operations):
@@ -733,7 +767,13 @@ def apply(operations, writer, restore=False, originals=None):
             messages.append('Launcher entry no longer present, nothing to undo: '+row['path'])
             continue
         data = path.read_bytes()
-        current = fields(row, data)
+        try:
+            current = fields(row, data)
+        except Missing as error:
+            if not restore:
+                raise
+            messages.append('Launcher entry no longer present, nothing to undo: '+row['path']+' ('+str(error)+')')
+            continue
         if not restore:
             if current != row['before'] and current != row['after']:
                 raise ValueError('Launcher settings changed during installation')

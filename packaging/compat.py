@@ -436,9 +436,11 @@ def refusals(scan, verified=None, community=None, launcher_conflicts=(), launche
     for c in launcher_conflicts:
         out.append(dict(c))
     if launchers is not None and not launchers:
-        out.append(_refusal('no-launcher', 'hard', 'No launcher entry found for this executable: no Steam, Heroic or Lutris entry starts it, '
+        # Accepted, Install changes no launcher entry: it prints the launch settings for the user to set in a launcher it
+        # does not edit (Faugus, Bottles, a script), and Status, Update and Restore name them again.
+        out.append(_refusal('no-launcher', 'soft', 'No launcher entry found for this executable: no Steam, Heroic or Lutris entry starts it, '
                             'and the settings go into the game\'s launcher entry.', 'Add the game to Steam (as a non-Steam game), Heroic or '
-                            'Lutris first, then Check again.'))
+                            'Lutris first, then Check again; or Install anyway and set the launch settings it prints in your own launcher.'))
     fix = scan.get('protonfix')
     if fix:
         others = fix.get('others') or []

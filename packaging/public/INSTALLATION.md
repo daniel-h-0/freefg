@@ -30,6 +30,20 @@ Setup uses PyGObject, GTK 4 and libadwaita 1.5+. Without them it falls back to Z
 `FREEFG_SETUP_UI=zenity ./Start-freefg.sh` selects those explicitly. In Zenity, choose **Add games**, **Install**
 and **Automatic per game**. An explicit input applies to every selected game in that interface.
 
+## Other launchers
+
+Setup writes its launch settings into the game's Steam, Heroic or Lutris entry. A game that only another launcher
+starts (Faugus, Bottles, umu-run or a script) gets the soft refusal `no-launcher`. Accept it under **Needs your OK**
+(Zenity: **Install anyway**; command line: `--accept no-launcher`). Setup then installs the files as usual, changes no
+launcher entry and prints the environment variables, and any game arguments, to add to that launcher; in Setup's window
+they are under **Installer output**. In Faugus, put the `KEY=value` lines under **Launch Arguments**; on a command line,
+put them before the command; where a launcher takes each name and value separately, leave out the quotes around a
+value. Faugus's global environment variables override a game's own, so keep `WINEDLLOVERRIDES` out of them.
+
+Status shows the settings again, an update or Rollback that changes them prints the new values, and Restore lists them
+for removal. Setup cannot check that launcher for GE-Proton's `PROTON_USE_OPTISCALER` or `PROTON_*_UPGRADE`; leave them
+unset for the game. Game settings a recipe would write into the Proton prefix stay pending: set them in the game.
+
 ## Command line
 
 ```sh
