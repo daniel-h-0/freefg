@@ -118,38 +118,31 @@ OWNED_ELSEWHERE = ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CA
 
 def contract(root, owner, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
     """The launch contract's operations for an installation in root (the game folder; a placeholder path such as
-    Path('{game}') gives its general form), with owner as OptiScaler's loader module.
+    Path('{game}') gives its general form), with owner as OptiScaler's loader module. It is the same on either route.
 
     runtime 'xemfg' loads the multi-frame loader (version.dll) and its addon; runtime 'xemfg-proxy' is the add-on as a
-    libxess_fg.dll proxy (no loader, 2x), with its shader profile beside it in BC250-XeFG/; runtime 'xefg' is Intel's
-    own 2x frame generation with the BC250 proxy, whose files sit under OptiScaler/ on the OptiScaler route. extra: further
+    libxess_fg.dll proxy (no loader, 2x), with its shader profile beside it in BC250-XeFG/. (The 2x builds before 0.9.0,
+    runtime 'xefg', set themselves up with a wrapper script, which steam_options() and plan() take out.) extra: further
     variables the installation sets (PROTONFIXES_DISABLE=1 after an accepted protonfix-api refusal); Restore takes them
     out like the others. vkd3d_cache: the installation's vkd3d-proton cache folder; given, vkd3d-proton gets it as its
     cache path (unless the user set one: kept, as is VKD3D_SHADER_CACHE_PATH=0) and does not use shader module
     identifiers (IDENTIFIER_EXTENSION, added to the user's VKD3D_DISABLE_EXTENSIONS)."""
+    if runtime not in ('xemfg', 'xemfg-proxy'):
+        raise ValueError('Unknown add-on runtime: '+str(runtime))
     loaders = sorted({owner.removesuffix('.dll').lower()} | ({'version'} if runtime == 'xemfg' else set()))
-    base = root/'OptiScaler' if runtime == 'xefg' and route == 'opti' else root
     ops = [dict(var='WINEDLLOVERRIDES', op='dll-override', value=';'.join(name+'=n,b' for name in loaders), sep=';'),
-           dict(var='VK_LAYER_PATH', op='prepend', value=str(base/'BC250-XeFG/layer'), sep=':'),
+           dict(var='VK_LAYER_PATH', op='prepend', value=str(root/'BC250-XeFG/layer'), sep=':'),
            dict(var='VK_INSTANCE_LAYERS', op='prepend', value='VK_LAYER_BC250_xefg_wave', sep=':'),
            dict(var='XEFG_WAVE_CONFIG', op='replace', value=str(root/'OptiScaler/plugins/BC250-XeFG/shaders/waves.txt'
-                                                                 if runtime == 'xemfg' else base/'BC250-XeFG/shaders/waves.txt')),
+                                                                 if runtime == 'xemfg' else root/'BC250-XeFG/shaders/waves.txt')),
            dict(var='VKD3D_CONFIG', op='append-member', value='no_staggered_submit', sep=',',
                 unless={'BC250_XEFG_NO_STAGGERED_SUBMIT': '0'})]
     if vkd3d_cache is not None:
         ops += [dict(var='VKD3D_DISABLE_EXTENSIONS', op='append-member', value=IDENTIFIER_EXTENSION, sep=',', split=';'),
                 dict(var='VKD3D_SHADER_CACHE_PATH', op='replace', value=str(vkd3d_cache), when='unset')]
     ops += [dict(var=key, op='replace', value=value) for key, value in (extra or {}).items()]
-    if runtime in ('xemfg', 'xemfg-proxy'):
-        # The installed addon owns its local verified payload and saved settings.
-        ops += [dict(var=key, op='remove') for key in OWNED_ELSEWHERE]
-    else:
-        # The proxy accelerates only the OptiScaler-owned context on that route; a user's XEFG_FLOW_CAP=1 (1080p
-        # generated frames) is kept.
-        ops += [dict(var='XEFG_GAME_PROFILE', op='remove'),
-                dict(var='BC250_XEFG_OWNER_MODULE', op='replace', value=owner) if route == 'opti' else
-                dict(var='BC250_XEFG_OWNER_MODULE', op='remove')]
-    return ops
+    # The installed addon owns its local verified payload and saved settings.
+    return ops + [dict(var=key, op='remove') for key in OWNED_ELSEWHERE]
 
 
 def apply_contract(current, ops):

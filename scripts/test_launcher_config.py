@@ -104,7 +104,7 @@ class ContractTests(unittest.TestCase):
             if rng.random() < 0.05:
                 current['bad key'] = 'x'
             args = (root, rng.choice(['dxgi.dll', 'winmm.dll', 'DXGI.DLL', 'OptiScaler.asi', 'version.dll']), current,
-                    rng.choice(['xemfg', 'xemfg-proxy', 'xefg', 'other']), rng.choice(['opti', 'native']),
+                    rng.choice(['xemfg', 'xemfg-proxy']), rng.choice(['opti', 'native']),
                     rng.choice(extras), rng.choice([None, cache]))
             with self.subTest(args=args):
                 self.assertEqual(self.outcome(l.environment, *args), self.outcome(environment_1_2_0, *args))
@@ -129,6 +129,10 @@ class ContractTests(unittest.TestCase):
         self.assertNotIn('VKD3D_SHADER_CACHE_PATH', [op['var'] for op in l.contract(Path('/g'), 'dxgi.dll', 'xemfg-proxy')])
         with self.assertRaisesRegex(ValueError, 'Unknown launch contract operation'):
             l.apply_contract({}, [dict(var='A', op='append')])
+        # Only the runtimes this installer installs: the 2x builds before 0.9.0 (runtime xefg) used a wrapper script.
+        for runtime in ('xefg', 'other'):
+            with self.subTest(runtime=runtime), self.assertRaisesRegex(ValueError, 'Unknown add-on runtime'):
+                l.environment(Path('/g'), 'dxgi.dll', {}, runtime)
 
 
 class LauncherTests(unittest.TestCase):
@@ -305,23 +309,6 @@ class LauncherTests(unittest.TestCase):
         self.assertNotIn('XEFG_GAME_PROFILE',values)
         self.assertNotIn('XEFG_FLOW_CAP',values)
         self.assertEqual(values,l.environment(self.game,'dxgi.dll',values))
-
-    def test_xefg_environment_has_no_loader_and_uses_the_route_layout(self):
-        # Intel's 2x frame generation with the BC250 proxy: no version.dll loader, files under OptiScaler/ on that route.
-        current = dict(WINEDLLOVERRIDES='version=n,b;other=b', XEFG_FLOW_CAP='1', XEFG_GAME_PROFILE='stale')
-        opti = l.environment(self.game, 'dxgi.dll', current, runtime='xefg', route='opti')
-        self.assertEqual(opti['WINEDLLOVERRIDES'], 'version=n,b;other=b;dxgi=n,b')
-        self.assertEqual(opti['VK_LAYER_PATH'], str(self.game/'OptiScaler/BC250-XeFG/layer'))
-        self.assertEqual(opti['XEFG_WAVE_CONFIG'], str(self.game/'OptiScaler/BC250-XeFG/shaders/waves.txt'))
-        self.assertEqual(opti['BC250_XEFG_OWNER_MODULE'], 'dxgi.dll')
-        self.assertEqual(opti['XEFG_FLOW_CAP'], '1')
-        self.assertNotIn('XEFG_GAME_PROFILE', opti)
-        self.assertEqual(opti, l.environment(self.game, 'dxgi.dll', opti, runtime='xefg', route='opti'))
-        native = l.environment(self.game, 'dxgi.dll', dict(BC250_XEFG_OWNER_MODULE='dxgi.dll'), runtime='xefg', route='native')
-        self.assertEqual(native['WINEDLLOVERRIDES'], 'dxgi=n,b')
-        self.assertEqual(native['VK_LAYER_PATH'], str(self.game/'BC250-XeFG/layer'))
-        self.assertEqual(native['XEFG_WAVE_CONFIG'], str(self.game/'BC250-XeFG/shaders/waves.txt'))
-        self.assertNotIn('BC250_XEFG_OWNER_MODULE', native)
 
     def test_vkd3d_cache_settings_merge_with_the_users(self):
         # 1.1.1 (W32-2): given the installation's cache folder, vkd3d-proton caches SPIR-V there (shader module
