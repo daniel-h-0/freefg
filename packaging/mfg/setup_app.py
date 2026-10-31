@@ -319,6 +319,8 @@ def launch_groups(window, settings, action='keep', title=None):
     if forms['merge']:
         main.add(action_row('Some values join your own', 'Where your launcher already sets one of these variables, combine '
                             'them as the installer’s text below says.', 'dialog-information-symbolic', 'dim'))
+    for note in settings.get('notes') or []:  # such as a game folder path too long for vkd3d-proton's own shader cache
+        main.add(action_row('Note', str(note), 'dialog-information-symbolic', 'dim'))
     text = '\n'.join(forms['text'])
     printed = plain(Adw.ExpanderRow(), 'As the installer prints it')
     printed.add_suffix(copy_button(window, text, 'Installer text'))
@@ -1454,7 +1456,7 @@ class WikiSettingsDialog(Adw.Dialog):
                     line.add_row(source_row)
             when = row.get('when') or {}
             if when:
-                line.add_row(action_row('Applies when', '\n'.join(str(k) + ': ' + str(v) for k, v in when.items())))
+                line.add_row(action_row('Applies when', '\n'.join(model.condition_lines(when))))
             confirmations = row.get('confirmations') or []
             if selectable and confirmations:
                 confirm = Gtk.CheckButton(valign=Gtk.Align.CENTER)

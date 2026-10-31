@@ -255,7 +255,7 @@ class SetupWindow(UpdateFixture):
             window.show_game(game)
             page = window.split.get_content()
             health = rows(groups(page)['Health'])
-            self.assertTrue(health['Launch settings'].get_subtitle().startswith('Manual: added by you'))
+            self.assertTrue(health['Launch settings'].get_subtitle().startswith('Not yet confirmed: no session since installation'))
             for change, activation, title, text in (
                     (None, (True, 'MFG proxy ready in the last session.'), 'Launch settings', 'Manual: added by you\nMFG proxy ready in the last session.'),
                     (None, (False, 'No session since installation.'), 'Launch settings', 'Not yet confirmed\nNo session since installation.'),

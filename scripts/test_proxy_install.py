@@ -492,7 +492,7 @@ class ManualLaunchTests(ProxyFixture):
         env,block=self.expected()
         out=self.quiet(m.install,self.package,self.exe,route='opti',accept=('no-launcher',))
         self.assertIn('Installed. No launcher entry was changed.\nIn your launcher: set the launch settings listed below for the game '
-                      'before you play (in Setup: under Installer output; on a command line: before the command). Status shows '
+                      'before you play (in Setup: the game’s Launch settings, Show…; on a command line: before the command). Status shows '
                       'them again.\n'+block,out)
         self.assertNotIn('Open your launcher and play normally',out)
         record=self.record()
@@ -506,7 +506,7 @@ class ManualLaunchTests(ProxyFixture):
         self.assertIn('In your launcher: keep the launch settings listed below for the game (this installer does not edit it).\n'+block,out)
         self.assertIn('Launch normally with FG active.',out)
         out=self.quiet(m.restore,self.exe)
-        self.assertIn('In your launcher: remove the launch settings listed below from the game (in Setup: under Installer output).\n'+block,out);self.assertNotIn('run.sh',out)
+        self.assertIn('In your launcher: remove the launch settings listed below from the game (in Setup: the game’s Launch settings, Show…).\n'+block,out);self.assertNotIn('run.sh',out)
         for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
         self.assertFalse((self.game/'bc250_xefg_original.dll').exists());self.assertFalse(self.config.exists())
     def events(self,function,*args,**kwargs):
@@ -539,7 +539,7 @@ class ManualLaunchTests(ProxyFixture):
         self.assertIn('    Where the launcher already sets one of these, combine them:\n      WINEDLLOVERRIDES: keep your entries without any '
                       'for dxgi, then add dxgi=n,b (entries separated by ;)\n',out)
         self.assertIn('      VKD3D_SHADER_CACHE_PATH: keep yours where you set one (0 included)\n',out)
-        step='In your launcher: set the launch settings listed below for the game before you play (in Setup: under Installer output; on a command line: before the command). Status shows them again.'
+        step='In your launcher: set the launch settings listed below for the game before you play (in Setup: the game’s Launch settings, Show…; on a command line: before the command). Status shows them again.'
         self.assertIn({'v':1,'type':'manual','action':'set','settings':settings},events)
         self.assertIn({'v':1,'type':'step','where':'launcher','text':step},events)
         # Restore: what to delete, also from values the user combined with their own; the same events with remove.
@@ -548,7 +548,7 @@ class ManualLaunchTests(ProxyFixture):
         self.assertIn('      VKD3D_SHADER_CACHE_PATH: only where it is '+env['VKD3D_SHADER_CACHE_PATH']+'\n',out)
         self.assertEqual([e['action'] for e in events if e['type']=='manual'],['remove'])
         self.assertEqual([e['text'] for e in events if e['type']=='step'],
-                         ['In your launcher: remove the launch settings listed below from the game (in Setup: under Installer output).'])
+                         ['In your launcher: remove the launch settings listed below from the game (in Setup: the game’s Launch settings, Show…).'])
     def test_a_path_too_long_for_vkd3d_protons_cache_is_noted_with_the_settings(self):
         import launcher_config
         with patch.object(launcher_config,'vkd3d_cache_fits',return_value=False):
@@ -575,6 +575,16 @@ class ManualLaunchTests(ProxyFixture):
         self.quiet(m.register_installation,self.exe)
         self.assertEqual([row['exe'] for row in m.library_inventory()],[self.exe.resolve()])
         self.assertNotIn('library index',self.quiet(m.status,self.exe))
+    def test_activation_is_read_for_setup_as_status_prints_it(self):
+        # Setup's Health row shows the installer's own reading (setup_model.manual_activation). On the native route
+        # OptiScaler has no part, so the proxy's two lines confirm the settings.
+        ready=dict(proxy='ready',owner='first initialized context selected')
+        self.assertEqual(m.manual_activation(dict(route='native'),ready),
+                         (True,'The last session ran with them (MFG proxy ready, frame-generation context selected).'))
+        self.assertEqual(m.manual_activation(dict(route='opti'),ready)[0],False)
+        self.assertEqual(m.manual_activation(dict(route='opti'),dict(ready,optiscaler=True))[0],True)
+        self.assertEqual(m.manual_activation(dict(route='opti'),None),
+                         (False,'Not yet confirmed: no session since installation shows them. Start the game with them and frame generation on.'))
     def test_records_of_the_first_manual_installations_stay_valid(self):
         # PR #8 recorded env and args only, GTA's -nobattleye among args: Status and Restore show them as they are.
         self.recipe(launch_args=['-nobattleye'])

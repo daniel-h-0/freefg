@@ -384,7 +384,9 @@ class Installations(UpdateFixture):
                          [('replace', event['settings'])])
         game = self.load()
         self.assertEqual(model.manual_settings(game.record), settings)
-        self.assertIsNone(game.activation)  # this installer offers no reading of the last session: none is shown
+        # The installer's own reading of the last session (install.manual_activation), as Status prints it.
+        self.assertEqual(game.activation, (False, 'Not yet confirmed: no session since installation shows them. Start the game '
+                                                  'with them and frame generation on.'))
 
     def test_plan_digest_reaches_the_update_where_the_installer_checks_it(self):
         game = self.load()

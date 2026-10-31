@@ -534,11 +534,13 @@ def recipe_for(package,exe,launcher_home=None):
     return rm,verified,wiki,leave,backports,found
 
 def recipe_required_args(rm,verified):
-    """The arguments a verified recipe says the game always needs (recipes.required_args; wiki data never supplies them).
-    A recipes.py without that function reads the recipe's own required_args field."""
+    """The arguments a verified recipe says the game always needs (recipes.required_args; wiki data never supplies them),
+    and every word of its launch_args that is not a graphics-API switch: recipe data before required_args kept a needed
+    argument there (GTA V Enhanced's -nobattleye, 1.2.0), and recipes.launch_args() now returns API switches only."""
     if not verified:return []
-    if hasattr(rm,'required_args'):return list(rm.required_args(verified))
-    return list(verified.get('required_args') or [])
+    import launcher_config
+    required=list(rm.required_args(verified)) if hasattr(rm,'required_args') else list(verified.get('required_args') or [])
+    return launcher_config.split_args(verified.get('launch_args') or [],required)[1]
 
 def record_arguments(record):
     """(graphics-API switch, arguments the game always needs) of an installation record. Records before required_args
@@ -1327,7 +1329,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if upscaler in hlx.NAMES:remember_prepared(package,helixsr_dir)
     if manual_launch:
         print('\nInstalled. No launcher entry was changed.')
-        manual_step('set the launch settings listed below for the game before you play (in Setup: under Installer output; on a '
+        manual_step('set the launch settings listed below for the game before you play (in Setup: the game’s Launch settings, Show…; on a '
                     'command line: before the command). Status shows them again.',manual_launch)
     else:print('\nInstalled. Open your launcher and play normally. No wrapper command is needed.')
     if kept:print('Kept your settings from the previous installation: '+', '.join(kept))
@@ -1495,7 +1497,7 @@ def restore(exe):
     if (state/GENERATIONS).is_dir() and not (state/GENERATIONS).is_symlink():shutil.rmtree(state/GENERATIONS)
     if record.get('manual_launch'):
         print('Original files restored. Backups remain in '+str(state))
-        manual_step('remove the launch settings listed below from the game (in Setup: under Installer output).',record['manual_launch'],'remove')
+        manual_step('remove the launch settings listed below from the game (in Setup: the game’s Launch settings, Show…).',record['manual_launch'],'remove')
     else:print(('Original files and launcher settings restored. ' if record.get('launchers') else 'Original files restored; later INI edits preserved. Remove the earlier build’s run.sh launch wrapper from the game’s launch options. ')+'Backups remain in '+str(state))
     if record.get('preserved_ini'):print('Settings from the removed fresh OptiScaler setup: '+str(state/record['preserved_ini']))
     if record.get('preserved_helixsr_ini') and any(Path(item['path']).name.lower()==helixsr.INI for item in record['files']):
@@ -2635,7 +2637,7 @@ def update(exe,package=None,dependency_dir=None,component='all',helixsr_dir=None
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
     print('Updated to '+str(plan['target'])+'. Launch the game as before; install.py rollback returns to '+str(previous['package'])+'.')
     if plan['metadata'].get('manual_launch'):
-        step='In your launcher: change the game’s launch settings to those this update lists (in Setup: under Installer output).'
+        step='In your launcher: change the game’s launch settings to those this update lists (in Setup: the game’s Launch settings, Show…).'
         print(step)
         event('manual',action='replace',settings=plan['metadata']['manual_launch'],previous=plan.get('manual_previous'))
         event('step',where='launcher',text=step)
@@ -2690,7 +2692,7 @@ def rollback_generation(root,record,generation):
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
     for line in gone:print(line)
     if 'manual_launch' in (generation.get('metadata_after') or {}) and record.get('manual_launch'):
-        manual_step('set the game’s launch settings back to those listed below (in Setup: under Installer output).',record['manual_launch'],
+        manual_step('set the game’s launch settings back to those listed below (in Setup: the game’s Launch settings, Show…).',record['manual_launch'],
                     'replace',generation['metadata_after']['manual_launch'])
 
 @locked
@@ -2780,15 +2782,23 @@ def show_plan(package,exe,component='all',helixsr_dir=None,loader=None,refresh_r
         except ValueError:print('The game is running: close it before updating.')
     return plan['status']
 
-def manual_evidence(run):
+def manual_evidence(run,route='opti'):
     """(confirmed, evidence) of a manual installation's launch settings, from the last session since installation
-    (compat.last_run): OptiScaler loaded through the Wine override (OptiScaler.log), the proxy ready beside Intel's runtime
-    (BC250-MFG.log: MFG proxy ready) and a frame-generation context it selected (FAST_OWNER). Confirmed with all three.
-    The layer's BC250_PACE lines go to the game's standard error, which no file here keeps."""
-    found=[text for shown,text in ((run.get('optiscaler'),'OptiScaler loaded'),(run.get('proxy')=='ready','MFG proxy ready'),
-                                   (run.get('owner') or run.get('coexist_accelerated'),'frame-generation context selected'))
-           if shown] if run else []
-    return len(found)==3,found
+    (compat.last_run): OptiScaler loaded through the Wine override (OptiScaler.log; the OptiScaler route only), the proxy
+    ready beside Intel's runtime (BC250-MFG.log: MFG proxy ready) and a frame-generation context it selected (FAST_OWNER).
+    Confirmed with all of them. The layer's BC250_PACE lines go to the game's standard error, which no file here keeps."""
+    checks=((run.get('optiscaler'),'OptiScaler loaded'),)*(route=='opti')+((run.get('proxy')=='ready','MFG proxy ready'),
+            (run.get('owner') or run.get('coexist_accelerated'),'frame-generation context selected')) if run else ()
+    found=[text for shown,text in checks if shown]
+    return bool(checks) and len(found)==len(checks),found
+
+def manual_activation(record,run):
+    """(confirmed, sentence) for an installation without a launcher entry: whether the last session (compat.last_run, as
+    run_scope reads it) ran with the launch settings the user added. Status prints the sentence; Setup shows it as is."""
+    confirmed,evidence=manual_evidence(run,record.get('route','native'))
+    return confirmed,('The last session ran with them ('+', '.join(evidence)+').' if confirmed else
+                      'Not yet confirmed'+(' (the last session: '+', '.join(evidence)+')' if evidence else ': no session since installation shows them')+
+                      '. Start the game with them and frame generation on.')
 
 def run_scope(record):
     """compat.last_run's scope for an installation of this build: only the logs beside the executable, written since it
@@ -2847,11 +2857,9 @@ def status(exe):
         # Nothing here can read the user's launcher: whether the settings are in effect shows in the last session's logs.
         try:
             import compat
-            confirmed,evidence=manual_evidence(compat.last_run(root,record.get('route','native'),**run_scope(record)))
-        except ImportError:confirmed,evidence=False,[]
-        print('Manual launch settings: '+('added by you; the last session ran with them ('+', '.join(evidence)+').' if confirmed else
-              'not yet confirmed'+(' (the last session: '+', '.join(evidence)+')' if evidence else ': no session since installation shows them')+
-              '. Start the game with them and frame generation on.'))
+            confirmed,sentence=manual_activation(record,compat.last_run(root,record.get('route','native'),**run_scope(record)))
+        except ImportError:confirmed,sentence=manual_activation(record,None)
+        print('Manual launch settings: '+('added by you; ' if confirmed else '')+sentence[0].lower()+sentence[1:])
         # No launcher entry names the game: Update all finds it only through the library index.
         try:indexed=str(Path(record.get('game') or exe).resolve()) in {row['exe'] for row in freefg_library.entries()}
         except (OSError,ValueError):indexed=False

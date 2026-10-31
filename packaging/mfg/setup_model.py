@@ -895,6 +895,16 @@ def wiki_settings_plan(ctx, game):
     return plan
 
 
+def condition_lines(when):
+    """A wiki row's conditions in words, one per line, as Check and the installer's confirmations word them
+    (compat.condition_text); as written where this installer has no wording."""
+    try:
+        from compat import condition_text
+    except ImportError:
+        return [str(k) + ': ' + str(v) for k, v in when.items()]
+    return [condition_text(k, v) for k, v in when.items()]
+
+
 def wiki_rivals(rows):
     """{row id: the ids of the other rows that set the same key to another value}. The installer writes one value per key
     and refuses a selection with two (compat.select_wiki_settings), so Setup lets one of them be selected at a time."""

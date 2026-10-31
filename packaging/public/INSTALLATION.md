@@ -39,7 +39,7 @@ It does not edit Lutris's game arguments: add such an argument there first, or t
 A game that only another launcher starts (Faugus, Bottles, umu-run or a script) gets the soft refusal `no-launcher`.
 Accept it under **Needs your OK** (Zenity: **Install anyway**; command line: `--accept no-launcher`). Setup then
 installs the files as usual, changes no launcher entry and prints the launch settings to add to that launcher; in
-Setup's window they are under **Installer output**. They come as:
+Setup's window they open ready to copy (later: the game's **Launch settings** row, **Show…**). They come as:
 
 - `KEY=value` lines, then the game arguments. In Faugus, put the lines under **Launch Arguments**; on a command line,
   put them before the command.

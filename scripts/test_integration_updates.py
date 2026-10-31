@@ -43,17 +43,17 @@ class IntegrationUpdateTests(UpdateFixture):
         status,out=self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')
         self.assertEqual(status,'update');self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'],'winmm=n,b')
         self.assertIn('  launch settings change; set these in the game’s launcher (this installer does not edit it):\n    WINEDLLOVERRIDES=winmm=n,b\n',out)
-        self.assertIn('\nIn your launcher: change the game’s launch settings to those this update lists (in Setup: under Installer output).\n',out)
+        self.assertIn('\nIn your launcher: change the game’s launch settings to those this update lists (in Setup: the game’s Launch settings, Show…).\n',out)
         self.assertFalse(self.config.exists())
         _,out=self.run_quiet(m.rollback,self.exe)
         self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'],'dxgi=n,b')
-        self.assertIn('In your launcher: set the game’s launch settings back to those listed below (in Setup: under Installer output).\n'
+        self.assertIn('In your launcher: set the game’s launch settings back to those listed below (in Setup: the game’s Launch settings, Show…).\n'
                       '    WINEDLLOVERRIDES=dxgi=n,b\n',out)
         # An update that leaves them as they are does not name them.
         status,out=self.run_quiet(m.update,self.exe,self.new)
         self.assertEqual(status,'update');self.assertNotIn('launch settings',out)
         _,out=self.run_quiet(m.restore,self.exe)
-        self.assertIn('In your launcher: remove the launch settings listed below from the game (in Setup: under Installer output).\n'
+        self.assertIn('In your launcher: remove the launch settings listed below from the game (in Setup: the game’s Launch settings, Show…).\n'
                       '    WINEDLLOVERRIDES=dxgi=n,b\n',out)
         for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
 
@@ -75,7 +75,7 @@ class IntegrationUpdateTests(UpdateFixture):
         self.assertIn('\n    Replace WINEDLLOVERRIDES=winmm=n,b with WINEDLLOVERRIDES=dxgi=n,b\n',out)
         self.assertEqual([(e['action'],e['settings'],e['previous']) for e in events if e['type']=='manual'],[('replace',before,after)])
         self.assertEqual([e['text'] for e in events if e['type']=='step'],
-                         ['In your launcher: set the game’s launch settings back to those listed below (in Setup: under Installer output).'])
+                         ['In your launcher: set the game’s launch settings back to those listed below (in Setup: the game’s Launch settings, Show…).'])
 
     def test_first_manual_records_update_without_naming_unchanged_settings(self):
         # PR #8 recorded env and args only (GTA's -nobattleye among args): an update that leaves the launcher's settings
