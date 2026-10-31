@@ -70,15 +70,17 @@ are recognised separately and undergo the remaining checks. This is a content ch
 
 ## OptiScaler source
 
-The bundled GPL-3.0 DLL is built from fork commit `273e8d449763d0e9e051dee831dc42badcd15d00`, incorporating
+The bundled GPL-3.0 DLL is built from fork commit `ba0dedb4681875a1a0b88a35385d5aeb91db4063`, incorporating
 upstream `e7e3872d410f704479d94d318d68d163b6b58947` (29 October 2026). Its SHA-256 is
-`044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87`.
+`e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b`.
 
-The [fork release `bc250-273e8d4`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-273e8d4) provides the
+The [fork release `bc250-ba0dedb`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-ba0dedb) provides the
 DLL and matching recursive source archive. `SOURCE.md` identifies the source companion and build route. Available submodules are bundled; Intel's XeSS SDK is a separately fetched, pinned input.
 
 The fork retains loader-first Streamline locking, automatic menu saving, Linux cross-build support, independent
-XeSS/XeFG/XeLL paths and adaptive 3×/4× game-frame starts. It also isolates Social Club auxiliary swapchains. It is not an official OptiScaler release.
+XeSS/XeFG/XeLL paths and adaptive 3×/4× game-frame starts. It also isolates Social Club auxiliary swapchains
+(configurable auxiliary DXGI-factory modules), keeps minimized game windows eligible for frame generation and can stay
+a plain proxy without a required launch argument. It is not an official OptiScaler release.
 
 Third-party licence texts and the component index are in `licenses/OptiScaler-third-party/`.
 Required FreeType credit: Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org).

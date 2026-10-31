@@ -23,14 +23,17 @@
   },
   "enabler_overlay": "not applicable (no XeSSMFG enabler)",
   "optiscaler": {
-   "source_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
+   "source_commit": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
    "upstream_base": "e7e3872d410f704479d94d318d68d163b6b58947",
    "fixed": [
     "f6db41dfa7bacb16ac50bd1e5787fdb44362da47 Try to prevent race conditions when hooking sl plugins (lock order: the loader lock before a Streamline plugin mutex)",
     "Separate XeSS, XeFG and XeLL library-path configuration fields (saved XeSSPath corruption)",
     "Adaptive FreeFG frame-start pacing through XeLL at 3x/4x, with bounded stall recovery",
     "Distinct HLX providers with original-input parameters and actual FFX provider identity",
-    "Social Club auxiliary factories retain native swapchains; zero-sized descriptors use HWND geometry for the tiny-window guard"
+    "Social Club auxiliary factories retain native swapchains; zero-sized descriptors use HWND geometry for the tiny-window guard",
+    "Minimized or unmapped game windows (an empty client area) stay eligible for frame generation",
+    "Configurable auxiliary DXGI-factory modules ([Hotfix] AuxiliaryDxgiFactoryModules, default SocialClubD3D12Renderer.dll)",
+    "[BC250] RequireArgument: without that launch argument OptiScaler stays a plain proxy, with no hooks or frame generation"
    ]
   },
   "extras": {
