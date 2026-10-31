@@ -564,6 +564,20 @@ class RestoreFidelityTests(GameFixture):
         self.assertEqual(m.patch_ini(b'[A]\nKey = v ; note\n',{('a','key'):None}),b'[A]\n')
         # An indented key line loses its indent, as it always did: indented, it would read as part of the key above.
         self.assertEqual(m.read_ini(m.patch_ini(b'[A]\nx=1\n  Key = v\n',{('A','Key'):'w'})),{('a','x'):'1',('a','key'):'w'})
+    def test_a_value_never_becomes_a_line_of_its_own(self):
+        # A line separator in a value (U+2028, VT, FF, NEL, RS, ...): str.splitlines split it on the next edit, and the
+        # rest became a section and a key of its own (an injected [Libraries] XeFGPath). Lines are split as configparser
+        # (and OptiScaler) split them, and the installer writes no value that spans lines.
+        for separator in '  \x0b\x0c\x1c\x1d\x1e\x85':
+            with self.subTest(separator=repr(separator)):
+                data=('[A]\nKey=x'+separator+'[Libraries]'+separator+'XeFGPath=evil\n').encode()
+                edited=m.patch_ini(data,{('A','Other'):'1'});again=m.patch_ini(edited,{('A','Other'):'2'})
+                self.assertEqual(m.read_ini(again),{('a','key'):'x'+separator+'[Libraries]'+separator+'XeFGPath=evil',('a','other'):'2'})
+                self.assertEqual(len(m.ini_content(again)),3)
+                with self.assertRaisesRegex(ValueError,'not a single line'):m.patch_ini(b'[A]\nKey=1\n',{('A','Key'):'1'+separator+'XeFGPath=evil'})
+        for value in ['1\n[Libraries]\nXeFGPath=evil','1\rXeFGPath=evil','1\0']:
+            with self.assertRaisesRegex(ValueError,'not a single line'):m.patch_ini(b'[A]\nKey=1\n',{('A','Key'):value})
+        self.assertEqual(m.patch_ini(b'[A]\r\nKey=1\r\n',{('A','Key'):'2'}),b'[A]\r\nKey=2\r\n')
     def test_optiscaler_resave_restores_the_original_bytes(self):
         # OptiScaler saved the INI while the game ran (every line 'key = value', LF): the values are the original ones
         # once Restore reverts the installation's keys, so the original bytes come back (CRLF, 'key=value').

@@ -87,6 +87,28 @@ class ConditionTests(unittest.TestCase):
         self.assertEqual(c.key_rule('FrameGen.FGOutput', 'xefg')[0], 'redundant')
         self.assertEqual(c.key_rule('XeFG.ForceBorderless', 'true')[0], 'redundant')
 
+    def test_paths_and_process_filters_are_never_written_from_the_wiki(self):
+        # A path is one computer's; a process filter can switch OptiScaler off for the game.
+        for key in ('Log.LogFileName', 'Menu.TTFFontPath', 'ProcessFilter.TargetProcessName', 'ProcessFilter.ProcessExclusionList',
+                    'Plugins.Path', 'Libraries.NvngxDlssPath', 'Libraries.XeSSPath', 'Libraries.OptiDllPath'):
+            self.assertIn(c.key_rule(key, r'C:\x\y.dll')[0], ('never', 'installer'), key)
+        wiki = dict(title='Hero', match=dict(title=['hero'], steam=['4242']), pages=[],
+                    ini=[dict(key='Menu.TTFFontPath', value=r'C:\Windows\Fonts\comic.ttf'), dict(key='ProcessFilter.TargetProcessName', value='other.exe'),
+                         dict(key='Hotfix.ColorResourceBarrier', value='4')])
+        rows = {row['key']: row['action'] for row in c.wiki_plan(data([], [], [wiki]), ids())['rows']}
+        self.assertEqual(rows, {'Menu.TTFFontPath': 'advice', 'ProcessFilter.TargetProcessName': 'advice', 'Hotfix.ColorResourceBarrier': 'prefill'})
+
+    def test_wiki_values_are_single_line_printable_text(self):
+        # Anything an INI reader would split, strip or misread is refused before a plan exists.
+        for value in ('4\u2028[Libraries]\u2028XeFGPath=x', '4\x85', '4\x0b', '4\x1e', '4\t', ' 4', '4 ', '4\x7f', '4\u200b', '4\r', '4\n', '4\0'):
+            with self.subTest(value=repr(value)):
+                wiki = dict(title='Hero', match=dict(title=['hero'], steam=['4242']), pages=[], ini=[dict(key='Hotfix.ColorResourceBarrier', value=value)])
+                with self.assertRaisesRegex(ValueError, 'Malformed wiki INI proposal'):
+                    c.wiki_plan(data([], [], [wiki]), ids())
+        for value in ('4', 'true', '0x24', 'Intel(R) Arc(TM) B580 Graphics', 'äöü'):
+            wiki = dict(title='Hero', match=dict(title=['hero'], steam=['4242']), pages=[], ini=[dict(key='Hotfix.ColorResourceBarrier', value=value)])
+            self.assertEqual(c.wiki_plan(data([], [], [wiki]), ids())['rows'][0]['value'], value)
+
 
 class PrecedenceTests(unittest.TestCase):
     def test_user_beats_the_verified_recipe(self):

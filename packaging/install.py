@@ -83,14 +83,26 @@ def xess_library_repair(data):
 
 # A key line: (indent)(key as written)(the '=' with the blanks around it); the value follows.
 KEY_LINE=re.compile(r'(\s*)([^;#=]+?)(\s*=\s*)')
+# Characters that end a line for some reader of an INI file: OptiScaler's (SimpleIni) ends one at \r or \n, Python's
+# str.splitlines at the others too. A value holding one would be a line of its own on the next read.
+LINE_BREAKS=re.compile('[\r\n\x0b\x0c\x1c\x1d\x1e\x85  \0]')
+
+def ini_lines(text):
+    """text's lines as configparser reads them: split at \\n only, a \\r before it dropped. (str.splitlines also splits
+    at U+2028, VT, FF and others: a value holding one would come back from an edit as lines of its own.)"""
+    lines=text.split('\n')
+    if lines[-1]=='':lines.pop()
+    return [line[:-1] if line.endswith('\r') else line for line in lines]
 
 def patch_ini(data,changes):
     """data with changes ({(section, key): value, or None to remove the key}). A key already in the file keeps its own
     spelling and the blanks around its '=' (OptiScaler saves 'key = value', the installers wrote 'key=value'), so an
     edit and its undo touch only the value; a key added takes the spacing most of the file's keys have. A key line's
-    indent goes, as it always did."""
+    indent goes, as it always did. A value must stay on its line (LINE_BREAKS)."""
+    for (section,key),value in changes.items():
+        if value is not None and LINE_BREAKS.search(str(value)):raise ValueError('INI value for '+section+'.'+key+' is not a single line')
     read_ini(data);bom=data.startswith(b'\xef\xbb\xbf');text=data.decode('utf-8-sig')
-    newline='\r\n' if '\r\n' in text else '\n';lines=text.splitlines();section='';seen=set();result=[]
+    newline='\r\n' if '\r\n' in text else '\n';lines=ini_lines(text);section='';seen=set();result=[]
     pending={(s.lower(),k.lower()):(s,k,v) for (s,k),v in changes.items()}
     sections=set();spacing=collections.Counter()
     for line in lines:
@@ -125,7 +137,7 @@ def ini_content(data):
     byte-order mark and empty sections (a header with nothing under it holds no value: Restore leaves the headers an
     installation added once their keys are gone)."""
     section='';out=[]
-    for line in data.decode('utf-8-sig').splitlines():
+    for line in ini_lines(data.decode('utf-8-sig')):
         if not line.strip():continue
         header=re.match(r'\s*\[([^]]+)\]\s*$',line)
         if header:
