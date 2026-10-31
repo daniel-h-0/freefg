@@ -1697,7 +1697,8 @@ class ForkSource(unittest.TestCase):
         fixture_git(cls.fork, 'tag', '-a', '-m', 'wrong', 'bc250-bad', cls.bad_tag_commit)
         # FORK.md as it is before publication: placeholders still in it (another tag on the build commit's line)
         fixture_git(cls.fork, 'checkout', '-q', cls.build_commit)
-        (cls.fork / 'FORK.md').write_text('# [PRODUCT] fork\n\nSource: [OPTISCALER-FORK-SOURCE-URL] <!-- [DRAFT] -->\n')
+        (cls.fork / 'FORK.md').write_text('# [PRODUCT] fork\n\nSource: [OPTISCALER-FORK-SOURCE-URL] <!-- [DRAFT] -->\n\n'
+                                          '`[BC250] RequireArgument` in `OptiScaler.ini`: a section name, no placeholder.\n')
         (cls.fork / 'tools').mkdir(exist_ok=True)
         (cls.fork / 'tools/bc250-build.py').write_text('#!/usr/bin/env python3\n')
         (cls.fork / 'tools/bc250-build.py').chmod(0o755)
@@ -1885,8 +1886,9 @@ class ForkSource(unittest.TestCase):
         self.assertEqual(self.companion.route_placeholders(self.config(), pattern), [])
         result, _path = self.archive('out-unfilled', **unfilled)
         self.assertEqual(len(result['warnings']), 1)
-        self.assertRegex(result['warnings'][0], r'FORK\.md still carries \[DRAFT\], \[OPTISCALER-FORK-SOURCE-URL\], '
-                                                r'\[PRODUCT\]')
+        # An OptiScaler.ini section name ([BC250]) is not left to fill in.
+        self.assertRegex(result['warnings'][0], r'^FORK\.md still carries \[DRAFT\], \[OPTISCALER-FORK-SOURCE-URL\], '
+                                                r'\[PRODUCT\]: ')
         self.assertEqual(self.archive('out-filled')[0]['warnings'], [])
 
     def test_the_fork_group_after_its_release(self):
