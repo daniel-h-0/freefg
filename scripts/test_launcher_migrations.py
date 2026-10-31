@@ -103,19 +103,19 @@ class LauncherMigrationTests(UpdateFixture):
     def test_a_1_2_0_record_gets_its_required_argument_once(self):
         # GTA V Enhanced as 1.2.0 installed it: -nobattleye among launch_args, kept out of the entry by the user's -dx12.
         # The update adds it, as a required argument, once; Rollback and Restore take it out again.
-        doc=json.loads(self.config.read_text());doc['123']['launcherArgs']='~/saves -dx12';self.config.write_text(json.dumps(doc))
+        doc=json.loads(self.config.read_text());doc['123']['launcherArgs']='~/.saves -dx12';self.config.write_text(json.dumps(doc))
         original=self.config.read_bytes()
         m.install(self.package,self.exe,route='opti')
         record=self.record();record.update(launch_args=['-nobattleye'],launch_args_added=[]);record.pop('required_args',None)
-        row=record['launchers'][0];row['before']['launcherArgs']=row['after']['launcherArgs']='~/saves -dx12'
+        row=record['launchers'][0];row['before']['launcherArgs']=row['after']['launcherArgs']='~/.saves -dx12'
         (self.game/m.STATE/'state.json').write_text(json.dumps(record))
         self.assertEqual(m.record_arguments(record),([],['-nobattleye']))
         args=lambda:json.loads(self.config.read_text())['123']['launcherArgs']
         self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
-        self.assertEqual(args(),'~/saves -dx12 -nobattleye')
-        self.assertEqual(self.record()['launchers'][0]['after']['launcherArgs'],'~/saves -dx12 -nobattleye')
-        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'current');self.assertEqual(args(),'~/saves -dx12 -nobattleye')
-        self.run_quiet(m.rollback,self.exe);self.assertEqual(args(),'~/saves -dx12')
+        self.assertEqual(args(),'~/.saves -dx12 -nobattleye')
+        self.assertEqual(self.record()['launchers'][0]['after']['launcherArgs'],'~/.saves -dx12 -nobattleye')
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'current');self.assertEqual(args(),'~/.saves -dx12 -nobattleye')
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(args(),'~/.saves -dx12')
         self.run_quiet(m.update,self.exe,self.new);m.restore(self.exe)
         self.assertEqual(self.config.read_bytes(),original)
 
@@ -150,13 +150,13 @@ class LauncherMigrationTests(UpdateFixture):
 
     def test_user_arguments_keep_their_text(self):
         # A migration adds or takes out only its own words: what the user wrote (a ~ the shell expands, quoting) stays.
-        self.assertEqual(lm._arguments('~/mods -dx12','-dx12','-dx12 -nobattleye'),'~/mods -dx12 -nobattleye')
-        self.assertEqual(lm._arguments("~/mods 'a b' -old",'-old',''),"~/mods 'a b'")
-        self.assertEqual(lm._arguments('-dx11 ~/x','','-dx12 -nobattleye'),'-dx11 ~/x -nobattleye')  # the user's API switch stays
-        self.assertEqual(lm._arguments('~/x','-a','-a'),'~/x')
+        self.assertEqual(lm._arguments('~/.mods -dx12','-dx12','-dx12 -nobattleye'),'~/.mods -dx12 -nobattleye')
+        self.assertEqual(lm._arguments("~/.mods 'a b' -old",'-old',''),"~/.mods 'a b'")
+        self.assertEqual(lm._arguments('-dx11 ~/.x','','-dx12 -nobattleye'),'-dx11 ~/.x -nobattleye')  # the user's API switch stays
+        self.assertEqual(lm._arguments('~/.x','-a','-a'),'~/.x')
         row={'launcher':'steam'}
-        old={'LaunchOptions':'A=1 ~/bin/wrap %command% -dx12'};new={'LaunchOptions':'A=1 ~/bin/wrap %command% -dx12 -nobattleye'}
-        self.assertEqual(lm.merge_fields(row,old,old,new)['LaunchOptions'],'A=1 ~/bin/wrap %command% -dx12 -nobattleye')
+        old={'LaunchOptions':'A=1 ~/.local/bin/wrap %command% -dx12'};new={'LaunchOptions':'A=1 ~/.local/bin/wrap %command% -dx12 -nobattleye'}
+        self.assertEqual(lm.merge_fields(row,old,old,new)['LaunchOptions'],'A=1 ~/.local/bin/wrap %command% -dx12 -nobattleye')
 
     def test_steam_tokens_and_quotes_are_preserved_when_policy_is_unchanged(self):
         row={'launcher':'steam'};before={'LaunchOptions':"env KEEP='two words' %command% --flag"}

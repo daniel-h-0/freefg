@@ -220,14 +220,14 @@ class LauncherTests(unittest.TestCase):
         # Heroic's launcherArgs as the user wrote them (a ~ stays unquoted); the installation's words are appended and
         # taken out again by Restore.
         config = self.heroic()
-        doc = json.loads(config.read_text());doc['123']['launcherArgs'] = '~/saves -dx11';config.write_text(json.dumps(doc))
+        doc = json.loads(config.read_text());doc['123']['launcherArgs'] = '~/.saves -dx11';config.write_text(json.dumps(doc))
         operations = l.plan(self.exe, 'dxgi.dll', self.home, args=['-dx12'], required=['-nobattleye'])
-        self.assertEqual(operations[0]['after']['launcherArgs'], '~/saves -dx11 -nobattleye')
+        self.assertEqual(operations[0]['after']['launcherArgs'], '~/.saves -dx11 -nobattleye')
         self.assertEqual(l.added_args(operations), ['-nobattleye'])
         l.apply(operations, self.write)
         doc = json.loads(config.read_text());doc['123']['launcherArgs'] += ' --later';config.write_text(json.dumps(doc))
         l.apply(operations, self.write, restore=True)
-        self.assertEqual(json.loads(config.read_text())['123']['launcherArgs'], '~/saves -dx11 --later')
+        self.assertEqual(json.loads(config.read_text())['123']['launcherArgs'], '~/.saves -dx11 --later')
         self.assertEqual(l.added_to(None, [], []), None)
         self.assertEqual(l.added_to('', ['-dx12']), '-dx12')
         self.assertEqual(l.added_to("'a b' ", [], ['-x y']), "'a b' '-x y'")
@@ -712,14 +712,14 @@ class LauncherInstallationTests(unittest.TestCase):
         # GTA V Enhanced: -nobattleye with the user's own -dx12 in the entry, from 1.2.0's recipe form (among launch_args)
         # and from required_args. 1.2.0 left it out ("Launch option not added").
         m = self.fixtures.m
-        doc = json.loads(self.config.read_text());doc['123']['launcherArgs'] = '~/saves -dx12';self.config.write_text(json.dumps(doc))
+        doc = json.loads(self.config.read_text());doc['123']['launcherArgs'] = '~/.saves -dx12';self.config.write_text(json.dumps(doc))
         original = self.config.read_bytes()
         for fields in (dict(launch_args=['-nobattleye']), dict(required_args=['-nobattleye'])):
             with self.subTest(fields=fields):
                 self.recipe(**fields)
                 with contextlib.redirect_stdout(io.StringIO()) as out:
                     m.install(self.package, self.exe, route='opti')
-                self.assertEqual(json.loads(self.config.read_text())['123']['launcherArgs'], '~/saves -dx12 -nobattleye')
+                self.assertEqual(json.loads(self.config.read_text())['123']['launcherArgs'], '~/.saves -dx12 -nobattleye')
                 record = json.loads((self.game/m.STATE/'state.json').read_text())
                 self.assertEqual((record['launch_args'], record['required_args'], record['launch_args_added']), ([], ['-nobattleye'], ['-nobattleye']))
                 self.assertEqual(record['recipe']['required_args'], ['-nobattleye'])
