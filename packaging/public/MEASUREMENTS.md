@@ -7,6 +7,33 @@ The detailed [measurement record at the 1.1.6 release](https://github.com/daniel
 retains the older tables, individual runs, methods and exclusions summarized below. Figure data and scripts are in
 [`docs/data`](https://github.com/daniel-h-0/freefg/tree/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data).
 
+## Checks of 1.2.0
+
+All 97 FreeFG runtime/profile payload files retain 1.1.6 bytes. The bundled OptiScaler changes to `273e8d4`
+(DLL `044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87`) for Social Club swapchain isolation.
+These checks do not add new performance measurements to the charts below.
+
+- 558 installer tests pass without skips, including nine real GTK tests. The release-tool suite has 121 passing
+  tests and three existing public-tree exclusions. Both packaged GTK and Zenity launchers open and exit normally.
+- Fifteen installed-game copies pass Update, exact Rollback, repeat Update and released-1.1.6 Restore. Twenty
+  historical transitions cover 1.1.3.1, 1.1.4, 1.1.5, 1.1.6 and 1.2.0-preview, on native/OptiScaler routes with two
+  providers per release. Preview-to-final ordering and final-to-preview downgrade refusal have regression tests.
+- GTA V Enhanced 1.0.1158.16 reproduced the public-runtime null-read crash and the factory-wrapping loading stall.
+  The fix passed two short Story Mode starts at 1440p with AMD FSR 4 RC12 and sustained 2×; the final-build restart
+  retained FG-on and kept generation active while Social Club opened and closed. Maximum sampled temperature was
+  84 °C, with no GPU faults. Seven D3D12 main/auxiliary-swapchain probes and 26 geometry/marker checks pass.
+  [Reproduction and exact scope](https://github.com/daniel-h-0/freefg/blob/main/research/recipes/verified/gta-v-enhanced.md).
+- Normal Steam starts in CONTROL Resonant (DLSS FG input) and Echo Point Nova (OptiFG input), both using HLX DLSS,
+  confirm 2× with the new DLL. Final monitored starts reached 66 °C and 72 °C, with no GPU faults or HLX placeholder.
+  Their original DLLs and INIs were restored after testing. A first CONTROL start lacked temperature telemetry;
+  an Echo guard timeout occurred before launch. Neither replaces the final monitored checks.
+- The real GTA installation also passes a separate copy Update/Rollback/Restore rehearsal; all 115 owned files
+  match its final local installation record. Its recipe retains the Story Mode argument for both Steam accounts.
+
+All game starts use plain GE-Proton11-11. This is short functional qualification, not all-game, long-play,
+Online, HDR, higher-factor, latency, pacing or image-equivalence qualification. The earlier failed GTA candidates
+remain failure evidence. Other game-specific limitations recorded for 1.1.6 below remain unchanged.
+
 ## Checks of 1.1.6
 
 FreeFG's 97 runtime/profile payload files match 1.1.5. The integration uses OptiScaler fork `25db192b` (DLL
