@@ -51,8 +51,20 @@ UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC12)','helixsr':helixsr.LABEL,**hlx.NAME
 FSR4_BUILDS={'4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79':'RC12',
              '8192ea97620f8e6407bff346bf905f0d555ff73d89fe14616eb1fa5e41ab3175':'RC11'}
 CHANGES={('Upscalers','Dx12Upscaler'):'ffx',('FSR','UpscalerIndex'):'0',
-         ('FSR','Fsr4ForceModel'):'2',('FSR','Fsr4EnableWatermark'):'auto',
+         ('FSR','Fsr4EnableWatermark'):'auto',
          ('FrameGen','Enabled'):'false',('fakenvapi','UseFakenvapi'):'false'}
+# OptiScaler's FSR 4 support override ([FSR] Fsr4GpuSupport, Config.cpp FSR4Support): INT8, the model the BC-250 build of
+# FSR 4 runs. Earlier builds wrote it by its old name, FSR.Fsr4ForceModel, which the shipped OptiScaler reads only while
+# Fsr4GpuSupport is auto, and which OptiScaler's own Save Settings replaces by Fsr4GpuSupport (fsr4_model_migration).
+FSR4_INT8='2'
+
+def fsr4_support(value):
+    """The FSR4Support value (0-4) OptiScaler reads from an INI value of Fsr4GpuSupport (Config::readEnum: a whole decimal
+    or 0x number below FSR4Support::Count), or None where it reads none and leaves the key auto."""
+    text=str(value if value is not None else '').strip()
+    if not re.fullmatch(r'[+-]?[0-9]+|0[xX][0-9a-fA-F]+',text):return None
+    number=int(text,16) if text[:2].lower()=='0x' else int(text)
+    return number if 0<=number<5 else None
 
 def digest(data):return hashlib.sha256(data).hexdigest()
 def read_ini(data):
@@ -1029,6 +1041,8 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if safe(root,(Path(fsr_target).parent/helixsr.HELIXSR_MARKER).as_posix()).exists():
         raise ValueError('HelixSR’s own installer placed HelixSR beside '+fsr_target+' ('+helixsr.HELIXSR_MARKER+'): remove it with HelixSR’s uninstaller or HelixSR Desktop first')
     changes=dict(CHANGES)
+    # The FSR 4 model override where OptiScaler reads no value of the user's (as the old name Fsr4ForceModel worked).
+    if fsr4_support(parsed.get(('fsr','fsr4gpusupport'))) is None:changes[('FSR','Fsr4GpuSupport')]=FSR4_INT8
     if route=='opti':
         changes.update({('FrameGen','Enabled'):'true',('FrameGen','FGInput'):fg_input,('FrameGen','FGOutput'):'xefg',('fakenvapi','UseFakenvapi'):'true',('Libraries','XeFGPath'):'OptiScaler',('Libraries','XeLLPath'):'OptiScaler'})
         # XeFG does not interpolate in exclusive fullscreen ("Interpolation is not supported in fullscreen mode"): a game
@@ -1888,7 +1902,35 @@ def integration_plan(root,record,pins,files,loader=None):
                 if pair not in before and pair not in present:
                     section,key=names[pair];changes.append(dict(section=section,key=key,value=value))
             metadata['ini_changes']=changes
+    # An earlier build's FSR 4 model override by its old name moves to Fsr4GpuSupport (an unreadable OptiScaler.ini is left
+    # to the settings check of update_plan, which names it).
+    path=safe(root,'OptiScaler.ini')
+    try:
+        data=edits.get('OptiScaler.ini') or (path.read_bytes() if path.is_file() else None)
+        migration=fsr4_model_migration(metadata.get('ini_changes',record.get('ini_changes') or []),data) if data is not None else None
+    except (UnicodeDecodeError,ValueError,configparser.Error):migration=None
+    if migration:
+        changed=patch_ini(data,migration[0])
+        if changed!=data or 'OptiScaler.ini' in edits:edits['OptiScaler.ini']=changed
+        metadata['ini_changes']=migration[1]
     return dict(owner=selected,previous_owner=owner,desired=desired,retired=retired,edits=edits,metadata=metadata)
+
+def fsr4_model_migration(rows,data):
+    """An earlier build's FSR 4 model override, FSR.Fsr4ForceModel=2 (rows: the record's ini_changes), as the same setting
+    by its own name, Fsr4GpuSupport (FSR4_INT8), in OptiScaler.ini's data: (changes for patch_ini, ini_changes after them),
+    or None when there is nothing to move. Fsr4ForceModel goes where it still holds the installer's value, or OptiScaler's
+    Save Settings removed it already: it is owned as removed, so Restore puts back one the file had before installation.
+    Fsr4GpuSupport gets 2 where the old name was in force (OptiScaler reads no value of its own there), and is owned
+    wherever it holds 2, as Save Settings writes it for the old name. A value the user chose for either key stays."""
+    old=next((row for row in rows if (row['section'].lower(),row['key'].lower())==('fsr','fsr4forcemodel')),None)
+    if old is None or old.get('value')!=FSR4_INT8:return None
+    now=read_ini(data);forced=now.get(('fsr','fsr4forcemodel'))
+    if forced is not None and forced.strip()!=FSR4_INT8:return None  # the user's own value of the old name
+    support=fsr4_support(now.get(('fsr','fsr4gpusupport')))
+    changes={('FSR','Fsr4ForceModel'):None};owned={('FSR','Fsr4ForceModel'):None}
+    if forced is not None and support is None:changes[('FSR','Fsr4GpuSupport')]=FSR4_INT8
+    if (forced is not None and support is None) or support==int(FSR4_INT8):owned[('FSR','Fsr4GpuSupport')]=FSR4_INT8
+    return changes,own_ini_changes(dict(ini_changes=rows),owned)
 
 
 def custom_hlx_supported(files,pins):

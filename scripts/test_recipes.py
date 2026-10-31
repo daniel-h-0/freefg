@@ -294,7 +294,9 @@ class BuildTests(unittest.TestCase):
             self.assertTrue(v['observed'], v['title'])
 
     def test_installer_keys_alike(self):
-        self.assertEqual(self.compat.INSTALLER_KEYS, self.b.INSTALLER_KEYS)
+        # The generator's list also drops FSR.Fsr4ForceModel (earlier installations wrote it) and keeps Libraries.XeSSPath,
+        # a verified recipe's real XeSS path (the installer writes it only to repair a saved FG or latency DLL path).
+        self.assertEqual(self.compat.INSTALLER_KEYS - {'Libraries.XeSSPath'}, self.b.INSTALLER_KEYS - {'FSR.Fsr4ForceModel'})
 
     def test_promotion_needs_the_drafts_item_and_an_allowed_key(self):
         wk = [dict(title='Game', match=dict(title=['game']), ini=[dict(key='Hotfix.ColorResourceBarrier', value='4'),

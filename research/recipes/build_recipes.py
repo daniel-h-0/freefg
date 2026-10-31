@@ -36,7 +36,8 @@ COMMUNITY = HERE / 'community'
 INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4ForceModel', 'FSR.Fsr4EnableWatermark',
                   'FrameGen.Enabled', 'fakenvapi.UseFakenvapi', 'FrameGen.FGInput', 'FrameGen.FGOutput',
                   'Libraries.XeFGPath', 'Libraries.XeLLPath', 'XeFG.ForceBorderless', 'Plugins.LoadAsiPlugins',
-                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel'}
+                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel',
+                  'FSR.Fsr4GpuSupport'}
 # Values only this host's FSR4 owner or logging uses: not part of a game's recipe.
 HOST_ONLY = {'Log.LogToFile', 'Log.LogLevel', 'Log.LogToConsole', 'Log.LogToNGX', 'Log.LogToDebug', 'BC250.Managed',
              'BC250.AppId', 'BC250.Version'}

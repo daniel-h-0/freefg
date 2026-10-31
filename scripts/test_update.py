@@ -299,6 +299,51 @@ class UpdateTests(UpdateFixture):
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),CHANGES['payload/libxess_fg.dll']);self.assertEqual(self.record()['package'],NEW)
         with self.assertRaisesRegex(ValueError,'No update to roll back'):m.rollback(self.exe)
 
+class FsrModelMigrationTests(UpdateFixture):
+    """An installation of an earlier build set OptiScaler's FSR 4 model override by its old name, FSR.Fsr4ForceModel=2: the
+    update moves it to Fsr4GpuSupport, keeps what the user chose, and Rollback and Restore stay exact."""
+    def old_build(self,saved=None):
+        """The installed game as an earlier build left it: Fsr4ForceModel=2 written and owned, no Fsr4GpuSupport; saved:
+        then OptiScaler's Save Settings (or the user) set these values ({key: value or None})."""
+        m.install(self.package,self.exe,route='opti');ini=self.game/'OptiScaler.ini'
+        data=m.patch_ini(ini.read_bytes(),{('FSR','Fsr4GpuSupport'):None,('FSR','Fsr4ForceModel'):'2'});ini.write_bytes(data)
+        record=self.record()
+        record['ini_changes']=[dict(row,key='Fsr4ForceModel') if row['key']=='Fsr4GpuSupport' else row for row in record['ini_changes']]
+        next(item for item in record['files'] if item['path']=='OptiScaler.ini')['after']=m.digest(data)
+        m.save_record(self.game/m.STATE,record)
+        if saved:ini.write_bytes(m.patch_ini(data,{('FSR',key):value for key,value in saved.items()}))
+        return ini
+    def owned(self):
+        return {row['key']:row['value'] for row in self.record()['ini_changes'] if row['key'].startswith('Fsr4') and row['key']!='Fsr4EnableWatermark'}
+    def fsr(self,ini):
+        return {key:value for (section,key),value in m.read_ini(ini.read_bytes()).items() if section=='fsr' and key in ('fsr4forcemodel','fsr4gpusupport')}
+
+    def test_untouched_override_moves_and_rolls_back_exactly(self):
+        ini=self.old_build();before=ini.read_bytes();record=self.record()
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
+        self.assertEqual(self.fsr(ini),{'fsr4gpusupport':'2'});self.assertEqual(self.owned(),{'Fsr4ForceModel':None,'Fsr4GpuSupport':'2'})
+        self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(ini.read_bytes(),before);self.assertEqual(self.record()['ini_changes'],record['ini_changes'])
+        self.run_quiet(m.update,self.exe,self.new);m.restore(self.exe);self.assertOriginal()
+
+    def test_saved_by_optiscaler_the_value_becomes_owned(self):
+        # OptiScaler's Save Settings wrote Fsr4GpuSupport=2 and deleted the old name: nothing to write, Restore removes it.
+        ini=self.old_build({'Fsr4ForceModel':None,'Fsr4GpuSupport':'2'});before=ini.read_bytes()
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
+        self.assertEqual(ini.read_bytes(),before);self.assertEqual(self.owned(),{'Fsr4ForceModel':None,'Fsr4GpuSupport':'2'})
+        m.restore(self.exe);self.assertOriginal()
+
+    def test_a_model_chosen_in_optiscaler_stays(self):
+        ini=self.old_build({'Fsr4ForceModel':None,'Fsr4GpuSupport':'4'})  # INT8 Lite, chosen in OptiScaler's menu
+        self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.fsr(ini),{'fsr4gpusupport':'4'});self.assertEqual(self.owned(),{'Fsr4ForceModel':None})
+        m.restore(self.exe);self.assertEqual(self.fsr(ini),{'fsr4gpusupport':'4'})
+
+    def test_a_hand_written_old_name_stays(self):
+        ini=self.old_build({'Fsr4ForceModel':'4'})
+        self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(self.fsr(ini),{'fsr4forcemodel':'4'});self.assertEqual(self.owned(),{'Fsr4ForceModel':'2'})
+
 class InterruptionTests(UpdateFixture):
     """A crash at each write of an update or a rollback: the next update, rollback or Restore puts the game in a known state."""
     def crash_at(self,count,function,*args):

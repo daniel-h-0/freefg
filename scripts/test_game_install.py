@@ -155,6 +155,36 @@ class InstallationTests(GameFixture):
             path=self.package/'manifest.json';saved=path.read_text();path.write_text(json.dumps(manifest))
             with self.assertRaisesRegex(ValueError,'frame-generation packages with automatic launcher setup'):m.install(self.package,self.exe)
             path.write_text(saved);self.assertFalse((self.game/m.STATE).exists());self.assertOriginal()
+    def test_fsr4_model_by_its_own_name_where_optiscaler_reads_none(self):
+        # FSR4Support INT8 as Fsr4GpuSupport=2, the key the shipped OptiScaler reads (its old name Fsr4ForceModel counts
+        # only while Fsr4GpuSupport is auto): a value OptiScaler reads there is the user's and stays.
+        p=self.game/'OptiScaler.ini'
+        for value,after in [(None,'2'),('auto','2'),('yes','2'),('9','2'),('4','4'),('0x1','0x1'),(' 0 ','0')]:
+            with self.subTest(value=value):
+                before=m.patch_ini(self.ini,{('FSR','Fsr4GpuSupport'):value.strip() if value else value})
+                p.write_bytes(before);self.original['OptiScaler.ini']=before
+                m.install(self.package,self.exe);ini=m.read_ini(p.read_bytes())
+                self.assertEqual(ini[('fsr','fsr4gpusupport')],after);self.assertNotIn(('fsr','fsr4forcemodel'),ini)
+                m.restore(self.exe);self.assertOriginal()
+        self.assertEqual([m.fsr4_support(v) for v in ['2','+2','02','0x4','0X2',' 3 ','5','-1','2.0','2_0','auto','',None]],
+                         [2,2,2,4,2,3,None,None,None,None,None,None,None])
+    def test_every_key_the_installer_writes_is_in_the_shipped_optiscaler_ini(self):
+        # The keys of the OptiScaler.ini the release ships (recipes.json optiscaler_builds of the pinned build): a key it
+        # does not read (a renamed one, as Fsr4ForceModel) would change nothing. XeFG.XeFGModel is MFG Unlocker's key.
+        import compat
+        data=json.loads((PACKAGING/'recipes/recipes.json').read_text())
+        shipped={key.lower() for key in data['optiscaler_builds'][data['sources']['optiscaler_pinned']]['keys']}
+        self.assertEqual(sorted(k for k in compat.INSTALLER_KEYS if k.lower() not in shipped),['XeFG.XeFGModel'])
+        written=set();p=self.game/'OptiScaler.ini'
+        p.write_bytes(m.patch_ini(self.ini,{('Libraries','XeSSPath'):r'.\libxess_fg.dll'}));self.original['OptiScaler.ini']=p.read_bytes()
+        for route,fg_input in [('native','upscaler'),('opti','upscaler'),('opti','dlssg'),('opti','fsrfg'),('opti','fsrfg30')]:
+            m.install(self.package,self.exe,route=route,fg_input=fg_input)
+            written|={(c['section']+'.'+c['key']).lower() for c in json.loads((self.game/m.STATE/'state.json').read_text())['ini_changes']}
+            m.restore(self.exe);self.assertOriginal()
+        self.fresh();m.install(self.package,self.exe,route='opti')
+        written|={(c['section']+'.'+c['key']).lower() for c in json.loads((self.game/m.STATE/'state.json').read_text())['ini_changes']}
+        self.assertEqual(sorted(written-{k.lower() for k in compat.INSTALLER_KEYS}),[])
+        self.assertIn('libraries.xesspath',written)
     def test_preserve_later_ini_edits(self):
         m.install(self.package,self.exe);p=self.game/'OptiScaler.ini'
         p.write_bytes(m.patch_ini(p.read_bytes(),{('Unrelated','Value'):'later',('FSR','Fsr4EnableWatermark'):'true'}))

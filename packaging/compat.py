@@ -25,11 +25,16 @@ import os
 import re
 from pathlib import Path
 
-# OptiScaler keys the installer writes itself (research/recipes/build_recipes.py INSTALLER_KEYS; a test keeps them alike).
-INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4ForceModel', 'FSR.Fsr4EnableWatermark',
+# OptiScaler keys the installer writes itself, each a key of the shipped OptiScaler.ini (a test checks). Earlier builds
+# also wrote FSR.Fsr4ForceModel, Fsr4GpuSupport's old name, which an update moves (install.fsr4_model_migration).
+# research/recipes/build_recipes.py leaves its INSTALLER_KEYS out of verified recipes (a test keeps the two alike): that
+# list still names FSR.Fsr4ForceModel, and not Libraries.XeSSPath, which the installer writes only to repair an FG or
+# latency DLL saved there, while a verified recipe may set a real XeSS upscaler path.
+INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4GpuSupport', 'FSR.Fsr4EnableWatermark',
                   'FrameGen.Enabled', 'fakenvapi.UseFakenvapi', 'FrameGen.FGInput', 'FrameGen.FGOutput',
                   'Libraries.XeFGPath', 'Libraries.XeLLPath', 'XeFG.ForceBorderless', 'Plugins.LoadAsiPlugins',
-                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel'}
+                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel',
+                  'Libraries.XeSSPath'}
 # What the wiki drafts record beside a condition: explanations, never limits on where an item applies.
 NOTE_KEYS = {'reason', 'purpose', 'note', 'autoapplied_since', 'value', 'feature'}
 INPUT_NAMES = {'upscaler': 'OptiFG', 'dlssg': 'DLSS FG', 'fsrfg': 'FSR 3.1 FG', 'fsrfg30': 'FSR 3.0 FG',
