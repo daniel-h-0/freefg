@@ -194,7 +194,7 @@ layer. The evidence supports the tested cases, not equivalence for every input.
 | `BC250_XEFG_F4Q2=0` / `F4Q2=0` | Disable the three F4Q2 encoders and their FP16 forms; other F4Q paths remain enabled. |
 | `BC250_XEFG_F4Q_SHADOW=1` | Diagnostic: base kernels produce output while F(4×4) kernels run alongside for comparison. FP16 alternatives are disabled. Adds GPU work. |
 
-File settings belong under `[BC250]` in `BC250-XeFG/settings.ini`; environment variables take precedence. The fast log
+File settings belong under `[BC250]` in `BC250-XeFG/settings.ini` beside the game's `.exe`, or in the file `BC250_XEFG_SETTINGS` names; environment variables take precedence. The fast log
 records effective choices as `F4Q_CONFIG`, `F4Q2_CONFIG`, `F4Q3_CONFIG` and `FP16_CONFIG`. Diagnostic `F4Q_COUNT` lines
 contain comparison counts, not tensor contents.
 

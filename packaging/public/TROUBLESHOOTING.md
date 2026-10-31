@@ -115,6 +115,7 @@ For troubleshooting, as launch options before `%command%`. Setup keeps them on r
 | `BC250_XEFG_EXACT=1` | Disable approximate FP16 forms. Tested images match Intel's; F4Q equivalence is not proven for all inputs ([ARCHITECTURE.md](ARCHITECTURE.md#fp16-forms-approximate-output-by-default)). `Exact=1` under `[BC250]` in `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_EXACT=0` wins over the file. |
 | `BC250_XEFG_F4Q2=0` | With F4Q on, disables F4Q2 for three encoder layers: they use F(2×2) kernels, as in 1.1.1, without their FP16 forms. F4Q2 is enabled by default. `F4Q2=0` under `[BC250]` in `BC250-XeFG/settings.ini` does the same; `BC250_XEFG_F4Q2=1` turns it on whatever that file says. |
 | `BC250_XEFG_F4Q_SHADOW=1` | Diagnostic: the F4Q kernels (F4Q2's while it is on, and F4Q3's) run beside the F(2×2) and 1D ones, which keep the output, and `BC250-XeFG-fast.log` gets `F4Q_COUNT` lines with equal and differing outputs per layer. Costs GPU time; for checks and bug reports only. The FP16 forms are off while it runs. |
+| `BC250_XEFG_SETTINGS=PATH` | Read and save the settings in that file instead of `BC250-XeFG/settings.ini` beside the game's `.exe` (a Windows path, or a Unix path that Wine maps). `BC250-MFG.log` names the file. |
 | `BC250_CAPTURE_TAG_FRAMES=1` | For latency measurements: turns on the debug marker that Intel's XeFG API draws on generated frames, so capture tools can tell them apart. Leave unset for play. |
 
 ## Other GPUs

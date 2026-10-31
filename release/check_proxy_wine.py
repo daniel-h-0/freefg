@@ -60,6 +60,8 @@ src/game/test_proxy_load.c is compiled to a console program and run under `wine`
                shadow-f4q2-off  the same with BC250_XEFG_F4Q2=false: F4Q's points 0..2 and F4Q3's 6..7, no F4Q2 line
                pack        (BC250_XEFG_EXACT=1) the model owner's segment of a 2304-, 4608-, 18432- and 73728-byte model
                            equal to an independent product
+               settings-env, settings-env-dos  BC250_XEFG_SETTINGS names another settings file (F4Q=0 there) as a Unix
+                           path (Wine maps it) or a Windows path: off from settings.ini, as ini-off
              1.1.2 (F4Q3 and the FP16 forms): every switch case also checks FP16_CONFIG and F4Q3_CONFIG, the pipeline
              and geometry of all eleven U-Net shaders and a shader no form replaces, the FP16 copies' sizes of every
              model size (SEGMENT3) and the FP16_REPLACE lines; by default (the FP16 forms' bits 1 and 2) seven are
@@ -172,7 +174,13 @@ F4Q_CASES = {
     'shadow': ('shadow', {'BC250_XEFG_F4Q_SHADOW': '1'}, 'package'),
     'shadow-f4q2-off': ('shadow', {'BC250_XEFG_F4Q_SHADOW': '1', 'BC250_XEFG_F4Q2': 'false'}, 'package'),
     'pack': ('pack', {'BC250_XEFG_EXACT': '1'}, 'package'),
+    # BC250_XEFG_SETTINGS names another settings file (F4Q=0 there, F4Q=1 in the package's file beside the program), as a
+    # Unix path (mapped through Wine) and as a Windows path
+    'settings-env': ('switch', {'BC250_XEFG_SETTINGS': '{unix}/elsewhere/settings.ini'}, 'package'),
+    'settings-env-dos': ('switch', {'BC250_XEFG_SETTINGS': '{dos}\\elsewhere\\settings.ini'}, 'package'),
 }
+# Files a case writes besides its settings.ini (relative to its folder).
+F4Q_FILES = {case: {'elsewhere/settings.ini': '[BC250]\nResolutionMode=0\nF4Q=0\n'} for case in ('settings-env', 'settings-env-dos')}
 
 
 def compile_f4q(config, xess, output):
@@ -198,6 +206,10 @@ def run_f4q(program, work, case):
         (folder / 'BC250-XeFG').mkdir()
         text = (REPO / 'release/files/BC250-XeFG-settings.ini').read_text() if ini == 'package' else ini
         (folder / 'BC250-XeFG/settings.ini').write_text(text)
+    for name, text in F4Q_FILES.get(case, {}).items():
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_text(text)
+    extra = {key: value.format(unix=folder, dos='Z:' + str(folder).replace('/', '\\')) for key, value in extra.items()}
     env = {k: v for k, v in os.environ.items() if not k.startswith(('WINE', 'DISPLAY', 'WAYLAND', 'XEFG_', 'BC250_'))}
     env.update(WINEPREFIX=str(work / 'prefix'), WINEDEBUG='-all', WINEDLLOVERRIDES='mscoree,mshtml=', **extra)
     shaders = 'Z:' + str(folder / 'shaders').replace('/', '\\')
@@ -300,6 +312,8 @@ def f4q_problems(results):
                     ('no-ini', 1, 'default', 7, 'on', 'default', 3, 'default'),
                     ('env-on', 1, 'BC250_XEFG_F4Q', 7, 'on', 'default', 3, 'default'),
                     ('ini-off', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('settings-env', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('settings-env-dos', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('env-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('shadow-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('f4q2-ini-off', 1, 'default', 0, 'off', 'settings.ini', 3, 'default'),
