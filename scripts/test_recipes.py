@@ -220,7 +220,7 @@ class MatchTests(unittest.TestCase):
             dict(text='"C:\\Hero.exe" -x %command%', kind='wrapper', when=dict(os='windows')), dict(text='-dx11', kind='args', conflicts=['-dx11']),
             dict(text='WINEDLLOVERRIDES="d3d12=n,b" %command%', kind='steam', conflicts=['WINEDLLOVERRIDES'])])]
         lines = r.suggestions(None, wiki, 'upscaler', 'opti')
-        self.assertIn('  Launch options it lists (not applied): -unlockReflexOptions; -forceReflexMarkers (fg_input dlssg)', lines)
+        self.assertIn('  Launch options it lists (not applied): -unlockReflexOptions; -forceReflexMarkers (with DLSS FG input)', lines)
         self.assertIn("  Launch settings it lists that collide with FreeFG's own (not usable as they stand): "
                       'WINEDLLOVERRIDES="d3d12=n,b" %command%', lines)
         self.assertFalse(any('-dx11' in line or 'Hero.exe' in line for line in lines))  # leaves DirectX 12; Windows only

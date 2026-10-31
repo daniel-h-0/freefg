@@ -13,6 +13,9 @@ object with `format`, `digest`, `context`, `rows`, `automatic`, `vetoes`,
 Each row contains `id`, `key`, `value`, `current`, `when`, `condition`
 (`true`, `false`, or `null`), `strength`, `action`, `reason`, `confirmations`,
 and `source` (title, page links, wiki revision, tested context and reviewed status).
+`confirmations` are worded ("if crashing on startup", "with the game's FSR 3.1
+input"); to show `when` itself, word each condition with
+`compat.condition_text(key, value)`, as Check does.
 
 - `automatic`: a reviewed, strongly matched fix whose conditions hold. The
   ordinary installation planner uses these defaults where the user left auto.

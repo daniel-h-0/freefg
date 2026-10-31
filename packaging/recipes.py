@@ -554,6 +554,15 @@ def settings_plan(verified, user, route, fg_input, previous=None, create_ini=Fal
     return plan
 
 
+def when_text(when):
+    """A wiki item's conditions in words, as Check words them (compat.condition_text)."""
+    try:
+        from compat import condition_text
+    except ImportError:  # this module on its own: the conditions as written
+        return ', '.join(f'{k} {v}' for k, v in when.items())
+    return ', '.join(condition_text(k, v) for k, v in when.items())
+
+
 def suggestions(verified, wiki, fg_input, route):
     """Readable lines for the install output: what the recipe did not apply and where to read more."""
     lines = []
@@ -576,7 +585,7 @@ def suggestions(verified, wiki, fg_input, route):
         for i in w.get('ini', []):
             if 'nvidia' in str(i.get('when', {}).get('gpu', '')).lower():
                 continue
-            text = f"{i['key']}={i['value']}" + (f" ({', '.join(f'{k} {v}' for k, v in i['when'].items())})" if i.get('when') else '')
+            text = f"{i['key']}={i['value']}" + (f" ({when_text(i['when'])})" if i.get('when') else '')
             if text not in keys:
                 keys.append(text)
     if keys and not verified:
@@ -590,7 +599,7 @@ def suggestions(verified, wiki, fg_input, route):
             if ('nvidia' in str(when.get('gpu', '')).lower() or re.search(r'windows|\bw1[01]\b|win1[01]', str(when.get('os', '')).lower())
                     or any(c.lower() in OFF_DX12_ARGS for c in i.get('conflicts', []))):
                 continue
-            text = i['text'] + (f" ({', '.join(f'{k} {v}' for k, v in when.items())})" if when else '')
+            text = i['text'] + (f" ({when_text(when)})" if when else '')
             target = clash if i.get('conflicts') else usable
             if text not in target:
                 target.append(text)

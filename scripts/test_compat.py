@@ -72,10 +72,23 @@ class ConditionTests(unittest.TestCase):
                  ({'gpu': 'amd', 'condition': 'stuck on boot'}, None), ({'gpu': 'nvidia', 'condition': 'stuck on boot'}, False)]
         for when, expected in cases:
             self.assertIs(c.evaluate(when, ctx)[0], expected, when)
-        self.assertEqual(c.evaluate({'condition': 'crashing on startup'}, ctx)[1], ['condition: crashing on startup'])
+        self.assertEqual(c.evaluate({'condition': 'crashing on startup'}, ctx)[1], ['if crashing on startup'])
         self.assertEqual(c.evaluate({'gpu': 'RTX 3070'}, ctx)[1], ['NVIDIA GPUs only'])
         helix = dict(ctx, upscaler='helixsr')  # claude/helixsr's output choice
         self.assertIs(c.evaluate({'upscaler': 'fsr4'}, helix)[0], False)
+
+    def test_conditions_read_as_words(self):
+        # Shown in Check, Setup's confirmations and the install notes: never "key: value" for the wiki's own keys.
+        for key, value, text in [('condition', 'crashing on startup', 'if crashing on startup'), ('symptom', 'startup crash', 'if startup crash'),
+                                 ('upscaler_input', 'fsr31, xess', "with the game's FSR 3.1 or XeSS input"),
+                                 ('upscaler_input', 'fsr31_12', "with the game's fsr31_12 input"), ('fg_input', 'not dlssg', 'not with DLSS FG input'),
+                                 ('fg_input', 'upscaler', 'with OptiFG input'), ('gpu', 'amd/intel', 'on amd/intel'),
+                                 ('required_file', 'D3D12_Optiscaler/D3D12Core.dll', 'with D3D12_Optiscaler/D3D12Core.dll in the game folder'),
+                                 ('game_version', '<1.8', 'game version <1.8'), ('mod_loader', 'Reloaded-II', 'mod loader: Reloaded-II')]:
+            self.assertEqual(c.condition_text(key, value), text)
+        plan = c.wiki_plan(data([], [], [dict(WIKI, match=dict(title=['hero']))]), ids(exe='other.exe'), dict(fg_input='upscaler'))
+        row = next(r for r in plan['rows'] if r['key'] == 'Hotfix.DisableOverlays')
+        self.assertEqual(row['confirmations'], ['Confirm this is the game named by the wiki', 'if crashing on startup'])
 
     def test_upscaler_input_names_one_input_or_several(self):
         # The wiki writes "fsr31, xess" for either input (two of its items): an exact comparison never held.
@@ -173,7 +186,7 @@ class PrecedenceTests(unittest.TestCase):
         advice = c.wiki_advice(d, ids(), c.decide(scan(), d, ids()))
         self.assertIn('Launch option -dx12', advice['applied'])
         self.assertIn('Launch option -unlockReflexOptions (not applied)', advice['shown'])
-        self.assertIn('Launch option -skip: when condition: crash at start (not applied)', advice['shown'])
+        self.assertIn('Launch option -skip if crash at start (not applied)', advice['shown'])
         self.assertIn("Launch environment PROTON_FSR4_UPGRADE=1: not usable with FreeFG as it stands (it sets PROTON_FSR4_UPGRADE, which "
                       "FreeFG's own launch settings set or refuse)", advice['shown'])
         shown = '\n'.join(advice['shown'])
@@ -190,10 +203,10 @@ class PrecedenceTests(unittest.TestCase):
         self.assertIn('fakenvapi.EnableLogs=true: not applied automatically (R1', shown)
         self.assertIn('FSR.FsrNonLinearPQ=true: not applied automatically (S1', shown)
         self.assertIn('V-Sync.ForceVsync=false: not applied (warning: V-Sync', shown)
-        self.assertIn('Hotfix.DisableOverlays=true: a known fix when condition: crashing on startup', shown)
+        self.assertIn("Hotfix.DisableOverlays=true: a known fix if crashing on startup (set it in OptiScaler's menu if that applies)", shown)
         self.assertIn('Prefers DLSS FG input (a suggestion; F3)', shown)
         self.assertIn('Reports OptiFG input working', shown)  # the full recipe file keeps "works" advice too
-        self.assertIn('Reports problems with FSR 3.0 FG input when upscaler_input: fsr3', shown)
+        self.assertIn("Reports problems with FSR 3.0 FG input (with the game's FSR 3.0 input)", shown)
         self.assertNotIn('Reports problems with OptiFG', shown)
         self.assertNotIn('Spoofing.Vulkan', shown)  # api vulkan: false here, hidden
         self.assertNotIn('EnableFsr2Inputs', shown)  # NVIDIA only: hidden
