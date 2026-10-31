@@ -4,19 +4,167 @@
   "sources": {
     "optiscaler_pinned": "273e8d449763d0e9e051dee831dc42badcd15d00",
     "optiscaler_upstream": "e7e3872d410f704479d94d318d68d163b6b58947",
-    "wiki": "5f927893bba46d8bf8f9754a9b295e094944cc00 (2026-10-29)",
-    "wiki_url": "https://github.com/optiscaler/OptiScaler/wiki/",
-    "host": "maintainers' BC-250 library, 2026-09-29",
-    "runtime_triage": "BC-250 gameplay and launcher observations, 2026-10-29; scope recorded per recipe; GTA V Enhanced short Story Mode qualification, 2026-10-30",
     "optiscaler_compatible_commits": [
       "03db4f8692878e65748769ebe583c053cae96360",
       "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
       "273e8d449763d0e9e051dee831dc42badcd15d00"
     ],
+    "wiki": "5f927893bba46d8bf8f9754a9b295e094944cc00 (2026-10-29)",
+    "wiki_url": "https://github.com/optiscaler/OptiScaler/wiki/",
+    "host": "maintainers' BC-250 library, 2026-09-29",
+    "runtime_triage": "BC-250 gameplay and launcher observations, 2026-10-29; scope recorded per recipe; GTA V Enhanced short Story Mode qualification, 2026-10-30",
     "steam_identity_review": "2026-10-30; official store API, source URLs per entry"
   },
   "rules": "research/recipes/RULES.md",
   "verified": [
+    {
+      "title": "Assassin's Creed Black Flag Resynced",
+      "match": {
+        "exe": [
+          "acblackflag.exe"
+        ],
+        "steam": [
+          "3751950"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "native",
+      "fg_input": null,
+      "ini": {
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [],
+      "note": "The tested DXGI loader route stopped at DX12 error 0x80004004. Removing the loader allowed gameplay but lost OptiScaler upscaling and did not confirm FG. Alternate loader selection requires a fresh game check.",
+      "evidence": "installed",
+      "observed": "DXGI loader caused DX12 startup error on tested build; bypass reached gameplay without confirmed FG, October 29, 2026"
+    },
+    {
+      "title": "CONTROL Resonant",
+      "match": {
+        "exe": [
+          "controlresonant.exe"
+        ],
+        "steam": [
+          "3669870"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "FrameGen.FTInput": "2",
+        "FrameGen.AllowedFrameAhead": "2",
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [
+        {
+          "file": "AppData/Local/Remedy/CONTROLResonant/renderer.ini",
+          "base": "steamuser",
+          "format": "json",
+          "section": null,
+          "values": {
+            "m_eDLSSFGMode": 1
+          },
+          "why": "hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS FG is on",
+          "requires_fg_input": "dlssg"
+        }
+      ],
+      "launch_args": [],
+      "note": "Hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS Frame Generation is on: DLSS FG input plus m_eDLSSFGMode 1 in renderer.ini (created by the game on first start).",
+      "evidence": "generates",
+      "observed": "2.0 presents per game frame"
+    },
+    {
+      "title": "Crimson Desert",
+      "match": {
+        "exe": [
+          "crimsondesert.exe"
+        ],
+        "steam": [
+          "3321460"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "fsrfg",
+      "ini": {
+        "Inputs.EnableDlssInputs": "false",
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [
+        {
+          "file": "AppData/Local/Pearl Abyss/CD/save/user_engine_option_save.xml",
+          "base": "steamuser",
+          "format": "xml-option",
+          "section": null,
+          "values": {
+            "_enableFrameGeneration": "True"
+          },
+          "why": null,
+          "requires_fg_input": "fsrfg"
+        }
+      ],
+      "launch_args": [],
+      "note": "FSR 3.1 FG input with the game's frame generation on (native Anti-Lag 2), although the game also ships XeSS FG.",
+      "evidence": "gameplay",
+      "observed": "played at 2x"
+    },
+    {
+      "title": "Cyberpunk 2077",
+      "match": {
+        "exe": [
+          "cyberpunk2077.exe"
+        ],
+        "gog": [
+          "1423049311"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "Inputs.EnableDlssInputs": "true",
+        "Spoofing.Dxgi": "false",
+        "Inputs.EnableXeSSInputs": "false",
+        "Libraries.XeSSPath": ".\\libxess.dll",
+        "Hotfix.RestoreComputeSignature": "true",
+        "Hotfix.RestoreGraphicSignature": "true",
+        "Hotfix.ExtendedStateRestore": "true"
+      },
+      "game_settings": [
+        {
+          "file": "AppData/Local/CD Projekt Red/Cyberpunk 2077/UserSettings.json",
+          "base": "steamuser",
+          "format": "json-options",
+          "section": null,
+          "values": {
+            "ResolutionScaling": "DLSS",
+            "FrameGeneration": "DLSS",
+            "XESS_FrameGeneration": false,
+            "FSR3_FrameGeneration": false,
+            "DLSSFrameGen": true,
+            "WindowMode": "BorderlessWindowed",
+            "FSR_AntiLag2Mode": "Disabled",
+            "ReflexMode": "Enabled"
+          },
+          "why": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
+          "requires_fg_input": "dlssg"
+        }
+      ],
+      "launch_args": [],
+      "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved. HLX FSR 4 HDR also requires the tested reactive-mask-off workaround: the default produced a GPU page fault during startup. This changes an upscaler input; mask-on quality equivalence is unqualified.",
+      "evidence": "generates",
+      "observed": "2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10",
+      "upscaler_ini": {
+        "helixsr": {
+          "InitFlags.DisableReactiveMask": "true"
+        },
+        "hlx-fsr4": {
+          "InitFlags.DisableReactiveMask": "true"
+        }
+      }
+    },
     {
       "title": "Dead as Disco",
       "match": {
@@ -77,6 +225,33 @@
       ]
     },
     {
+      "title": "Deep Rock Galactic",
+      "match": {
+        "exe": [
+          "fsd-win64-shipping.exe"
+        ],
+        "steam": [
+          "548430"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart. An unselected reward screen can prevent reaching gameplay.",
+      "evidence": "gameplay",
+      "observed": "Sustained 2× generated presents in the Space Rig after a fresh restart, October 29, 2026",
+      "manual_steps": [
+        "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart."
+      ]
+    },
+    {
       "title": "Echo Point Nova",
       "match": {
         "exe": [
@@ -111,6 +286,73 @@
       "observed": "2.0"
     },
     {
+      "title": "Grand Theft Auto V Enhanced",
+      "match": {
+        "steam": [
+          "3240220"
+        ],
+        "exe": [
+          "gta5_enhanced.exe"
+        ],
+        "title": [
+          "grand theft auto v enhanced"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "FrameGen.Enabled": "true"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-nobattleye"
+      ],
+      "manual_steps": [
+        "Story Mode only, with BattlEye disabled using the game launcher option (-nobattleye).",
+        "Select DLSS in the game (Quality was tested); leave the game's frame generation off. FreeFG enables XeFG through OptiFG.",
+        "Use the bundled OptiScaler 273e8d4 or a descendant with the Social Club factory fix; leave DxgiFactoryWrapping at auto/false and remove any SocialClubD3D12Renderer DLL-disable override."
+      ],
+      "note": "GTA 1.0.1158.16, GE-Proton11-11, AMD FSR 4 RC12. The anti-cheat installation refusal still requires explicit per-game acceptance. The Social Club overlay stays available.",
+      "evidence": "gameplay",
+      "observed": "Story Mode bank prologue, movement and Social Club open/close; sustained 2.0 generated presents per game frame, including a fresh start with XeFG enabled",
+      "qualification": {
+        "date": "2026-10-30",
+        "optiscaler_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
+        "optiscaler_sha256": "044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87",
+        "record": "research/recipes/verified/gta-v-enhanced.md",
+        "limits": "Two successful short Story Mode starts; no Online, long-play, 3x/4x, HDR or pacing qualification."
+      }
+    },
+    {
+      "title": "Hogwarts Legacy",
+      "match": {
+        "exe": [
+          "hogwartslegacy.exe"
+        ],
+        "epic": [
+          "fa4240e57a3c46b39f169041b7811293"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "dlssg",
+      "ini": {
+        "Inputs.EnableDlssInputs": "true",
+        "Spoofing.Dxgi": "false",
+        "Hotfix.DisableOverlays": "true"
+      },
+      "game_settings": [],
+      "launch_args": [],
+      "note": "The game can reset DLSS FG to Off on startup. One gameplay run generated 2×, but setting persistence is unresolved. Check the menu after restarting; installation integrity alone does not confirm FG.",
+      "evidence": "gameplay",
+      "observed": "2× in opening gameplay with DLSS Quality and DLSS FG; repeat-launch persistence unresolved, October 29, 2026",
+      "pending_verification": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
+      "manual_steps": [
+        "Select DLSS Quality and DLSS Frame Generation in the game, then verify both after restarting. The tested game rewrote FG to Off; do not assume the saved setting took effect."
+      ]
+    },
+    {
       "title": "Kingdom Come: Deliverance II",
       "match": {
         "exe": [
@@ -132,6 +374,29 @@
       "note": "OptiFG input; HUDLimit 1 is kept for the OptiScaler menu's HUDFix toggle (HUDFix itself stays off).",
       "evidence": "gameplay",
       "observed": "2.0 in gameplay"
+    },
+    {
+      "title": "Red Dead Redemption 2",
+      "match": {
+        "exe": [
+          "rdr2.exe"
+        ],
+        "epic": [
+          "Heather"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "Inputs.EnableDlssInputs": "true",
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [],
+      "note": "The tested launch stopped at Rockstar authentication error 2 even directly through Heroic. Resolve launcher authentication before diagnosing FreeFG.",
+      "evidence": "installed",
+      "observed": "Rockstar authentication error 2 prevented game qualification, October 29, 2026"
     },
     {
       "title": "RoboCop: Rogue City",
@@ -171,6 +436,30 @@
       "observed": "2.0"
     },
     {
+      "title": "System Shock",
+      "match": {
+        "exe": [
+          "systemreshock-win64-shipping.exe"
+        ],
+        "steam": [
+          "482400"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "Spoofing.Dxgi": "true"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": "DX12 via -dx12 (the default DX11 path does not reach the upscaler).",
+      "evidence": "startup",
+      "observed": "2.0 at start-up"
+    },
+    {
       "title": "Tainted Grail: The Fall of Avalon",
       "match": {
         "exe": [
@@ -191,6 +480,88 @@
       "note": "FSR, DLSS and DXGI-spoof trials supplied no upscaler input on the tested build. No verified recipe fix. Preserve saves and graphics preferences during diagnosis.",
       "evidence": "fails",
       "observed": "No upscaler creation or generated frames in the tested gameplay, October 29, 2026"
+    },
+    {
+      "title": "The Invincible",
+      "match": {
+        "exe": [
+          "theinvincible-win64-shipping.exe"
+        ],
+        "steam": [
+          "731040"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {},
+      "game_settings": [
+        {
+          "file": "AppData/Local/TheInvincible/Saved/Config/WindowsNoEditor/Engine.ini",
+          "base": "steamuser",
+          "format": "ini",
+          "section": "SystemSettings",
+          "values": {
+            "r.NGX.DLSS.DilateMotionVectors": "0"
+          },
+          "why": null,
+          "requires_fg_input": null
+        }
+      ],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": null,
+      "evidence": "gameplay",
+      "observed": "2.0 in gameplay"
+    },
+    {
+      "title": "Thymesia",
+      "match": {
+        "exe": [
+          "plagueproject-win64-shipping.exe"
+        ],
+        "steam": [
+          "1343240"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "Spoofing.Dxgi": "false"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": "Needs an in-game resolution scale above 100% for the upscaler to run; DX12 via -dx12.",
+      "evidence": "installed",
+      "observed": "installed; generation not checked"
+    },
+    {
+      "title": "TRYP FPV",
+      "match": {
+        "exe": [
+          "trypfpv-win64-shipping.exe"
+        ],
+        "steam": [
+          "1881200"
+        ]
+      },
+      "status": "verified-bc250",
+      "route": "opti",
+      "fg_input": "upscaler",
+      "ini": {
+        "XeFG.HighResMV": "true"
+      },
+      "game_settings": [],
+      "launch_args": [
+        "-dx12"
+      ],
+      "note": null,
+      "evidence": "installed",
+      "observed": "installed; generation not checked"
     },
     {
       "title": "VOIN",
@@ -247,377 +618,6 @@
       "note": "DLSS FG input; the game's DLSS_FG setting is turned on.",
       "evidence": "gameplay",
       "observed": "2.0; played at 2x"
-    },
-    {
-      "title": "Crimson Desert",
-      "match": {
-        "exe": [
-          "crimsondesert.exe"
-        ],
-        "steam": [
-          "3321460"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "fsrfg",
-      "ini": {
-        "Inputs.EnableDlssInputs": "false",
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [
-        {
-          "file": "AppData/Local/Pearl Abyss/CD/save/user_engine_option_save.xml",
-          "base": "steamuser",
-          "format": "xml-option",
-          "section": null,
-          "values": {
-            "_enableFrameGeneration": "True"
-          },
-          "why": null,
-          "requires_fg_input": "fsrfg"
-        }
-      ],
-      "launch_args": [],
-      "note": "FSR 3.1 FG input with the game's frame generation on (native Anti-Lag 2), although the game also ships XeSS FG.",
-      "evidence": "gameplay",
-      "observed": "played at 2x"
-    },
-    {
-      "title": "Deep Rock Galactic",
-      "match": {
-        "exe": [
-          "fsd-win64-shipping.exe"
-        ],
-        "steam": [
-          "548430"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart. An unselected reward screen can prevent reaching gameplay.",
-      "evidence": "gameplay",
-      "observed": "Sustained 2× generated presents in the Space Rig after a fresh restart, October 29, 2026",
-      "manual_steps": [
-        "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart."
-      ]
-    },
-    {
-      "title": "The Invincible",
-      "match": {
-        "exe": [
-          "theinvincible-win64-shipping.exe"
-        ],
-        "steam": [
-          "731040"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {},
-      "game_settings": [
-        {
-          "file": "AppData/Local/TheInvincible/Saved/Config/WindowsNoEditor/Engine.ini",
-          "base": "steamuser",
-          "format": "ini",
-          "section": "SystemSettings",
-          "values": {
-            "r.NGX.DLSS.DilateMotionVectors": "0"
-          },
-          "why": null,
-          "requires_fg_input": null
-        }
-      ],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": null,
-      "evidence": "gameplay",
-      "observed": "2.0 in gameplay"
-    },
-    {
-      "title": "TRYP FPV",
-      "match": {
-        "exe": [
-          "trypfpv-win64-shipping.exe"
-        ],
-        "steam": [
-          "1881200"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "XeFG.HighResMV": "true"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": null,
-      "evidence": "installed",
-      "observed": "installed; generation not checked"
-    },
-    {
-      "title": "Cyberpunk 2077",
-      "match": {
-        "exe": [
-          "cyberpunk2077.exe"
-        ],
-        "gog": [
-          "1423049311"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "Inputs.EnableDlssInputs": "true",
-        "Spoofing.Dxgi": "false",
-        "Inputs.EnableXeSSInputs": "false",
-        "Libraries.XeSSPath": ".\\libxess.dll",
-        "Hotfix.RestoreComputeSignature": "true",
-        "Hotfix.RestoreGraphicSignature": "true",
-        "Hotfix.ExtendedStateRestore": "true"
-      },
-      "game_settings": [
-        {
-          "file": "AppData/Local/CD Projekt Red/Cyberpunk 2077/UserSettings.json",
-          "base": "steamuser",
-          "format": "json-options",
-          "section": null,
-          "values": {
-            "ResolutionScaling": "DLSS",
-            "FrameGeneration": "DLSS",
-            "XESS_FrameGeneration": false,
-            "FSR3_FrameGeneration": false,
-            "DLSSFrameGen": true,
-            "WindowMode": "BorderlessWindowed",
-            "FSR_AntiLag2Mode": "Disabled",
-            "ReflexMode": "Enabled"
-          },
-          "why": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
-          "requires_fg_input": "dlssg"
-        }
-      ],
-      "launch_args": [],
-      "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved. HLX FSR 4 HDR also requires the tested reactive-mask-off workaround: the default produced a GPU page fault during startup. This changes an upscaler input; mask-on quality equivalence is unqualified.",
-      "evidence": "generates",
-      "observed": "2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10",
-      "upscaler_ini": {
-        "helixsr": {
-          "InitFlags.DisableReactiveMask": "true"
-        },
-        "hlx-fsr4": {
-          "InitFlags.DisableReactiveMask": "true"
-        }
-      }
-    },
-    {
-      "title": "Hogwarts Legacy",
-      "match": {
-        "exe": [
-          "hogwartslegacy.exe"
-        ],
-        "epic": [
-          "fa4240e57a3c46b39f169041b7811293"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "Inputs.EnableDlssInputs": "true",
-        "Spoofing.Dxgi": "false",
-        "Hotfix.DisableOverlays": "true"
-      },
-      "game_settings": [],
-      "launch_args": [],
-      "note": "The game can reset DLSS FG to Off on startup. One gameplay run generated 2×, but setting persistence is unresolved. Check the menu after restarting; installation integrity alone does not confirm FG.",
-      "evidence": "gameplay",
-      "observed": "2× in opening gameplay with DLSS Quality and DLSS FG; repeat-launch persistence unresolved, October 29, 2026",
-      "pending_verification": "DLSS FG input needs the game's DLSS Frame Generation on (FrameGeneration Mode was Off).",
-      "manual_steps": [
-        "Select DLSS Quality and DLSS Frame Generation in the game, then verify both after restarting. The tested game rewrote FG to Off; do not assume the saved setting took effect."
-      ]
-    },
-    {
-      "title": "Red Dead Redemption 2",
-      "match": {
-        "exe": [
-          "rdr2.exe"
-        ],
-        "epic": [
-          "Heather"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "Inputs.EnableDlssInputs": "true",
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [],
-      "note": "The tested launch stopped at Rockstar authentication error 2 even directly through Heroic. Resolve launcher authentication before diagnosing FreeFG.",
-      "evidence": "installed",
-      "observed": "Rockstar authentication error 2 prevented game qualification, October 29, 2026"
-    },
-    {
-      "title": "Assassin's Creed Black Flag Resynced",
-      "match": {
-        "exe": [
-          "acblackflag.exe"
-        ],
-        "steam": [
-          "3751950"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "native",
-      "fg_input": null,
-      "ini": {
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [],
-      "note": "The tested DXGI loader route stopped at DX12 error 0x80004004. Removing the loader allowed gameplay but lost OptiScaler upscaling and did not confirm FG. Alternate loader selection requires a fresh game check.",
-      "evidence": "installed",
-      "observed": "DXGI loader caused DX12 startup error on tested build; bypass reached gameplay without confirmed FG, October 29, 2026"
-    },
-    {
-      "title": "System Shock",
-      "match": {
-        "exe": [
-          "systemreshock-win64-shipping.exe"
-        ],
-        "steam": [
-          "482400"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "Spoofing.Dxgi": "true"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": "DX12 via -dx12 (the default DX11 path does not reach the upscaler).",
-      "evidence": "startup",
-      "observed": "2.0 at start-up"
-    },
-    {
-      "title": "Thymesia",
-      "match": {
-        "exe": [
-          "plagueproject-win64-shipping.exe"
-        ],
-        "steam": [
-          "1343240"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-dx12"
-      ],
-      "note": "Needs an in-game resolution scale above 100% for the upscaler to run; DX12 via -dx12.",
-      "evidence": "installed",
-      "observed": "installed; generation not checked"
-    },
-    {
-      "title": "CONTROL Resonant",
-      "match": {
-        "exe": [
-          "controlresonant.exe"
-        ],
-        "steam": [
-          "3669870"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "dlssg",
-      "ini": {
-        "FrameGen.FTInput": "2",
-        "FrameGen.AllowedFrameAhead": "2",
-        "Spoofing.Dxgi": "false"
-      },
-      "game_settings": [
-        {
-          "file": "AppData/Local/Remedy/CONTROLResonant/renderer.ini",
-          "base": "steamuser",
-          "format": "json",
-          "section": null,
-          "values": {
-            "m_eDLSSFGMode": 1
-          },
-          "why": "hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS FG is on",
-          "requires_fg_input": "dlssg"
-        }
-      ],
-      "launch_args": [],
-      "note": "Hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS Frame Generation is on: DLSS FG input plus m_eDLSSFGMode 1 in renderer.ini (created by the game on first start).",
-      "evidence": "generates",
-      "observed": "2.0 presents per game frame"
-    },
-    {
-      "title": "Grand Theft Auto V Enhanced",
-      "match": {
-        "steam": [
-          "3240220"
-        ],
-        "exe": [
-          "gta5_enhanced.exe"
-        ],
-        "title": [
-          "grand theft auto v enhanced"
-        ]
-      },
-      "status": "verified-bc250",
-      "route": "opti",
-      "fg_input": "upscaler",
-      "ini": {
-        "FrameGen.Enabled": "true"
-      },
-      "game_settings": [],
-      "launch_args": [
-        "-nobattleye"
-      ],
-      "manual_steps": [
-        "Story Mode only, with BattlEye disabled using the game launcher option (-nobattleye).",
-        "Select DLSS in the game (Quality was tested); leave the game's frame generation off. FreeFG enables XeFG through OptiFG.",
-        "Use the bundled OptiScaler 273e8d4 or a descendant with the Social Club factory fix; leave DxgiFactoryWrapping at auto/false and remove any SocialClubD3D12Renderer DLL-disable override."
-      ],
-      "note": "GTA 1.0.1158.16, GE-Proton11-11, AMD FSR 4 RC12. The anti-cheat installation refusal still requires explicit per-game acceptance. The Social Club overlay stays available.",
-      "evidence": "gameplay",
-      "observed": "Story Mode bank prologue, movement and Social Club open/close; sustained 2.0 generated presents per game frame, including a fresh start with XeFG enabled",
-      "qualification": {
-        "date": "2026-10-30",
-        "optiscaler_commit": "273e8d449763d0e9e051dee831dc42badcd15d00",
-        "optiscaler_sha256": "044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87",
-        "record": "research/recipes/verified/gta-v-enhanced.md",
-        "limits": "Two successful short Story Mode starts; no Online, long-play, 3x/4x, HDR or pacing qualification."
-      }
     }
   ],
   "community": [],
@@ -8604,6 +8604,17 @@
       "upscaler_inputs": [
         "dlss"
       ],
+      "ini": [
+        {
+          "key": "FSR.FsrAgilitySDKUpgrade",
+          "value": "true",
+          "when": {
+            "upscaler_input": "fsr31_12",
+            "symptom": "startup crash",
+            "required_file": "D3D12_Optiscaler/D3D12Core.dll"
+          }
+        }
+      ],
       "proxy": [
         "winmm.dll",
         "winhttp.dll"
@@ -8618,17 +8629,6 @@
       },
       "compat": "working",
       "optipatcher": true,
-      "ini": [
-        {
-          "key": "FSR.FsrAgilitySDKUpgrade",
-          "value": "true",
-          "when": {
-            "upscaler_input": "fsr31_12",
-            "symptom": "startup crash",
-            "required_file": "D3D12_Optiscaler/D3D12Core.dll"
-          }
-        }
-      ],
       "requirements": [
         "The FSR3.1/DX12 startup workaround requires a D3D12_Optiscaler folder containing D3D12Core.dll; the INI value alone is insufficient."
       ]
@@ -9461,13 +9461,6 @@
       "pages": [
         "https://github.com/optiscaler/OptiScaler/wiki/Gears-of-War-E%E2%80%90Day"
       ],
-      "compat": "working",
-      "optipatcher": true,
-      "upscaler_inputs": [
-        "dlss",
-        "fsr4",
-        "xess"
-      ],
       "tested": {
         "optiscaler": [
           "0.9.5"
@@ -9479,12 +9472,19 @@
           "9070XT"
         ]
       },
-      "proxy": [
-        "d3d12.dll"
+      "upscaler_inputs": [
+        "dlss",
+        "fsr4",
+        "xess"
       ],
       "fg_inputs": [
         "dlssg"
       ],
+      "proxy": [
+        "d3d12.dll"
+      ],
+      "compat": "working",
+      "optipatcher": true,
       "requirements": [
         "The wiki describes an offline-only installation with anti-cheat disabled. This catalogue does not disable or bypass anti-cheat.",
         "XeFG startup fixes require OptiScaler 0.9.5 or v10; changing an INI alone does not supply those code fixes."
@@ -13949,7 +13949,6 @@
       "pages": [
         "https://github.com/optiscaler/OptiScaler/wiki/METRO-Redux"
       ],
-      "compat": "working",
       "tested": {
         "optiscaler": [
           "0.9.5"
@@ -13961,9 +13960,6 @@
           "9070XT"
         ]
       },
-      "proxy": [
-        "d3d12.dll"
-      ],
       "upscaler_inputs": [
         "dlss",
         "fsr31"
@@ -13984,6 +13980,10 @@
           }
         }
       ],
+      "proxy": [
+        "d3d12.dll"
+      ],
+      "compat": "working",
       "requirements": [
         "The game’s internal DX12 interop breaks upscaler timing, including OptiFG.",
         "Metro 2033 Redux may need the upscaler toggled again in game settings."
@@ -17956,13 +17956,13 @@
       "pages": [
         "https://github.com/optiscaler/OptiScaler/wiki/Compatibility-List"
       ],
-      "compat": "working",
-      "optipatcher": true,
       "upscaler_inputs": [
         "dlss",
         "fsr31",
         "xess"
-      ]
+      ],
+      "compat": "working",
+      "optipatcher": true
     },
     {
       "title": "Riven (2024)",

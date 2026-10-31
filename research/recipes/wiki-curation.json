@@ -1,0 +1,146 @@
+{
+  "about": "Maintainers' additions to wiki entries, by wiki title: titles (the complete list when it is not only the normalized wiki title), launcher IDs with their sources, and requirements (what an entry needs that its INI items cannot give).",
+  "entries": {
+    "Apocalypse 2.0": {
+      "title": [
+        "apocalypse 2 0",
+        "apocalypse 2 0 edition"
+      ],
+      "steam": [
+        "1291680"
+      ],
+      "identity_sources": [
+        {
+          "wiki_title": "Apocalypse 2.0",
+          "appid": "1291680",
+          "store_title": "Apocalypse: 2.0 Edition",
+          "store_type": "game",
+          "source": "https://store.steampowered.com/api/appdetails?appids=1291680&l=english",
+          "checked": "2026-10-30"
+        }
+      ]
+    },
+    "CONTROL Resonant": {
+      "requirements": [
+        "The current wiki workaround was reported on RX 9070 XT. It does not replace the curated BC-250 input and game-setting recipe."
+      ]
+    },
+    "Death Stranding: Director’s Cut": {
+      "requirements": [
+        "The current wiki reports shimmer or crashes with DLSS input and suggests XeSS input instead. This remains an explicit in-game choice."
+      ]
+    },
+    "FINAL FANTASY VII REBIRTH": {
+      "steam": [
+        "2909400"
+      ],
+      "identity_sources": [
+        {
+          "wiki_title": "FINAL FANTASY VII REBIRTH",
+          "appid": "2909400",
+          "store_title": "FINAL FANTASY VII REBIRTH",
+          "store_type": "game",
+          "source": "https://store.steampowered.com/api/appdetails?appids=2909400&l=english",
+          "checked": "2026-10-30"
+        }
+      ]
+    },
+    "FINAL FANTASY XIV: Dawntrail": {
+      "requirements": [
+        "The FSR3.1/DX12 startup workaround requires a D3D12_Optiscaler folder containing D3D12Core.dll; the INI value alone is insufficient."
+      ]
+    },
+    "Gears of War: E-Day": {
+      "requirements": [
+        "The wiki describes an offline-only installation with anti-cheat disabled. This catalogue does not disable or bypass anti-cheat.",
+        "XeFG startup fixes require OptiScaler 0.9.5 or v10; changing an INI alone does not supply those code fixes."
+      ]
+    },
+    "God of War Ragnarok": {
+      "title": [
+        "god of war ragnar k",
+        "god of war ragnarok"
+      ],
+      "steam": [
+        "2322010"
+      ],
+      "identity_sources": [
+        {
+          "wiki_title": "God of War Ragnarok",
+          "appid": "2322010",
+          "store_title": "God of War Ragnarök",
+          "store_type": "game",
+          "source": "https://store.steampowered.com/api/appdetails?appids=2322010&l=english",
+          "checked": "2026-10-30"
+        }
+      ]
+    },
+    "High on Life": {
+      "steam": [
+        "1583230"
+      ],
+      "identity_sources": [
+        {
+          "wiki_title": "High on Life",
+          "appid": "1583230",
+          "store_title": "High On Life",
+          "store_type": "game",
+          "source": "https://store.steampowered.com/api/appdetails?appids=1583230&l=english",
+          "checked": "2026-10-30"
+        }
+      ]
+    },
+    "METRO Redux": {
+      "title": [
+        "metro redux",
+        "metro 2033 redux",
+        "metro last light redux"
+      ],
+      "requirements": [
+        "The game’s internal DX12 interop breaks upscaler timing, including OptiFG.",
+        "Metro 2033 Redux may need the upscaler toggled again in game settings."
+      ]
+    },
+    "Shadow of the Tomb Raider": {
+      "steam": [
+        "750920"
+      ],
+      "identity_sources": [
+        {
+          "wiki_title": "Shadow of the Tomb Raider",
+          "appid": "750920",
+          "store_title": "Shadow of the Tomb Raider: Definitive Edition",
+          "store_type": "game",
+          "source": "https://store.steampowered.com/api/appdetails?appids=750920&l=english",
+          "checked": "2026-10-30"
+        }
+      ]
+    },
+    "Soulstice": {
+      "steam": [
+        "1602080"
+      ],
+      "identity_sources": [
+        {
+          "wiki_title": "Soulstice",
+          "appid": "1602080",
+          "store_title": "Soulstice",
+          "store_type": "game",
+          "source": "https://store.steampowered.com/api/appdetails?appids=1602080&l=english",
+          "checked": "2026-10-30"
+        }
+      ]
+    },
+    "SPRAWL": {
+      "requirements": [
+        "The current game build may omit nvngx_dlss.dll; OptiPatcher/DLSS input needs a genuine helper DLL beside the executable. Use the installer’s checked dependency handling."
+      ]
+    },
+    "Valor Mortis": {
+      "title": [
+        "valor mortis",
+        "valor mortis playtest"
+      ]
+    }
+  }
+}

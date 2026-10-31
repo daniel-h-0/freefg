@@ -1,0 +1,36 @@
+{
+ "title": "CONTROL Resonant",
+ "match": {
+  "exe": [
+   "controlresonant.exe"
+  ],
+  "steam": [
+   "3669870"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "dlssg",
+ "ini": {
+  "FrameGen.FTInput": "2",
+  "FrameGen.AllowedFrameAhead": "2",
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [
+  {
+   "file": "AppData/Local/Remedy/CONTROLResonant/renderer.ini",
+   "base": "steamuser",
+   "format": "json",
+   "section": null,
+   "values": {
+    "m_eDLSSFGMode": 1
+   },
+   "why": "hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS FG is on",
+   "requires_fg_input": "dlssg"
+  }
+ ],
+ "launch_args": [],
+ "note": "Hangs at the Remedy logo while the XeFG swap chain is created unless the game's DLSS Frame Generation is on: DLSS FG input plus m_eDLSSFGMode 1 in renderer.ini (created by the game on first start).",
+ "evidence": "generates",
+ "observed": "2.0 presents per game frame"
+}

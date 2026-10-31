@@ -25,7 +25,8 @@ def digest(data):
 
 def load(path=FILE):
     """The recipe file, or None. Either form works: the full provenance file (research/recipes/build_recipes.py) or
-    the compact runtime file built from it, whose wiki page links are relative to its wiki_url."""
+    the compact runtime file built from it, whose wiki page links are relative to its wiki_url and which lists each
+    OptiScaler.ini's keys once (optiscaler_ini_keys, by the INI's digest)."""
     if not Path(path).is_file():
         return None
     data = json.loads(Path(path).read_text())
@@ -34,6 +35,10 @@ def load(path=FILE):
         for entry in data.get('wiki', []):
             if 'pages' in entry:
                 entry['pages'] = [page if '://' in page else base + page for page in entry['pages']]
+    keys = data.pop('optiscaler_ini_keys', {})
+    for build in data.get('optiscaler_builds', {}).values():
+        if 'keys' not in build and build.get('ini_sha256') in keys:
+            build['keys'] = list(keys[build['ini_sha256']])
     return data
 
 

@@ -1,0 +1,22 @@
+{
+ "title": "VOIN",
+ "match": {
+  "exe": [
+   "voin-win64-shipping.exe"
+  ],
+  "steam": [
+   "2464530"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {},
+ "game_settings": [],
+ "launch_args": [
+  "-dx12"
+ ],
+ "note": null,
+ "evidence": "generates",
+ "observed": "2.0"
+}

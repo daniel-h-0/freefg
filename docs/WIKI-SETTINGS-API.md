@@ -82,3 +82,19 @@ hash and a pinned INI key manifest, falling back to keys in the current INI for
 an unrecognized build. Integrations may provide `files` (relative dependency
 paths) and `upscaler_input` when known. A known missing file cannot be confirmed
 away; unknown symptoms or input choices still need explicit confirmation.
+
+## Catalogue files
+
+`research/recipes/build_recipes.py` generates both catalogue files offline from
+the inputs committed beside it: `wiki.json` (the wiki's facts per title),
+`wiki-curation.json` (maintainers' launcher IDs, titles and requirements),
+`wiki_promote.json`, `optiscaler.json` (builds, INI key lists, quirk tables),
+`verified/*.json` and `community/*.json`. Never edit the generated files;
+`build_recipes.py --check` fails when they differ from what the inputs build.
+
+`packaging/recipes/recipes.json` is the full file. The compact
+`recipes-runtime.json` (a package's `recipes/recipes.json`) keeps wiki page
+links relative to `wiki_url` and each OptiScaler.ini's keys once, in
+`optiscaler_ini_keys` by INI digest. `recipes.load()` restores absolute links
+and `optiscaler_builds[commit]['keys']`; a reader that parses the compact file
+itself must do the same.

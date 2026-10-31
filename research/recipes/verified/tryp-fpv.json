@@ -1,0 +1,24 @@
+{
+ "title": "TRYP FPV",
+ "match": {
+  "exe": [
+   "trypfpv-win64-shipping.exe"
+  ],
+  "steam": [
+   "1881200"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {
+  "XeFG.HighResMV": "true"
+ },
+ "game_settings": [],
+ "launch_args": [
+  "-dx12"
+ ],
+ "note": null,
+ "evidence": "installed",
+ "observed": "installed; generation not checked"
+}

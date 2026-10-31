@@ -1,0 +1,55 @@
+{
+ "title": "Cyberpunk 2077",
+ "match": {
+  "exe": [
+   "cyberpunk2077.exe"
+  ],
+  "gog": [
+   "1423049311"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "dlssg",
+ "ini": {
+  "Inputs.EnableDlssInputs": "true",
+  "Spoofing.Dxgi": "false",
+  "Inputs.EnableXeSSInputs": "false",
+  "Libraries.XeSSPath": ".\\libxess.dll",
+  "Hotfix.RestoreComputeSignature": "true",
+  "Hotfix.RestoreGraphicSignature": "true",
+  "Hotfix.ExtendedStateRestore": "true"
+ },
+ "game_settings": [
+  {
+   "file": "AppData/Local/CD Projekt Red/Cyberpunk 2077/UserSettings.json",
+   "base": "steamuser",
+   "format": "json-options",
+   "section": null,
+   "values": {
+    "ResolutionScaling": "DLSS",
+    "FrameGeneration": "DLSS",
+    "XESS_FrameGeneration": false,
+    "FSR3_FrameGeneration": false,
+    "DLSSFrameGen": true,
+    "WindowMode": "BorderlessWindowed",
+    "FSR_AntiLag2Mode": "Disabled",
+    "ReflexMode": "Enabled"
+   },
+   "why": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved.",
+   "requires_fg_input": "dlssg"
+  }
+ ],
+ "launch_args": [],
+ "note": "Cyberpunk 2.5: DLSS upscaling and DLSS frame-generation input to XeFG. Keep the game's own libxess.dll and disable XeSS upscaler input. This combination passed with HelixSR; native XeSS FG with DLSS/HelixSR did not generate in these checks. Native AMD Anti-Lag 2 is disabled for this DLSS route, matching the working FG profile. Reflex is enabled, matching the game's DLSS FG behavior without adding a frame-rate cap. With HelixSR, disable the reactive/bias mask input as a workaround for intermittent first-frame GPU faults; this removes a temporal-reconstruction input. Switching to FSR 4 returns this recipe-owned setting to its original value. Explicit user settings are preserved. HLX FSR 4 HDR also requires the tested reactive-mask-off workaround: the default produced a GPU page fault during startup. This changes an upscaler input; mask-on quality equivalence is unqualified.",
+ "evidence": "generates",
+ "observed": "2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10",
+ "upscaler_ini": {
+  "helixsr": {
+   "InitFlags.DisableReactiveMask": "true"
+  },
+  "hlx-fsr4": {
+   "InitFlags.DisableReactiveMask": "true"
+  }
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "title": "Crimson Desert",
+ "match": {
+  "exe": [
+   "crimsondesert.exe"
+  ],
+  "steam": [
+   "3321460"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "fsrfg",
+ "ini": {
+  "Inputs.EnableDlssInputs": "false",
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [
+  {
+   "file": "AppData/Local/Pearl Abyss/CD/save/user_engine_option_save.xml",
+   "base": "steamuser",
+   "format": "xml-option",
+   "section": null,
+   "values": {
+    "_enableFrameGeneration": "True"
+   },
+   "why": null,
+   "requires_fg_input": "fsrfg"
+  }
+ ],
+ "launch_args": [],
+ "note": "FSR 3.1 FG input with the game's frame generation on (native Anti-Lag 2), although the game also ships XeSS FG.",
+ "evidence": "gameplay",
+ "observed": "played at 2x"
+}

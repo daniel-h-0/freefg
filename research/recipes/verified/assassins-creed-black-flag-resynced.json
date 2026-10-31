@@ -1,0 +1,22 @@
+{
+ "title": "Assassin's Creed Black Flag Resynced",
+ "match": {
+  "exe": [
+   "acblackflag.exe"
+  ],
+  "steam": [
+   "3751950"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "native",
+ "fg_input": null,
+ "ini": {
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [],
+ "launch_args": [],
+ "note": "The tested DXGI loader route stopped at DX12 error 0x80004004. Removing the loader allowed gameplay but lost OptiScaler upscaling and did not confirm FG. Alternate loader selection requires a fresh game check.",
+ "evidence": "installed",
+ "observed": "DXGI loader caused DX12 startup error on tested build; bypass reached gameplay without confirmed FG, October 29, 2026"
+}

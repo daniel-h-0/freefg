@@ -1,74 +1,73 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Build packaging/recipes/recipes.json, the per-game recipe file with its provenance (rules: RULES.md), and from it
-packaging/recipes/recipes-runtime.json, the compact file a package ships as recipes/recipes.json.
+"""Build packaging/recipes/recipes.json, the per-game recipe file with its provenance, from the inputs committed in
+research/recipes/ (offline: the same inputs give the same bytes), and from it packaging/recipes/recipes-runtime.json,
+the compact file a package ships as recipes/recipes.json.
 
-- verified-bc250: this host's library games (local-library.json), minus the installer's generic keys. Applied.
-- community-bc250: reviewed recipes from other BC-250 owners (community/*.json, CONTRIBUTING.md), validated against the
-  rules RULES.md sets for recipes. Applied, labelled as community reports.
-- quirks: OptiScaler exes whose runtime quirk sets a key the installer writes by default (rule Q3), every key a quirk
-  sets per exe (quirk_keys: nothing below a verified recipe writes those, Q3 generalised), and upstream quirks newer
-  than the shipped build (Q2), all from quirks.json (research/recipes/quirks2.py).
-- wiki-reported: one entry per wiki title (drafts/ at the commit sources.lock.json pins): facts only (page link, tested
-  versions, inputs, INI keys with every condition the page states, launch arguments, FG advice, proxy names, the
-  compatibility list's verdict, game-setting keys), no copied prose. DX12 launch arguments are applied (L1), broken FG
-  inputs veto the automatic choice (V1), the reviewed INI items of wiki_promote.json are applied where their conditions
-  hold (P1); the rest is shown (packaging/compat.py evaluates every condition against the install).
+- verified-bc250 (verified/*.json, one per game): recipes the maintainers qualified on a BC-250. Applied.
+- community-bc250 (community/*.json, community/README.md): reviewed recipes from other BC-250 owners, validated against
+  the rules for recipes. Applied, labelled as community reports.
+- quirks (optiscaler.json "quirks"): OptiScaler exes whose runtime quirk sets a key the installer writes by default (rule
+  Q3), every key a quirk sets per exe (quirk_keys: nothing below a verified recipe writes those, Q3 generalised), and
+  upstream quirks newer than the shipped build (Q2), derived from the research quirk extraction (--quirks).
+- wiki-reported (wiki.json, at the wiki commit it names): one entry per wiki title, facts only (page links, tested
+  versions, inputs, INI keys with every condition the page states, launch items, FG advice, proxy names, the
+  compatibility list's verdict, game-setting keys), no copied prose. wiki-curation.json adds the maintainers' launcher
+  IDs (with their sources), extra titles and requirements; an exe joins an entry when an OptiScaler quirk names the game.
+  DX12 launch arguments are applied (L1), broken FG inputs veto the automatic choice (V1), the reviewed INI items of
+  wiki_promote.json are applied where their conditions hold (P1); the rest is shown (packaging/compat.py evaluates every
+  condition against the install).
+- optiscaler.json also records each OptiScaler build a package may carry (DLL and OptiScaler.ini digests) and the keys
+  each OptiScaler.ini defines (once per digest): the wiki settings planner tells supported keys apart with them.
 
---compact rebuilds only the compact file from the existing full file (no research inputs needed).
+  build_recipes.py            both files from the inputs
+  build_recipes.py --check    exit status 1, writing nothing, when either file is not what the inputs build
+  build_recipes.py --compact  only the compact file, from the full file
+
+A refresh rewrites one input and rebuilds; the other inputs (curated identities, promotions, builds) stay as they are.
+The research drafts, the quirk extraction and the OptiScaler sources these read live outside this tree:
+  --wiki-drafts DIR --wiki-commit SHA --wiki-date DATE   wiki.json from research drafts (one entry per page section)
+  --add-build COMMIT DLL_SHA256 OPTISCALER_INI           a build's digests and the keys its OptiScaler.ini defines
+  --quirks QUIRKS_JSON                                   the quirk tables, from a quirk extraction of the pinned build
 """
-import argparse, hashlib, json, os, re, sys
+import argparse, configparser, hashlib, json, re, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 OUT = ROOT / 'packaging/recipes/recipes.json'
 COMPACT = ROOT / 'packaging/recipes/recipes-runtime.json'
-WIKI = 'https://github.com/optiscaler/OptiScaler/wiki/'
+VERIFIED = HERE / 'verified'
+COMMUNITY = HERE / 'community'
 DX12_ARGS = {'-dx12', '-d3d12', '-force-d3d12'}
 # What the drafts record beside a condition (SCHEMA.md): explanations, never limits on where an item applies.
 NOTE_KEYS = {'reason', 'purpose', 'note', 'autoapplied_since', 'value', 'feature'}
-# The pinned sources of a recipes build (wiki commit, OptiScaler builds): RULES.md "Wiki refresh".
-LOCK = HERE / 'sources.lock.json'
-PROMOTE = HERE / 'wiki_promote.json'
-COMMUNITY = HERE / 'community'
 
 INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4ForceModel', 'FSR.Fsr4EnableWatermark',
                   'FrameGen.Enabled', 'fakenvapi.UseFakenvapi', 'FrameGen.FGInput', 'FrameGen.FGOutput',
                   'Libraries.XeFGPath', 'Libraries.XeLLPath', 'XeFG.ForceBorderless', 'Plugins.LoadAsiPlugins',
                   'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel'}
-# Values only this host's FSR4 owner or logging uses: not part of a game's recipe.
-HOST_ONLY = {'Log.LogToFile', 'Log.LogLevel', 'Log.LogToConsole', 'Log.LogToNGX', 'Log.LogToDebug', 'BC250.Managed',
-             'BC250.AppId', 'BC250.Version'}
-# Why each verified game's non-generic values exist (the maintainers' BC-250 reports; kept short, shown in Setup).
-NOTES = {
-    '3669870': 'Hangs at the Remedy logo while the XeFG swap chain is created unless the game\'s DLSS Frame Generation '
-               'is on: DLSS FG input plus m_eDLSSFGMode 1 in renderer.ini (created by the game on first start).',
-    '1771300': 'OptiFG input; HUDLimit 1 is kept for the OptiScaler menu\'s HUDFix toggle (HUDFix itself stays off).',
-    '3321460': 'FSR 3.1 FG input with the game\'s frame generation on (native Anti-Lag 2), although the game also ships '
-               'XeSS FG.',
-    '3156770': 'DLSS FG input; the game\'s DLSS_FG setting is turned on.',
-    '1681430': 'FSR FG input needs the game\'s AMD frame generation; the game\'s FSR 3.0 FG may not reach OptiScaler.',
-    '3404260': 'FSR FG input generates only with the game\'s own frame generation on (FrameGenerationMode).',
-    '1343240': 'Needs an in-game resolution scale above 100% for the upscaler to run; DX12 via -dx12.',
-    '482400': 'DX12 via -dx12 (the default DX11 path does not reach the upscaler).',
-}
 
 
-# What each verified game showed on a BC-250 (public COMPATIBILITY.md "Supported games"): the evidence level
-# packaging/compat.py shows (gameplay: generated in gameplay; generates: 2.0 presents per game frame, context not
-# recorded; startup: at start-up or in the menu; installed: generation not checked; fails: a known open problem) and the
-# observation.
-EVIDENCE = {
-    '3669870': ('generates', '2.0 presents per game frame'), '3321460': ('gameplay', 'played at 2x'),
-    '1423049311': ('generates', '2.5 benchmark, HelixSR Quality, DLSS FG input: 2.0 in SDR and HDR10'), '3404260': ('generates', '2.0'), '1836730': ('generates', '2.0'),
-    '1771300': ('gameplay', '2.0 in gameplay'), '1681430': ('generates', '2.0'), '482400': ('startup', '2.0 at start-up'),
-    '731040': ('gameplay', '2.0 in gameplay'), '2464530': ('generates', '2.0'), '3156770': ('gameplay', '2.0; played at 2x'),
-    '3751950': ('installed', 'installed; generation not checked'), 'fa4240e57a3c46b39f169041b7811293': ('installed', 'installed; generation not checked'),
-    'Heather': ('installed', 'installed; generation not checked'), '1466060': ('installed', 'installed; generation not checked'),
-    '1343240': ('installed', 'installed; generation not checked'), '1881200': ('installed', 'installed; generation not checked'),
-    '3228590': ('fails', 'does not generate yet'), '548430': ('fails', 'did not generate: choose an upscaler once in the game\'s Video menu'),
-}
+def read(path):
+    return json.loads(Path(path).read_text())
+
+
+def dumps(data):
+    """The full file's one format: two-space indentation, text as is (the build and its tests use this alone)."""
+    return json.dumps(data, indent=2, ensure_ascii=False) + '\n'
+
+
+def dumps_compact(data):
+    return json.dumps(data, ensure_ascii=False, separators=(',', ':')) + '\n'
+
+
+def dumps_rows(doc, key):
+    """An input whose list under key (its last field) holds one item per line: a refresh's diff names the items it
+    changed."""
+    head = json.dumps({k: v for k, v in doc.items() if k != key}, indent=2, ensure_ascii=False)
+    rows = ',\n'.join('    ' + json.dumps(row, ensure_ascii=False) for row in doc[key])
+    return head[:-2] + f',\n  "{key}": [\n{rows}\n  ]\n}}\n'
 
 
 # Store editions of the same game: "Crimson Desert Enhanced", "The Witcher 3: Wild Hunt - Game of the Year Edition".
@@ -84,248 +83,86 @@ def norm(title):
     return EDITION.sub('', t).strip()
 
 
-def verified(local):
+# ---------------------------------------------------------------------------------------------------- the build
+# Field order of a wiki entry in the recipe file (every entry alike, whichever input added a field).
+WIKI_ORDER = ('title', 'match', 'status', 'pages', 'tested', 'upscaler_inputs', 'fg_inputs', 'fg_advice', 'ini', 'launch_args',
+              'other_launch_args', 'proxy', 'game_settings', 'counts', 'compat', 'optipatcher', 'promoted', 'requirements',
+              'identity_sources')
+# What wiki.json holds per entry (the wiki's facts), in its order.
+WIKI_FACTS = ('title', 'pages', 'tested', 'upscaler_inputs', 'fg_inputs', 'fg_advice', 'ini', 'launch', 'proxy', 'game_settings',
+              'counts', 'compat', 'optipatcher')
+# What wiki-curation.json may add to an entry: a complete title list, launcher IDs, requirements and the IDs' sources.
+CURATED = ('title', 'steam', 'gog', 'epic', 'requirements', 'identity_sources')
+
+
+def build_keys(opti, commit=None):
+    """The INI keys (lower case) the OptiScaler.ini of a build defines: the pinned build's by default."""
+    return {k.lower() for k in opti['ini_keys'][opti['builds'][commit or opti['pinned']]['ini_sha256']]}
+
+
+def exe_links(key, titles):
+    """The exes an OptiScaler quirk entry links to the wiki title key (titles: exe -> normalized game name). A quirk
+    comment names the game ("The Witcher 3"); it links to the one wiki title it is the start of: "the witcher 3 wild
+    hunt" extends "the witcher 3"; "red dead redemption 2" is another game than "red dead redemption"."""
+    return sorted(exe for exe, t in titles.items() if t == key or (
+        len(t.split()) >= 2 and key.startswith(t + ' ') and not re.match(r'\d|[ivx]+\b', key[len(t) + 1:])))
+
+
+def launch_tokens(items):
+    """(L1 arguments, other arguments) of an entry's launch items: an unconditional high-confidence DX12 switch is
+    applied (L1); every other token is shown."""
+    l1, other = [], []
+    for i in items:
+        conditions = {k for k in i.get('when') or {} if k not in NOTE_KEYS}
+        for arg in i['args']:
+            target = l1 if arg.lower() in DX12_ARGS and i.get('confidence') == 'high' and not conditions else other
+            if arg not in target:
+                target.append(arg)
+    return l1, other
+
+
+def wiki_entries(doc, curation, titles):
+    """The wiki part of the recipe file: wiki.json's facts per title, its exes from the quirk titles, the maintainers'
+    additions (wiki-curation.json)."""
+    known = {e['title'] for e in doc['entries']}
+    for title, extra in curation.items():
+        if title not in known:
+            raise SystemExit(f'wiki-curation.json: no wiki entry is titled {title!r}')
+        if set(extra) - set(CURATED):
+            raise SystemExit(f'wiki-curation.json {title!r}: unknown fields {sorted(set(extra) - set(CURATED))}')
     out = []
-    for g in local['games']:
-        ini = {k: v['value'] for k, v in g['ini'].items()
-               if k not in INSTALLER_KEYS and k not in HOST_ONLY and 'fsr4-baseline' not in v['origin']
-               and v['origin'] != ['installer']}
-        match = dict(exe=[g['exe']])
-        if g['appid'].isdecimal():
-            match['steam'] = [g['appid']]
-        elif g['appid'].startswith('gog-'):
-            match['gog'] = [g['appid'][4:]]
-        elif g['appid'].startswith('epic-'):
-            match['epic'] = [g['appid'][5:]]
-        settings = []
-        for s in g['game_side']:
-            # Only what is in effect on this host counts as local (VOIN and TRYP FPV delete the Engine.ini the owner wrote).
-            if not s.get('values') or not s.get('in_effect'):
-                continue
-            fmt = s.get('format') or ('xml-option' if s['file'].endswith('.xml') else 'ini')
-            # Engine.ini motion-vector tweaks help XeFG output whatever the input; the rest are FG toggles for the recipe's input.
-            general = fmt == 'ini' and s.get('section') == 'SystemSettings'
-            settings.append(dict(file=s['file'], base='steamuser', format=fmt, section=s.get('section'), values=s['values'],
-                                 why=s.get('why'), requires_fg_input=None if general or g['route'] == 'native' else g['fg_input']))
-        key = g['appid'].split('-', 1)[1] if g['appid'].startswith(('gog-', 'epic-')) else g['appid']
-        level, observed = EVIDENCE.get(key, (None, None))
-        entry = dict(title=g['title'], match=match, status='verified-bc250', route=g['route'],
-                     fg_input=None if g['route'] == 'native' else g['fg_input'], ini=ini, game_settings=settings,
-                     launch_args=[a for a in g['launch_args'] if a in DX12_ARGS], note=NOTES.get(g['appid']),
-                     evidence=level, observed=observed)
-        out.append(entry)
+    for e in doc['entries']:
+        if set(e) - set(WIKI_FACTS):
+            raise SystemExit(f'wiki.json {e["title"]!r}: unknown fields {sorted(set(e) - set(WIKI_FACTS))}')
+        key, extra = norm(e['title']), curation.get(e['title'], {})
+        match = dict(title=list(extra.get('title') or [key]))
+        exes = exe_links(key, titles)
+        if exes:
+            match['exe'] = exes
+        for store in ('steam', 'gog', 'epic'):
+            if extra.get(store):
+                match[store] = list(extra[store])
+        w = dict(title=e['title'], match=match, status='wiki-reported',
+                 pages=[p if '://' in p else doc['wiki']['url'] + p for p in e['pages']])
+        w.update({k: v for k, v in e.items() if k not in ('title', 'pages', 'launch')})
+        l1, other = launch_tokens(e.get('launch', []))
+        if l1:
+            w['launch_args'] = l1
+        if other:
+            w['other_launch_args'] = other
+        w.update({k: extra[k] for k in ('requirements', 'identity_sources') if extra.get(k)})
+        out.append(w)
     return out
 
 
-# C constants in quirk values, as the integers OptiScaler reads from its INI (d3d12.h).
-CONSTANTS = {'D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE': '64'}
-
-
-# The OptiScaler build backports are checked against (quirks.json's pinned side is the same build). Tester v26 ships
-# nightly-20260929 (upstream 92337ebf): re-derive against that build before the next recipes build (RULES.md Q2).
-# Its source tree: XEMFG_OPTISCALER_SOURCE, else the fork checkout in XEMFG_WORK (release/inputs.lock.json
-# work.optiscaler-fork.source.source_in_work), else --optiscaler. Only a full build reads it (not --compact).
-def _pinned_optiscaler():
-    if os.environ.get('XEMFG_OPTISCALER_SOURCE'):
-        return Path(os.environ['XEMFG_OPTISCALER_SOURCE'])
-    if os.environ.get('XEMFG_WORK'):
-        return Path(os.environ['XEMFG_WORK']) / 'fg-controls/OptiScaler'
-    return None
-
-
-PINNED_OPTISCALER = _pinned_optiscaler()
-
-
-def pinned_keys(source=PINNED_OPTISCALER):
-    """INI keys an OptiScaler build reads; a backport of any other key would do nothing. source: its Config.cpp, a
-    source tree holding it (OptiScaler/Config.cpp or Config.cpp), or the OptiScaler.ini the build ships."""
-    if source is None:
-        raise SystemExit('No OptiScaler source for the backport check: set XEMFG_OPTISCALER_SOURCE or XEMFG_WORK, or pass '
-                         '--optiscaler')
-    source = Path(source)
-    if source.is_dir():
-        source = next((p for p in (source/'OptiScaler/Config.cpp', source/'Config.cpp') if p.is_file()), source/'Config.cpp')
-    text = source.read_text(errors='replace')
-    if source.suffix.lower() == '.ini':
-        keys, section = set(), None
-        for line in text.splitlines():
-            header = re.fullmatch(r'\s*\[([^\]]+)\]\s*', line)
-            key = re.match(r'\s*([^;#=\s][^=]*?)\s*=', line)
-            if header:
-                section = header[1].strip()
-            elif key and section:
-                keys.add(f'{section}.{key[1]}')
-        return keys
-    return {f'{s}.{k}' for s, k in re.findall(r'set_from_config\(\s*read\w+\(\s*"([^"]+)"\s*,\s*"([^"]+)"', text)}
-
-
-def apply_changes(ver, changes):
-    """Curated changes (verified-changes.json) on top of the host's in-effect values: input moves, game settings."""
-    by_id = {}
-    for entry in ver:
-        for key in ('steam', 'gog', 'epic'):
-            for i in entry['match'].get(key, []):
-                by_id[{'steam': '', 'gog': 'gog-', 'epic': 'epic-'}[key] + i] = entry
-    for appid, change in changes['games'].items():
-        entry = by_id[appid]
-        if 'route' in change:
-            entry['route'] = change['route']
-        if 'fg_input' in change:
-            entry['fg_input'] = change['fg_input']
-            # Settings tied to the old input no longer apply.
-            entry['game_settings'] = [s for s in entry['game_settings'] if s.get('requires_fg_input') is None]
-            entry['ini'] = {k: v for k, v in entry['ini'].items() if k.split('.')[0].lower() not in ('framegen', 'fsrfg', 'optifg', 'dlssg')}
-        entry['ini'].update(change.get('ini', {}))
-        if change.get('upscaler_ini'):
-            entry['upscaler_ini'] = change['upscaler_ini']
-        for s in change.get('game_settings', []):
-            entry['game_settings'] = [x for x in entry['game_settings'] if x['file'] != s['file']]
-            entry['game_settings'].append(dict(file=s['file'], base='steamuser', format=s['format'], section=s.get('section'),
-                                               values=s['values'], why=change['why'], requires_fg_input=entry['fg_input']))
-        if not change.get('verified', True):
-            entry['pending_verification'] = change['why']
-        entry['note'] = ((entry.get('note') or '') + ' ' + change['why']).strip()
-
-
-def quirk_rules(quirks, verified_exes, optiscaler=PINNED_OPTISCALER):
-    pinned, upstream = quirks['pinned'], quirks['upstream']
-    readable = pinned_keys(optiscaler)
-    # Q3: installer defaults that a runtime quirk for the exe would set otherwise.
-    leave_auto = {}
-    for name, sets in pinned['config_level'].items():
-        for s in sets:
-            if s['ini'] in INSTALLER_KEYS and s['respects_user'] and s['ini'] != 'XeFG.ForceBorderless':
-                for e in pinned['entries']:
-                    if name in e['quirks']:
-                        for exe in e['exes']:
-                            leave_auto.setdefault(exe, []).append(dict(key=s['ini'], quirk=name, value=s['value']))
-    # Q2: config-level quirks upstream has and the pin lacks, per exe (key set only where auto).
-    # OptiScaler ORs every table entry naming the exe (getQuirksForExe / ApplyGameConfigs), so merge them (a dict
-    # comprehension kept only the last entry: horizonforbiddenwest.exe's AllowedFrameAhead2 looked new).
-    old = {}
-    for e in pinned['entries']:
-        for exe in e['exes']:
-            old.setdefault(exe, set()).update(e['quirks'])
-    backports = {}
-    for e in upstream['entries']:
-        for exe in e['exes']:
-            if exe in verified_exes:
-                continue  # a local recipe decides (RULES.md Q2: CONTROL Resonant keeps its preserved swap chain)
-            for name in sorted(set(e['quirks']) - old.get(exe, set())):  # sorted: the same file on every build
-                for s in upstream['config_level'].get(name, []):
-                    if s['respects_user'] and not s['condition'] and s['ini'] in readable and s['ini'] not in INSTALLER_KEYS:
-                        backports.setdefault(exe, {})[s['ini']] = dict(value=CONSTANTS.get(s['value'], s['value']), quirk=name,
-                                                                       comment=e['comment'][:1])
-    # Q3 generalised: every INI key a runtime quirk of the shipped build sets for the exe ("value@condition" when the
-    # quirk applies only under a condition). Community recipes, promoted wiki items and detection never write these.
-    quirk_keys = {}
-    for e in pinned['entries']:
-        for name in e['quirks']:
-            for s in pinned['config_level'].get(name, []):
-                if s.get('ini'):
-                    value = str(CONSTANTS.get(s['value'], s['value'])) + ('@' + s['condition'] if s.get('condition') else '')
-                    for exe in e['exes']:
-                        quirk_keys.setdefault(exe.lower(), {})[s['ini']] = value
-    quirk_keys = {exe: dict(sorted(keys.items())) for exe, keys in sorted(quirk_keys.items())}
-    return leave_auto, backports, quirk_keys, dict(pinned=pinned['commit'], upstream=upstream['commit'])
-
-
-def readable_keys(source):
-    """INI keys (lower case) the shipped OptiScaler build reads: its Config.cpp read*() calls and its OptiScaler.ini."""
-    sys.path.insert(0, str(HERE))
-    import check_drafts
-    # Without its OptiScaler.ini, keys only the INI lists would be dropped silently and recipes.json would differ.
-    root = Path(source) if Path(source).is_dir() else Path(source).parent
-    if check_drafts.ini_path(source) is None or not any(p.is_file() for p in (root/'OptiScaler/Config.cpp', root/'Config.cpp')):
-        raise SystemExit(f'No OptiScaler.ini and Config.cpp found with {source}: pass the OptiScaler source tree (or the '
-                         'Config.cpp inside it)')
-    return set(check_drafts.config_keys(source))
-
-
-def wiki(drafts, readable=None, dropped=None):
-    """One entry per wiki title. readable: the INI keys the shipped build reads (others are dropped and named in
-    dropped, a list)."""
-    by = {}
-    for f in sorted(drafts.glob('*.json')):
-        for e in json.loads(f.read_text())['entries']:
-            key = norm(e['title'])
-            if not key:
-                continue
-            w = by.setdefault(key, dict(title=re.sub(r'\s*\((FG Options page|Fakenvapi page|OptiFG page)\)', '', e['title']),
-                                        match=dict(title=[key]), status='wiki-reported', pages=[], tested={}, upscaler_inputs=[],
-                                        fg_inputs=[], fg_advice=[], ini=[], launch_args=[], other_launch_args=[], proxy=[],
-                                        game_settings=[], counts={}))
-            page = e['source'].get('page')
-            if page:
-                url = WIKI + page
-                if url not in w['pages']:
-                    w['pages'].append(url)
-            elif e['source']['kind'] == 'compat-list' and WIKI + 'Compatibility-List' not in w['pages']:
-                w['pages'].append(WIKI + 'Compatibility-List')
-            for k in ('optiscaler', 'os', 'gpu'):
-                for v in (e.get('tested') or {}).get(k, []) or []:
-                    w['tested'].setdefault(k, [])
-                    if v not in w['tested'][k]:
-                        w['tested'][k].append(v)
-            if (e.get('tested') or {}).get('linux'):
-                w['tested']['linux'] = True
-            # The compatibility list's verdict (working, not-working, single-os) and its OptiPatcher column.
-            if e.get('compat'):
-                w['compat'] = e['compat']
-            if e.get('optipatcher'):
-                w['optipatcher'] = True
-            for name in e.get('proxy') or []:
-                if name not in w['proxy']:
-                    w['proxy'].append(name)
-            for k in ('upscaler_inputs', 'fg_inputs'):
-                for v in e.get(k) or []:
-                    if v not in w[k]:
-                        w[k].append(v)
-            for i in e['items']:
-                if i.get('struck'):
-                    continue
-                w['counts'][i['type']] = w['counts'].get(i['type'], 0) + 1
-                # Every condition the page states (packaging/compat.py evaluates them; unknown ones are never applied).
-                when = dict(i.get('when') or {})
-                conditions = {k for k in when if k not in NOTE_KEYS}
-                if i['type'] == 'fg-input' and i.get('input') and i.get('advice'):
-                    a = dict(advice=i['advice'], input=i['input'], **({'when': when} if when else {}))
-                    if a not in w['fg_advice']:
-                        w['fg_advice'].append(a)
-                elif i['type'] == 'ini' and i.get('key') and i.get('value') is not None and i.get('confidence') == 'high':
-                    if readable is not None and i['key'].lower() not in readable:
-                        if dropped is not None:
-                            dropped.append(f"{e['title']}: {i['key']}")
-                        continue
-                    a = dict(key=i['key'], value=str(i['value']), **({'when': when} if when else {}))
-                    if a not in w['ini']:
-                        w['ini'].append(a)
-                elif i['type'] == 'proxy' and i.get('name'):
-                    if i['name'] not in w['proxy']:
-                        w['proxy'].append(i['name'])
-                elif i['type'] == 'game-setting' and i.get('key') and i.get('value') is not None and i.get('confidence') == 'high':
-                    a = dict(file=i.get('file'), key=i['key'], value=str(i['value']))
-                    if a not in w['game_settings']:
-                        w['game_settings'].append(a)
-                elif i['type'] == 'launch':
-                    for arg in i.get('args') or []:
-                        target = w['launch_args'] if arg.lower() in DX12_ARGS and i.get('confidence') == 'high' and not conditions else w['other_launch_args']
-                        if arg not in target:
-                            target.append(arg)
-    for w in by.values():
-        for k in [k for k, v in w.items() if v in ([], {})]:
-            del w[k]
-    return sorted(by.values(), key=lambda w: w['match']['title'][0])
-
-
-def promote(wk, path=PROMOTE):
+def promote(wk, path):
     """Attach the reviewed wiki INI items of wiki_promote.json (decision "promote") to their wiki entries as
-    "promoted" (RULES.md P1). Each must be an INI item of that entry in the drafts (same key and value) and a key no rule
-    keeps out of automatic writes; a reviewed item that is not refuses the build."""
+    "promoted" (RULES.md P1). Each must be an INI item of that entry (same key and value) and a key no rule keeps out
+    of automatic writes; a reviewed item that is not refuses the build."""
     sys.path.insert(0, str(ROOT / 'packaging'))
     import compat
-    review = json.loads(Path(path).read_text())
-    by = {w['match']['title'][0]: w for w in wk}
+    review = read(path)
+    by = {norm(w['title']): w for w in wk}
     count = 0
     for item in review['items']:
         if item['decision'] != 'promote':
@@ -342,6 +179,32 @@ def promote(wk, path=PROMOTE):
     return count
 
 
+def verified_recipes(folder=VERIFIED):
+    """verified/*.json, one recipe per game, in title order."""
+    return sorted((read(f) for f in sorted(Path(folder).glob('*.json'))), key=lambda v: (v['title'].casefold(), v['title']))
+
+
+def build(folder=HERE):
+    """The full recipe file from the inputs in folder (research/recipes/)."""
+    folder = Path(folder)
+    catalogue, opti, doc = read(folder / 'catalogue.json'), read(folder / 'optiscaler.json'), read(folder / 'wiki.json')
+    if opti['pinned'] not in opti['builds'] or set(opti['compatible_commits']) - set(opti['builds']):
+        raise SystemExit('optiscaler.json: the pinned and compatible commits each need a build (--add-build)')
+    quirks = opti['quirks']
+    wk = wiki_entries(doc, read(folder / 'wiki-curation.json')['entries'], quirks['titles'])
+    promote(wk, folder / 'wiki_promote.json')
+    sources = dict(optiscaler_pinned=opti['pinned'], optiscaler_upstream=opti['upstream'],
+                   optiscaler_compatible_commits=opti['compatible_commits'], wiki=f'{doc["wiki"]["commit"]} ({doc["wiki"]["date"]})',
+                   wiki_url=doc['wiki']['url'], **catalogue['notes'])
+    return dict(schema=catalogue['schema'], generated_by='research/recipes/build_recipes.py', sources=sources,
+                rules=catalogue['rules'], verified=verified_recipes(folder / 'verified'),
+                community=community(folder / 'community', quirks['quirk_keys'], build_keys(opti)),
+                leave_auto=quirks['leave_auto'], backports=quirks['backports'], quirk_keys=quirks['quirk_keys'],
+                wiki=[{k: w[k] for k in WIKI_ORDER if k in w} for w in sorted(wk, key=lambda w: (w['title'].casefold(), w['title']))],
+                optiscaler_builds={c: dict(b, keys=opti['ini_keys'][b['ini_sha256']]) for c, b in opti['builds'].items()})
+
+
+# ------------------------------------------------------------------------------------------------ community recipes
 # What a community recipe may hold (CONTRIBUTING.md "Game recipes"; RULES.md C1).
 COMMUNITY_KEYS = {'title', 'match', 'status', 'route', 'fg_input', 'ini', 'game_settings', 'launch_args', 'manual_steps',
                   'known_problems', 'reports', 'reviewed_by', 'reviewed', 'note'}
@@ -401,7 +264,7 @@ def check_community(entry, quirk_keys=None, readable=None):
 def community(folder=COMMUNITY, quirk_keys=None, readable=None):
     out = []
     for f in sorted(Path(folder).glob('*.json')):
-        entry = json.loads(f.read_text())
+        entry = read(f)
         problems = check_community(entry, quirk_keys, readable)
         if problems:
             raise SystemExit(f'{f.name}: ' + '; '.join(problems))
@@ -409,15 +272,7 @@ def community(folder=COMMUNITY, quirk_keys=None, readable=None):
     return out
 
 
-def exe_titles(quirks):
-    """exe -> normalized title from the first comment line of its quirk entry (links a game exe to its wiki page)."""
-    out = {}
-    for e in quirks['upstream']['entries']:
-        if e['comment'] and len(e['exes']) <= 2:
-            out.update({exe: norm(e['comment'][0]) for exe in e['exes']})
-    return out
-
-
+# ---------------------------------------------------------------------------------------------- the compact file
 # What packaging/recipes.py and install.py read from each part of the file; the compact runtime file keeps only these.
 # Keep in step with them: test_recipes.py proves the full and compact files resolve every game alike.
 VERIFIED_FIELDS = ('manual_steps', 'title', 'match', 'route', 'fg_input', 'ini', 'upscaler_ini', 'game_settings', 'launch_args', 'note', 'evidence', 'observed')
@@ -440,8 +295,9 @@ def _nvidia_only(item):
 
 
 def compact(data, full_sha256):
-    """The runtime recipe file: the fields the installer reads, wiki advice and settings it can show, and wiki page
-    links relative to wiki_url (recipes.load restores them). sources and the full file's digest say where it came from."""
+    """The runtime recipe file: the fields the installer reads, wiki advice and settings it can show, wiki page links
+    relative to wiki_url and each OptiScaler.ini's key list once (recipes.load restores both). sources and the full
+    file's digest say where it came from."""
     base = data['sources']['wiki_url']
     wiki = []
     for w in data['wiki']:
@@ -467,72 +323,242 @@ def compact(data, full_sha256):
         entry['game_settings'] = [_pick(s, SETTING_FIELDS) for s in c.get('game_settings', [])]
         entry['reports'] = len(c.get('reports', []))
         community.append(entry)
+    builds = data.get('optiscaler_builds', {})
     return dict(schema=data['schema'], generated_by='research/recipes/build_recipes.py --compact',
                 full=dict(file='packaging/recipes/recipes.json', sha256=full_sha256), sources=data['sources'], wiki_url=base,
                 verified=verified, community=community,
                 leave_auto={exe: [_pick(i, ('key', 'quirk')) for i in items] for exe, items in data['leave_auto'].items()},
                 backports={exe: {key: _pick(b, ('value',)) for key, b in keys.items()} for exe, keys in data['backports'].items()},
-                quirk_keys=data.get('quirk_keys', {}), optiscaler_builds=data.get('optiscaler_builds', {}), wiki=wiki)
+                quirk_keys=data.get('quirk_keys', {}),
+                optiscaler_builds={c: _pick(b, ('dll_sha256', 'ini_sha256')) for c, b in builds.items()},
+                optiscaler_ini_keys={b['ini_sha256']: b['keys'] for b in builds.values() if 'keys' in b}, wiki=wiki)
+
+
+def compact_text(full_text):
+    return dumps_compact(compact(json.loads(full_text), hashlib.sha256(full_text.encode()).hexdigest()))
 
 
 def write_compact(full=OUT, out=COMPACT):
-    raw = full.read_bytes()
-    text = json.dumps(compact(json.loads(raw), hashlib.sha256(raw).hexdigest()), ensure_ascii=False, separators=(',', ':')) + '\n'
-    out.write_text(text)
-    print(f'{out}: {len(text) // 1024} KiB from {full} ({len(raw) // 1024} KiB)')
+    raw = Path(full).read_text()
+    text = compact_text(raw)
+    Path(out).write_text(text)
+    print(f'{out}: {len(text.encode()) / 1024:.1f} KiB from {full} ({len(raw.encode()) / 1024:.1f} KiB)')
+
+
+# --------------------------------------------------------------------------------------------- refreshing inputs
+def wiki(drafts, readable=None, dropped=None):
+    """wiki.json's entries from research drafts (SCHEMA.md): one entry per wiki title, facts only. readable: the INI
+    keys (lower case) the shipped build reads (others are dropped and named in dropped, a list)."""
+    by = {}
+    for f in sorted(Path(drafts).glob('*.json')):
+        for e in read(f)['entries']:
+            key = norm(e['title'])
+            if not key:
+                continue
+            w = by.setdefault(key, dict(title=re.sub(r'\s*\((FG Options page|Fakenvapi page|OptiFG page)\)', '', e['title']),
+                                        pages=[], tested={}, upscaler_inputs=[], fg_inputs=[], fg_advice=[], ini=[], launch=[],
+                                        proxy=[], game_settings=[], counts={}))
+            page = e['source'].get('page') or ('Compatibility-List' if e['source']['kind'] == 'compat-list' else None)
+            if page and page not in w['pages']:
+                w['pages'].append(page)
+            for k in ('optiscaler', 'os', 'gpu'):
+                for v in (e.get('tested') or {}).get(k, []) or []:
+                    w['tested'].setdefault(k, [])
+                    if v not in w['tested'][k]:
+                        w['tested'][k].append(v)
+            if (e.get('tested') or {}).get('linux'):
+                w['tested']['linux'] = True
+            # The compatibility list's verdict (working, not-working, single-os) and its OptiPatcher column.
+            if e.get('compat'):
+                w['compat'] = e['compat']
+            if e.get('optipatcher') is not None:
+                w['optipatcher'] = w.get('optipatcher', False) or bool(e['optipatcher'])
+            for name in e.get('proxy') or []:
+                if name not in w['proxy']:
+                    w['proxy'].append(name)
+            for k in ('upscaler_inputs', 'fg_inputs'):
+                for v in e.get(k) or []:
+                    if v not in w[k]:
+                        w[k].append(v)
+            for i in e['items']:
+                if i.get('struck'):
+                    continue
+                w['counts'][i['type']] = w['counts'].get(i['type'], 0) + 1
+                # Every condition the page states (packaging/compat.py evaluates them; unknown ones are never applied).
+                when = dict(i.get('when') or {})
+                if i['type'] == 'fg-input' and i.get('input') and i.get('advice'):
+                    a = dict(advice=i['advice'], input=i['input'], **({'when': when} if when else {}))
+                    if a not in w['fg_advice']:
+                        w['fg_advice'].append(a)
+                elif i['type'] == 'ini' and i.get('key') and i.get('value') is not None and i.get('confidence') == 'high':
+                    if readable is not None and i['key'].lower() not in readable:
+                        if dropped is not None:
+                            dropped.append(f"{e['title']}: {i['key']}")
+                        continue
+                    a = dict(key=i['key'], value=str(i['value']), **({'when': when} if when else {}))
+                    if a not in w['ini']:
+                        w['ini'].append(a)
+                elif i['type'] == 'proxy' and i.get('name'):
+                    if i['name'] not in w['proxy']:
+                        w['proxy'].append(i['name'])
+                elif i['type'] == 'game-setting' and i.get('key') and i.get('value') is not None and i.get('confidence') == 'high':
+                    a = dict(file=i.get('file'), key=i['key'], value=str(i['value']))
+                    if a not in w['game_settings']:
+                        w['game_settings'].append(a)
+                elif i['type'] == 'launch' and i.get('args'):
+                    # One item as the page gives it: its tokens in order, its condition and the extraction's confidence.
+                    a = dict(args=[str(a) for a in i['args']], **({'when': when} if when else {}), confidence=i.get('confidence'))
+                    if a not in w['launch']:
+                        w['launch'].append(a)
+    out = []
+    for w in by.values():
+        out.append({k: w[k] for k in WIKI_FACTS if k in w and w[k] not in ([], {})})
+    return sorted(out, key=lambda w: (w['title'].casefold(), w['title']))
+
+
+def refresh_wiki(drafts, commit, date, folder=HERE):
+    """wiki.json from research drafts at a wiki commit; the dropped INI items (keys the pinned build does not define)
+    are printed."""
+    path = Path(folder) / 'wiki.json'
+    doc, dropped = read(path), []
+    if not re.fullmatch(r'[0-9a-f]{40}', commit or '') or not re.fullmatch(r'\d{4}-\d\d-\d\d', date or ''):
+        raise SystemExit('--wiki-drafts needs --wiki-commit (the full commit) and --wiki-date (YYYY-MM-DD)')
+    doc['entries'] = wiki(drafts, build_keys(read(Path(folder) / 'optiscaler.json')), dropped)
+    doc['wiki'] = dict(doc['wiki'], commit=commit, date=date)
+    path.write_text(dumps_rows(doc, 'entries'))
+    print(f'{path}: {len(doc["entries"])} entries; dropped {len(dropped)} INI items no shipped key reads: ' + '; '.join(dropped))
+
+
+def ini_keys(data):
+    """The keys an OptiScaler.ini defines, as Section.key (configparser's lower-case key, as the installer reads it)."""
+    parser = configparser.ConfigParser(interpolation=None, strict=True)
+    parser.read_string(data.decode('utf-8-sig'))
+    return sorted(f'{s}.{k}' for s in parser.sections() for k in parser[s])
+
+
+def add_build(commit, dll_sha256, ini, folder=HERE):
+    """Record an OptiScaler build in optiscaler.json: its DLL digest, its OptiScaler.ini's digest and that INI's keys
+    (one list per digest; a list no build uses any more goes)."""
+    if not re.fullmatch(r'[0-9a-f]{40}', commit) or not re.fullmatch(r'[0-9a-f]{64}', dll_sha256):
+        raise SystemExit('--add-build needs the full commit and the DLL\'s SHA-256 (lower-case hex)')
+    path, data = Path(folder) / 'optiscaler.json', Path(ini).read_bytes()
+    opti, sha = read(path), hashlib.sha256(data).hexdigest()
+    opti['builds'][commit] = dict(dll_sha256=dll_sha256, ini_sha256=sha)
+    opti['ini_keys'][sha] = ini_keys(data)
+    opti['ini_keys'] = {k: v for k, v in opti['ini_keys'].items() if any(b['ini_sha256'] == k for b in opti['builds'].values())}
+    path.write_text(dumps(opti))
+    print(f'{path}: build {commit[:8]}, {len(opti["ini_keys"][sha])} INI keys')
+
+
+# C constants in quirk values, as the integers OptiScaler reads from its INI (d3d12.h).
+CONSTANTS = {'D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE': '64'}
+
+
+def quirk_rules(quirks, verified_exes, readable):
+    """(leave_auto, backports, quirk_keys, commits) from a quirk extraction (quirks2.py: pinned and upstream entries
+    and config-level effects). readable: the INI keys (lower case) the pinned build reads; a backport of any other key
+    would do nothing."""
+    pinned, upstream = quirks['pinned'], quirks['upstream']
+    # Q3: installer defaults that a runtime quirk for the exe would set otherwise.
+    leave_auto = {}
+    for name, sets in pinned['config_level'].items():
+        for s in sets:
+            if s['ini'] in INSTALLER_KEYS and s['respects_user'] and s['ini'] != 'XeFG.ForceBorderless':
+                for e in pinned['entries']:
+                    if name in e['quirks']:
+                        for exe in e['exes']:
+                            leave_auto.setdefault(exe, []).append(dict(key=s['ini'], quirk=name, value=s['value']))
+    # Q2: config-level quirks upstream has and the pin lacks, per exe (key set only where auto).
+    # OptiScaler ORs every table entry naming the exe (getQuirksForExe / ApplyGameConfigs), so merge them (a dict
+    # comprehension kept only the last entry: horizonforbiddenwest.exe's AllowedFrameAhead2 looked new).
+    old = {}
+    for e in pinned['entries']:
+        for exe in e['exes']:
+            old.setdefault(exe, set()).update(e['quirks'])
+    backports = {}
+    for e in upstream['entries']:
+        for exe in e['exes']:
+            if exe in verified_exes:
+                continue  # a local recipe decides (RULES.md Q2: CONTROL Resonant keeps its preserved swap chain)
+            for name in sorted(set(e['quirks']) - old.get(exe, set())):  # sorted: the same file on every build
+                for s in upstream['config_level'].get(name, []):
+                    if s['respects_user'] and not s['condition'] and s['ini'].lower() in readable and s['ini'] not in INSTALLER_KEYS:
+                        backports.setdefault(exe, {})[s['ini']] = dict(value=CONSTANTS.get(s['value'], s['value']), quirk=name,
+                                                                       comment=e['comment'][:1])
+    # Q3 generalised: every INI key a runtime quirk of the shipped build sets for the exe ("value@condition" when the
+    # quirk applies only under a condition). Community recipes, promoted wiki items and detection never write these.
+    quirk_keys = {}
+    for e in pinned['entries']:
+        for name in e['quirks']:
+            for s in pinned['config_level'].get(name, []):
+                if s.get('ini'):
+                    value = str(CONSTANTS.get(s['value'], s['value'])) + ('@' + s['condition'] if s.get('condition') else '')
+                    for exe in e['exes']:
+                        quirk_keys.setdefault(exe.lower(), {})[s['ini']] = value
+    quirk_keys = {exe: dict(sorted(keys.items())) for exe, keys in sorted(quirk_keys.items())}
+    return leave_auto, backports, quirk_keys, dict(pinned=pinned['commit'], upstream=upstream['commit'])
+
+
+def exe_titles(quirks):
+    """exe -> normalized title from the first comment line of its quirk entry (links a game exe to its wiki page)."""
+    out = {}
+    for e in quirks['upstream']['entries']:
+        if e['comment'] and len(e['exes']) <= 2:
+            out.update({exe: norm(e['comment'][0]) for exe in e['exes']})
+    return out
+
+
+def refresh_quirks(path, folder=HERE):
+    """optiscaler.json's quirk tables from a quirk extraction whose pinned side is a build with the shipped quirks."""
+    quirks, target = read(path), Path(folder) / 'optiscaler.json'
+    opti = read(target)
+    if quirks['pinned']['commit'] not in {opti['pinned'], *opti['compatible_commits']}:
+        raise SystemExit('the quirk extraction\'s pinned side is no build optiscaler.json lists as pinned or compatible')
+    exes = {exe for v in verified_recipes(Path(folder) / 'verified') for exe in v['match'].get('exe', [])}
+    leave_auto, backports, quirk_keys, commits = quirk_rules(quirks, exes, build_keys(opti, quirks['pinned']['commit']))
+    opti['quirks'] = dict(about=opti['quirks']['about'], pinned=commits['pinned'], upstream=commits['upstream'],
+                          leave_auto=leave_auto, backports=backports, quirk_keys=quirk_keys, titles=dict(sorted(exe_titles(quirks).items())))
+    target.write_text(dumps(opti))
+    print(f'{target}: leave_auto {len(leave_auto)} exes, backports {len(backports)} exes, quirk_keys {len(quirk_keys)} exes')
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--optiscaler', type=Path, default=PINNED_OPTISCALER,
-                    help='the shipped OptiScaler build: its source tree, or the Config.cpp inside it (backport check and the INI keys it reads)')
+    ap.add_argument('--check', action='store_true', help='compare instead of writing; exit status 1 when a file is stale')
     ap.add_argument('--compact', action='store_true', help='only rebuild the compact runtime file from the full file')
+    ap.add_argument('--wiki-drafts', type=Path, help='rewrite wiki.json from research drafts (SCHEMA.md), then rebuild')
+    ap.add_argument('--wiki-commit', help='the wiki commit the drafts were read at (with --wiki-drafts)')
+    ap.add_argument('--wiki-date', help='its date, YYYY-MM-DD (with --wiki-drafts)')
+    ap.add_argument('--add-build', nargs=3, metavar=('COMMIT', 'DLL_SHA256', 'OPTISCALER_INI'),
+                    help='record an OptiScaler build\'s digests and INI keys in optiscaler.json, then rebuild')
+    ap.add_argument('--quirks', type=Path, help='rewrite optiscaler.json\'s quirk tables from a quirk extraction, then rebuild')
     a = ap.parse_args()
     if a.compact:
         write_compact()
         return
-    local = json.loads((HERE / 'local-library.json').read_text())
-    quirks = json.loads((HERE / 'quirks.json').read_text())
-    lock = json.loads(LOCK.read_text())
-    if quirks['pinned']['commit'] != lock['optiscaler_shipped']['commit']:
-        raise SystemExit('quirks.json was not derived from the shipped OptiScaler build (sources.lock.json); run quirks2.py')
-    ver = verified(local)
-    apply_changes(ver, json.loads((HERE / 'verified-changes.json').read_text()))
-    # Runtime-qualified additions outside the historical host-library snapshot.
-    for path in sorted((HERE / 'verified').glob('*.json')):
-        entry = json.loads(path.read_text())
-        if entry['match'] not in [row['match'] for row in ver]:
-            ver.append(entry)
-    leave_auto, backports, quirk_keys, commits = quirk_rules(quirks, {exe for v in ver for exe in v['match']['exe']}, a.optiscaler)
-    readable, dropped = readable_keys(a.optiscaler), []
-    wk = wiki(HERE / 'drafts', readable, dropped)
-    titles = exe_titles(quirks)
-    for w in wk:
-        mine = w['match']['title'][0]
-        # A quirk comment names the game ("The Witcher 3"); link its exe to the one wiki title it is the start of.
-        # "the witcher 3 wild hunt" extends "the witcher 3"; "red dead redemption 2" is another game than "red dead redemption".
-        exes = sorted(exe for exe, t in titles.items() if t == mine or (
-            len(t.split()) >= 2 and mine.startswith(t + ' ') and not re.match(r'\d|[ivx]+\b', mine[len(t) + 1:])))
-        if exes:
-            w['match']['exe'] = exes
-    promoted = promote(wk)
-    comm = community(COMMUNITY, quirk_keys, readable)
-    wiki_lock = lock['wiki']
-    data = dict(schema=1, generated_by='research/recipes/build_recipes.py',
-                sources=dict(optiscaler_pinned=commits['pinned'], optiscaler_upstream=commits['upstream'],
-                             wiki=f'{wiki_lock["commit"][:7]} ({wiki_lock["date"]})', wiki_url=WIKI,
-                             host='maintainers\' BC-250 library, 2026-09-29'),
-                rules='research/recipes/RULES.md', verified=ver, community=comm, leave_auto=leave_auto, backports=backports,
-                quirk_keys=quirk_keys, wiki=wk)
-    OUT.parent.mkdir(exist_ok=True)
-    text = json.dumps(data, indent=1, ensure_ascii=False) + '\n'
-    OUT.write_text(text)
-    print(f'{OUT}: {len(text) // 1024} KiB; verified {len(ver)}, wiki {len(wk)} '
-          f'({sum(1 for w in wk if w.get("launch_args"))} with DX12 launch args, {sum(1 for w in wk if "exe" in w["match"])} with exe), '
-          f'leave_auto {len(leave_auto)} exes, backports {len(backports)} exes, quirk_keys {len(quirk_keys)} exes, '
-          f'promoted {promoted} items, community {len(comm)} recipes; dropped {len(dropped)} wiki INI items no shipped key reads: '
-          + '; '.join(dropped))
-    write_compact()
+    if a.wiki_drafts:
+        refresh_wiki(a.wiki_drafts, a.wiki_commit, a.wiki_date)
+    if a.add_build:
+        add_build(*a.add_build)
+    if a.quirks:
+        refresh_quirks(a.quirks)
+    data = build()
+    full = dumps(data)
+    small = compact_text(full)
+    if a.check:
+        stale = [str(p) for p, text in ((OUT, full), (COMPACT, small)) if not p.is_file() or p.read_text() != text]
+        if stale:
+            sys.exit('stale (run research/recipes/build_recipes.py): ' + ', '.join(stale))
+        print('up to date')
+        return
+    OUT.write_text(full)
+    COMPACT.write_text(small)
+    print(f'{OUT}: {len(full.encode()) / 1024:.1f} KiB; verified {len(data["verified"])}, wiki {len(data["wiki"])} '
+          f'({sum(1 for w in data["wiki"] if w.get("launch_args"))} with DX12 launch args, '
+          f'{sum(1 for w in data["wiki"] if "exe" in w["match"])} with exe), leave_auto {len(data["leave_auto"])} exes, '
+          f'backports {len(data["backports"])} exes, quirk_keys {len(data["quirk_keys"])} exes, '
+          f'promoted {sum(len(w.get("promoted", [])) for w in data["wiki"])} items, community {len(data["community"])} recipes')
+    print(f'{COMPACT}: {len(small.encode()) / 1024:.1f} KiB')
 
 
 if __name__ == '__main__':

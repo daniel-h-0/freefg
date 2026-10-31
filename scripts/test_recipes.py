@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Per-game recipes: matching, INI keys only where auto, reversible game settings and launch arguments."""
-import contextlib, copy, io, json, sys, tempfile, unittest
+import contextlib, copy, hashlib, io, json, shutil, sys, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -266,7 +266,10 @@ class BuildTests(unittest.TestCase):
             self.assertEqual(runtime.get('requirements'), full.get('requirements'))
         kena = next(w for w in compact['wiki'] if w['title'] == 'Kena: Bridge of Spirits')
         self.assertTrue(any(i.get('when', {}).get('gpu') == 'non-nvidia' for i in kena['ini']))
-        self.assertEqual(compact['optiscaler_builds'], self.data['optiscaler_builds'])
+        # Each OptiScaler.ini's keys once (two builds share one INI); recipes.load gives every build its list again.
+        self.assertEqual(len(compact['optiscaler_ini_keys']), len({b['ini_sha256'] for b in self.data['optiscaler_builds'].values()}))
+        self.assertEqual({c: dict(b, keys=compact['optiscaler_ini_keys'][b['ini_sha256']]) for c, b in compact['optiscaler_builds'].items()},
+                         self.data['optiscaler_builds'])
         self.assertEqual(len(self.data['wiki']), 761)
 
     def test_dependency_missing_cannot_be_confirmed_away(self):
@@ -287,6 +290,134 @@ class BuildTests(unittest.TestCase):
                                       ('upscaler_input', 'dlss', 'fsr2')]:
             self.assertIs(self.compat.evaluate({key: expected}, {key: actual})[0], False)
             self.assertIs(self.compat.evaluate({key: expected}, {key: expected})[0], True)
+
+    FULL = ROOT/'packaging/recipes/recipes.json'
+    COMPACT = ROOT/'packaging/recipes/recipes-runtime.json'
+
+    def test_the_shipped_files_are_what_the_inputs_build(self):
+        # Offline and from this tree alone: a refresh can only change what its own input says.
+        full = self.b.dumps(self.b.build())
+        self.assertEqual(self.FULL.read_text(), full, 'stale: run research/recipes/build_recipes.py')
+        self.assertEqual(self.COMPACT.read_text(), self.b.compact_text(full), 'stale: run research/recipes/build_recipes.py')
+
+    def test_one_format(self):
+        for path, dump in ((self.FULL, self.b.dumps), (self.COMPACT, self.b.dumps_compact)):
+            raw = path.read_text()
+            self.assertEqual(dump(json.loads(raw)), raw, path.name)
+        inputs = self.ROOT/'research/recipes'
+        for name in ('optiscaler.json', 'catalogue.json', 'wiki-curation.json'):
+            self.assertEqual(self.b.dumps(json.loads((inputs/name).read_text())), (inputs/name).read_text(), name)
+        raw = (inputs/'wiki.json').read_text()
+        self.assertEqual(self.b.dumps_rows(json.loads(raw), 'entries'), raw)
+        self.assertEqual(sum(1 for line in raw.splitlines() if line.startswith('    {')), len(json.loads(raw)['entries']))  # one line each
+
+    def inputs(self, tmp):
+        """A copy of the committed inputs (refresh tests write only the copy)."""
+        folder = Path(tmp)/'recipes'
+        shutil.copytree(self.ROOT/'research/recipes', folder, ignore=shutil.ignore_patterns('*.py', '*.md', '__pycache__'))
+        return folder
+
+    # Research drafts (research SCHEMA.md) for one wiki title: a page with INI and launch items, and its compatibility row.
+    DRAFTS = dict(entries=[
+        dict(title='Soulstice', source=dict(kind='wiki-page', page='Soulstice', line=3), tested=dict(optiscaler=['0.9'], gpu=['RX 7900 XTX']),
+             upscaler_inputs=['dlss'], items=[dict(type='ini', key='Hotfix.ColorResourceBarrier', value='4', confidence='high'),
+                                               dict(type='ini', key='Not.AKey', value='1', confidence='high'),
+                                               dict(type='launch', args=['-dx12'], confidence='high'),
+                                               dict(type='launch', args=['-skipintro', '-dx12'], when=dict(condition='crash at start'), confidence='high'),
+                                               dict(type='issue', quote='prose stays in the drafts', confidence='high')]),
+        dict(title='Soulstice', source=dict(kind='compat-list', line=40), compat='working', optipatcher=False, items=[])])
+
+    def refresh(self, folder, drafts):
+        path = folder.parent/'drafts'
+        path.mkdir(exist_ok=True)
+        (path/'pages-00.json').write_text(json.dumps(drafts))
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.b.refresh_wiki(path, '0123456789abcdef0123456789abcdef01234567', '2026-11-01', folder)
+        return out.getvalue()
+
+    def test_a_wiki_refresh_keeps_the_curated_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            curation = json.loads((folder/'wiki-curation.json').read_text())
+            curation['entries'] = {'Soulstice': curation['entries']['Soulstice']}
+            (folder/'wiki-curation.json').write_text(json.dumps(curation))
+            review = json.loads((folder/'wiki_promote.json').read_text())
+            review['items'] = [i for i in review['items'] if i['title'] == 'Soulstice']
+            (folder/'wiki_promote.json').write_text(json.dumps(review))
+            self.assertIn('dropped 1 INI items no shipped key reads: Soulstice: Not.AKey', self.refresh(folder, self.DRAFTS))
+            data = self.b.build(folder)
+            entry, = data['wiki']
+            self.assertEqual(entry['match'], dict(title=['soulstice'], exe=['soulstice.exe'], steam=['1602080']))
+            self.assertEqual(entry['identity_sources'][0]['appid'], '1602080')
+            self.assertEqual(entry['promoted'], [dict(key='Hotfix.ColorResourceBarrier', value='4')])
+            self.assertEqual((entry['launch_args'], entry['other_launch_args']), (['-dx12'], ['-skipintro', '-dx12']))
+            self.assertEqual((entry['compat'], entry['optipatcher'], entry['counts']), ('working', False, {'ini': 2, 'launch': 2, 'issue': 1}))
+            self.assertEqual(entry['pages'], ['https://github.com/optiscaler/OptiScaler/wiki/Soulstice',
+                                              'https://github.com/optiscaler/OptiScaler/wiki/Compatibility-List'])
+            self.assertEqual(data['sources']['wiki'], '0123456789abcdef0123456789abcdef01234567 (2026-11-01)')
+            self.assertEqual(data['optiscaler_builds'], self.data['optiscaler_builds'])  # not the wiki's to change
+            self.assertNotIn('prose', json.dumps(data))
+
+    def test_a_refresh_that_loses_a_curated_or_promoted_title_refuses_the_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            self.refresh(folder, self.DRAFTS)
+            with self.assertRaisesRegex(SystemExit, "no wiki entry is titled 'Apocalypse 2.0'"):
+                self.b.build(folder)
+            (folder/'wiki-curation.json').write_text(json.dumps(dict(entries={})))
+            with self.assertRaisesRegex(SystemExit, 'Apocalypse 2.0 InitFlags.DisplayResolution=false is not an INI item'):
+                self.b.build(folder)
+
+    def test_add_build_records_digests_and_one_key_list_per_ini(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            ini = Path(tmp)/'OptiScaler.ini'
+            ini.write_bytes(b'\xef\xbb\xbf[FrameGen]\nEnabled=auto\nFGInput=auto\n[XeFG]\nXeFGModel=auto\n')
+            before = json.loads((folder/'optiscaler.json').read_text())
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.b.add_build('a' * 40, 'b' * 64, ini, folder)
+                self.b.add_build('c' * 40, 'd' * 64, ini, folder)
+            after = json.loads((folder/'optiscaler.json').read_text())
+            sha = hashlib.sha256(ini.read_bytes()).hexdigest()
+            self.assertEqual(after['builds']['a' * 40], dict(dll_sha256='b' * 64, ini_sha256=sha))
+            self.assertEqual(after['ini_keys'][sha], ['FrameGen.enabled', 'FrameGen.fginput', 'XeFG.xefgmodel'])
+            self.assertEqual(len(after['ini_keys']), len(before['ini_keys']) + 1)  # both new builds share one list
+            built = self.b.build(folder)['optiscaler_builds']
+            self.assertEqual(built['c' * 40]['keys'], after['ini_keys'][sha])
+            self.assertEqual(built[before['pinned']], self.data['optiscaler_builds'][before['pinned']])
+            ini.write_bytes(b'[FrameGen]\nEnabled=auto\n')
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.b.add_build('a' * 40, 'b' * 64, ini, folder)
+                self.b.add_build('c' * 40, 'd' * 64, ini, folder)
+            self.assertNotIn(sha, json.loads((folder/'optiscaler.json').read_text())['ini_keys'])  # no build uses it now
+            with self.assertRaisesRegex(SystemExit, 'full commit'):
+                self.b.add_build('abc', 'b' * 64, ini, folder)
+
+    def test_a_quirk_refresh_derives_the_tables(self):
+        pinned_commit = '03db4f8692878e65748769ebe583c053cae96360'
+        level = {'set:Spoofing.Dxgi=false': [dict(ini='Spoofing.Dxgi', value='false', respects_user=True, condition=None)],
+                 'set:fakenvapi.UseFakenvapi=false': [dict(ini='fakenvapi.UseFakenvapi', value='false', respects_user=True, condition=None)],
+                 'set:Hotfix.ColorResourceBarrier=4': [dict(ini='Hotfix.ColorResourceBarrier', value='4', respects_user=True, condition=None)]}
+        game = dict(exes=['game.exe'], quirks=['set:Spoofing.Dxgi=false', 'set:fakenvapi.UseFakenvapi=false'], comment=['Some Game'])
+        other = dict(exes=['other.exe'], quirks=['set:Hotfix.ColorResourceBarrier=4'], comment=['Other Game: Remastered', 'detail'])
+        quirks = dict(pinned=dict(commit=pinned_commit, entries=[game], config_level=level),
+                      upstream=dict(commit='e' * 40, entries=[game, other], config_level=level))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            (Path(tmp)/'quirks.json').write_text(json.dumps(quirks))
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.b.refresh_quirks(Path(tmp)/'quirks.json', folder)
+            q = json.loads((folder/'optiscaler.json').read_text())['quirks']
+            self.assertEqual((q['pinned'], q['upstream']), (pinned_commit, 'e' * 40))
+            self.assertEqual(q['leave_auto'], {'game.exe': [dict(key='fakenvapi.UseFakenvapi', quirk='set:fakenvapi.UseFakenvapi=false', value='false')]})
+            self.assertEqual(q['backports'], {'other.exe': {'Hotfix.ColorResourceBarrier': dict(value='4', quirk='set:Hotfix.ColorResourceBarrier=4',
+                                                                                              comment=['Other Game: Remastered'])}})
+            self.assertEqual(q['quirk_keys'], {'game.exe': {'Spoofing.Dxgi': 'false', 'fakenvapi.UseFakenvapi': 'false'}})
+            self.assertEqual(q['titles'], {'game.exe': 'some game', 'other.exe': 'other game'})
+            quirks['pinned']['commit'] = 'f' * 40
+            (Path(tmp)/'quirks.json').write_text(json.dumps(quirks))
+            with self.assertRaisesRegex(SystemExit, 'pinned side'):
+                self.b.refresh_quirks(Path(tmp)/'quirks.json', folder)
 
     def test_every_verified_recipe_has_its_evidence(self):
         for v in self.data['verified']:
@@ -783,10 +914,13 @@ class CompactRecipeTests(unittest.TestCase):
         built = json.dumps(self.builder.compact(json.loads(raw), hashlib.sha256(raw).hexdigest()), ensure_ascii=False,
                            separators=(',', ':')) + '\n'
         self.assertEqual(self.COMPACT.read_text(), built, 'stale: run research/recipes/build_recipes.py --compact')
-        # Supported-key metadata now covers two exact OptiScaler builds. Bound
-        # shipped bytes rather than a ratio to the source JSON's indentation.
-        self.assertLess(len(self.COMPACT.read_bytes()), len(raw))
-        self.assertLess(len(self.COMPACT.read_bytes()), 256 * 1024)
+        self.assertLess(len(self.COMPACT.read_bytes()), len(raw) // 2)
+        self.assertLess(len(self.COMPACT.read_bytes()), 256 * 1024)  # the runtime file's budget
+
+    def test_both_loaders_give_every_build_its_keys(self):
+        self.assertEqual(self.compact['optiscaler_builds'], self.full['optiscaler_builds'])
+        self.assertNotIn('optiscaler_ini_keys', self.compact)
+        self.assertTrue(all(len(b['keys']) > 300 for b in self.compact['optiscaler_builds'].values()))
 
     @staticmethod
     def ids(exe, steam=(), gog=(), epic=(), titles=(), folders=()):

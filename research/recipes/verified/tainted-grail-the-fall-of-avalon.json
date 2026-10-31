@@ -1,0 +1,22 @@
+{
+ "title": "Tainted Grail: The Fall of Avalon",
+ "match": {
+  "exe": [
+   "fall of avalon.exe"
+  ],
+  "steam": [
+   "1466060"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {},
+ "game_settings": [],
+ "launch_args": [
+  "-force-d3d12"
+ ],
+ "note": "FSR, DLSS and DXGI-spoof trials supplied no upscaler input on the tested build. No verified recipe fix. Preserve saves and graphics preferences during diagnosis.",
+ "evidence": "fails",
+ "observed": "No upscaler creation or generated frames in the tested gameplay, October 29, 2026"
+}

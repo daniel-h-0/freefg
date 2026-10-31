@@ -1,0 +1,34 @@
+{
+ "title": "The Invincible",
+ "match": {
+  "exe": [
+   "theinvincible-win64-shipping.exe"
+  ],
+  "steam": [
+   "731040"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {},
+ "game_settings": [
+  {
+   "file": "AppData/Local/TheInvincible/Saved/Config/WindowsNoEditor/Engine.ini",
+   "base": "steamuser",
+   "format": "ini",
+   "section": "SystemSettings",
+   "values": {
+    "r.NGX.DLSS.DilateMotionVectors": "0"
+   },
+   "why": null,
+   "requires_fg_input": null
+  }
+ ],
+ "launch_args": [
+  "-dx12"
+ ],
+ "note": null,
+ "evidence": "gameplay",
+ "observed": "2.0 in gameplay"
+}
