@@ -702,7 +702,7 @@ class RenameTool(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             package = Path(folder) / 'package'
             package.mkdir()
-            for name in ('install.py', 'launcher_config.py', 'steam_config.py', 'helixsr.py', 'freefg_library.py', 'upscaler_updates.py', 'launcher_migrations.py', 'hlx.py'):
+            for name in ('install.py', 'launcher_config.py', 'steam_config.py', 'helixsr.py', 'freefg_library.py', 'upscaler_updates.py', 'launcher_migrations.py', 'hlx.py', 'versions.py'):
                 shutil.copy2(TREE / 'packaging' / name, package / name)
             shutil.copytree(TREE / 'packaging/vendor', package / 'vendor')
             # A stand-in for doctor.py that imports what the real modules import, without probing this system.

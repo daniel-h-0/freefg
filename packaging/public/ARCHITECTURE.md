@@ -306,8 +306,9 @@ legacy HelixSR FidelityFX/network format. `hlx.py` validates complete prepared m
 custom NGX and FFX provider layouts. HLX DLSS retains its `helixsr.dll` filename to avoid the NGX file-redirection
 hook; renaming it `nvngx.dll` prevents it from reading its embedded network on the tested integration. Adapters propose content and metadata; the shared transaction engine owns
 all writes and recovery. Unknown provider formats are deferred. Core-only and upscaler-only updates use the same
-engine. HLX preparation uses upstream’s build-only entry point inside a read-only host mount with network access
-disabled and only its staging directory writable. The qualified preparation replaces the shared cache atomically;
+engine. HLX preparation runs upstream’s build-only entry point in a bubblewrap sandbox ([SECURITY.md](SECURITY.md#the-installer)):
+no network, the host read-only, the home folder and session sockets hidden, only its staging directory writable. The
+qualified preparation replaces the shared cache atomically;
 games retain independent copies. No model-bearing output enters release artifacts.
 
 Update verifies current owned files, original backups, package hashes, integration compatibility and game idleness.
@@ -316,16 +317,17 @@ compatible core changes proceed. The transaction saves old bytes, permissions, m
 metadata before recording a pending operation. Rollback restores that generation, preserves later settings edits and
 provider choices outside the update's scope, and refuses conflicting binary edits. Interrupted updates are undone;
 interrupted rollbacks finish before another update starts. Missing or damaged recovery data leaves the journal intact.
-One completed generation is retained per game. This is per-game recovery, not an atomic transaction across a library.
+One completed generation of each kind is retained per game: an update or provider switch, and wiki INI settings.
+Rollback undoes the newest. This is per-game recovery, not an atomic transaction across a library.
 
 `manifest.json.update_contract` and the game record agree on format, layout and configuration versions. Legacy
 1.1.3.1/1.1.4/1.1.5 records are explicitly imported. Core version downgrades are refused; Rollback uses saved bytes.
 The game record carries an installation ID and component identities. Format 2 supports integration DLL and loader
-migrations, additive INI defaults and token-aware launcher deltas. Per-file launcher locks coordinate updates to
-separate games sharing a config. Before runtime writes, the generation saves and verifies launcher snapshots and
+migrations, additive INI defaults and token-aware launcher deltas. Per-file launcher locks coordinate installs and
+updates of separate games sharing a config. Before runtime writes, the generation saves and verifies launcher snapshots and
 entry deltas. Recovery reverts only those entries, preserving other games and user additions; exact original bytes
-and metadata return when no later changes would be lost. Unknown layouts remain unsupported. Provider switches
-also create generations, so Rollback always means the latest completed update or switch. Explicit recipe refresh
+and metadata return when no later changes would be lost. Unknown layouts remain unsupported. Provider switches and
+wiki INI settings also create generations, so Rollback always undoes the latest completed operation. Explicit recipe refresh
 uses the same transaction for tested FG inputs and launcher arguments. Game settings are listed as manual steps;
 obsolete pending writes are marked inactive while their original ownership remains available to Restore.
 

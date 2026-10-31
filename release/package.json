@@ -69,7 +69,8 @@
     "upscaler_updates.py": "repo:packaging/upscaler_updates.py",
     "hlx.py": "repo:packaging/hlx.py",
     "launcher_migrations.py": "repo:packaging/launcher_migrations.py",
-    "library_view.py": "repo:packaging/library_view.py"
+    "library_view.py": "repo:packaging/library_view.py",
+    "versions.py": "repo:packaging/versions.py"
    }
   },
   "installer-vendor": {

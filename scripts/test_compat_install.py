@@ -290,10 +290,6 @@ class VerdictInstallTests(CompatFixture):
         self.assertIn('Your steps:', out.getvalue())
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class FolderStateTests(CompatFixture):
     """Every refusal install() makes for the game folder's state before it downloads or writes anything is named by
     Check first (install.preconditions, which repeats install()'s own conditions): the same games refuse in both."""
@@ -459,7 +455,7 @@ class AntiCheatOverrideTests(CompatFixture):
         err = io.StringIO()
         with patch.object(sys, 'argv', ['install.py', 'install', str(self.exe), '--accept', 'anticheat']), \
              contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            self.assertEqual(m.main(), 1)
+            self.assertEqual(m.main(), m.EXIT_REFUSED)
         self.assertIn('[anticheat]', err.getvalue())
         self.assertEqual(self.snapshot(), before)
 
@@ -576,7 +572,7 @@ class AntiCheatOverrideTests(CompatFixture):
     def test_another_refusal_comes_first_without_asking(self):
         self.set_options('PROTON_FSR4_UPGRADE=1 %command%')
         code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk')
-        self.assertEqual((code, calls), (1, []))
+        self.assertEqual((code, calls), (m.EXIT_REFUSED, []))
         self.assertIn('[ge-optiscaler]', err)
         self.assertNotIn('type this sentence', out)
 
@@ -744,3 +740,41 @@ class WikiPrefillInstallTests(ProxyFixture):
         self.ini_path.write_bytes(m.patch_ini(self.ini_path.read_bytes(), {('Hotfix','ColorResourceBarrier'):'8'}))
         m.rollback(self.exe)
         self.assertEqual(m.read_ini(self.ini_path.read_bytes())[('hotfix','colorresourcebarrier')], '8')
+
+    def test_a_moved_game_applies_from_its_new_folder(self):
+        # The record still names the old folder (its launch settings do too): the preview and the apply both read the
+        # executable they were given, and Status says the game moved.
+        moved = self.root / 'library2' / 'game'
+        moved.parent.mkdir()
+        self.game.rename(moved)
+        exe, ini = moved / self.exe.name, moved / 'OptiScaler.ini'
+        plan = m.wiki_settings_plan(self.package, exe)
+        row = next(row for row in plan['rows'] if row['key'] == 'Hotfix.ColorResourceBarrier')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(m.apply_wiki_settings(exe, [row['id']], package=self.package, expected=plan['digest']), 'update')
+        self.assertEqual(m.read_ini(ini.read_bytes())[('hotfix', 'colorresourcebarrier')], '4')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            m.status(exe)
+        self.assertIn('Moved since installation (installed at ' + str(self.game.resolve()) + ')', out.getvalue())
+
+    def test_conflicting_selections_are_refused_before_the_game_check(self):
+        # Two values for one key (each under a condition only the player can confirm): refused at once, with the reason,
+        # even while the game runs; nothing is changed.
+        self.catalog['wiki'][0]['ini'] = [dict(key='Spoofing.Dxgi', value='true', when={'condition': 'black screen'}),
+                                          dict(key='Spoofing.Dxgi', value='false', when={'condition': 'crash at start'})]
+        self.write_catalog()
+        self.ini_path.write_bytes(self.ini_path.read_bytes() + b'[Spoofing]\nDxgi=auto\n')
+        plan = m.wiki_settings_plan(self.package, self.exe)
+        ids = [row['id'] for row in plan['rows']]
+        before = self.ini_path.read_bytes()
+        with patch.object(m, 'idle', side_effect=m.GameRunningError('Close the game before installing, updating or restoring')):
+            with self.assertRaisesRegex(m.Refusal, 'Conflicting wiki selections for Spoofing.Dxgi'):
+                m.apply_wiki_settings(self.exe, ids, ids, package=self.package, expected=plan['digest'])
+            with self.assertRaisesRegex(m.Refusal, 'preview changed'):
+                m.apply_wiki_settings(self.exe, ids[:1], ids[:1], package=self.package, expected='0' * 64)
+        self.assertEqual(self.ini_path.read_bytes(), before)
+
+
+if __name__ == '__main__':
+    unittest.main()

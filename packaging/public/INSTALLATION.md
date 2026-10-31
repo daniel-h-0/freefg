@@ -68,7 +68,7 @@ python3 install.py status GAME.exe       # installed files and last session
 python3 install.py library               # discovered and registered installations
 python3 install.py plan GAME.exe         # preview an update
 python3 install.py update GAME.exe       # apply it
-python3 install.py rollback GAME.exe     # undo the most recent update or provider switch
+python3 install.py rollback GAME.exe     # undo the most recent update, provider switch or wiki settings
 python3 install.py restore GAME.exe      # restore the original installation
 ```
 
@@ -81,12 +81,14 @@ python3 install.py restore GAME.exe      # restore the original installation
 Extract the new release before updating. Setup’s sidebar lists games by state; each game’s page shows its provider,
 last-session logs and recovery actions. Choose **Update…** on a game page, or **Update All Games…** from the menu.
 Review the grouped plan before applying it. On the command line, run
-`python3 install.py plan --all` followed by `python3 install.py update --all` to apply the plan.
+`python3 install.py plan --all` followed by `python3 install.py update --all --expect-plan DIGEST`, with the digest the
+plan printed: the update changes nothing if any game's plan differs from the one shown.
 
 Update all combines Steam, Heroic and Lutris discovery with the optional local index; it can find installations you
 did not select. Use a game’s **Update…** or name specific executables to limit the scope. Running, missing, blocked,
-pinned or deferred games are reported separately. Successful games remain updated; a nonzero update exit status
-signals deferred or failed work. There is no atomic transaction across games.
+pinned or deferred games are reported separately. Successful games remain updated. The exit status is 3 when a game
+needs attention first (blocked, running) and none failed, 1 for failed or deferred work. There is no atomic transaction
+across games.
 
 Compatible 1.1.3.1, 1.1.4, 1.1.5 and 1.1.6 installations update in place. Updates cover the compatible FreeFG/Intel set,
 selected upscaler, OptiScaler integration and owned launcher fields while retaining user additions and original
@@ -98,8 +100,10 @@ an occupied name is refused.
 - **Keep this release** on a game page holds or resumes all updates for a game (`pin GAME.exe` / `unpin GAME.exe`).
 - **Track** on an untracked installation’s page adds that installation to the optional index. The index can be rebuilt; game files and recovery
   do not depend on it.
-- **Rollback** restores the saved state before the most recent update **or provider switch**. Each game retains one
-  completed generation; later settings edits are preserved where possible, and conflicting binary edits are refused.
+- **Rollback** restores the saved state before the most recent update, **provider switch or wiki settings**. Each game
+  retains one completed generation of each kind (an update or switch, wiki settings), so wiki settings applied after an
+  update keep the way back to the release before it; later settings edits are preserved where possible, and
+  conflicting binary edits are refused.
 - **Restore** removes owned files and launcher changes and restores originals, preserving later user edits where
   possible. It reports conflicts and leaves backups and logs in a `.bc250-xefg-experimental-restored-…` folder.
 

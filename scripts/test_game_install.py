@@ -104,6 +104,21 @@ class EventTests(unittest.TestCase):
         self.assertEqual(events,[{'v':1,'type':'outcome','exe':missing,'result':'failed'}])
         self.assertEqual([line for line in with_events.stdout.splitlines() if not line.startswith(m.EVENT_PREFIX)],plain.stdout.splitlines())
 
+    def test_output_errors_never_stop_the_installer(self):
+        # A reader that went away (Setup closed or killed): output is dropped from then on, the command runs to its end.
+        missing=str(Path(tempfile.mkdtemp())/'Game.exe')
+        read,closed=os.pipe();os.close(read)
+        try:
+            run=__import__('subprocess').run([sys.executable,'-I',str(PACKAGING/'install.py'),'status',missing,'--events'],
+                                             stdout=closed,stderr=__import__('subprocess').PIPE,text=True)
+        finally:os.close(closed)
+        self.assertEqual(run.returncode,1);self.assertIn('No such file',run.stderr);self.assertNotIn('BrokenPipeError',run.stderr)
+        class Gone(io.StringIO):
+            def write(self,text):raise BrokenPipeError(32,'Broken pipe')
+        stream=m.Unbroken(Gone())
+        with contextlib.redirect_stdout(stream):print('lost');m.say('lost too');print('and this',flush=True)
+        self.assertTrue(stream.broken)
+
 class InstallationTests(GameFixture):
     def test_round_trip(self):
         m.install(self.package,self.exe);self.assertFalse((self.game/'OptiScaler/libxell.dll').exists())
@@ -155,6 +170,36 @@ class InstallationTests(GameFixture):
             path=self.package/'manifest.json';saved=path.read_text();path.write_text(json.dumps(manifest))
             with self.assertRaisesRegex(ValueError,'frame-generation packages with automatic launcher setup'):m.install(self.package,self.exe)
             path.write_text(saved);self.assertFalse((self.game/m.STATE).exists());self.assertOriginal()
+    def test_fsr4_model_by_its_own_name_where_optiscaler_reads_none(self):
+        # FSR4Support INT8 as Fsr4GpuSupport=2, the key the shipped OptiScaler reads (its old name Fsr4ForceModel counts
+        # only while Fsr4GpuSupport is auto): a value OptiScaler reads there is the user's and stays.
+        p=self.game/'OptiScaler.ini'
+        for value,after in [(None,'2'),('auto','2'),('yes','2'),('9','2'),('4','4'),('0x1','0x1'),(' 0 ','0')]:
+            with self.subTest(value=value):
+                before=m.patch_ini(self.ini,{('FSR','Fsr4GpuSupport'):value.strip() if value else value})
+                p.write_bytes(before);self.original['OptiScaler.ini']=before
+                m.install(self.package,self.exe);ini=m.read_ini(p.read_bytes())
+                self.assertEqual(ini[('fsr','fsr4gpusupport')],after);self.assertNotIn(('fsr','fsr4forcemodel'),ini)
+                m.restore(self.exe);self.assertOriginal()
+        self.assertEqual([m.fsr4_support(v) for v in ['2','+2','02','0x4','0X2',' 3 ','5','-1','2.0','2_0','auto','',None]],
+                         [2,2,2,4,2,3,None,None,None,None,None,None,None])
+    def test_every_key_the_installer_writes_is_in_the_shipped_optiscaler_ini(self):
+        # The keys of the OptiScaler.ini the release ships (recipes.json optiscaler_builds of the pinned build): a key it
+        # does not read (a renamed one, as Fsr4ForceModel) would change nothing. XeFG.XeFGModel is MFG Unlocker's key.
+        import compat
+        data=json.loads((PACKAGING/'recipes/recipes.json').read_text())
+        shipped={key.lower() for key in data['optiscaler_builds'][data['sources']['optiscaler_pinned']]['keys']}
+        self.assertEqual(sorted(k for k in compat.INSTALLER_KEYS if k.lower() not in shipped),['XeFG.XeFGModel'])
+        written=set();p=self.game/'OptiScaler.ini'
+        p.write_bytes(m.patch_ini(self.ini,{('Libraries','XeSSPath'):r'.\libxess_fg.dll'}));self.original['OptiScaler.ini']=p.read_bytes()
+        for route,fg_input in [('native','upscaler'),('opti','upscaler'),('opti','dlssg'),('opti','fsrfg'),('opti','fsrfg30')]:
+            m.install(self.package,self.exe,route=route,fg_input=fg_input)
+            written|={(c['section']+'.'+c['key']).lower() for c in json.loads((self.game/m.STATE/'state.json').read_text())['ini_changes']}
+            m.restore(self.exe);self.assertOriginal()
+        self.fresh();m.install(self.package,self.exe,route='opti')
+        written|={(c['section']+'.'+c['key']).lower() for c in json.loads((self.game/m.STATE/'state.json').read_text())['ini_changes']}
+        self.assertEqual(sorted(written-{k.lower() for k in compat.INSTALLER_KEYS}),[])
+        self.assertIn('libraries.xesspath',written)
     def test_preserve_later_ini_edits(self):
         m.install(self.package,self.exe);p=self.game/'OptiScaler.ini'
         p.write_bytes(m.patch_ini(p.read_bytes(),{('Unrelated','Value'):'later',('FSR','Fsr4EnableWatermark'):'true'}))
@@ -205,6 +250,63 @@ class InstallationTests(GameFixture):
             with self.assertRaises(OSError):m.install(self.package,self.exe)
         finally:m.write=original_write
         m.restore(self.exe);self.assertOriginal()
+    def during_download(self,action):
+        """install() with action run while it downloads the runtime (the window between its checks and its first change)."""
+        def prepare(package,groups):
+            self.prepared.append(list(groups));action();return self.deps
+        return patch.object(m,'prepare_dependencies',side_effect=prepare)
+    def before_the_commit(self,action):
+        """install() with action run at its last check, after its plan and downloads, just before its first change."""
+        real,calls=m.idle,[]
+        def idle(root):
+            calls.append(root)
+            if len(calls)==2:action()
+            return real(root)
+        return patch.object(m,'idle',side_effect=idle)
+    def test_changes_during_the_downloads_refuse_before_any_change(self):
+        # A launcher started or a launcher file rewritten while install downloaded, a game file updated after it planned:
+        # install checks again just before its first change, as update does, and the game folder and the launcher stay
+        # as they were. (The backups are the bytes this check read, under the plan's checksums.)
+        launching=launcher_config.require_stopped
+        def start():launching.side_effect=ValueError('Close heroic before installing or restoring launcher settings')
+        def rewrite():self.config.write_bytes(self.config.read_bytes().replace(b'"dxr"',b'"dxr,no_upload_hvv"'))
+        def update():(self.game/'libxell.dll').write_bytes(b'game update')
+        for action,message,kind,hook in [(start,'Close heroic',m.Refusal,self.during_download),(rewrite,'changed since planning',ValueError,self.during_download),
+                                         (update,'libxell.dll changed while',ValueError,self.before_the_commit)]:
+            with self.subTest(action=action.__name__):
+                config,game=self.config.read_bytes(),{name:(self.game/name).read_bytes() for name in self.original}
+                with hook(action),self.assertRaisesRegex(kind,message):m.install(self.package,self.exe)
+                self.assertEqual(self.prepared[-1],['runtime']);self.assertFalse(list(self.game.glob(m.STATE+'*')))
+                if action is not rewrite:self.assertEqual(self.config.read_bytes(),config)
+                if action is not update:self.assertEqual({name:(self.game/name).read_bytes() for name in self.original},game)
+                launching.side_effect=None
+        self.config.write_bytes(self.original_config_bytes);(self.game/'libxell.dll').write_bytes(self.original['libxell.dll'])
+        m.install(self.package,self.exe);m.restore(self.exe);self.assertOriginal()
+    def test_a_late_refusal_keeps_the_restored_record_in_place(self):
+        m.install(self.package,self.exe);m.restore(self.exe);restored=(self.game/m.STATE/'state.json').read_bytes()
+        with self.before_the_commit(lambda:(self.game/'libxell.dll').write_bytes(b'game update')),self.assertRaises(ValueError):
+            m.install(self.package,self.exe)
+        self.assertEqual((self.game/m.STATE/'state.json').read_bytes(),restored);self.assertFalse(list(self.game.glob(m.STATE+'-*')))
+    def test_another_installer_at_the_launcher_file_is_a_refusal(self):
+        # The per-file launcher lock update, rollback and Restore take: another installer holding it means retry.
+        import fcntl,hashlib
+        folder=m.freefg_library.location().parent/'locks';folder.mkdir(parents=True,exist_ok=True)
+        lock=os.open(folder/(hashlib.sha256(str(self.config.absolute()).encode()).hexdigest()+'.lock'),os.O_RDWR|os.O_CREAT,0o600)
+        try:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            with self.assertRaisesRegex(m.Refusal,'Another installer is editing this launcher'):m.install(self.package,self.exe)
+        finally:os.close(lock)
+        self.assertFalse((self.game/m.STATE).exists());self.assertOriginal()
+        m.install(self.package,self.exe);m.restore(self.exe);self.assertOriginal()
+    def test_preview_while_a_launcher_runs(self):
+        # A preview reads only: it works while the launcher runs; Install refuses at once, before any download.
+        launcher_config.require_stopped.side_effect=ValueError('Close heroic before installing or restoring launcher settings')
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.install(self.package,self.exe,preview=True)
+        self.assertIn('Configure heroic: '+str(self.config),out.getvalue());self.assertOriginal()
+        self.prepared.clear()
+        with self.assertRaisesRegex(m.Refusal,'Close heroic'):m.install(self.package,self.exe)
+        self.assertEqual(self.prepared,[]);self.assertFalse((self.game/m.STATE).exists());self.assertOriginal()
     def test_opti_without_native_xefg(self):
         (self.game/'libxess_fg.dll').unlink();del self.original['libxess_fg.dll']
         m.install(self.package,self.exe,route='opti')
@@ -482,6 +584,43 @@ class InstallationTests(GameFixture):
         saved=[s for s in saved if not s.name.startswith('xemfg-')]
         self.assertEqual(len(saved),1);self.assertEqual(saved[0].read_bytes(),edited)
         m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+    def test_restore_interrupted_after_removing_the_fresh_ini_still_names_its_copy(self):
+        # The record names the copy before the INI goes: a Restore killed at its last write (the record) is completed by
+        # the next one, and the next Install still carries the user's multiplier from it.
+        deps=self.fresh();m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        p=self.game/'OptiScaler.ini';p.write_bytes(m.patch_ini(p.read_bytes(),{('XeFG','InterpolationCount'):'3'}))
+        real=m.write
+        def write(path,*args,**kwargs):
+            if Path(path).name=='state.json' and not p.exists():raise OSError('killed')
+            return real(path,*args,**kwargs)
+        with patch.object(m,'write',side_effect=write),self.assertRaisesRegex(OSError,'killed'):m.restore(self.exe)
+        record=json.loads((self.game/m.STATE/'state.json').read_text())
+        self.assertEqual((record['status'],(self.game/m.STATE/record['preserved_ini']).is_file()),('installed',True))
+        m.restore(self.exe);self.assertEqual(json.loads((self.game/m.STATE/'state.json').read_text())['preserved_ini'],record['preserved_ini'])
+        m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        self.assertEqual(m.read_ini(p.read_bytes())[('xefg','interpolationcount')],'3')
+    def test_a_damaged_backup_leaves_that_file_and_restores_the_rest(self):
+        # One missing or damaged copy from before installation no longer stops Restore: that file stays as installed and
+        # is named, the rest comes back, and Install refuses until the game's own file is back (it would become an original).
+        m.install(self.package,self.exe)
+        record=json.loads((self.game/m.STATE/'state.json').read_text());index={item['path']:i for i,item in enumerate(record['files'])}
+        (self.game/m.STATE/'backups'/str(index['libxell.dll'])).write_bytes(b'damaged')
+        (self.game/m.STATE/'backups'/str(index['OptiScaler.ini'])).unlink()
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.restore(self.exe)
+        self.assertIn('Left libxell.dll as it is: its backup does not match its checksum',out.getvalue())
+        self.assertIn('Left OptiScaler.ini as it is: its backup cannot be read',out.getvalue())
+        self.assertEqual((self.game/'libxell.dll').read_bytes(),b'new LL')
+        for name in set(self.original)-{'libxell.dll','OptiScaler.ini'}:self.assertEqual((self.game/name).read_bytes(),self.original[name],name)
+        self.assertFalse((self.game/'version.dll').exists());self.assertEqual(json.loads(self.config.read_text()),self.original_config)
+        record=json.loads((self.game/m.STATE/'state.json').read_text())
+        self.assertEqual((record['status'],[row['path'] for row in record['left_installed']]),('restored',['libxell.dll','OptiScaler.ini']))
+        with self.assertRaisesRegex(ValueError,'could not put back the game’s own libxell.dll and OptiScaler.ini'):m.install(self.package,self.exe)
+        self.assertEqual([r['code'] for r in m.preconditions(self.package,self.exe)][:1],['left-installed'])
+        # Back as the game's (a launcher's Verify or Repair): Install and Restore work again.
+        for name in ['libxell.dll','OptiScaler.ini']:(self.game/name).write_bytes(self.original[name])
+        self.assertEqual(m.preconditions(self.package,self.exe),[])
+        m.install(self.package,self.exe);m.restore(self.exe);self.assertOriginal()
     def test_existing_proxy_name_selects_context_owner(self):
         (self.game/'dxgi.dll').unlink();del self.original['dxgi.dll'];(self.game/'winmm.dll').write_bytes(b'opti')
         m.install(self.package,self.exe,route='opti')
@@ -564,6 +703,20 @@ class RestoreFidelityTests(GameFixture):
         self.assertEqual(m.patch_ini(b'[A]\nKey = v ; note\n',{('a','key'):None}),b'[A]\n')
         # An indented key line loses its indent, as it always did: indented, it would read as part of the key above.
         self.assertEqual(m.read_ini(m.patch_ini(b'[A]\nx=1\n  Key = v\n',{('A','Key'):'w'})),{('a','x'):'1',('a','key'):'w'})
+    def test_a_value_never_becomes_a_line_of_its_own(self):
+        # A line separator in a value (U+2028, VT, FF, NEL, RS, ...): str.splitlines split it on the next edit, and the
+        # rest became a section and a key of its own (an injected [Libraries] XeFGPath). Lines are split as configparser
+        # (and OptiScaler) split them, and the installer writes no value that spans lines.
+        for separator in '\u2028\u2029\x0b\x0c\x1c\x1d\x1e\x85':
+            with self.subTest(separator=repr(separator)):
+                data=('[A]\nKey=x'+separator+'[Libraries]'+separator+'XeFGPath=evil\n').encode()
+                edited=m.patch_ini(data,{('A','Other'):'1'});again=m.patch_ini(edited,{('A','Other'):'2'})
+                self.assertEqual(m.read_ini(again),{('a','key'):'x'+separator+'[Libraries]'+separator+'XeFGPath=evil',('a','other'):'2'})
+                self.assertEqual(len(m.ini_content(again)),3)
+                with self.assertRaisesRegex(ValueError,'not a single line'):m.patch_ini(b'[A]\nKey=1\n',{('A','Key'):'1'+separator+'XeFGPath=evil'})
+        for value in ['1\n[Libraries]\nXeFGPath=evil','1\rXeFGPath=evil','1\0']:
+            with self.assertRaisesRegex(ValueError,'not a single line'):m.patch_ini(b'[A]\nKey=1\n',{('A','Key'):value})
+        self.assertEqual(m.patch_ini(b'[A]\r\nKey=1\r\n',{('A','Key'):'2'}),b'[A]\r\nKey=2\r\n')
     def test_optiscaler_resave_restores_the_original_bytes(self):
         # OptiScaler saved the INI while the game ran (every line 'key = value', LF): the values are the original ones
         # once Restore reverts the installation's keys, so the original bytes come back (CRLF, 'key=value').

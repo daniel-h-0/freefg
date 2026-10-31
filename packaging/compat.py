@@ -25,11 +25,16 @@ import os
 import re
 from pathlib import Path
 
-# OptiScaler keys the installer writes itself (research/recipes/build_recipes.py INSTALLER_KEYS; a test keeps them alike).
-INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4ForceModel', 'FSR.Fsr4EnableWatermark',
+# OptiScaler keys the installer writes itself, each a key of the shipped OptiScaler.ini (a test checks). Earlier builds
+# also wrote FSR.Fsr4ForceModel, Fsr4GpuSupport's old name, which an update moves (install.fsr4_model_migration).
+# research/recipes/build_recipes.py leaves its INSTALLER_KEYS out of verified recipes (a test keeps the two alike): that
+# list still names FSR.Fsr4ForceModel, and not Libraries.XeSSPath, which the installer writes only to repair an FG or
+# latency DLL saved there, while a verified recipe may set a real XeSS upscaler path.
+INSTALLER_KEYS = {'Upscalers.Dx12Upscaler', 'FSR.UpscalerIndex', 'FSR.Fsr4GpuSupport', 'FSR.Fsr4EnableWatermark',
                   'FrameGen.Enabled', 'fakenvapi.UseFakenvapi', 'FrameGen.FGInput', 'FrameGen.FGOutput',
                   'Libraries.XeFGPath', 'Libraries.XeLLPath', 'XeFG.ForceBorderless', 'Plugins.LoadAsiPlugins',
-                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel'}
+                  'XeFG.InterpolationCount', 'FrameGen.DisableHudless', 'fakenvapi.ForceReflex', 'XeFG.XeFGModel',
+                  'Libraries.XeSSPath'}
 # What the wiki drafts record beside a condition: explanations, never limits on where an item applies.
 NOTE_KEYS = {'reason', 'purpose', 'note', 'autoapplied_since', 'value', 'feature'}
 INPUT_NAMES = {'upscaler': 'OptiFG', 'dlssg': 'DLSS FG', 'fsrfg': 'FSR 3.1 FG', 'fsrfg30': 'FSR 3.0 FG',
@@ -93,9 +98,25 @@ def key_rule(key, value):
         return 'human', 'a personal preference'
     if k.startswith('plugins.loadreshade') or 'luma' in k:
         return 'human', 'needs another mod (ReShade or Luma)'
+    if k.startswith('libraries.') or k == 'plugins.path':
+        return 'installer', 'library and plugin paths are the integration\'s own layout'
+    if k in PATH_KEYS:
+        return 'never', 'a file path or process filter (one computer\'s own; a filter can switch OptiScaler off for the game)'
     if k.startswith('log.'):
         return 'never', 'logging'
     return None, None
+
+
+# Keys of the shipped OptiScaler.ini whose value names a file, a folder or the processes OptiScaler loads into (besides
+# Libraries.* and Plugins.Path): never written from a recipe or the wiki.
+PATH_KEYS = {'log.logfilename', 'menu.ttffontpath', 'processfilter.targetprocessname', 'processfilter.processexclusionlist'}
+
+
+def ini_value_ok(value):
+    """A value an OptiScaler.ini line holds as it is: printable characters only (no C0 or C1 control, no line, paragraph
+    or other Unicode separator but the space) and no blanks at either end, which INI readers strip."""
+    value = str(value)
+    return value.isprintable() and value == value.strip()
 
 
 # --------------------------------------------------------------------------------------- wiki conditions, evaluated
@@ -298,8 +319,8 @@ def wiki_plan(data, ids, ctx=None, *, supported_keys=None, current=None, recipe_
                 items.append(item)
         for item in items:
             key, value = item['key'], str(item['value'])
-            if not re.fullmatch(r'[A-Za-z0-9_-]+\.[A-Za-z0-9_]+', key) or any(c in value for c in '\r\n\0'):
-                raise ValueError('Malformed wiki INI proposal')
+            if not re.fullmatch(r'[A-Za-z0-9_-]+\.[A-Za-z0-9_]+', key) or not ini_value_ok(value):
+                raise ValueError('Malformed wiki INI proposal: ' + entry['title'] + ' ' + repr(key) + '=' + repr(value))
             low, when = key.lower(), item.get('when') or {}
             condition, reasons = evaluate(when, ctx)
             rule, rule_reason = key_rule(key, value)

@@ -467,6 +467,7 @@ scripts/test_integration_updates.py
 scripts/test_launcher_migrations.py
 
 packaging/library_view.py
+packaging/versions.py
 scripts/test_library_view.py
 scripts/test_recipe_migrations.py
 scripts/test_hlx_preparation.py

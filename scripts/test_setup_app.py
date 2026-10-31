@@ -486,7 +486,10 @@ class Changes(UpdateFixture):
                                    ({}, dict(to=OLD), 'change'), ({}, dict(kind='ini'), 'settings'), ({}, dict(kind='provider'), 'provider')):
             path.write_text(json.dumps(dict(saved, metadata_before=dict(saved['metadata_before'], upscaler={'name': 'fsr4'}),
                                             metadata_after=after)))
-            self.state_file().write_text(json.dumps(dict(record, generations=[dict(record['generations'][-1], **entry)])))
+            # Entries of earlier builds record no kind: Setup works it out from the generation (this installer's own
+            # kind is dropped here, so the derivation is what is tested).
+            plain = {k: v for k, v in record['generations'][-1].items() if k != 'kind'}
+            self.state_file().write_text(json.dumps(dict(record, generations=[dict(plain, **entry)])))
             change = self.change()
             self.assertEqual(change['kind'], kind, after)
         self.assertEqual(change['upscaler'], 'FSR 4')
