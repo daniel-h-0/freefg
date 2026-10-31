@@ -153,7 +153,7 @@ git config --system --add safe.directory <path-in-the-container>
   `273e8d449763d0e9e051dee831dc42badcd15d00`, retaining upstream `e7e3872d410f704479d94d318d68d163b6b58947`.
   Supply this DLL and its matching `OptiScaler.ini` with `--optiscaler`; provide its git checkout with
   `--optiscaler-source`. `FORK.md` and `tools/bc250-build.py` describe the separate build. The source companion and
-  locked recursive source archive identify the complete corresponding source. This candidate uses the local fork build; its DLL/source archive is not yet published.
+  locked recursive source archive identify the complete corresponding source. The [fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-273e8d4) supplies the DLL and recursive source archive.
   OptiScaler is the only component CI may omit from its test package.
 - **Source companion without its inputs:** normal assembly needs a fork checkout named by `XEMFG_OPTISCALER_SOURCE`.
   Use `--no-source-companion` only for a local build that does not distribute the complete source companion.

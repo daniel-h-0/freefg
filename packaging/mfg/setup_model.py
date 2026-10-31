@@ -99,13 +99,16 @@ def version(name):
     """'1.1.6' for a release named like 'freefg-1.1.6'; any other release name as it is."""
     if not name:
         return 'unknown release'
-    found = re.fullmatch(r'[a-z][a-z0-9-]*?-(\d+(?:\.\d+)+)', str(name))
+    found = re.fullmatch(r'[a-z][a-z0-9-]*?-(\d+(?:\.\d+)+(?:-preview)?)', str(name))
     return found[1] if found else str(name)
 
 
 def release_number(name):
-    found = re.fullmatch(r'[a-z][a-z0-9-]*?-(\d+(?:\.\d+)+)', str(name or ''))
-    return tuple(int(part) for part in found[1].split('.')) if found else None
+    found = re.fullmatch(r'[a-z][a-z0-9-]*?-([0-9]+(?:\.[0-9]+){1,3})(-preview)?', str(name or ''))
+    if not found:
+        return None
+    numbers = tuple(int(part) for part in found[1].split('.'))
+    return numbers + (0,) * (4 - len(numbers)) + (0 if found[2] else 1,)
 
 
 @dataclass

@@ -13,8 +13,8 @@ the game's simulation rate. Optional generated-frame scaling can reduce cost, an
 Cyberpunk 2.5 on one BC-250, FreeFG 1.1.3.1, HelixSR Quality at 1440p; four headless runs per condition. Higher
 factors require MFG Unlocker. [Methods, data and limitations](MEASUREMENTS.md#cyberpunk-25-with-helixsr).
 
-**1.2.0 candidate.** The redesigned library window and expanded compatibility planning are being qualified together.
-This branch is not a published release; the FreeFG runtime and dependency pins remain at 1.1.6.
+**1.2.0** adds a GTK library window, reviewed wiki settings and a GTA V Enhanced startup fix that preserves Social
+Club. The FreeFG runtime and shaders retain 1.1.6 bytes; the bundled OptiScaler integration is updated.
 
 ## Requirements
 

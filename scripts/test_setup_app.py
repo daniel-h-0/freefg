@@ -28,6 +28,17 @@ class Words(unittest.TestCase):
         self.assertEqual(model.version('bc250-fsr4-xemfg-private-test-25'), 'bc250-fsr4-xemfg-private-test-25')
         self.assertEqual(model.version(None), 'unknown release')
 
+    def test_preview_labels_and_order_match_installer(self):
+        self.assertEqual(model.version('freefg-1.2.0-preview'),'1.2.0-preview')
+        ordered=['freefg-1.1.6','freefg-1.2.0-preview','freefg-1.2.0','freefg-1.2.0.1-preview','freefg-1.2.0.1']
+        for name in ordered:
+            self.assertEqual(model.release_number(name),m.release_number(name))
+        self.assertEqual(sorted(ordered,key=model.release_number),ordered)
+        self.assertIsNone(model.release_number('freefg-1.2.0-preview-extra'))
+        ctx=model.Context(Path('/package'),'FreeFG',{'name':'freefg-1.2.0-preview'},m)
+        final=model.Game(Path('/game/Game.exe'),record={'status':'installed','package':'freefg-1.2.0'})
+        self.assertEqual(model.state(final,ctx),'newer')
+
     def test_install_arguments_name_each_game_for_its_accepts_and_override(self):
         exe = Path('/games/A/A.exe')
         self.assertEqual(model.install_args(exe, model.InstallChoice()),

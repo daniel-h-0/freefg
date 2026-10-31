@@ -4,7 +4,7 @@ Release summaries are below; [measurements](MEASUREMENTS.md) describe their spec
 [detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
 retains earlier release notes.
 
-## 1.2.0 candidate
+## 1.2.0 – 2026-10-30
 
 - Replace Setup's chain of Zenity dialogs with a window built on GTK 4 and libadwaita 1.5+: the game library grouped by
   what needs attention, a page per game with its state and only the actions that state allows, and every change run
@@ -22,11 +22,12 @@ retains earlier release notes.
   Selection uses an INI-only rollback generation while retaining the installed release, runtime and user additions.
 - Refresh the bundled wiki to 30 October: 761 entries and 295 INI instructions. Verified Steam identities make the
   six existing promoted fixes and Ragnarök's negative FG evidence match reliably. Record the exact OptiScaler builds
-  that own runtime fixes and show wiki requirements/test context. All 19 curated BC-250 rows are preserved.
+  that own runtime fixes and show wiki requirements/test context. The original 19 curated BC-250 rows are preserved.
 - Keep 1.1.6's FreeFG runtime, shaders and dependency pins. Update OptiScaler to isolate Social Club's auxiliary
   swapchains and resolve zero descriptor dimensions for tiny-window checks. GTA V Enhanced has a Story Mode
   recipe qualified at 2× on GE-Proton11-11; see COMPATIBILITY.md for settings and limits.
 - Stop queued Setup reads and suppress late callbacks after the window closes.
+- Update preview installations to final 1.2.0, preserve exact rollback, and reject a final-to-preview downgrade.
 
 ## 1.1.6 – 2026-10-30
 

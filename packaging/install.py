@@ -1704,10 +1704,11 @@ def rollback_settings(original,applied,current):
     return patch_ini(current,changes) if changes else current
 
 def release_number(name):
-    found=re.fullmatch(r'freefg-([0-9]+(?:\.[0-9]+){1,3})',str(name))
+    found=re.fullmatch(r'freefg-([0-9]+(?:\.[0-9]+){1,3})(-preview)?',str(name))
     if not found:return None
     numbers=tuple(int(part) for part in found[1].split('.'))
-    return numbers+(0,)*(4-len(numbers))
+    # A preview precedes the final release with the same numeric version.
+    return numbers+(0,)*(4-len(numbers))+(0 if found[2] else 1,)
 
 def update_compatibility(record,manifest,core=True):
     """Legacy versions are imported explicitly; later releases negotiate the stored layout/configuration contract."""
