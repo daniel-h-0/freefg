@@ -100,6 +100,8 @@ def key_rule(key, value):
         return 'human', 'needs another mod (ReShade or Luma)'
     if k.startswith('libraries.') or k == 'plugins.path':
         return 'installer', 'library and plugin paths are the integration\'s own layout'
+    if k in FORK_KEYS:
+        return 'installer', 'a switch of the bundled OptiScaler fork, which only verified recipes set'
     if k in PATH_KEYS:
         return 'never', 'a file path or process filter (one computer\'s own; a filter can switch OptiScaler off for the game)'
     if k.startswith('log.'):
@@ -110,6 +112,9 @@ def key_rule(key, value):
 # Keys of the shipped OptiScaler.ini whose value names a file, a folder or the processes OptiScaler loads into (besides
 # Libraries.* and Plugins.Path): never written from a recipe or the wiki.
 PATH_KEYS = {'log.logfilename', 'menu.ttffontpath', 'processfilter.targetprocessname', 'processfilter.processexclusionlist'}
+# Switches only the bundled OptiScaler fork has: a wiki value would replace the Social Club default module list or
+# leave OptiScaler a plain proxy without its hooks.
+FORK_KEYS = {'hotfix.auxiliarydxgifactorymodules', 'bc250.requireargument'}
 
 
 def ini_value_ok(value):

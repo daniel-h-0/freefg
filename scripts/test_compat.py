@@ -120,6 +120,19 @@ class ConditionTests(unittest.TestCase):
         rows = {row['key']: row['action'] for row in c.wiki_plan(data([], [], [wiki]), ids())['rows']}
         self.assertEqual(rows, {'Menu.TTFFontPath': 'advice', 'ProcessFilter.TargetProcessName': 'advice', 'Hotfix.ColorResourceBarrier': 'prefill'})
 
+    def test_fork_switches_are_never_written_from_the_wiki(self):
+        # Only verified recipes set the fork's own switches: a wiki list would replace the Social Club module, a wiki
+        # RequireArgument would leave OptiScaler a plain proxy.
+        for key in ('Hotfix.AuxiliaryDxgiFactoryModules', 'BC250.RequireArgument'):
+            self.assertEqual(c.key_rule(key, 'x')[0], 'installer', key)
+        wiki = dict(title='Hero', match=dict(title=['hero'], steam=['4242']), pages=[],
+                    ini=[dict(key='Hotfix.AuxiliaryDxgiFactoryModules', value='Other.dll'), dict(key='BC250.RequireArgument', value='-x')],
+                    promoted=[dict(key='Hotfix.AuxiliaryDxgiFactoryModules', value='Other.dll')])
+        plan = c.wiki_plan(data([], [], [wiki]), ids())
+        self.assertEqual({row['key']: row['action'] for row in plan['rows']},
+                         {'Hotfix.AuxiliaryDxgiFactoryModules': 'advice', 'BC250.RequireArgument': 'advice'})
+        self.assertEqual(plan['automatic'], {})
+
     def test_wiki_values_are_single_line_printable_text(self):
         # Anything an INI reader would split, strip or misread is refused before a plan exists.
         for value in ('4\u2028[Libraries]\u2028XeFGPath=x', '4\x85', '4\x0b', '4\x1e', '4\t', ' 4', '4 ', '4\x7f', '4\u200b', '4\r', '4\n', '4\0'):
