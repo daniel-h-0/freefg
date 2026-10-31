@@ -891,9 +891,9 @@
  },
  "outputs": {
   "BC250-MFG.asi": "b1b016dda687a98087d0d8cb682f739779b3ac8ac44e7bb7891b0ee21f4c8eab",
-  "libxefg_wave.so": "5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687",
+  "libxefg_wave.so": "e165ba9896b9cad9da6d0716a70f3e71c6b7e79fb8de155ea8c502cc164e330d",
   "BC250-MFG.asi (intel-free)": "28246c08a28876197a85f4888eae43339837b1b2fa22ae344fcfa4db7cfe9b4c",
   "libxess_fg.dll (intel-free-2x)": "3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410",
-  "libxess_fg.dll (intel-free-mfg)": "5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f"
+  "libxess_fg.dll (intel-free-mfg)": "43920cbd9ed0476a8de9b6b37c9e484dd3585142c7aab6170247a9d1c103948b"
  }
 }

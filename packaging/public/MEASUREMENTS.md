@@ -174,6 +174,8 @@ research tooling.
 
 | Component | Build | SHA-256 |
 | --- | --- | --- |
+| FreeFG proxy | after 1.2.0, not yet measured | `43920cbd9ed0476a8de9b6b37c9e484dd3585142c7aab6170247a9d1c103948b` |
+| Pacing layer | after 1.2.0, not yet measured | `e165ba9896b9cad9da6d0716a70f3e71c6b7e79fb8de155ea8c502cc164e330d` |
 | FreeFG proxy | 1.1.5 / 1.1.6 | `5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f` |
 | Pacing layer | 1.1.3 onward | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
 | FreeFG proxy | 0.9.0 (2×) | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
