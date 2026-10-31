@@ -317,16 +317,17 @@ compatible core changes proceed. The transaction saves old bytes, permissions, m
 metadata before recording a pending operation. Rollback restores that generation, preserves later settings edits and
 provider choices outside the update's scope, and refuses conflicting binary edits. Interrupted updates are undone;
 interrupted rollbacks finish before another update starts. Missing or damaged recovery data leaves the journal intact.
-One completed generation is retained per game. This is per-game recovery, not an atomic transaction across a library.
+One completed generation of each kind is retained per game: an update or provider switch, and wiki INI settings.
+Rollback undoes the newest. This is per-game recovery, not an atomic transaction across a library.
 
 `manifest.json.update_contract` and the game record agree on format, layout and configuration versions. Legacy
 1.1.3.1/1.1.4/1.1.5 records are explicitly imported. Core version downgrades are refused; Rollback uses saved bytes.
 The game record carries an installation ID and component identities. Format 2 supports integration DLL and loader
-migrations, additive INI defaults and token-aware launcher deltas. Per-file launcher locks coordinate updates to
-separate games sharing a config. Before runtime writes, the generation saves and verifies launcher snapshots and
+migrations, additive INI defaults and token-aware launcher deltas. Per-file launcher locks coordinate installs and
+updates of separate games sharing a config. Before runtime writes, the generation saves and verifies launcher snapshots and
 entry deltas. Recovery reverts only those entries, preserving other games and user additions; exact original bytes
-and metadata return when no later changes would be lost. Unknown layouts remain unsupported. Provider switches
-also create generations, so Rollback always means the latest completed update or switch. Explicit recipe refresh
+and metadata return when no later changes would be lost. Unknown layouts remain unsupported. Provider switches and
+wiki INI settings also create generations, so Rollback always undoes the latest completed operation. Explicit recipe refresh
 uses the same transaction for tested FG inputs and launcher arguments. Game settings are listed as manual steps;
 obsolete pending writes are marked inactive while their original ownership remains available to Restore.
 
