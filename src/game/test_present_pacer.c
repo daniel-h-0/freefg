@@ -118,6 +118,13 @@ int main(void){
  assert(pace_signal_map(stale)&&pace_sig->beat==0&&pace_sig->generated==0&&pace_sig->multiplier==0&&pace_sig->owner==(uint32_t)getpid());
  addon->beat++;addon->generated++;assert(pace_sig->beat==1&&pace_sig->generated==1); /* the add-on's writes reach the layer */
  munmap(addon,4096);munmap(pace_sig,4096);unlink(stale);
+ /* /dev/shm is shared: a FIFO or a symbolic link under a page's name is refused at once (no blocking open, no write
+  * through the link), and the sweep reads only regular files of this user. */
+ pace_sig=NULL;assert(mkfifo(stale,0600)==0);assert(!pace_signal_map(stale)&&!pace_sig);pace_signal_sweep("");unlink(stale);
+ char target[64];snprintf(target,sizeof(target),"/dev/shm/bc250-xefg-pace-target-%d",(int)getpid());
+ int tfd=open(target,O_RDWR|O_CREAT|O_TRUNC,0600);assert(tfd>=0&&write(tfd,"keep",4)==4);close(tfd);
+ assert(symlink(target,stale)==0&&!pace_signal_map(stale)&&!pace_sig);
+ struct stat kept;assert(stat(target,&kept)==0&&kept.st_size==4);unlink(stale);unlink(target);
  pace_sig=NULL;pace_force=-1;
  puts("pace_holding: only while XeFG generates; forced, no page or silent add-on hold every present");
  puts("PASS present pacer: 2x and 3x patterns even, steady stream untouched, hitch backlog drains, pause resets, gate, stale signal page");return 0;

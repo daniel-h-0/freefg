@@ -280,8 +280,10 @@ static void pace_pin_self(void){
  static int pinned;Dl_info self;if(pinned||!dladdr((void*)pace_pin_self,&self)||!self.dli_fname)return;
  pinned=dlopen(self.dli_fname,RTLD_NOW|RTLD_NOLOAD|RTLD_NODELETE)!=NULL;
 }
+/* No vk_layerGetPhysicalDeviceProcAddr: the layer intercepts no physical-device function the loader does not know, and
+ * gipa is not one (the loader would take any name it answers for a physical-device entry point). */
 VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface*p){
  if(p->loaderLayerInterfaceVersion<2)return VK_ERROR_INITIALIZATION_FAILED;
  pace_pin_self();
- p->loaderLayerInterfaceVersion=2;p->pfnGetInstanceProcAddr=gipa;p->pfnGetDeviceProcAddr=gdpa;p->pfnGetPhysicalDeviceProcAddr=gipa;return VK_SUCCESS;
+ p->loaderLayerInterfaceVersion=2;p->pfnGetInstanceProcAddr=gipa;p->pfnGetDeviceProcAddr=gdpa;p->pfnGetPhysicalDeviceProcAddr=NULL;return VK_SUCCESS;
 }

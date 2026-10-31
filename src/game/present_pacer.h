@@ -94,6 +94,13 @@ _Static_assert(sizeof(struct pace_signal_page)==32,"XP1 pacing signal layout");
 static struct pace_signal_page*pace_sig;static char pace_sig_path[96];static double pace_sig_made;
 static uint64_t pace_sig_last,pace_sig_beat;static double pace_sig_when=-1e9;static int pace_sig_seen,pace_sig_heard,pace_sig_state=-1,pace_force=-1;
 static void pace_signal_unlink(void){if(pace_sig_path[0])unlink(pace_sig_path);}
+/* /dev/shm is shared by every user: a page is opened without following a symbolic link or blocking on a FIFO, and used
+ * only when it is a regular file of this user. */
+static int pace_signal_open(const char*path,int flags){
+ int fd=open(path,flags|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK,0600);struct stat st;if(fd<0)return -1;
+ if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_uid!=getuid()){close(fd);return -1;}
+ return fd;
+}
 static unsigned long pace_wine_pid(void){
  unsigned long base=0;
  if(syscall(SYS_arch_prctl,0x1004 /* ARCH_GET_GS */,&base)||!base)return 0;
@@ -103,13 +110,13 @@ static unsigned long pace_wine_pid(void){
 static void pace_signal_sweep(const char*keep){
  DIR*dir=opendir("/dev/shm");if(!dir)return;struct dirent*e;char path[300];
  while((e=readdir(dir))){if(strncmp(e->d_name,"bc250-xefg-pace-",16))continue;snprintf(path,sizeof(path),"/dev/shm/%s",e->d_name);if(!strcmp(path,keep))continue;
-  int fd=open(path,O_RDONLY|O_CLOEXEC);if(fd<0)continue;struct pace_signal_page page;ssize_t n=read(fd,&page,sizeof(page));close(fd);
+  int fd=pace_signal_open(path,O_RDONLY);if(fd<0)continue;struct pace_signal_page page;ssize_t n=read(fd,&page,sizeof(page));close(fd);
   if(n==(ssize_t)sizeof(page)&&page.owner&&page.owner!=(uint32_t)getpid()&&kill((pid_t)page.owner,0)&&errno==ESRCH)unlink(path);}
  closedir(dir);
 }
 /* Maps the page at path, reusing an existing file (see above), and clears it for this process. */
 static int pace_signal_map(const char*path){
- int fd=open(path,O_RDWR|O_CREAT|O_CLOEXEC,0600);if(fd<0)return 0;
+ int fd=pace_signal_open(path,O_RDWR|O_CREAT);if(fd<0)return 0;
  if(ftruncate(fd,4096)==0){void*m=mmap(NULL,4096,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
   if(m!=MAP_FAILED){pace_sig=m;pace_sig->generated=0;pace_sig->beat=0;pace_sig->multiplier=0;pace_sig->owner=(uint32_t)getpid();memcpy(pace_sig->magic,"BC250XP1",8);pace_sig_made=pace_now();}}
  close(fd);return pace_sig!=NULL;
