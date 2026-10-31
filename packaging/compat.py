@@ -140,10 +140,14 @@ def _condition(key, value, ctx):
         files = ctx.get('files')
         return (None, None) if files is None else (v in {str(path).lower() for path in files}, 'required file: ' + str(value))
     if key == 'upscaler_input':
-        chosen = ctx.get('upscaler_input')
+        chosen = str(ctx.get('upscaler_input') or '').lower()
         if not chosen:
             return None, None
-        return (str(chosen).lower() == v, 'requires ' + str(value) + ' game input')
+        # One input or several ("fsr31, xess", "dlss/xess"), or all but one ("not dlss").
+        hit = chosen in {p.strip() for p in re.split(r'[/,]| or ', v.removeprefix('not ')) if p.strip()}
+        if v.startswith('not '):
+            return (not hit), (None if not hit else 'not with ' + chosen + ' game input')
+        return hit, (None if hit else 'requires ' + str(value) + ' game input')
     if key in ('upscaler', 'upscaler_output'):
         mine = ctx.get('upscaler', 'fsr4')
         if mine in v:

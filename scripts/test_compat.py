@@ -77,6 +77,15 @@ class ConditionTests(unittest.TestCase):
         helix = dict(ctx, upscaler='helixsr')  # claude/helixsr's output choice
         self.assertIs(c.evaluate({'upscaler': 'fsr4'}, helix)[0], False)
 
+    def test_upscaler_input_names_one_input_or_several(self):
+        # The wiki writes "fsr31, xess" for either input (two of its items): an exact comparison never held.
+        for value, chosen, expected in [('fsr31, xess', 'xess', True), ('fsr31, xess', 'FSR31', True), ('fsr31, xess', 'dlss', False),
+                                        ('dlss/xess', 'xess', True), ('dlss or fsr2', 'fsr2', True), ('fsr31_12', 'fsr31_12', True),
+                                        ('fsr31_12', 'fsr31', False), ('not dlss', 'xess', True), ('not dlss', 'dlss', False),
+                                        ('fsr31, xess', None, None)]:
+            self.assertIs(c.evaluate({'upscaler_input': value}, {'upscaler_input': chosen})[0], expected, (value, chosen))
+        self.assertEqual(c.evaluate({'upscaler_input': 'fsr31, xess'}, {'upscaler_input': 'dlss'})[1], ['requires fsr31, xess game input'])
+
     def test_key_rules(self):
         expect = {'OptiFG.HUDFix': 'blocked', 'OptiFG.HUDLimit': 'blocked', 'Spoofing.Dxgi': 'blocked', 'fakenvapi.EnableLogs': 'blocked',
                   'FSR.FsrNonLinearPQ': 'blocked', 'FrameGen.FGInput': 'installer', 'Upscalers.Dx12Upscaler': 'installer',
