@@ -21,6 +21,9 @@
  * keeps that module's view of its callers and steps aside rather than end the game (mfg_proxy_coexist.h). Without such
  * a module it accelerates what the 2x build accelerates. This proxy has no frame-start pacer. MFG Unlocker's output
  * pacing does not pace game simulation starts; the OptiScaler fork supplies the adaptive correction through XeLL.
+ * In this build every export Intel's headers declare is this DLL's own (the wrapped ones and plain tail-calling ones,
+ * release/build_proxy.py declared_tail_hooks), so each verifies and loads the runtime beside this file first; only the
+ * unnamed and undeclared exports stay forwarders, which the loader binds through the DLL search path.
  */
 #define WIDL_C_INLINE_WRAPPERS
 #define COBJMACROS
@@ -55,6 +58,26 @@ static int original_verified(const wchar_t*path){
  while(ok&&total<ORIGINAL_BYTES){if(!ReadFile(f,bytes,sizeof(bytes),&count,NULL)||!count){ok=0;break;}total+=count;for(DWORD i=0;i<count;i++)h=h*0x100000001b3ULL^bytes[i];}
  CloseHandle(f);return ok&&total==ORIGINAL_BYTES&&h==ORIGINAL_HASH;
 }
+/* Whether two paths name one file (same volume and file index), whatever drive mapping or spelling each uses. */
+static int same_file(const wchar_t*a,const wchar_t*b){
+ BY_HANDLE_FILE_INFORMATION x,y;int same=0;
+ HANDLE f=CreateFileW(a,0,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,0,NULL);
+ HANDLE g=CreateFileW(b,0,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,0,NULL);
+ if(f!=INVALID_HANDLE_VALUE&&g!=INVALID_HANDLE_VALUE&&GetFileInformationByHandle(f,&x)&&GetFileInformationByHandle(g,&y))
+  same=x.dwVolumeSerialNumber==y.dwVolumeSerialNumber&&x.nFileIndexHigh==y.nFileIndexHigh&&x.nFileIndexLow==y.nFileIndexLow;
+ if(f!=INVALID_HANDLE_VALUE)CloseHandle(f);if(g!=INVALID_HANDLE_VALUE)CloseHandle(g);return same;
+}
+/* A bc250_xefg_original.dll already loaded from another file: a forwarder of this proxy bound through the DLL search
+ * path before the first wrapped call (a copy beside the game's executable, say). Two copies of Intel's runtime would
+ * each get some of the calls and see the other's contexts, so XeFG stays off and the log says why. */
+static int original_elsewhere(const wchar_t*path){
+ HMODULE loaded=GetModuleHandleW(L"bc250_xefg_original.dll");if(!loaded)return 0;
+ static wchar_t other[32768];DWORD n=GetModuleFileNameW(loaded,other,32768);
+ if(n&&n<32768&&same_file(other,path))return 0;
+ char line[700];snprintf(line,sizeof(line),"MFG proxy: two copies of Intel's XeFG runtime: %.500ls is already loaded, not the verified "
+                         "bc250_xefg_original.dll beside this proxy; XeFG is unavailable (remove that copy)\n",n&&n<32768?other:L"another file");
+ proxy_log(line);return 1;
+}
 static INIT_ONCE mfg_once=INIT_ONCE_STATIC_INIT;
 /* The initialisation runs once, whatever its outcome: a missing or altered runtime is logged once and every later call
  * answers CANT_LOAD_LIBRARY at once (a retry per call reopened the log and re-hashed the 22 MB runtime). */
@@ -69,6 +92,7 @@ static void mfg_initialize_once(void){
  mfg_settings_init();
  wcscpy(path,proxy_directory);wcscat(path,L"bc250_xefg_original.dll");
  if(!original_verified(path)){proxy_log("MFG proxy: bc250_xefg_original.dll is missing or is not the pinned Intel XeFG runtime (size or hash); XeFG is unavailable\n");return;}
+ if(original_elsewhere(path))return;
  original_module=LoadLibraryExW(path,NULL,LOAD_WITH_ALTERED_SEARCH_PATH);
  if(!original_module){char line[120];snprintf(line,sizeof(line),"MFG proxy: Intel XeFG runtime did not load (error %lu)\n",GetLastError());proxy_log(line);return;}
  mfg_pace_signal_start();

@@ -2140,6 +2140,27 @@ XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainD3D12GetSwapChainPtr(xef
         for leftover in ('mfg_xell_pace', 'mfg_status_', 'mfg_enabler'):
             self.assertNotIn(leftover, code)
 
+    def test_declared_entries_tail_call(self):
+        """tail_declared: every other export Intel's headers declare becomes the proxy's own tail-calling entry (verified
+        runtime first, no DLL search path); unnamed and undeclared exports stay forwarders."""
+        import build_proxy
+        _base, definition, _defines = build_proxy.definitions('intel-free-mfg')
+        self.assertIs(definition['addon'].get('tail_declared'), True)
+        hooks = build_proxy.proxy_hooks(definition)
+        headers = self.headers() + ('XEFG_SWAPCHAIN_API xefg_swapchain_result_t xefgSwapChainGetVersion('
+                                    'xefg_swapchain_version_t* pVersion);\n')
+        exports = [(1, None, None), (27, 'xefgAILGetDecision', None), (31, 'xefgSwapChainD3D12CreateContext', None),
+                   (48, 'xefgSwapChainGetVersion', None)]
+        added = build_proxy.declared_tail_hooks(headers, exports, hooks)
+        self.assertEqual(added, {'xefgSwapChainGetVersion': dict(before='', always_tail=True)})
+        body = self.wrappers(build_proxy.exports_header(headers, dict(hooks, **added)))['xefgSwapChainGetVersion']
+        self.assertIn('if(!original&&!(original=(void*)resolve("xefgSwapChainGetVersion")))', body)
+        self.assertTrue(body.endswith('__attribute__((musttail)) return original(pVersion);}'), body)
+        definition_text = build_proxy.module_definition(exports, set(hooks) | set(added), [], 'bc250_xefg_original.dll')
+        self.assertIn(' xefgSwapChainGetVersion @48\n', definition_text)
+        self.assertIn(' xefgAILGetDecision=bc250_xefg_original.xefgAILGetDecision @27\n', definition_text)
+        self.assertIn(' bc250_ordinal_1=bc250_xefg_original.#1 @1 NONAME\n', definition_text)
+
     @unittest.skipUnless(TWO_DEFINITION.is_file(), '0.9.0\'s 2x proxy is not part of this tree (public export)')
     def test_the_2x_variant_is_unchanged(self):
         import build_proxy

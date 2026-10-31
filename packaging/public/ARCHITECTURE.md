@@ -20,7 +20,7 @@ beside it as `bc250_xefg_original.dll`.
 
 ### Exports
 
-The proxy preserves Intel runtime 1.3.1.78's **57 exports and ordinals**: 49 forward directly and eight are wrapped.
+The proxy preserves Intel runtime 1.3.1.78's **57 exports and ordinals**. The 24 that Intel's headers declare are the proxy's own: eight are wrapped, sixteen check and load the runtime beside the proxy, then tail-call it. The 26 unnamed and 7 undeclared exports forward directly; if a forwarder has already loaded another copy of the runtime, the proxy refuses to use either.
 Four additional exports provide FreeFG's settings/initialisation interface.
 
 | Wrapped calls | Work before or after forwarding |

@@ -7,7 +7,7 @@ has its own pinned source and build route.
 
 | Output | Built by | Reference sha256 |
 | --- | --- | --- |
-| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `43920cbd9ed0476a8de9b6b37c9e484dd3585142c7aab6170247a9d1c103948b` |
+| `libxess_fg.dll` (the proxy) | `release/build_proxy.py` | `143838194d4858610229101ca976d8754569f11c02a3033c8a92cd5226b19277` |
 | `libxefg_wave.so` (the pacing layer) | `release/build_layer.py` | `1f691dfd018f7d3d062704b9639e5ed7bfbcfe1e71d92c2299e08153b9f666b6` |
 
 The proxy and layer scripts build twice and require identical outputs. They also compare against
@@ -90,8 +90,8 @@ outputs. Neither route establishes GPU/game qualification.
 | Step | Checks and record |
 | --- | --- |
 | `build_layer.py` | Pacer, wave-layer and concurrent-present tests under ASan/UBSan and TSan; two matching builds; no glibc symbol version newer than 2.34 (the manifest's `present_pacing.glibc`, which System Check compares with the host's); `build/layer/build.json`. |
-| `build_proxy.py` | Pinned inputs, profile manifest, two matching DLLs, 57 Intel exports (8 wrapped/49 forwarded) plus 4 own exports, and imports limited to `kernel32.dll`/`ucrtbase.dll`; `build/addon-intel-free-mfg/build.json`. |
-| `check_proxy_wine.py` | Forwarding to the pinned runtime; refusal of missing/altered runtimes; caller preservation with stand-in hooks; coexistence bookkeeping; copied-history invalidation and abandoned/submitted recordings. Private Wine prefix, no GPU/display. |
+| `build_proxy.py` | Pinned inputs, profile manifest, two matching DLLs, 57 Intel exports (the 24 its headers declare are the proxy's own: 8 wrapped, 16 tail-calling; 26 unnamed and 7 undeclared forwarded) plus 4 own exports, and imports limited to `kernel32.dll`/`ucrtbase.dll`; `build/addon-intel-free-mfg/build.json`. |
+| `check_proxy_wine.py` | Own and forwarded entries reaching the pinned runtime, also from a subfolder and beside a game's own copy of it; refusal of missing/altered runtimes and of a second copy loaded elsewhere; caller preservation with stand-in hooks; coexistence bookkeeping; copied-history invalidation and abandoned/submitted recordings. Private Wine prefix, no GPU/display. |
 | `assemble.py` | Installer tests, build freshness, allowed package contents, manifest hashes and static material scan. `--archive` also requires a passed qualification receipt and completed public documents. |
 | `check_intel_free.py check` | Known Intel files/shaders, unrecognised embedded DXIL, shader model 6.4 and known warp-weight constants. Pinned OptiScaler shaders are recognised separately. Synthetic detector controls are in `release/ci/check_controls.py`. |
 

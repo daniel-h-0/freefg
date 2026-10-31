@@ -25,8 +25,9 @@ Steps:
        profile_manifest.h    size and FNV-1a hash of every profile file
        original_manifest.h   size and FNV-1a hash of Intel's runtime (the proxy loads nothing else)
        mfg_proxy_exports.h   the wrapped XeFG entries as this DLL's own exports calling Intel's: 2x, the five of
-                             proxy_common.py API_HOOKS with intel_free_2x.json's changes; mfg, the seven of
-                             proxy_common.py MFG_PROXY_HOOKS, each with a tail-calling path
+                             proxy_common.py API_HOOKS with intel_free_2x.json's changes; mfg, the eight of
+                             proxy_common.py MFG_PROXY_HOOKS, each with a tail-calling path, and (definition
+                             "tail_declared") a plain tail-calling entry for every other export Intel's headers declare
        proxy.def             Intel's 57 exports at their ordinals (wrapped ones here, the rest forwarded to
                              bc250_xefg_original) and the add-on's settings exports after them
   4. Compile src/game/mfg_proxy.c with clang for x86_64-w64-windows-gnu against Wine's headers and import libraries,
@@ -217,6 +218,18 @@ def exports_header(headers_text, hooks):
     return ''.join(code)
 
 
+def declared_tail_hooks(headers_text, intel_exports, hooks):
+    """Plain tail-calling wrappers (always_tail, nothing before) for every named export that Intel's headers declare and
+    the variant does not wrap otherwise (intel_free_mfg.json "tail_declared"). Each verifies and loads the runtime on its
+    first call, like the wrapped entries: a PE forwarder is bound through the DLL search path instead, before anything is
+    verified, so it finds nothing for a proxy in a subfolder, or an unverified copy elsewhere on the path. Unnamed
+    exports and the named ones without a declaration (no signature to call with) stay forwarders."""
+    declared = set(re.findall(r'XEFG_SWAPCHAIN_API\s+xefg_swapchain_result_t\s+(xefg\w+)\s*\(',
+                              common.strip_comments(headers_text)))
+    return {name: dict(before='', always_tail=True) for _ordinal, name, _forwarder in intel_exports
+            if name and name in declared and name not in hooks}
+
+
 def module_definition(intel_exports, wrapped, extra, original):
     """proxy.def: Intel's exports at their ordinals, then the extra exports at the following ordinals."""
     base = original.removesuffix('.dll')
@@ -387,7 +400,10 @@ def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
     intel_exports = pe_exports(runtime_data)
     if len(intel_exports) != 57 or any(f for _o, _n, f in intel_exports):
         raise ReleaseError('Intel\'s runtime does not have the 57 exports (none forwarded) this proxy was written for')
+    headers = '\n'.join((xess / name).read_text() for name in common.API_HEADERS)
     hooks = proxy_hooks(definition)
+    if spec.get('tail_declared'):
+        hooks.update(declared_tail_hooks(headers, intel_exports, hooks))
     wrapped = set(hooks)
     if not wrapped <= {n for _o, n, _f in intel_exports if n}:
         raise ReleaseError('Intel\'s runtime does not export every wrapped entry')
@@ -405,7 +421,6 @@ def build(config, check_com_thunks=True, variant=DEFAULT_VARIANT):
     staged.rename(out / 'profile')
     profile_files = sorted((out / 'profile').iterdir())
 
-    headers = '\n'.join((xess / name).read_text() for name in common.API_HEADERS)
     texts = {
         'probe_core.h': common.probe_core_header((REPO / 'src/probe.c').read_text()),
         'profile_manifest.h': common.profile_manifest_header(profile_files),

@@ -80,7 +80,8 @@ API_HOOKS = {
               '"MFG_PRESENT enabled=%u status=%d presents=%u\\n",pPresentStatus->isFrameGenEnabled,'
               'pPresentStatus->frameGenResult,pPresentStatus->framesPresented);proxy_log(line);}'),
 }
-API_HEADERS = ['inc/xess_fg/xefg_swapchain.h', 'inc/xess_fg/xefg_swapchain_d3d12.h']
+# Intel's headers that declare the runtime's entries (the debug header: xefgSwapChainEnableDebugFeature)
+API_HEADERS = ['inc/xess_fg/xefg_swapchain.h', 'inc/xess_fg/xefg_swapchain_d3d12.h', 'inc/xess_fg/xefg_swapchain_debug.h']
 
 # The multi-frame proxy's wrapped entries (variant intel-free-mfg, release/intel_free_mfg.json "hooks": "MFG_PROXY_HOOKS";
 # C side: src/game/mfg_proxy_coexist.h). "before", "replace" and "after" are the ordinary path, as API_HOOKS (without the
