@@ -52,7 +52,7 @@ static int mfg_cap_dispatch_locked(ID3D12GraphicsCommandList*l,uint64_t shader,U
   if(!mfg_profile_checked){
    char path[1500];snprintf(path,sizeof(path),
  "%s\\freefg-scaling.required",
- patchdir);FILE*f=fopen(path,"r");
+ patchdir);FILE*f=profile_fopen(path,"r");
    if(f){mfg_profile_general=fgetc(f)=='1';fclose(f);}mfg_profile_checked=1;
   }
   /* Archived fixed-ratio profiles remain valid for old 1440p comparisons only. */

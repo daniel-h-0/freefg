@@ -33,6 +33,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | | `FAST_COEXIST another module hooks Intel's XeFG runtime (…; jumps to MODULE)` | Another module hooks Intel's runtime. Supported network-layout mismatches can step aside; other integrity failures still stop the game. |
 | | `FAST_SKIP … only OptiScaler's own contexts are accelerated` | Beside a hooking mod, the game's native context is not accelerated. OptiScaler's context can still be selected (`FAST_OWNER`). |
 | | `MFG_FACTOR`, `MFG_STATUS` | Requested factor and SDK-reported presentation status; initialization alone does not prove generation. |
+| | `FAST_DECISION candidate: …`, `FAST_DECISION not accelerated: …` | One line per context that reaches FreeFG's check: whether it can be accelerated, or why not (`BC250_XEFG_DISABLE=1`, another context already accelerated, another GPU, a profile file missing or altered, the fast log not writable). |
 | | `FAST_OWNER` | FreeFG selected the context it accelerates. |
 | | `FAST_FALLBACK …`, other `FAST_SKIP …` lines | Why Intel's shaders are used instead. |
 | `BC250-XeFG-fast.log` | `MODEL_SEALED`, `PRIVATE GAME TRIAL scoped prepared-model and Winograd path installed` (fixed text compiled into the DLL) | The accelerated path is active. |
@@ -85,7 +86,7 @@ session's logs; a fast log can remain from an earlier run.
 | OptiScaler | `FAST_OWNER` | 7 lines that start with `REPLACE` | MFG Unlocker's own model: FreeFG's shaders run on part of the network, at every frame count. | Set `XeFGModel=default` under `[XeFG]` in `OptiScaler.ini` ([Configuration](CONFIGURATION.md#3-and-4-with-mfg-unlocker)). |
 | native XeSS FG (or the game's XeSS FG chosen in the game) | `FAST_SKIP beside another module …`, no `FAST_OWNER` or `CONTEXT_CALLER` | none or earlier | The game's own XeSS frame generation beside MFG Unlocker: FreeFG does not accelerate it. | Use OptiScaler's frame generation (install with an OptiScaler input), or remove MFG Unlocker for 2×. |
 | any | `FAST_ASIDE …` | `FAST_ASIDE …` | FreeFG stepped aside during the session ([Logs](#logs)). | Use MFG Unlocker 1.6.0 with `XeFGModel=default`, or remove the other mod. |
-| any other case | no `FAST_OWNER` | none or earlier | `BC250_XEFG_DISABLE=1`, or the reason in a `FAST_FALLBACK` or `FAST_SKIP` line ([Logs](#logs)). | Remove `BC250_XEFG_DISABLE` from the launch options, or act on that line. |
+| any other case | no `FAST_OWNER` | none or earlier | `BC250_XEFG_DISABLE=1`, or the reason in a `FAST_DECISION`, `FAST_FALLBACK` or `FAST_SKIP` line ([Logs](#logs)). | Remove `BC250_XEFG_DISABLE` from the launch options, or act on that line. |
 
 `BC250-XeFG-fast.log` is written only in a session with `FAST_OWNER`; "earlier" is a log left by an earlier session,
 which **Status** names as such; **Status** reads only the logs beside the `.exe` written since the installation.

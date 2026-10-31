@@ -179,6 +179,7 @@ src/mfg_heap_lifetime.h
 src/mfg_model_alias.h
 src/mfg_model_pool.h
 src/mfg_root_cache.h
+src/profile_io.h
 src/game/fast_trial.h
 src/game/f4q.h
 src/game/mfg_pace_signal.h

@@ -46,6 +46,7 @@ static void proxy_log(const char*s){logline(s);}
 #include "mfg_settings.h"   /* the real settings reader: the F4Q key of BC250-XeFG\settings.ini */
 static void replace(void*slot,void*p){memcpy(slot,&p,sizeof(p));}
 static char patchdir[1024];
+#include "profile_io.h"     /* the real profile reads (wide-character opens of UTF-8 paths) */
 static struct{ID3D12GraphicsCommandList*l;ID3D12PipelineState*p;} bindings[8];static UINT nbinding;
 static void model_fail(const char*w){char line[200];snprintf(line,sizeof(line),"MODEL_FAIL %s\n",w);logline(line);ExitProcess(4);}
 /* the model owner's layout for the profile's marker (1535 = the release marker; owner 7): 2304- and 4608-byte models */

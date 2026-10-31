@@ -199,7 +199,8 @@ static int proxy_caller_accelerable(void*caller){
  const char*leaf=strrchr(path,'\\');char line[MAX_PATH+400];
  snprintf(line,sizeof(line),"FAST_SKIP beside another module hooking Intel's XeFG runtime only OptiScaler's own contexts are accelerated; "
           "this one (created from %s) keeps the caller's device and runs Intel's or that module's shaders\n",leaf?leaf+1:*path?path:"code outside any module");
- proxy_log(line);return 0;
+ proxy_log(line);proxy_log("FAST_DECISION not accelerated: another module hooks Intel's XeFG runtime and this context is not OptiScaler's\n");
+ return 0;
 }
 
 /* ------------------------------------------------------------------------------------------- stepping aside */

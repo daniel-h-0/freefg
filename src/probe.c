@@ -28,8 +28,12 @@ static void mfg_capture_report(void);
 static HANDLE output;
 /* The output folder of save(): only the standalone probe and the diagnostic game builds named here write files. */
 static char directory[1024];
-static char patchdir[1024];
-static void logline(const char*s){DWORD n;WriteFile(output,s,(DWORD)strlen(s),&n,NULL);}
+static char patchdir[1024];  /* the shader profile's folder, UTF-8 (profile_io.h) */
+#include "profile_io.h"
+/* Writers share the log handle; the game build opens and closes it under the exclusive lock (fast_prepare, fast_finish),
+ * so no line goes to a closed handle or to a file that reused its value. */
+static SRWLOCK output_lock=SRWLOCK_INIT;
+static void logline(const char*s){DWORD n;AcquireSRWLockShared(&output_lock);if(output&&output!=INVALID_HANDLE_VALUE)WriteFile(output,s,(DWORD)strlen(s),&n,NULL);ReleaseSRWLockShared(&output_lock);}
 static void check(long r,const char*s){if(r<0){char b[512];snprintf(b,sizeof(b),"FAIL %s: %lx\n",s,r);logline(b);ExitProcess(10);}}
 #define HR(x) check((x),#x)
 #define LOAD(lib,n) __typeof__(&n) p_##n=(void*)GetProcAddress(lib,#n);if(!p_##n)ExitProcess(2)
@@ -57,7 +61,7 @@ static struct{uint64_t shader;UINT factor;int x,y;} split_z[32];static UINT spli
 static UINT scale_log; /* diagnostic: XEFG_SCALE_LOG=1 logs every scaled dispatch */
 static void load_dispatch_scale(const char*path,int xyz){
  {char v[8];scale_log=GetEnvironmentVariableA("XEFG_SCALE_LOG",v,sizeof(v))&&v[0]=='1';}
- FILE*f=fopen(path,"r");if(!f||split_count)ExitProcess(40);char row[256];
+ FILE*f=profile_fopen(path,"r");if(!f||split_count)ExitProcess(40);char row[256];
  while(fgets(row,sizeof(row),f)){
   if(strspn(row," \t\r\n")==strlen(row))continue;
   unsigned long long shader;int x=1,y=1;unsigned z;char extra;
