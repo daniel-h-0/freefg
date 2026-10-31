@@ -728,6 +728,8 @@ class LibraryTests(UpdateFixture):
                 return m.main(),out.getvalue(),err.getvalue()
         code,out,_=cli('plan','--all');digest=out.split('Plan digest: ')[1].split()[0]
         self.assertEqual((code,cli('plan','--all')[1].split('Plan digest: ')[1].split()[0]),(m.EXIT_OK,digest))  # the same plan, the same digest
+        # A front end planning in its own process (Setup) gets the same digest, in any order.
+        self.assertEqual(m.plan_digest([(e,m.game_plan(self.new,e)) for e in (exe,self.exe)]),digest)
         (game/'BC250-XeFG/shaders/waves.txt').write_bytes(b'edited')  # the second game now needs attention
         before=(self.snapshot(),(game/'libxess_fg.dll').read_bytes())
         code,_,err=cli('update','--all','--expect-plan',digest)

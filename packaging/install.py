@@ -2909,11 +2909,12 @@ def game_plan(package,exe,component='all',helixsr_dir=None,loader=None,refresh_r
 def plan_digest(plans):
     """SHA-256 of the plans of a plan command ([(exe, update_plan's plan, or the game's outcome: unavailable or failed)]):
     each game's status and reason, and an update's releases, files, launcher entries and record changes. update
-    --expect-plan applies the plans only while they are still these."""
+    --expect-plan applies the plans only while they are still these. (A front end planning in its own process gets the
+    same digest from the same plans.)"""
     rows=[]
-    for exe,plan in sorted(plans,key=lambda row:str(row[0])):
-        if isinstance(plan,str):rows.append([str(exe),plan]);continue
-        rows.append([str(exe),plan['status'],plan.get('reason'),plan.get('source'),plan.get('target'),plan.get('component'),
+    for exe,plan in sorted(((str(Path(exe).absolute().resolve()),plan) for exe,plan in plans),key=lambda row:row[0]):
+        if isinstance(plan,str):rows.append([exe,plan]);continue
+        rows.append([exe,plan['status'],plan.get('reason'),plan.get('source'),plan.get('target'),plan.get('component'),
                      [[a['path'],a['kind'],a['component'],a['old'],a['new']] for a in plan['actions']],
                      [[op['target']['path'],op['target'].get('id'),op['after']] for op in plan.get('launcher_ops') or []],
                      plan.get('metadata'),plan.get('deferred'),plan.get('notes')])
