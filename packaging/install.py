@@ -742,12 +742,25 @@ def previous_settings(state,record,rm):
         slot.update({k:dict(recipe=item['values'][k],original=originals[k]) for k in keys if k in originals})
     return {slot:keys for slot,keys in out.items() if keys}
 
+# The last Restore left these files as installed, their backups being damaged (record left_installed): until they are
+# the game's own again, an Install would back them up as originals.
+LEFT_INSTALLED='The last Restore could not put back the game’s own {} (the copy saved at installation was damaged).'
+
+def left_installed(root,record):
+    """The files of record's left_installed that still hold the bytes Restore left in them."""
+    out=[]
+    for row in (record or {}).get('left_installed') or []:
+        try:
+            if row.get('sha256') and file_digest(root,row['path'])==row['sha256']:out.append(row['path'])
+        except (OSError,ValueError):continue
+    return out
+
 def preconditions(package,exe,recipe=None):
     """What in the game folder makes install() refuse before it changes anything, as compatibility refusals (code, kind
-    'hard', text, way) for Check and Setup: an installation not restored, a folder path that is not ASCII, another
-    mod's version.dll or XeSSMFG folder, the files of a fresh OptiScaler setup already there, an OptiScaler setup this
-    package does not take over, HelixSR's own installation where the upscaler DLL goes, a verified game's other
-    executable. Reads only (no hashes of package files, no network);
+    'hard', text, way) for Check and Setup: an installation not restored, files its Restore could not put back (their
+    backups damaged), a folder path that is not ASCII, another mod's version.dll or XeSSMFG folder, the files of a fresh
+    OptiScaler setup already there, an OptiScaler setup this package does not take over, HelixSR's own installation where
+    the upscaler DLL goes, a verified game's other executable. Reads only (no hashes of package files, no network);
     install() keeps its own checks of the same conditions, which test_compat_install compares with these."""
     out=[];root=exe.parent.resolve()
     def add(code,text,way):out.append(dict(code=code,kind='hard',text=text,way=way))
@@ -763,11 +776,13 @@ def preconditions(package,exe,recipe=None):
     state=root/STATE
     if state.is_symlink():add('installed','The installation state folder is a symlink.','Remove it, then Check again.')
     elif state.exists():
-        try:status=json.loads(safe(root,STATE+'/state.json').read_text()).get('status')
-        except (OSError,ValueError,AttributeError):status=None
-        if status!='restored':
+        try:previous=json.loads(safe(root,STATE+'/state.json').read_text())
+        except (OSError,ValueError):previous=None
+        if not isinstance(previous,dict) or previous.get('status')!='restored':
             # The rest of the folder (OptiScaler, an enabler) is that installation's until its Restore: nothing more to say.
             add('installed','An installation record already exists in this game folder.','Restore it first (Setup: Restore), then Install again.');return out
+        left=left_installed(root,previous)
+        if left:add('left-installed',LEFT_INSTALLED.format(joined(left)),'Put them back (your launcher’s Verify or Repair does for game files), then Install again.')
     try:
         manifest=json.loads((package/'manifest.json').read_text())
         pins=json.loads(safe(package,'dependencies.json').read_bytes()) if (package/'dependencies.json').is_file() else None
@@ -975,6 +990,8 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if state.exists():
         record=json.loads(safe(root,STATE+'/state.json').read_text())
         if record.get('status')!='restored':raise ValueError('An installation record already exists; use restore before installing again')
+        left=left_installed(root,record)
+        if left:raise ValueError(LEFT_INSTALLED.format(joined(left))+' Put them back (your launcher’s Verify or Repair does for game files), then Install again.')
         archive_state=root/(STATE+'-restored-'+uuid.uuid4().hex[:12])
     # Settings the user changed in the previous installation, saved by its Restore. Reinstalling keeps them.
     carried={};previous_helixsr_ini=None
@@ -1407,6 +1424,9 @@ def restore(exe):
     if pending and pending.get('generation'):
         for line in settle_interrupted(root,record)[1]:print(line)
         pending=record.get('pending_update')
+    # The record as it is on disk: before the files the copies kept below come from go, it names those copies (a Restore
+    # interrupted after that keeps pointing at them for the next Install).
+    journal=json.loads(json.dumps(record))
     if pending:
         for name,change in pending['files'].items():
             item=next(v for v in record['files'] if v['path']==name)
@@ -1414,22 +1434,29 @@ def restore(exe):
             target=safe(root,name);now=digest(target.read_bytes()) if target.exists() else None
             if now==change['after']:item['after']=change['after']
         record.pop('pending_update')
-    actions=[];preserve=[];kept=[];timestamps=[];provider_logs=[]
+    actions=[];preserve=[];kept=[];timestamps=[];provider_logs=[];damaged=[]
     for i,item in enumerate(record['files']):
         target=safe(root,item['path']);current=target.read_bytes() if target.exists() else None
-        original=safe(state,'backups/'+str(i)).read_bytes() if item['before'] is not None else None
-        if original is not None and digest(original)!=item['before']:raise ValueError('Backup checksum mismatch: '+item['path'])
-        backup=original;now=digest(current) if current is not None else None
+        now=digest(current) if current is not None else None
         if now is not None and now==item['after']:
             for tail,logname in [('custom/hlx-dlss/dlss/helixsr.dll','helixsr.log'),('custom/hlx-fsr4/ffx/'+DLL,'HLX_FSR.log')]:
                 if item['path'].endswith(tail):provider_logs.append((Path(item['path']).parent/logname).as_posix())
         if now==item['before']:
             # A switch or interrupted Restore may already have put the original
             # bytes back with a new timestamp. Restore metadata without rewriting.
-            if original is not None and isinstance(item.get('mtime_ns'),int):
+            if item['before'] is not None and isinstance(item.get('mtime_ns'),int):
                 timestamps.append((target,item['mtime_ns']))
             continue
-        if item['path']=='OptiScaler.ini' and current is not None and original is None and now!=item['after']:
+        # The file from before installation, from the backups. Where that copy is missing or damaged, this file is left as
+        # it is and named, and the rest is restored (one bad copy no longer stops the whole Restore).
+        original=problem=None
+        if item['before'] is not None:
+            try:
+                original=safe(state,'backups/'+str(i)).read_bytes()
+                if digest(original)!=item['before']:original,problem=None,'its backup does not match its checksum'
+            except (OSError,ValueError) as error:problem='its backup cannot be read ('+str(error)+')'
+        backup=original
+        if item['path']=='OptiScaler.ini' and current is not None and item['before'] is None and now!=item['after']:
             # Fresh setup owned the whole INI. Keep post-install preferences in
             # the backup tree before removing it, so a clean reinstall works.
             read_ini(current)
@@ -1448,7 +1475,8 @@ def restore(exe):
             relative='preserved-ini/xemfg-'+digest(current)+'.ini'
             preserve.append((safe(state,relative),current))
             record.setdefault('preserved_settings',{})[item['path']]=relative
-        elif item['path']=='OptiScaler.ini' and current is not None and original is not None:
+        elif item['path']=='OptiScaler.ini' and current is not None and item['before'] is not None:
+            if problem:damaged.append((item['path'],now,problem));continue
             old=read_ini(original);present=read_ini(current);changes={}
             for change in record['ini_changes']:
                 key=(change['section'].lower(),change['key'].lower())
@@ -1464,6 +1492,7 @@ def restore(exe):
             # another tool. That version belongs to the game now; keep it and restore everything else. The original
             # stays in the backups.
             kept.append((item['path'],i if item['before'] is not None else None));continue
+        if problem:damaged.append((item['path'],now,problem));continue
         # The original bytes get their modification time back too (records of earlier builds have none).
         mtime=item.get('mtime_ns') if original is not None and original is backup and isinstance(item.get('mtime_ns'),int) else None
         actions.append((target,original,item['mode'],mtime))
@@ -1486,6 +1515,9 @@ def restore(exe):
     for target,mtime in timestamps:
         if target.stat().st_mtime_ns!=mtime:os.utime(target,ns=(target.stat().st_atime_ns,mtime))
     for path,data in preserve:write(path,data)
+    if preserve:
+        journal.update({key:record[key] for key in ('preserved_ini','preserved_helixsr_ini','preserved_settings') if key in record})
+        write(state/'state.json',(json.dumps(journal,indent=2)+'\n').encode())
     for target,data,mode,mtime in actions:
         if data is None:target.unlink(missing_ok=True)
         else:
@@ -1534,6 +1566,9 @@ def restore(exe):
         except OSError:left_dirs.append(relative)
     if left_dirs:notes.append('Kept folders the installation created that now hold other files: '+', '.join(left_dirs)+'.')
     if kept:record['kept_changed']=[path for path,_ in kept]
+    # Files left as installed for a damaged backup: their bytes are not the game's, and a new Install refuses while they
+    # are there (they would become its originals).
+    if damaged:record['left_installed']=[dict(path=path,sha256=now) for path,now,_ in damaged]
     # An anti-cheat override belonged to this installation: a new Install asks for it again.
     overridden=record.pop('risk_accepted',None)
     # The releases in-place updates saved for rollback: nothing returns to them once the originals are back.
@@ -1553,6 +1588,9 @@ def restore(exe):
         print('Kept '+path+': it changed after installation (a game update or another tool), so it is the game’s own now'+
               ('; the version from before installation is '+str(state/'backups'/str(i)) if i is not None else '')+'.')
     for line in launcher_notes+left+notes:print(line)
+    for path,now,problem in damaged:
+        print('Left '+path+' as it is: '+problem+', so the file from before installation cannot be put back. Put it back '
+              'yourself (your launcher’s Verify or Repair does for a game file) before you install again.')
     if overridden:print('The anti-cheat override ended with this installation; a new Install asks for it again.')
 
 def upscaler_target(record,pins):

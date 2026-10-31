@@ -569,6 +569,43 @@ class InstallationTests(GameFixture):
         saved=[s for s in saved if not s.name.startswith('xemfg-')]
         self.assertEqual(len(saved),1);self.assertEqual(saved[0].read_bytes(),edited)
         m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+    def test_restore_interrupted_after_removing_the_fresh_ini_still_names_its_copy(self):
+        # The record names the copy before the INI goes: a Restore killed at its last write (the record) is completed by
+        # the next one, and the next Install still carries the user's multiplier from it.
+        deps=self.fresh();m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        p=self.game/'OptiScaler.ini';p.write_bytes(m.patch_ini(p.read_bytes(),{('XeFG','InterpolationCount'):'3'}))
+        real=m.write
+        def write(path,*args,**kwargs):
+            if Path(path).name=='state.json' and not p.exists():raise OSError('killed')
+            return real(path,*args,**kwargs)
+        with patch.object(m,'write',side_effect=write),self.assertRaisesRegex(OSError,'killed'):m.restore(self.exe)
+        record=json.loads((self.game/m.STATE/'state.json').read_text())
+        self.assertEqual((record['status'],(self.game/m.STATE/record['preserved_ini']).is_file()),('installed',True))
+        m.restore(self.exe);self.assertEqual(json.loads((self.game/m.STATE/'state.json').read_text())['preserved_ini'],record['preserved_ini'])
+        m.install(self.package,self.exe,route='opti',dependency_dir=deps)
+        self.assertEqual(m.read_ini(p.read_bytes())[('xefg','interpolationcount')],'3')
+    def test_a_damaged_backup_leaves_that_file_and_restores_the_rest(self):
+        # One missing or damaged copy from before installation no longer stops Restore: that file stays as installed and
+        # is named, the rest comes back, and Install refuses until the game's own file is back (it would become an original).
+        m.install(self.package,self.exe)
+        record=json.loads((self.game/m.STATE/'state.json').read_text());index={item['path']:i for i,item in enumerate(record['files'])}
+        (self.game/m.STATE/'backups'/str(index['libxell.dll'])).write_bytes(b'damaged')
+        (self.game/m.STATE/'backups'/str(index['OptiScaler.ini'])).unlink()
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.restore(self.exe)
+        self.assertIn('Left libxell.dll as it is: its backup does not match its checksum',out.getvalue())
+        self.assertIn('Left OptiScaler.ini as it is: its backup cannot be read',out.getvalue())
+        self.assertEqual((self.game/'libxell.dll').read_bytes(),b'new LL')
+        for name in set(self.original)-{'libxell.dll','OptiScaler.ini'}:self.assertEqual((self.game/name).read_bytes(),self.original[name],name)
+        self.assertFalse((self.game/'version.dll').exists());self.assertEqual(json.loads(self.config.read_text()),self.original_config)
+        record=json.loads((self.game/m.STATE/'state.json').read_text())
+        self.assertEqual((record['status'],[row['path'] for row in record['left_installed']]),('restored',['libxell.dll','OptiScaler.ini']))
+        with self.assertRaisesRegex(ValueError,'could not put back the game’s own libxell.dll and OptiScaler.ini'):m.install(self.package,self.exe)
+        self.assertEqual([r['code'] for r in m.preconditions(self.package,self.exe)][:1],['left-installed'])
+        # Back as the game's (a launcher's Verify or Repair): Install and Restore work again.
+        for name in ['libxell.dll','OptiScaler.ini']:(self.game/name).write_bytes(self.original[name])
+        self.assertEqual(m.preconditions(self.package,self.exe),[])
+        m.install(self.package,self.exe);m.restore(self.exe);self.assertOriginal()
     def test_existing_proxy_name_selects_context_owner(self):
         (self.game/'dxgi.dll').unlink();del self.original['dxgi.dll'];(self.game/'winmm.dll').write_bytes(b'opti')
         m.install(self.package,self.exe,route='opti')
