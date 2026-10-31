@@ -163,6 +163,72 @@ class SetupWindow(UpdateFixture):
     def record(self):
         return json.loads((self.game / m.STATE / 'state.json').read_text())
 
+    def test_manual_install_status_and_restore_through_the_window(self):
+        from test_game_install import DEPENDENCIES, set_package_file
+        from test_proxy_install import PROXY_PACKAGE
+        m.restore(self.exe)
+        self.config.unlink()
+        # Carry the fixture runtime in the package, just as a release does, so the
+        # real installer subprocess needs no downloads or dependency mocks.
+        for target, source in PROXY_PACKAGE.items():
+            set_package_file(self.new, target, DEPENDENCIES['runtime'][source])
+
+        def script(window):
+            window.added = [self.exe]
+            window.refresh()
+            yield lambda: window.loaded and window.providers is not None
+            window.install(window.game_by_key(str(self.exe)))
+            install = self.dialog(window, setup_app.InstallDialog)
+            install.input_row.set_selected([key for key, *_ in setup_app.model.INPUTS].index('upscaler'))
+            yield lambda: not install.checking
+            refusals = setup_app.model.refusals(install.verdict, 'soft')
+            self.assertIn('no-launcher', [r['code'] for r in refusals])
+            self.assertFalse(install.install_button.get_sensitive())
+            for refusal, row in zip(refusals, install.soft_rows):
+                if refusal['code'] != 'no-launcher':
+                    row.set_active(True)
+            self.assertFalse(install.install_button.get_sensitive())
+            install.soft_rows[[r['code'] for r in refusals].index('no-launcher')].set_active(True)
+            self.assertTrue(install.install_button.get_sensitive(), install.blocked())
+            install.install()
+            yield lambda: isinstance(window.get_visible_dialog(), setup_app.OperationDialog)
+            operation = self.dialog(window, setup_app.OperationDialog)
+            yield lambda: operation.done_button.get_visible()
+            self.assertTrue(all(r.ok for r in operation.results), operation.results)
+            self.assertNotIn('Reopen your launcher and play normally.', operation.extra_steps)
+            self.assertTrue(any(s.startswith('In your launcher: set ') for s in
+                                setup_app.model.next_steps(operation.results[0].lines)))
+            env = self.record()['manual_launch']['env']
+            self.assertEqual(env['WINEDLLOVERRIDES'], 'dxgi=n,b')
+            self.assertFalse(self.config.exists())
+            operation.close()
+            yield lambda: window.operations == 0 and setup_app.model.state(
+                window.game_by_key(str(self.exe)), self.ctx) == 'installed'
+            game = window.game_by_key(str(self.exe))
+            self.assertTrue(game.tracked)
+            window.status(game)
+            details = self.dialog(window, setup_app.TextDialog)
+            yield lambda: details.copy_button.get_sensitive()
+            self.assertIn('    WINEDLLOVERRIDES=dxgi=n,b', details.lines)
+            self.assertTrue(any(line.startswith('In your launcher: keep ') for line in details.lines))
+            details.close()
+            yield lambda: window.get_visible_dialog() is None
+            window.restore(game)
+            self.answer(window, 'go')
+            yield lambda: isinstance(window.get_visible_dialog(), setup_app.OperationDialog)
+            operation = self.dialog(window, setup_app.OperationDialog)
+            yield lambda: operation.done_button.get_visible()
+            self.assertTrue(all(r.ok for r in operation.results), operation.results)
+            self.assertTrue(any(s.startswith('In your launcher: remove ') for s in
+                                setup_app.model.next_steps(operation.results[0].lines)))
+            self.assertNotIn('Reopen your launcher and play normally.', operation.extra_steps)
+            self.assertEqual(self.record()['status'], 'restored')
+            for name, data in self.original.items():
+                self.assertEqual((self.game / name).read_bytes(), data, name)
+            self.assertFalse(self.config.exists())
+            operation.close()
+        self.drive(script)
+
     def test_library_pages_and_changes(self):
         def script(window):
             window.added = [self.other]
