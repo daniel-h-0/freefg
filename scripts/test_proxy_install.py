@@ -412,6 +412,58 @@ class ScalingControls(ProxyFixture):
             with self.subTest(args=args),self.assertRaises(ValueError):m.configure(self.exe,**args)
         self.assertEqual({p:p.read_bytes() for p in before},before)
 
+class IntegrationContractTests(ProxyFixture):
+    """install.py contract and integration.json (integration_contract): what an installation does, as data. It must say
+    what install() does: the same launcher variables and the same OptiScaler.ini keys."""
+    def contract(self,**options):
+        return m.integration_contract(*m.package_contract(self.package),**options)
+    def test_ini_keys_are_the_ones_install_writes(self):
+        # A fresh setup last: Restore takes the fresh OptiScaler setup out again.
+        for route,fg_input,fresh in (('opti','upscaler',False),('opti','fsrfg',False),('native','upscaler',False),('opti','dlssg',True)):
+            with self.subTest(route=route,fg_input=fg_input,fresh=fresh):
+                if fresh:
+                    for name in ('dxgi.dll','OptiScaler.ini','OptiScaler/'+m.DLL,'OptiScaler/libxell.dll'):(self.game/name).unlink()
+                m.install(self.package,self.exe,route=route,fg_input=fg_input)
+                written={c['section']+'.'+c['key']:c['value'] for c in self.record()['ini_changes']}
+                m.restore(self.exe)
+                keys=next(r['ini'] for r in self.contract()['routes'] if r['route']==route)
+                expected={k['key']:k['value'].replace('{fg_input}',fg_input) for k in keys if k['write']!='repair' and
+                          (not k['when'] or ('fresh' in k['when'] and fresh) or fg_input in k['when'].replace(',',' ').split())}
+                self.assertEqual(written,expected)
+    def test_environment_operations_are_what_install_writes(self):
+        # The contract's operations with its placeholders filled in give the launcher entry install() writes.
+        import launcher_config
+        before=self.env()
+        m.install(self.package,self.exe,route='opti')
+        root,cache=self.game.resolve(),self.game.resolve()/m.STATE/m.VKD3D_CACHE
+        ops=[dict(op,value=op['value'].replace('{game}',str(root)).replace('{cache}',str(cache))) if 'value' in op else op
+             for op in next(r for r in self.contract()['routes'] if r['route']=='opti')['environment']]
+        self.assertEqual(launcher_config.apply_contract(before,ops),self.env())
+        m.restore(self.exe);self.assertOriginal()
+    def test_contract_command_prints_the_contract(self):
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.show_contract(self.package,True)
+        self.assertEqual(out.getvalue(),m.integration_text(*m.package_contract(self.package)))
+        contract=json.loads(out.getvalue())
+        self.assertEqual((contract['format'],contract['package'],contract['optiscaler'],contract['host']),(1,'bc250-fsr4-xemfg-private-test-99',None,{}))
+        self.assertEqual(contract['files']['downloads'],[
+            dict(target='OptiScaler/'+m.DLL,file='fsr4/'+m.DLL,sha256=m.digest(DEPENDENCIES['runtime']['fsr4/'+m.DLL])),
+            dict(target='bc250_xefg_original.dll',file='OptiScaler/libxess_fg.dll',sha256=m.digest(DEPENDENCIES['runtime']['OptiScaler/libxess_fg.dll'])),
+            dict(target='libxell.dll',file='OptiScaler/libxell.dll',sha256=m.digest(DEPENDENCIES['runtime']['OptiScaler/libxell.dll']))])
+        self.assertNotIn('OptiScaler/libxess_fg.dll',[f['target'] for f in contract['files']['optiscaler']['fresh_setup']])
+        self.assertIn(dict(target='dxgi.dll',file='OptiScaler.dll',sha256=m.digest(DEPENDENCIES['payload']['OptiScaler.dll'])),
+                      contract['files']['optiscaler']['fresh_setup'])
+        self.assertEqual(contract['settings'],['OptiScaler.ini','BC250-XeFG/settings.ini'])
+        one=self.contract(route='native',owner='winmm.dll')
+        self.assertEqual([(r['route'],r['owner'],r['environment'][0]['value']) for r in one['routes']],[('native','winmm.dll','winmm=n,b')])
+        # The command itself, run as Setup and integrators run it (here from the source tree: no manifest).
+        run=__import__('subprocess').run([__import__('sys').executable,'-I',str(m.Path(m.__file__)),'contract','--json','--route','opti'],
+                                         capture_output=True,text=True)
+        self.assertEqual(run.returncode,0,run.stderr)
+        self.assertEqual([r['route'] for r in json.loads(run.stdout)['routes']],['opti'])
+        run=__import__('subprocess').run([__import__('sys').executable,'-I',str(m.Path(m.__file__)),'contract'],capture_output=True,text=True)
+        self.assertIn('  WINEDLLOVERRIDES dll-override dxgi=n,b (separator ;)\n',run.stdout)
+
 class ManualLaunchTests(ProxyFixture):
     """A game no Steam, Heroic or Lutris entry starts (one in Faugus, Bottles or a script): Install refuses unless the
     no-launcher refusal is accepted; accepted, it installs the files as usual, writes no launcher file, and records and

@@ -762,6 +762,20 @@ class LauncherInstallationTests(unittest.TestCase):
         m.restore(self.exe)
         self.assertEqual(yaml.safe_load(lutris.read_text()), doc)
 
+    def test_contract_ini_keys_are_the_ones_install_writes_for_the_enabler_runtime(self):
+        # The proxy packages' are checked in test_proxy_install; here the multi-frame loader's (runtime xemfg).
+        m = self.fixtures.m
+        for route in ('opti', 'native'):
+            with self.subTest(route=route):
+                m.install(self.package, self.exe, route=route, fg_input='upscaler')
+                written = {c['section']+'.'+c['key']: c['value'] for c in json.loads((self.game/m.STATE/'state.json').read_text())['ini_changes']}
+                m.restore(self.exe)
+                contract = m.integration_contract(*m.package_contract(self.package))
+                self.assertEqual([r['runtime'] for r in contract['routes']], ['xemfg', 'xemfg'])
+                keys = next(r['ini'] for r in contract['routes'] if r['route'] == route)
+                self.assertEqual(written, {k['key']: k['value'].replace('{fg_input}', 'upscaler') for k in keys
+                                           if k['write'] != 'repair' and (not k['when'] or 'upscaler' in k['when'])})
+
     def test_missing_launcher_is_preflight_failure(self):
         m=self.fixtures.m
         self.config.unlink()

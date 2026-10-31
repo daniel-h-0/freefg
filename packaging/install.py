@@ -2937,6 +2937,105 @@ def check_all(package,home=None):
         print(f'{game.get("name")} [{game.get("store")} {game.get("id")}]: {verdict["line"]}'+''.join(' '+n for n in notes))
     print('\n'+', '.join(f'{k} {v}' for k,v in sorted(counts.items(),key=lambda kv:-kv[1])))
 
+# integration.json (release/assemble.py) and install.py contract: how this release integrates with a game, as data, for
+# Proton integrators and launchers that set a game up themselves (docs/INTEGRATION.md). Paths are relative to the folder
+# of the game's executable, or use these placeholders.
+INTEGRATION_FORMAT=1
+PLACEHOLDERS={'{game}':'the folder of the game’s executable','{program}':'the file name of the game’s executable',
+              '{cache}':'a folder of the integration’s own for vkd3d-proton’s shader cache of this game (FreeFG uses {game}/'+STATE+'/'+VKD3D_CACHE+')',
+              '{fg_input}':'the frame-generation input: upscaler (OptiFG), dlssg, fsrfg or fsrfg30'}
+
+def ini_contract(runtime,route):
+    """The OptiScaler.ini keys install() writes on route for runtime ('xemfg-proxy': the proxy packages): [dict(key, value,
+    write, when)]. write 'always': the installation owns the value (Restore reverts the key while it still holds it);
+    'where-auto': only where the file has no value or auto, so a value the user wrote is kept; 'repair': only in the case
+    when names. Per-game keys (a recipe's ini and upscaler_ini, reviewed wiki keys) come from recipes/recipes.json."""
+    proxy=runtime=='xemfg-proxy';keys={}
+    def put(key,value,write='always',when=None):keys[key]=dict(key=key,value=value,write=write,when=when)
+    for (section,key),value in CHANGES.items():put(section+'.'+key,value)
+    if route=='opti':
+        for key,value in (('FrameGen.Enabled','true'),('FrameGen.FGInput','{fg_input}'),('FrameGen.FGOutput','xefg'),('fakenvapi.UseFakenvapi','true')):put(key,value)
+        put('XeFG.ForceBorderless','true','where-auto')
+    put('XeFG.XeFGModel','default','where-auto')
+    if proxy:put('Plugins.LoadAsiPlugins','true','where-auto','a fresh OptiScaler setup, which places OptiPatcher')
+    else:put('Plugins.LoadAsiPlugins','true')
+    put('Libraries.XeFGPath',r'.\libxess_fg.dll');put('Libraries.XeLLPath',r'.\libxell.dll')
+    if route=='opti':
+        put('XeFG.InterpolationCount','1','always' if proxy else 'where-auto')
+        put('FrameGen.DisableHudless','true','always','FG input fsrfg or fsrfg30')
+        put('fakenvapi.ForceReflex','2','where-auto','FG input upscaler, fsrfg or fsrfg30')
+    put('Libraries.XeSSPath','auto','repair','where it names libxess_fg.dll or libxell.dll (saved so by an earlier OptiScaler)')
+    return list(keys.values())
+
+def integration_contract(manifest,dependencies,files,runtime=None,route=None,owner='dxgi.dll'):
+    """integration.json (format INTEGRATION_FORMAT) of a package: per runtime and route the launch contract
+    (launcher_config.contract) and the OptiScaler.ini keys (ini_contract); the game arguments' rule; the files placed
+    beside the executable and where each comes from; the settings and log files; the bundled OptiScaler build and the
+    host requirements. manifest: the package's manifest fields (name, addon_entry, optiscaler, host_requirements);
+    dependencies: its dependencies.json; files: its file names. runtime, route: only that one (default: the package's
+    runtime, both routes); owner: OptiScaler's loader module (dxgi.dll in a fresh setup)."""
+    import launcher_config
+    runtimes=[runtime] if runtime else ['xemfg-proxy' if not manifest or manifest.get('addon_entry')==PROXY_ENTRY else 'xemfg']
+    game,cache=Path('{game}'),Path('{cache}')
+    runtime_pins=dependencies.get('runtime') or {}
+    layout=runtime_pins.get('ProxyPackage' if runtimes[0]=='xemfg-proxy' else 'Package') or {}
+    def pin(group,name):return ((dependencies.get(group) or {}).get('Files') or {}).get(name)
+    # A fresh OptiScaler setup: the pinned nightly's files, but its Intel runtime copies (the add-on's beside the executable
+    # are used), its upscaler (the FSR 4 download) and, with the package's own build, its OptiScaler.dll.
+    replaced={'OptiScaler/libxess_fg.dll','OptiScaler/libxell.dll','OptiScaler/'+DLL}|({'OptiScaler.dll'} if 'opti/OptiScaler.dll' in files else set())
+    out=dict(format=INTEGRATION_FORMAT,package=manifest.get('name'),placeholders=PLACEHOLDERS,
+             routes=[dict(runtime=r,route=w,owner=owner,environment=launcher_config.contract(game,owner,r,w,None,cache),ini=ini_contract(r,w))
+                     for r in runtimes for w in ([route] if route else ['opti','native'])],
+             vkd3d_cache=dict(variables=[launcher_config.IDENTIFIER_EXTENSION+' in VKD3D_DISABLE_EXTENSIONS','VKD3D_SHADER_CACHE_PATH'],
+                              rule='only where Z:{cache}\\vkd3d-proton.{program}.cache.write (backslashes for slashes) is at most '+
+                                   str(launcher_config.VKD3D_PATH_LIMIT-16)+' characters long'),
+             arguments=dict(api=sorted(launcher_config.API_ARGS)+[launcher_config.API_OPTION+' VALUE'],
+                            rule='per game (recipes/recipes.json): its graphics-API switch only where the game’s arguments choose no API, '
+                                 'its required_args always'),
+             files=dict(payload=sorted(name.removeprefix('payload/') for name in files if name.startswith('payload/')),
+                        downloads=[dict(target=name.removeprefix('payload/') if name.startswith('payload/') else 'OptiScaler/'+DLL,
+                                        file=source,sha256=runtime_pins.get('Files',{}).get(source)) for name,source in sorted(layout.items())],
+                        optiscaler=dict(loader=dict(target=owner,file='opti/OptiScaler.dll' if 'opti/OptiScaler.dll' in files else 'OptiScaler.dll'),
+                                        fresh_setup=[dict(target=setup_target(name),file=name,sha256=pin('payload',name))
+                                                     for name in sorted((dependencies.get('payload') or {}).get('Files') or {}) if name not in replaced]),
+                        dlss_helper=dict(target=DLSS_HELPER,file=DLSS_HELPER,sha256=pin('dlss',DLSS_HELPER),
+                                         when='a fresh OptiScaler setup on a DLSS input where OptiScaler finds no copy of the game’s own')),
+             settings=['OptiScaler.ini',*[name for name in SETTINGS_FILES if 'payload/'+name in files]],
+             logs=dict(files=[*(PROXY_LOGS if runtimes[0]=='xemfg-proxy' else ['OptiScaler/plugins/'+n for n in PROXY_LOGS]),'OptiScaler.log'],
+                       stderr='the Vulkan layer’s BC250_PACE lines'),
+             optiscaler=None,host=dict(manifest.get('host_requirements') or {}))
+    optiscaler=manifest.get('optiscaler') or {}
+    if optiscaler.get('source_commit'):
+        out['optiscaler']=dict(source_commit=optiscaler['source_commit'],tag='bc250-'+optiscaler['source_commit'][:7],
+                               upstream_base=optiscaler.get('upstream_base'),sha256=optiscaler.get('sha256'))
+    return out
+
+def integration_text(manifest,dependencies,files,**options):
+    """integration_contract() as integration.json's text, the bytes install.py contract --json prints."""
+    return json.dumps(integration_contract(manifest,dependencies,files,**options),indent=2,ensure_ascii=False)+'\n'
+
+def package_contract(package):
+    """(manifest, dependencies, file names) of the package at package for integration_contract(); a source tree without
+    a manifest counts as a proxy package with no files."""
+    manifest=json.loads((package/'manifest.json').read_text()) if (package/'manifest.json').is_file() else {}
+    dependencies=json.loads((package/'dependencies.json').read_text()) if (package/'dependencies.json').is_file() else {}
+    return manifest,dependencies,list(manifest.get('files') or [])
+
+def show_contract(package,as_json=False,**options):
+    """install.py contract [--json]: the integration contract, as integration.json or one line per item."""
+    if as_json:sys.stdout.write(integration_text(*package_contract(package),**options));return
+    contract=integration_contract(*package_contract(package),**options)
+    print('Integration contract (format '+str(contract['format'])+') of '+str(contract['package'] or 'this installer')+'; '+
+          '; '.join(key+': '+text for key,text in contract['placeholders'].items())+'.')
+    for block in contract['routes']:
+        print(block['runtime']+' on the '+block['route']+' route, OptiScaler as '+block['owner']+':')
+        for op in block['environment']:
+            print('  '+op['var']+' '+op['op']+(' '+op['value'] if 'value' in op else '')+(' (separator '+op['sep']+')' if op.get('sep') else '')+
+                  (' where unset' if op.get('when') else '')+''.join(' unless '+k+'='+v for k,v in (op.get('unless') or {}).items()))
+        for key in block['ini']:print('  OptiScaler.ini '+key['key']+'='+key['value']+' ('+key['write']+(', '+key['when'] if key['when'] else '')+')')
+    print('vkd3d-proton cache settings: '+contract['vkd3d_cache']['rule']+'.')
+    print('Game arguments: '+contract['arguments']['rule']+'.')
+
 def zipfile_errors():
     import zipfile
     return zipfile.BadZipFile
@@ -2982,7 +3081,7 @@ def accepted_for(accept,exe):
     return out
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check','plan','update','rollback','pin','unpin','register','library','hlx','wiki-plan','wiki-apply']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['install','preview','restore','status','configure','doctor','helixsr','check','plan','update','rollback','pin','unpin','register','library','hlx','wiki-plan','wiki-apply','contract']);parser.add_argument('exe',type=Path,nargs='*');parser.add_argument('--route',choices=['auto','native','opti'],default='auto');parser.add_argument('--fg-input',choices=['auto','upscaler','dlssg','fsrfg','fsrfg30'],default='auto')
     parser.add_argument('--factor',type=int,choices=[2,3,4])
     parser.add_argument('--resolution',choices=['output','scale','limit']);parser.add_argument('--percent',type=int);parser.add_argument('--limit',type=int,choices=[720,1080,1440,2160])
     parser.add_argument('--downscale',choices=['bilinear','area']);parser.add_argument('--upscale',choices=['bilinear','bicubic','lanczos2','fsr1'])
@@ -3017,6 +3116,9 @@ def main():
     parser.add_argument('--all',action='store_true',help='check: every installed Steam and Heroic game, one line each; plan, update: '
                         'every game with this build installed that a Steam, Heroic or Lutris entry starts (and the games named)')
     parser.add_argument('--report',action='store_true',help='check: also print a redacted report for a GitHub issue')
+    parser.add_argument('--json',action='store_true',help='contract: print it as integration.json')
+    parser.add_argument('--runtime',choices=['xemfg-proxy','xemfg'],help='contract: this runtime\'s (default: the package\'s)')
+    parser.add_argument('--owner',choices=OPTI_PROXIES,default='dxgi.dll',help='contract: OptiScaler\'s loader module (default dxgi.dll, a fresh setup\'s)')
     parser.add_argument('--wiki-setting', action='append', default=[], metavar='ID', help='wiki-apply: a selected row ID from wiki-plan')
     parser.add_argument('--wiki-confirm', action='append', default=[], metavar='ID', help='wiki-apply: confirm a selected row’s displayed game/conditions')
     parser.add_argument('--wiki-plan-digest', help='wiki-apply: digest of the preview shown before selection')
@@ -3053,6 +3155,11 @@ def main():
         try:return helixsr_command(Path(__file__).resolve().parent,args.helixsr.absolute() if args.helixsr else None)
         except (ValueError,OSError,zipfile_errors()) as error:print(str(error),file=sys.stderr);return 1
     if args.command=='library':show_library();return 0
+    if args.command=='contract':
+        # The launch contract, OptiScaler.ini keys and file layout of this package (integration.json), for integrators.
+        if args.exe:parser.error('contract takes no game')
+        show_contract(Path(__file__).resolve().parent,args.json,runtime=args.runtime,route=None if args.route=='auto' else args.route,owner=args.owner)
+        return 0
     games=list(dict.fromkeys(exe.absolute().resolve() for exe in args.exe));unavailable={}
     if args.all and args.command in ('plan','update'):
         named={exe.absolute().resolve() for exe in games}
