@@ -1,0 +1,10 @@
+{
+  "about": "What research/recipes/build_recipes.py writes beside the recipes: the schema version, the rules document and the notes on where the curated recipes come from.",
+  "schema": 1,
+  "rules": "research/recipes/RULES.md",
+  "notes": {
+    "host": "maintainers' BC-250 library, 2026-09-29",
+    "runtime_triage": "BC-250 gameplay and launcher observations, 2026-10-29; scope recorded per recipe; GTA V Enhanced short Story Mode qualification, 2026-10-30",
+    "steam_identity_review": "2026-10-30; official store API, source URLs per entry"
+  }
+}

@@ -1,0 +1,23 @@
+{
+ "title": "Kingdom Come: Deliverance II",
+ "match": {
+  "exe": [
+   "kingdomcome.exe"
+  ],
+  "steam": [
+   "1771300"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {
+  "OptiFG.HUDLimit": "1",
+  "Inputs.EnableFfxInputs": "true"
+ },
+ "game_settings": [],
+ "launch_args": [],
+ "note": "OptiFG input; HUDLimit 1 is kept for the OptiScaler menu's HUDFix toggle (HUDFix itself stays off).",
+ "evidence": "gameplay",
+ "observed": "2.0 in gameplay"
+}

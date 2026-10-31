@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Per-game recipes: matching, INI keys only where auto, reversible game settings and launch arguments."""
-import contextlib, copy, io, json, sys, tempfile, unittest
+import contextlib, copy, hashlib, io, json, shutil, sys, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -193,6 +193,47 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(r.launch_args(dict(launch_args=['-force-d3d12']), [dict(launch_args=['-dx12'])]), ['-force-d3d12'])
         self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12', '-d3d12'])]), ['-dx12'])
         self.assertEqual(l.with_args(['%command%', '-dx11'], ['-dx12']), ['%command%', '-dx11'])
+        # Only an API switch: an argument the game always needs is a required argument (I-3), never taken from the wiki.
+        gta = dict(launch_args=[], required_args=['-nobattleye'])
+        self.assertEqual((r.launch_args(gta, []), r.required_args(gta)), ([], ['-nobattleye']))
+        self.assertEqual(r.launch_args(dict(launch_args=['-nobattleye']), [dict(launch_args=['-dx12'])]), [])
+        self.assertEqual(r.required_args(None), [])
+        self.assertEqual(r.launch_args(None, [dict(launch_args=['-dx12'], required_args=['-x'])]), ['-dx12'])
+
+    def test_identity_keeps_the_edition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp)/'steamapps/common/GTAV Enhanced/GTA5_Enhanced.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b'MZ')
+            (Path(tmp)/'steamapps/appmanifest_3240220.acf').write_text(
+                '"AppState" { "appid" "3240220" "name" "Grand Theft Auto V Enhanced" "installdir" "GTAV Enhanced" }')
+            ids = r.identity(exe, (), home=tmp)
+        self.assertEqual((ids['steam'], ids['titles']), ({'3240220'}, {'grand theft auto v enhanced'}))
+        self.assertIn('gtav enhanced', ids['folders'])
+        self.assertEqual((r.norm('Grand Theft Auto V Enhanced'), r.loose('Grand Theft Auto V Enhanced')),
+                         ('grand theft auto v enhanced', 'grand theft auto v'))
+        self.assertEqual((r.loose('Nioh 2: The Complete Edition'), r.norm('Kingdom Come: Deliverance II')), ('nioh 2', 'kingdom come deliverance 2'))
+
+    def test_suggestions_keep_advice_that_names_other_gpus_too(self):
+        wiki = [dict(title='Hero', ini=[dict(key='Hotfix.A', value='1', when=dict(gpu='non-NVIDIA')), dict(key='Hotfix.B', value='1', when=dict(gpu='RTX 4090'))],
+                     fg_advice=[dict(advice='prefer', input='fsrfg', when=dict(gpu='AMD, NVIDIA')), dict(advice='prefer', input='dlssg', when=dict(gpu='nvidia'))])]
+        text = '\n'.join(r.suggestions(None, wiki, 'upscaler', 'opti'))
+        self.assertIn('Hotfix.A=1 (on non-NVIDIA)', text)
+        self.assertIn('prefers: FSR 3.1 FG.', text)
+        self.assertNotIn('Hotfix.B', text)
+        self.assertNotIn('DLSS FG', text)
+
+    def test_wiki_launch_items_are_suggested_whole(self):
+        wiki = [dict(title='Hero', launch=[
+            dict(text='-unlockReflexOptions', kind='args'), dict(text='-forceReflexMarkers', kind='args', when=dict(fg_input='dlssg')),
+            dict(text='"C:\\Hero.exe" -x %command%', kind='wrapper', when=dict(os='windows')), dict(text='-dx11', kind='args', conflicts=['-dx11']),
+            dict(text='WINEDLLOVERRIDES="d3d12=n,b" %command%', kind='steam', conflicts=['WINEDLLOVERRIDES'])])]
+        lines = r.suggestions(None, wiki, 'upscaler', 'opti')
+        self.assertIn('  Launch options it lists (not applied): -unlockReflexOptions; -forceReflexMarkers (with DLSS FG input)', lines)
+        self.assertIn("  Launch settings it lists that collide with FreeFG's own (not usable as they stand): "
+                      'WINEDLLOVERRIDES="d3d12=n,b" %command%', lines)
+        self.assertFalse(any('-dx11' in line or 'Hero.exe' in line for line in lines))  # leaves DirectX 12; Windows only
+        self.assertEqual(r.suggestions(dict(title='Hero'), wiki, 'upscaler', 'opti'), [])  # a verified recipe decides
 
     def test_shipped_recipe_file(self):
         data = r.load()
@@ -228,7 +269,7 @@ class BuildTests(unittest.TestCase):
         # A conditional DX12 argument is not L1 (ODDRoom: "if DLSS input doesn't work").
         odd = next(w for w in self.data['wiki'] if w['title'] == 'ODDRoom')
         self.assertNotIn('launch_args', odd)
-        self.assertIn('-dx12', odd['other_launch_args'])
+        self.assertEqual(odd['launch'], [dict(text='-dx12', kind='args', when=dict(condition="DLSS input doesn't work"))])
 
     def test_sources_and_backports_follow_the_shipped_build(self):
         root = Path(__file__).resolve().parents[1]
@@ -266,8 +307,21 @@ class BuildTests(unittest.TestCase):
             self.assertEqual(runtime.get('requirements'), full.get('requirements'))
         kena = next(w for w in compact['wiki'] if w['title'] == 'Kena: Bridge of Spirits')
         self.assertTrue(any(i.get('when', {}).get('gpu') == 'non-nvidia' for i in kena['ini']))
-        self.assertEqual(compact['optiscaler_builds'], self.data['optiscaler_builds'])
-        self.assertEqual(len(self.data['wiki']), 761)
+        # Each OptiScaler.ini's keys once (two builds share one INI); recipes.load gives every build its list again.
+        self.assertEqual(len(compact['optiscaler_ini_keys']), len({b['ini_sha256'] for b in self.data['optiscaler_builds'].values()}))
+        self.assertEqual({c: dict(b, keys=compact['optiscaler_ini_keys'][b['ini_sha256']]) for c, b in compact['optiscaler_builds'].items()},
+                         self.data['optiscaler_builds'])
+        self.assertEqual(len(self.data['wiki']), 739)  # 761 wiki titles less the 22 topic pages
+
+    def test_topic_pages_are_no_games(self):
+        # "FSR4 on Linux (general)", "Unreal Engine (general)": advice for many games, matched to none.
+        doc = json.loads((self.ROOT/'research/recipes/wiki.json').read_text())
+        topics = [e['title'] for e in doc['entries'] if e['title'].endswith('(general)')]
+        self.assertEqual(len(topics), 22)
+        self.assertFalse(set(topics) & {w['title'] for w in self.data['wiki']})
+        for title in ('fsr4 on linux', 'unreal engine', 'optifg'):
+            game = dict(exe='game.exe', steam=set(), gog=set(), epic=set(), titles={title}, folders={title})
+            self.assertEqual((r.match(self.data, game)[1], self.compat.wiki_matches(self.data, game)), ([], []), title)
 
     def test_dependency_missing_cannot_be_confirmed_away(self):
         ids = {'exe': 'ffxiv_dx11.exe', 'titles': ['final fantasy xiv dawntrail']}
@@ -287,6 +341,250 @@ class BuildTests(unittest.TestCase):
                                       ('upscaler_input', 'dlss', 'fsr2')]:
             self.assertIs(self.compat.evaluate({key: expected}, {key: actual})[0], False)
             self.assertIs(self.compat.evaluate({key: expected}, {key: expected})[0], True)
+
+    FULL = ROOT/'packaging/recipes/recipes.json'
+    COMPACT = ROOT/'packaging/recipes/recipes-runtime.json'
+
+    def test_the_shipped_files_are_what_the_inputs_build(self):
+        # Offline and from this tree alone: a refresh can only change what its own input says.
+        full = self.b.dumps(self.b.build())
+        self.assertEqual(self.FULL.read_text(), full, 'stale: run research/recipes/build_recipes.py')
+        self.assertEqual(self.COMPACT.read_text(), self.b.compact_text(full), 'stale: run research/recipes/build_recipes.py')
+
+    def test_one_format(self):
+        for path, dump in ((self.FULL, self.b.dumps), (self.COMPACT, self.b.dumps_compact)):
+            raw = path.read_text()
+            self.assertEqual(dump(json.loads(raw)), raw, path.name)
+        inputs = self.ROOT/'research/recipes'
+        for name in ('optiscaler.json', 'catalogue.json', 'wiki-curation.json'):
+            self.assertEqual(self.b.dumps(json.loads((inputs/name).read_text())), (inputs/name).read_text(), name)
+        raw = (inputs/'wiki.json').read_text()
+        self.assertEqual(self.b.dumps_rows(json.loads(raw), 'entries'), raw)
+        self.assertEqual(sum(1 for line in raw.splitlines() if line.startswith('    {')), len(json.loads(raw)['entries']))  # one line each
+
+    def inputs(self, tmp):
+        """A copy of the committed inputs (refresh tests write only the copy)."""
+        folder = Path(tmp)/'recipes'
+        shutil.copytree(self.ROOT/'research/recipes', folder, ignore=shutil.ignore_patterns('*.py', '*.md', '__pycache__'))
+        return folder
+
+    # Research drafts (research SCHEMA.md) for one wiki title: a page with INI and launch items, and its compatibility row.
+    DRAFTS = dict(entries=[
+        dict(title='Soulstice', source=dict(kind='wiki-page', page='Soulstice', line=3), tested=dict(optiscaler=['0.9'], gpu=['RX 7900 XTX']),
+             upscaler_inputs=['dlss'], items=[dict(type='ini', key='Hotfix.ColorResourceBarrier', value='4', confidence='high'),
+                                               dict(type='ini', key='Not.AKey', value='1', confidence='high'),
+                                               dict(type='launch', args=['-dx12'], confidence='high'),
+                                               dict(type='launch', args=['-skipintro', '-dx12'], when=dict(condition='crash at start'), confidence='high'),
+                                               dict(type='issue', quote='prose stays in the drafts', confidence='high')]),
+        dict(title='Soulstice', source=dict(kind='compat-list', line=40), compat='working', optipatcher=False, items=[])])
+
+    def refresh(self, folder, drafts):
+        path = folder.parent/'drafts'
+        path.mkdir(exist_ok=True)
+        (path/'pages-00.json').write_text(json.dumps(drafts))
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.b.refresh_wiki(path, '0123456789abcdef0123456789abcdef01234567', '2026-11-01', folder)
+        return out.getvalue()
+
+    def test_a_wiki_refresh_keeps_the_curated_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            curation = json.loads((folder/'wiki-curation.json').read_text())
+            curation['entries'] = {'Soulstice': curation['entries']['Soulstice']}
+            (folder/'wiki-curation.json').write_text(json.dumps(curation))
+            review = json.loads((folder/'wiki_promote.json').read_text())
+            review['items'] = [i for i in review['items'] if i['title'] == 'Soulstice']
+            (folder/'wiki_promote.json').write_text(json.dumps(review))
+            self.assertIn('dropped 1 INI items no shipped key reads: Soulstice: Not.AKey', self.refresh(folder, self.DRAFTS))
+            data = self.b.build(folder)
+            entry, = data['wiki']
+            self.assertEqual(entry['match'], dict(title=['soulstice'], exe=['soulstice.exe'], steam=['1602080']))
+            self.assertEqual(entry['identity_sources'][0]['appid'], '1602080')
+            self.assertEqual(entry['promoted'], [dict(key='Hotfix.ColorResourceBarrier', value='4')])
+            self.assertEqual((entry['launch_args'], entry['launch']), (['-dx12'], [dict(text='-skipintro -dx12', kind='args',
+                                                                                          when=dict(condition='crash at start'))]))
+            self.assertEqual((entry['compat'], entry['optipatcher'], entry['counts']), ('working', False, {'ini': 2, 'launch': 2, 'issue': 1}))
+            self.assertEqual(entry['pages'], ['https://github.com/optiscaler/OptiScaler/wiki/Soulstice',
+                                              'https://github.com/optiscaler/OptiScaler/wiki/Compatibility-List'])
+            self.assertEqual(data['sources']['wiki'], '0123456789abcdef0123456789abcdef01234567 (2026-11-01)')
+            self.assertEqual(data['optiscaler_builds'], self.data['optiscaler_builds'])  # not the wiki's to change
+            self.assertNotIn('prose', json.dumps(data))
+
+    def test_a_refresh_that_loses_a_curated_or_promoted_title_refuses_the_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            self.refresh(folder, self.DRAFTS)
+            with self.assertRaisesRegex(SystemExit, "no wiki game entry is titled 'Apocalypse 2.0'"):
+                self.b.build(folder)
+            (folder/'wiki-curation.json').write_text(json.dumps(dict(entries={})))
+            with self.assertRaisesRegex(SystemExit, 'Apocalypse 2.0 InitFlags.DisplayResolution=false is not an INI item'):
+                self.b.build(folder)
+
+    def test_add_build_records_digests_and_one_key_list_per_ini(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            ini = Path(tmp)/'OptiScaler.ini'
+            ini.write_bytes(b'\xef\xbb\xbf[FrameGen]\nEnabled=auto\nFGInput=auto\n[XeFG]\nXeFGModel=auto\n')
+            before = json.loads((folder/'optiscaler.json').read_text())
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.b.add_build('a' * 40, 'b' * 64, ini, folder)
+                self.b.add_build('c' * 40, 'd' * 64, ini, folder)
+            after = json.loads((folder/'optiscaler.json').read_text())
+            sha = hashlib.sha256(ini.read_bytes()).hexdigest()
+            self.assertEqual(after['builds']['a' * 40], dict(dll_sha256='b' * 64, ini_sha256=sha))
+            self.assertEqual(after['ini_keys'][sha], ['FrameGen.enabled', 'FrameGen.fginput', 'XeFG.xefgmodel'])
+            self.assertEqual(len(after['ini_keys']), len(before['ini_keys']) + 1)  # both new builds share one list
+            built = self.b.build(folder)['optiscaler_builds']
+            self.assertEqual(built['c' * 40]['keys'], after['ini_keys'][sha])
+            self.assertEqual(built[before['pinned']], self.data['optiscaler_builds'][before['pinned']])
+            ini.write_bytes(b'[FrameGen]\nEnabled=auto\n')
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.b.add_build('a' * 40, 'b' * 64, ini, folder)
+                self.b.add_build('c' * 40, 'd' * 64, ini, folder)
+            self.assertNotIn(sha, json.loads((folder/'optiscaler.json').read_text())['ini_keys'])  # no build uses it now
+            with self.assertRaisesRegex(SystemExit, 'full commit'):
+                self.b.add_build('abc', 'b' * 64, ini, folder)
+
+    def test_a_quirk_refresh_derives_the_tables(self):
+        pinned_commit = '03db4f8692878e65748769ebe583c053cae96360'
+        level = {'set:Spoofing.Dxgi=false': [dict(ini='Spoofing.Dxgi', value='false', respects_user=True, condition=None)],
+                 'set:fakenvapi.UseFakenvapi=false': [dict(ini='fakenvapi.UseFakenvapi', value='false', respects_user=True, condition=None)],
+                 'set:Hotfix.ColorResourceBarrier=4': [dict(ini='Hotfix.ColorResourceBarrier', value='4', respects_user=True, condition=None)]}
+        game = dict(exes=['game.exe'], quirks=['set:Spoofing.Dxgi=false', 'set:fakenvapi.UseFakenvapi=false'], comment=['Some Game'])
+        other = dict(exes=['other.exe'], quirks=['set:Hotfix.ColorResourceBarrier=4'], comment=['Other Game: Remastered', 'detail'])
+        quirks = dict(pinned=dict(commit=pinned_commit, entries=[game], config_level=level),
+                      upstream=dict(commit='e' * 40, entries=[game, other], config_level=level))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            (Path(tmp)/'quirks.json').write_text(json.dumps(quirks))
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.b.refresh_quirks(Path(tmp)/'quirks.json', folder)
+            q = json.loads((folder/'optiscaler.json').read_text())['quirks']
+            self.assertEqual((q['pinned'], q['upstream']), (pinned_commit, 'e' * 40))
+            self.assertEqual(q['leave_auto'], {'game.exe': [dict(key='fakenvapi.UseFakenvapi', quirk='set:fakenvapi.UseFakenvapi=false', value='false')]})
+            self.assertEqual(q['backports'], {'other.exe': {'Hotfix.ColorResourceBarrier': dict(value='4', quirk='set:Hotfix.ColorResourceBarrier=4',
+                                                                                              comment=['Other Game: Remastered'])}})
+            self.assertEqual(q['quirk_keys'], {'game.exe': {'Spoofing.Dxgi': 'false', 'fakenvapi.UseFakenvapi': 'false'}})
+            self.assertEqual(q['titles'], {'game.exe': 'some game', 'other.exe': 'other game'})
+            quirks['pinned']['commit'] = 'f' * 40
+            (Path(tmp)/'quirks.json').write_text(json.dumps(quirks))
+            with self.assertRaisesRegex(SystemExit, 'pinned side'):
+                self.b.refresh_quirks(Path(tmp)/'quirks.json', folder)
+
+    def test_wiki_launch_items_stay_whole_and_name_what_collides_with_freefg(self):
+        zzz = ['DXVK_CONFIG_FILE=dxvk.conf', 'WINEDLLOVERRIDES="d3d12=n,b"', 'bash', '-c',
+               'exec "${@/HYP.exe/games\\/ZenlessZoneZero Game\\/ZenlessZoneZero.exe}"', '--', '%command%', '-use-d3d12']
+        items = [dict(args=['-dx12'], confidence='high'), dict(args=['-unlockReflexOptions'], confidence='high'),
+                 dict(args=['-unlockReflexOptions'], confidence='high'), dict(args=zzz, when=dict(os='linux'), confidence='high'),
+                 dict(args=['PROTON_FSR4_UPGRADE=1'], confidence='high'), dict(args=['DXVK_HUD=1', '%command%', '-dx12'], confidence='high'),
+                 dict(args=['-dx11'], confidence='high'),
+                 dict(args=['-force-d3d12'], confidence='low')]  # "forcing DX12 doesn't work": the extraction doubts it
+        l1, shown = self.b.launch_items(items)
+        self.assertEqual(l1, ['-dx12'])
+        self.assertEqual(shown, [
+            dict(text='-unlockReflexOptions', kind='args'),
+            dict(text='DXVK_CONFIG_FILE=dxvk.conf WINEDLLOVERRIDES="d3d12=n,b" bash -c \'exec "${@/HYP.exe/games\\/ZenlessZoneZero '
+                      'Game\\/ZenlessZoneZero.exe}"\' -- %command% -use-d3d12', kind='wrapper', when=dict(os='linux'), conflicts=['WINEDLLOVERRIDES']),
+            dict(text='PROTON_FSR4_UPGRADE=1', kind='env', conflicts=['PROTON_FSR4_UPGRADE']),
+            dict(text='DXVK_HUD=1 %command% -dx12', kind='steam'), dict(text='-dx11', kind='args', conflicts=['-dx11'])])
+        self.assertFalse(any('other_launch_args' in w for w in self.data['wiki']))  # no token lists any more
+        ghost = next(w for w in self.data['wiki'] if w['title'].startswith('Ghost of Tsushima'))
+        self.assertEqual([i['text'] for i in ghost['launch']], ['-unlockReflexOptions', '-disallowDLSSGOffInMenu'])
+
+    def test_one_nvidia_only_rule(self):
+        # The compact file drops what the install notes never show, and Check reads such a condition as NVIDIA only.
+        for w in self.data['wiki']:
+            for i in w.get('ini', []) + w.get('fg_advice', []) + w.get('launch', []):
+                self.assertEqual(self.b._nvidia_only(i), r.nvidia_only(i.get('when')), (w['title'], i))
+                if r.nvidia_only(i.get('when')):
+                    self.assertEqual(self.compat.evaluate({'gpu': i['when']['gpu']}, {})[1], ['NVIDIA GPUs only'], w['title'])
+
+    def test_identity_strength_is_data(self):
+        # Exact titles match; a title without its store edition (alias) and an exe name many games share never do, so no
+        # automatic step (promoted INI, FG-input veto, DX12 switch, not-working refusal) can act on one.
+        by = {w['title']: w for w in self.data['wiki']}
+        self.assertEqual(by['Grand Theft Auto V Enhanced']['match'], dict(title=['grand theft auto v enhanced'], alias=['grand theft auto v']))
+        self.assertEqual(by['Wuthering Waves']['match'], dict(title=['wuthering waves'],
+                                                              generic_exe=['client-win64-shipping.exe', 'client-wingdk-shipping.exe']))
+        for w in self.data['wiki']:
+            m = w['match']
+            self.assertTrue(all(t == r.norm(t) for t in m['title']) and not set(m.get('alias', [])) & set(m['title']), w['title'])
+            self.assertFalse([e for e in m.get('exe', []) if self.b.generic(e)] or [e for e in m.get('generic_exe', []) if not self.b.generic(e)])
+            for alias in m.get('alias', []):
+                game = dict(exe='game.exe', steam=set(), gog=set(), epic=set(), titles={alias}, folders={alias})
+                self.assertNotIn(w['title'], [x['title'] for x, _ in self.compat.wiki_matches(self.data, game)] +
+                                 [x['title'] for x in r.match(self.data, game)[1]])
+        # GTA V under its old title (Epic's legacy build) is not GTA V Enhanced, by recipe or wiki.
+        legacy = dict(exe='gta5.exe', steam=set(), gog=set(), epic={'9d2d0eb64d5c44529cece33fe2a46482'}, titles={'grand theft auto v'},
+                      folders={'gtav'})
+        self.assertEqual((r.match(self.data, legacy)[:2], self.compat.wiki_matches(self.data, legacy)), ((None, []), []))
+        # The shared exe name with the title: a title match (weak): shown, never acted on.
+        wuwa = dict(exe='client-win64-shipping.exe', steam=set(), gog=set(), epic=set(), titles={'wuthering waves'}, folders=set())
+        self.assertEqual([(w['title'], s) for w, s in self.compat.wiki_matches(self.data, wuwa)], [('Wuthering Waves', 'weak')])
+
+    def verified(self, name='voin'):
+        return json.loads((self.ROOT/'research/recipes/verified'/(name + '.json')).read_text())
+
+    def test_verified_recipes_are_checked(self):
+        for v in self.data['verified']:
+            self.assertEqual(self.b.check_verified(v), [], v['title'])
+        good = self.verified()
+        setting = dict(file='AppData/Local/V/GameUserSettings.ini', format='ini-replace', values={'A': '1'}, requires_fg_input=None)
+        cases = [(dict(extra=1), 'unknown field extra'), (dict(status='community-bc250'), 'status'),
+                 (dict(fg_input='fsrfg30'), 'fg_input'), (dict(route='native'), 'fg_input'), (dict(evidence='maybe'), 'evidence'),
+                 (dict(launch_args=['-nobattleye']), 'launch_args'), (dict(launch_args=['-dx12', '-d3d12']), 'launch_args'),
+                 (dict(required_args=['-dx12']), 'required_args'), (dict(required_args=['-x ']), 'required_args'),
+                 (dict(match=dict(exe=['VOIN-Win64-Shipping.exe'], steam=['2464530'])), 'lower case'),
+                 (dict(match=dict(exe=['voin.exe'], title=['VOIN'])), 'normalized'), (dict(match=dict(title=['voin'])), 'launcher ID'),
+                 (dict(match=dict(steam=[2464530])), 'lists of'), (dict(ini={'Spoofing Dxgi': 'false'}), 'Section.Key'),
+                 (dict(ini={'Spoofing.Dxgi': False}), 'text values'), (dict(game_settings=[dict(setting, file='/tmp/x.ini')]), 'relative'),
+                 (dict(game_settings=[dict(setting, format='yaml')]), 'format'), (dict(manual_steps='Choose DLSS.'), 'manual_steps'),
+                 (dict(match=dict(exe=['client-win64-shipping.exe'], steam=['1'])), 'many games share')]
+        for change, message in cases:
+            self.assertTrue(any(message in p for p in self.b.check_verified(dict(good, **change))), (change, message))
+        self.assertEqual(self.b.check_verified(dict(good, required_args=['-nobattleye'], game_settings=[setting])), [])
+
+    def test_overlapping_verified_recipes_refuse_the_build(self):
+        # recipes.match takes the first verified recipe that matches: an overlapping one would silently never apply.
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            newer = dict(self.verified(), title='VOIN (new evidence)', evidence='gameplay', observed='2.0 in gameplay')
+            (folder/'verified/voin-2.json').write_text(json.dumps(newer))
+            with self.assertRaisesRegex(SystemExit, 'verified/voin.json and verified/voin-2.json claim the same game'):
+                self.b.build(folder)
+            (folder/'verified/voin-2.json').write_text(json.dumps(dict(newer, replaces=['voin'])))
+            entries = [v for v in self.b.build(folder)['verified'] if '2464530' in v['match'].get('steam', [])]
+            self.assertEqual(entries, [newer])  # the replaced recipe leaves the build, and so does "replaces"
+            (folder/'verified/voin-2.json').write_text(json.dumps(dict(newer, replaces=['witchfire'])))
+            with self.assertRaisesRegex(SystemExit, 'replaces witchfire.json, which is no recipe for the same game'):
+                self.b.build(folder)
+        a = dict(self.verified(), match=dict(exe=['voin-win64-shipping.exe']))
+        self.assertTrue(self.b.overlaps(a, dict(a, title='VOIN')))
+        self.assertFalse(self.b.overlaps(a, dict(a, title='Another Game')))  # one exe name, two games: exe and title tell them apart
+        self.assertTrue(self.b.overlaps(dict(a, match=dict(gog=['1'])), dict(a, match=dict(gog=['1'], exe=['other.exe']))))
+
+    def test_text_the_installer_cannot_write_refuses_the_build(self):
+        # The INI writer splits lines like configparser (U+2028, U+0085, VT, FF...): such a value could add a
+        # [Libraries] line on the next edit. Every catalogue string is one printable line; written values have no blanks
+        # around them.
+        cases = [(lambda d: d['entries'][0]['ini'].append(dict(key='Hotfix.X', value='true [Libraries]')), 'control or separator'),
+                 (lambda d: d['entries'][0]['ini'].append(dict(key='Hotfix.X', value=' true')), 'blanks around it'),
+                 (lambda d: d['entries'][0]['ini'].append(dict(key='Hotfix X', value='true')), 'no Section.Key name'),
+                 (lambda d: d['entries'][0].update(title=d['entries'][0]['title'] + '\x1b[31m'), 'control or separator')]
+        for change, message in cases:
+            with tempfile.TemporaryDirectory() as tmp:
+                folder = self.inputs(tmp)
+                doc = json.loads((folder/'wiki.json').read_text())
+                doc['entries'][0].setdefault('ini', [])
+                change(doc)
+                (folder/'wiki.json').write_text(json.dumps(doc))
+                with self.assertRaisesRegex(SystemExit, message):
+                    self.b.build(folder)
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            (folder/'verified/voin.json').write_text(json.dumps(dict(self.verified(), note='fine\x85then')))
+            with self.assertRaisesRegex(SystemExit, 'control or separator'):
+                self.b.build(folder)
 
     def test_every_verified_recipe_has_its_evidence(self):
         for v in self.data['verified']:
@@ -314,7 +612,7 @@ class BuildTests(unittest.TestCase):
         self.assertIn(('Soulstice', 'Hotfix.ColorResourceBarrier'), shipped)
         self.assertNotIn('Alan Wake II', [t for t, _ in shipped])  # its condition ("if crashing") was missed: rejected
 
-    GOOD = dict(title='Game', match=dict(steam=['42'], exe=['game-win64-shipping.exe']), status='community-bc250', route='opti',
+    GOOD = dict(title='Game', match=dict(steam=['42'], exe=['hero-win64-shipping.exe']), status='community-bc250', route='opti',
                 fg_input='upscaler', ini={'Hotfix.ColorResourceBarrier': '4'}, game_settings=[], launch_args=['-dx12'],
                 manual_steps=['Choose DLSS.'], reports=[dict(issue=1, freefg='0.9.1', proton='GE-Proton11-7', ratio=2.0, minutes=30,
                                                              starts=3, restore_checked=True, date='2026-11-02')],
@@ -327,10 +625,11 @@ class BuildTests(unittest.TestCase):
                  (dict(fg_input='dlssg', manual_steps=[]), 'F2'), (dict(launch_args=['-dx11']), 'DX12 switches'),
                  (dict(game_settings=[dict(file='/tmp/a.ini', format='ini', section='S', values={'a': '1'})]), 'relative'),
                  (dict(reports=[dict(self.GOOD['reports'][0], ratio=1.0)]), 'below the bar'), (dict(status='verified-bc250'), 'status'),
-                 (dict(match=dict(exe=['game.exe']), title=''), 'missing title')]
+                 (dict(match=dict(exe=['game.exe']), title=''), 'missing title'),
+                 (dict(match=dict(steam=['42'], exe=['game-win64-shipping.exe'])), 'many games share')]
         for change, message in cases:
             self.assertTrue(any(message in p for p in self.b.check_community(dict(self.GOOD, **change))), (change, message))
-        quirks = {'game-win64-shipping.exe': {'Hotfix.ColorResourceBarrier': '4'}}
+        quirks = {'hero-win64-shipping.exe': {'Hotfix.ColorResourceBarrier': '4'}}
         self.assertTrue(any('Q1' in p for p in self.b.check_community(self.GOOD, quirks)))
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp)/'42.json').write_text(json.dumps(dict(self.GOOD, ini={'OptiFG.HUDFix': 'true'})))
@@ -404,8 +703,19 @@ class RecipeInstallTests(unittest.TestCase):
         self.assertEqual(ini[('framegen', 'fgoutput')].lower(), 'xefg')
         self.assertNotEqual(ini.get(('spoofing', 'dxgifactorywrapping')), 'true')
         self.assertNotIn('socialclub', self.options().lower())
-        self.assertIn('-nobattleye', self.options())
         self.assertEqual(self.renderer.read_bytes(), RENDERER)
+        self.restore_quietly()
+        self.assertOriginal()
+
+    @unittest.skipUnless('required_args' in (Path(__file__).resolve().parents[1]/'packaging/install.py').read_text(),
+                         'install.py adds a recipe\'s required arguments with the launch contract work (I-3, WP-L)')
+    def test_gta_recipe_adds_its_required_argument(self):
+        catalog = r.load(Path(__file__).resolve().parents[1]/'packaging/recipes/recipes.json')
+        entry = copy.deepcopy(next(v for v in catalog['verified'] if '3240220' in v['match'].get('steam', [])))
+        entry['match'] = dict(exe=['game.exe'], steam=['4242'])
+        self.recipes(entry)
+        self.install_quietly(fg_input='upscaler')
+        self.assertIn('-nobattleye', self.options().split())
         self.restore_quietly()
         self.assertOriginal()
 
@@ -783,10 +1093,13 @@ class CompactRecipeTests(unittest.TestCase):
         built = json.dumps(self.builder.compact(json.loads(raw), hashlib.sha256(raw).hexdigest()), ensure_ascii=False,
                            separators=(',', ':')) + '\n'
         self.assertEqual(self.COMPACT.read_text(), built, 'stale: run research/recipes/build_recipes.py --compact')
-        # Supported-key metadata now covers two exact OptiScaler builds. Bound
-        # shipped bytes rather than a ratio to the source JSON's indentation.
-        self.assertLess(len(self.COMPACT.read_bytes()), len(raw))
-        self.assertLess(len(self.COMPACT.read_bytes()), 256 * 1024)
+        self.assertLess(len(self.COMPACT.read_bytes()), len(raw) // 2)
+        self.assertLess(len(self.COMPACT.read_bytes()), 256 * 1024)  # the runtime file's budget
+
+    def test_both_loaders_give_every_build_its_keys(self):
+        self.assertEqual(self.compact['optiscaler_builds'], self.full['optiscaler_builds'])
+        self.assertNotIn('optiscaler_ini_keys', self.compact)
+        self.assertTrue(all(len(b['keys']) > 300 for b in self.compact['optiscaler_builds'].values()))
 
     @staticmethod
     def ids(exe, steam=(), gog=(), epic=(), titles=(), folders=()):
@@ -887,6 +1200,10 @@ class GtaQualificationTests(unittest.TestCase):
         data = r.load(root/'packaging/recipes/recipes.json')
         entry = next(v for v in data['verified'] if '3240220' in v['match'].get('steam', []))
         self.assertEqual(entry, json.loads((root/'research/recipes/verified/gta-v-enhanced.json').read_text()))
+        self.assertEqual((entry['launch_args'], r.required_args(entry)), ([], ['-nobattleye']))
+        self.assertTrue(any('GTA Online' in step for step in entry['manual_steps']))  # Restore first: BattlEye
+        runtime = r.load(root/'packaging/recipes/recipes-runtime.json')
+        self.assertEqual(r.required_args(next(v for v in runtime['verified'] if '3240220' in v['match'].get('steam', []))), ['-nobattleye'])
         self.assertEqual(len(data['verified']), 20)
         self.assertEqual(sum(len(w.get('promoted', [])) for w in data['wiki']), 6)
         identity = ids('gta5_enhanced.exe', ('3240220',), ('grand theft auto v',))
@@ -894,6 +1211,7 @@ class GtaQualificationTests(unittest.TestCase):
             anticheat=[dict(name='BattlEye', evidence=['BattlEye/BEClient_x64.cfg'])]), data, identity)
         self.assertTrue(any(item['code']=='anticheat' for item in verdict['blocking']))
         self.assertEqual(verdict['fg_input'], 'upscaler')
+        self.assertEqual(verdict['launch_args'], [])  # no API switch; -nobattleye is required, not an API choice
         self.assertNotIn(('Spoofing','DxgiFactoryWrapping'), verdict['ini'])
         self.assertIsNone(r.match(data, ids('gta5.exe', ('271590',), ('grand theft auto v',)))[0])
 

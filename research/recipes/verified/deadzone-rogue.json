@@ -1,0 +1,25 @@
+{
+ "title": "Deadzone: Rogue",
+ "match": {
+  "exe": [
+   "deadzonesteam-win64-shipping.exe"
+  ],
+  "steam": [
+   "3228590"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {
+  "Inputs.EnableFfxInputs": "true"
+ },
+ "game_settings": [],
+ "launch_args": [],
+ "note": "Use FSR Native in the game. FSR Quality produced incompatible motion/depth dimensions (XeFG status -4). Native changes the rendering workload; the installer does not silently change quality.",
+ "evidence": "gameplay",
+ "observed": "2× generated presents in two gameplay starts on October 29, 2026; FSR Native input",
+ "manual_steps": [
+  "In the game, choose FSR and Native mode. The tested upscaler input requires matching motion/depth dimensions; Quality failed on the tested build. Restart after changing the input."
+ ]
+}

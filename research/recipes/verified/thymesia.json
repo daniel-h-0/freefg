@@ -1,0 +1,24 @@
+{
+ "title": "Thymesia",
+ "match": {
+  "exe": [
+   "plagueproject-win64-shipping.exe"
+  ],
+  "steam": [
+   "1343240"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "upscaler",
+ "ini": {
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [],
+ "launch_args": [
+  "-dx12"
+ ],
+ "note": "Needs an in-game resolution scale above 100% for the upscaler to run; DX12 via -dx12.",
+ "evidence": "installed",
+ "observed": "installed; generation not checked"
+}

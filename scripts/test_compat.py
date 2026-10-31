@@ -72,10 +72,32 @@ class ConditionTests(unittest.TestCase):
                  ({'gpu': 'amd', 'condition': 'stuck on boot'}, None), ({'gpu': 'nvidia', 'condition': 'stuck on boot'}, False)]
         for when, expected in cases:
             self.assertIs(c.evaluate(when, ctx)[0], expected, when)
-        self.assertEqual(c.evaluate({'condition': 'crashing on startup'}, ctx)[1], ['condition: crashing on startup'])
+        self.assertEqual(c.evaluate({'condition': 'crashing on startup'}, ctx)[1], ['if crashing on startup'])
         self.assertEqual(c.evaluate({'gpu': 'RTX 3070'}, ctx)[1], ['NVIDIA GPUs only'])
         helix = dict(ctx, upscaler='helixsr')  # claude/helixsr's output choice
         self.assertIs(c.evaluate({'upscaler': 'fsr4'}, helix)[0], False)
+
+    def test_conditions_read_as_words(self):
+        # Shown in Check, Setup's confirmations and the install notes: never "key: value" for the wiki's own keys.
+        for key, value, text in [('condition', 'crashing on startup', 'if crashing on startup'), ('symptom', 'startup crash', 'if startup crash'),
+                                 ('upscaler_input', 'fsr31, xess', "with the game's FSR 3.1 or XeSS input"),
+                                 ('upscaler_input', 'fsr31_12', "with the game's fsr31_12 input"), ('fg_input', 'not dlssg', 'not with DLSS FG input'),
+                                 ('fg_input', 'upscaler', 'with OptiFG input'), ('gpu', 'amd/intel', 'on amd/intel'),
+                                 ('required_file', 'D3D12_Optiscaler/D3D12Core.dll', 'with D3D12_Optiscaler/D3D12Core.dll in the game folder'),
+                                 ('game_version', '<1.8', 'game version <1.8'), ('mod_loader', 'Reloaded-II', 'mod loader: Reloaded-II')]:
+            self.assertEqual(c.condition_text(key, value), text)
+        plan = c.wiki_plan(data([], [], [dict(WIKI, match=dict(title=['hero']))]), ids(exe='other.exe'), dict(fg_input='upscaler'))
+        row = next(r for r in plan['rows'] if r['key'] == 'Hotfix.DisableOverlays')
+        self.assertEqual(row['confirmations'], ['Confirm this is the game named by the wiki', 'if crashing on startup'])
+
+    def test_upscaler_input_names_one_input_or_several(self):
+        # The wiki writes "fsr31, xess" for either input (two of its items): an exact comparison never held.
+        for value, chosen, expected in [('fsr31, xess', 'xess', True), ('fsr31, xess', 'FSR31', True), ('fsr31, xess', 'dlss', False),
+                                        ('dlss/xess', 'xess', True), ('dlss or fsr2', 'fsr2', True), ('fsr31_12', 'fsr31_12', True),
+                                        ('fsr31_12', 'fsr31', False), ('not dlss', 'xess', True), ('not dlss', 'dlss', False),
+                                        ('fsr31, xess', None, None)]:
+            self.assertIs(c.evaluate({'upscaler_input': value}, {'upscaler_input': chosen})[0], expected, (value, chosen))
+        self.assertEqual(c.evaluate({'upscaler_input': 'fsr31, xess'}, {'upscaler_input': 'dlss'})[1], ['requires fsr31, xess game input'])
 
     def test_key_rules(self):
         expect = {'OptiFG.HUDFix': 'blocked', 'OptiFG.HUDLimit': 'blocked', 'Spoofing.Dxgi': 'blocked', 'fakenvapi.EnableLogs': 'blocked',
@@ -154,6 +176,24 @@ class PrecedenceTests(unittest.TestCase):
         auto = c.decide(scan(game_fg=dict(dlssg=True)), data([], [], [wiki]), ids())
         self.assertIn('OptiFG input left out of the automatic choice (reported broken)', c.wiki_advice(data([], [], [wiki]), ids(), auto)['applied'])
 
+    def test_wiki_launch_items_are_shown_whole(self):
+        wiki = dict(title='Hero', match=dict(title=['hero'], steam=['4242']), pages=['https://wiki/Hero'], launch_args=['-dx12'], launch=[
+            dict(text='-unlockReflexOptions', kind='args'), dict(text='-dx12', kind='args', when=dict(upscaler_input='fsr3')),
+            dict(text='-forceReflexMarkers', kind='args', when=dict(fg_input='dlssg')), dict(text='-skip', kind='args', when=dict(condition='crash at start')),
+            dict(text='"C:\\Hero.exe" %command%', kind='wrapper', when=dict(os='windows')), dict(text='-dx11', kind='args', conflicts=['-dx11']),
+            dict(text='PROTON_FSR4_UPGRADE=1', kind='env', conflicts=['PROTON_FSR4_UPGRADE'])])
+        d = data([], [], [wiki])
+        advice = c.wiki_advice(d, ids(), c.decide(scan(), d, ids()))
+        self.assertIn('Launch option -dx12', advice['applied'])
+        self.assertIn('Launch option -unlockReflexOptions (not applied)', advice['shown'])
+        self.assertIn('Launch option -skip if crash at start (not applied)', advice['shown'])
+        self.assertIn("Launch environment PROTON_FSR4_UPGRADE=1: not usable with FreeFG as it stands (it sets PROTON_FSR4_UPGRADE, which "
+                      "FreeFG's own launch settings set or refuse)", advice['shown'])
+        shown = '\n'.join(advice['shown'])
+        for text in ('forceReflexMarkers', 'Hero.exe', '-dx11', 'fsr3', 'Launch option %command%', 'Launch option bash'):
+            self.assertNotIn(text, shown)  # DLSS FG only; Windows only; leaves DX12; the applied switch again; no single tokens
+        self.assertEqual((advice['hidden']['launch options that leave DirectX 12'], advice['hidden']['Windows only']), (1, 1))
+
     def test_wiki_rule_conflicts_are_shown_not_applied(self):
         v = c.decide(scan(), data([], [], [WIKI]), ids())
         advice = c.wiki_advice(data([], [], [WIKI]), ids(), v)
@@ -163,10 +203,10 @@ class PrecedenceTests(unittest.TestCase):
         self.assertIn('fakenvapi.EnableLogs=true: not applied automatically (R1', shown)
         self.assertIn('FSR.FsrNonLinearPQ=true: not applied automatically (S1', shown)
         self.assertIn('V-Sync.ForceVsync=false: not applied (warning: V-Sync', shown)
-        self.assertIn('Hotfix.DisableOverlays=true: a known fix when condition: crashing on startup', shown)
+        self.assertIn("Hotfix.DisableOverlays=true: a known fix if crashing on startup (set it in OptiScaler's menu if that applies)", shown)
         self.assertIn('Prefers DLSS FG input (a suggestion; F3)', shown)
         self.assertIn('Reports OptiFG input working', shown)  # the full recipe file keeps "works" advice too
-        self.assertIn('Reports problems with FSR 3.0 FG input when upscaler_input: fsr3', shown)
+        self.assertIn("Reports problems with FSR 3.0 FG input (with the game's FSR 3.0 input)", shown)
         self.assertNotIn('Reports problems with OptiFG', shown)
         self.assertNotIn('Spoofing.Vulkan', shown)  # api vulkan: false here, hidden
         self.assertNotIn('EnableFsr2Inputs', shown)  # NVIDIA only: hidden

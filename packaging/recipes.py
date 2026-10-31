@@ -2,11 +2,12 @@
 """Per-game recipes (recipes/recipes.json; rules in the source tree's research/recipes/RULES.md).
 
 A recipe is matched by launcher ID (Steam AppID, GOG/Epic app name), or by executable name together with the game's
-title or folder. Only recipes verified on a BC-250 are applied: their OptiScaler keys (only where the INI still says
-auto), frame-generation input, game-setting edits for the recipe's route (each key's original recorded, so Restore
-undoes them even in a file the game rewrote since) and DX12 launch arguments. OptiScaler's own per-game quirks keep
-working because keys they set are left at auto. OptiScaler wiki reports add DX12 launch arguments; everything
-else from the wiki is shown as suggestions with the page link.
+exact title or folder (never by a title without its store edition, nor by an exe name many games share). Only recipes
+verified on a BC-250 are applied: their OptiScaler keys (only where the INI still says auto), frame-generation input,
+game-setting edits for the recipe's route (each key's original recorded, so Restore undoes them even in a file the
+game rewrote since), DX12 launch arguments and the arguments the game always needs (required_args). OptiScaler's own
+per-game quirks keep working because keys they set are left at auto. OptiScaler wiki reports add DX12 launch
+arguments; everything else from the wiki is shown as suggestions with the page link.
 """
 import hashlib, html, json, re
 from pathlib import Path
@@ -25,7 +26,8 @@ def digest(data):
 
 def load(path=FILE):
     """The recipe file, or None. Either form works: the full provenance file (research/recipes/build_recipes.py) or
-    the compact runtime file built from it, whose wiki page links are relative to its wiki_url."""
+    the compact runtime file built from it, whose wiki page links are relative to its wiki_url and which lists each
+    OptiScaler.ini's keys once (optiscaler_ini_keys, by the INI's digest)."""
     if not Path(path).is_file():
         return None
     data = json.loads(Path(path).read_text())
@@ -34,20 +36,32 @@ def load(path=FILE):
         for entry in data.get('wiki', []):
             if 'pages' in entry:
                 entry['pages'] = [page if '://' in page else base + page for page in entry['pages']]
+    keys = data.pop('optiscaler_ini_keys', {})
+    for build in data.get('optiscaler_builds', {}).values():
+        if 'keys' not in build and build.get('ini_sha256') in keys:
+            build['keys'] = list(keys[build['ini_sha256']])
     return data
 
 
-# Store editions of the same game: "Crimson Desert Enhanced", "The Witcher 3: Wild Hunt - Game of the Year Edition".
-EDITION = re.compile(r'(\s+(game of the year|goty|enhanced|definitive|complete|deluxe|gold|ultimate|anniversary|remastered|'
+# Store editions: "Crimson Desert Enhanced", "The Witcher 3: Wild Hunt - Game of the Year Edition". A title without its
+# edition is a loose alias: sometimes the same game, sometimes another (GTA V Legacy and Enhanced, Crysis and Crysis
+# Remastered). The recipe file lists aliases apart from titles (match.alias); nothing here matches by them.
+EDITION = re.compile(r'(\s+(the\s+)?(game of the year|goty|enhanced|definitive|complete|deluxe|gold|ultimate|anniversary|remastered|'
                      r'directors cut|standard|premium)(\s+edition)?)+$')
 
 
 def norm(title):
+    """A title as recipes match it: lower-case words of letters and digits (II and III as 2 and 3, & as and), without
+    notes in parentheses such as a year."""
     t = re.sub(r'\([^)]*\)', '', title.lower()).replace('&', 'and').replace('’', "'").replace('‐', '-')
     t = re.sub(r"[^a-z0-9]+", ' ', t.replace("'", '')).strip()
     t = re.sub(r'\bii\b', '2', t)
-    t = re.sub(r'\biii\b', '3', t)
-    return EDITION.sub('', t).strip()
+    return re.sub(r'\biii\b', '3', t)
+
+
+def loose(title):
+    """The title without its store edition: the alias recipe files list apart from titles (never matched)."""
+    return EDITION.sub('', norm(title)).strip()
 
 
 def _steam_manifest(exe):
@@ -148,13 +162,24 @@ def ini_changes(verified, backports, parsed, fg_input, recipe_input, route=None,
     return {k: v for k, v in out.items() if parsed.get((k[0].lower(), k[1].lower()), 'auto').strip().lower() in ('', 'auto')}
 
 
+DX12_ARGS = ('-dx12', '-d3d12', '-force-d3d12')
+OFF_DX12_ARGS = ('-dx11', '-d3d11', '-force-d3d11', '-vulkan', '-force-vulkan', '-opengl', '-force-glcore')  # compat.py's
+
+
 def launch_args(verified, wiki):
-    args = list((verified or {}).get('launch_args', []))
+    """The graphics-API switch a recipe asks for: at most one DX12 switch (required_args has the other arguments)."""
+    args = [a for a in (verified or {}).get('launch_args', []) if a.lower() in DX12_ARGS]
     if not verified:
         for w in wiki:
-            args += [a for a in w.get('launch_args', []) if a not in args]
+            args += [a for a in w.get('launch_args', []) if a not in args and a.lower() in DX12_ARGS]
     # One DX12 switch is enough; the verified or first-listed spelling wins.
     return args[:1] if args else []
+
+
+def required_args(verified):
+    """The arguments the verified recipe's game always needs, added whatever API switch the user chose (GTA V
+    Enhanced's -nobattleye: Story Mode only). Wiki data never supplies them."""
+    return list((verified or {}).get('required_args', []))
 
 
 def prefix_user(exe, launchers, home=None):
@@ -529,6 +554,22 @@ def settings_plan(verified, user, route, fg_input, previous=None, create_ini=Fal
     return plan
 
 
+def nvidia_only(when):
+    """A wiki condition for NVIDIA GPUs alone ("nvidia", "RTX 4090"), not one naming them beside others ("non-NVIDIA",
+    "AMD, NVIDIA"), as compat.py reads it: what the install notes leave out (build_recipes.py compacts the same way)."""
+    gpu = str((when or {}).get('gpu', '')).lower()
+    return bool(re.search(r'nvidia|gtx|rtx', gpu)) and not re.search(r'non[- ]?nvidia|not nvidia|amd|radeon|rdna|intel|steam deck|dp4a', gpu)
+
+
+def when_text(when):
+    """A wiki item's conditions in words, as Check words them (compat.condition_text)."""
+    try:
+        from compat import condition_text
+    except ImportError:  # this module on its own: the conditions as written
+        return ', '.join(f'{k} {v}' for k, v in when.items())
+    return ', '.join(condition_text(k, v) for k, v in when.items())
+
+
 def suggestions(verified, wiki, fg_input, route):
     """Readable lines for the install output: what the recipe did not apply and where to read more."""
     lines = []
@@ -539,7 +580,7 @@ def suggestions(verified, wiki, fg_input, route):
         return lines
     # One block per game, however many wiki pages mention it (a game page, the FG options list, the compatibility list).
     title = max((w['title'] for w in wiki), key=len)
-    advice = [a for w in wiki for a in w.get('fg_advice', []) if 'nvidia' not in str(a.get('when', {}).get('gpu', '')).lower()]
+    advice = [a for w in wiki for a in w.get('fg_advice', []) if not nvidia_only(a.get('when'))]
     prefer = sorted({INPUT_NAMES.get(a['input'], a['input']) for a in advice if a['advice'] == 'prefer'})
     broken = sorted({INPUT_NAMES.get(a['input'], a['input']) for a in advice if a['advice'] in ('broken', 'avoid')})
     if here in {a['input'] for a in advice if a['advice'] in ('broken', 'avoid')}:
@@ -549,16 +590,30 @@ def suggestions(verified, wiki, fg_input, route):
     keys = []
     for w in wiki:
         for i in w.get('ini', []):
-            if 'nvidia' in str(i.get('when', {}).get('gpu', '')).lower():
+            if nvidia_only(i.get('when')):
                 continue
-            text = f"{i['key']}={i['value']}" + (f" ({', '.join(f'{k} {v}' for k, v in i['when'].items())})" if i.get('when') else '')
+            text = f"{i['key']}={i['value']}" + (f" ({when_text(i['when'])})" if i.get('when') else '')
             if text not in keys:
                 keys.append(text)
     if keys and not verified:
         lines.append('  OptiScaler settings it lists (not applied): ' + '; '.join(keys[:6]) + ('; ...' if len(keys) > 6 else ''))
-    other = sorted({a for w in wiki for a in w.get('other_launch_args', [])})
-    if other and not verified:
-        lines.append('  Launch options it lists (not applied): ' + ' '.join(other))
+    # Launch items whole, as the page gives them (never token by token); not those for Windows or NVIDIA only, nor those
+    # that leave DirectX 12. One that sets what FreeFG's own launch settings set is named as such.
+    usable, clash = [], []
+    for w in wiki:
+        for i in w.get('launch', []):
+            when = i.get('when') or {}
+            if (nvidia_only(when) or re.search(r'windows|\bw1[01]\b|win1[01]', str(when.get('os', '')).lower())
+                    or any(c.lower() in OFF_DX12_ARGS for c in i.get('conflicts', []))):
+                continue
+            text = i['text'] + (f" ({when_text(when)})" if when else '')
+            target = clash if i.get('conflicts') else usable
+            if text not in target:
+                target.append(text)
+    if usable and not verified:
+        lines.append('  Launch options it lists (not applied): ' + '; '.join(usable))
+    if clash and not verified:
+        lines.append('  Launch settings it lists that collide with FreeFG\'s own (not usable as they stand): ' + '; '.join(clash))
     pages = [p for w in sorted(wiki, key=lambda w: -len(w['title'])) for p in w.get('pages', [])]
     if pages:
         lines.append('  Read: ' + ' '.join(dict.fromkeys(pages)))

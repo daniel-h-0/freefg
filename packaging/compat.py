@@ -140,10 +140,14 @@ def _condition(key, value, ctx):
         files = ctx.get('files')
         return (None, None) if files is None else (v in {str(path).lower() for path in files}, 'required file: ' + str(value))
     if key == 'upscaler_input':
-        chosen = ctx.get('upscaler_input')
+        chosen = str(ctx.get('upscaler_input') or '').lower()
         if not chosen:
             return None, None
-        return (str(chosen).lower() == v, 'requires ' + str(value) + ' game input')
+        # One input or several ("fsr31, xess", "dlss/xess"), or all but one ("not dlss").
+        hit = chosen in {p.strip() for p in re.split(r'[/,]| or ', v.removeprefix('not ')) if p.strip()}
+        if v.startswith('not '):
+            return (not hit), (None if not hit else 'not with ' + chosen + ' game input')
+        return hit, (None if hit else 'requires ' + str(value) + ' game input')
     if key in ('upscaler', 'upscaler_output'):
         mine = ctx.get('upscaler', 'fsr4')
         if mine in v:
@@ -184,16 +188,34 @@ def _condition(key, value, ctx):
     return None, None  # upscaler_input (the user's pick in the game), symptoms, game versions, other mods: unknown here
 
 
+# How a wiki condition reads where it is shown: Check, Setup's confirmations and the install notes. Other keys read
+# "key: value".
+CONDITION_TEXT = {'condition': 'if {}', 'symptom': 'if {}', 'gpu': 'on {}', 'os': 'on {}', 'platform': 'on {}', 'store': 'on {}',
+                  'launcher': 'with the {} launcher', 'api': 'with {}', 'engine': 'with {}', 'proxy': 'with OptiScaler as {}',
+                  'optiscaler': 'with OptiScaler {}', 'game_version': 'game version {}', 'upscaler': 'with {} as the upscaler',
+                  'required_file': 'with {} in the game folder'}
+
+
+def condition_text(key, value):
+    """One wiki condition in words: "if crashing on startup", "with the game's FSR 3.1 or XeSS input"."""
+    if key in ('fg_input', 'upscaler_input'):
+        v = str(value).strip().lower()
+        names = INPUT_NAMES if key == 'fg_input' else dict(UPSCALER_NAMES, fsr4='FSR 4')
+        text = ' or '.join(names.get(p, p) for p in (p.strip() for p in re.split(r'[/,]| or ', v.removeprefix('not '))) if p)
+        return ('not ' if v.startswith('not ') else '') + (f'with {text} input' if key == 'fg_input' else f"with the game's {text} input")
+    return CONDITION_TEXT.get(key, str(key).replace('_', ' ') + ': {}').format(value)
+
+
 def evaluate(when, ctx):
     """(result, reasons): result True when every condition holds for this install, False when one never does (reasons
-    says which), None when one cannot be known before the game runs (reasons lists the unknown ones)."""
+    says which), None when one cannot be known before the game runs (reasons lists the unknown ones, in words)."""
     unknown, false = [], []
     for key, value in (when or {}).items():
         result, why = _condition(key, value, ctx)
         if result is False:
             false.append(why or f'{key} {value}')
         elif result is None:
-            unknown.append(f'{key}: {value}')
+            unknown.append(condition_text(key, value))
     if false:
         return False, false
     return (None, unknown) if unknown else (True, [])
@@ -760,7 +782,7 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
             elif cls:
                 shown.append(f'{text}: not applied automatically ({reason})')
             elif result is None:
-                shown.append(f'{text}: a known fix when {"; ".join(why)} (set it in OptiScaler\'s menu if that applies)')
+                shown.append(f'{text}: a known fix {"; ".join(why)} (set it in OptiScaler\'s menu if that applies)')
             else:
                 shown.append(f'{text}: suggested (not reviewed for automatic use)' + ('' if strength == 'strong' else '; matched by title'))
         for a in w.get('fg_advice', []):
@@ -780,7 +802,7 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
             elif a['input'] in verdict['vetoes']:
                 shown.append(f'Reports problems with {name} input (not used here: {chooser} decides the input)')
             else:
-                shown.append(f'Reports problems with {name} input' + (f' when {"; ".join(why)}' if result is None else '') +
+                shown.append(f'Reports problems with {name} input' + (f' ({"; ".join(why)})' if result is None else '') +
                              ('' if strength == 'strong' else ' (matched by title)'))
         for s in w.get('game_settings', []):
             text = f'Game setting {s["key"]}={s["value"]}' + (f' in {s["file"]}' if s.get('file') else '')
@@ -791,11 +813,20 @@ def wiki_advice(data, ids, verdict, ctx=None, quirk_exe=None):
                 shown.append(f'{text}: not applied; the {kind} sets {s["key"]}={mine}')
             else:
                 shown.append(f'{text} (a recipe candidate; not applied)')
-        for arg in w.get('other_launch_args', []):
-            if arg.lower() in OFF_DX12_ARGS:
+        # Each launch item whole, as the page gives it (a Steam line or wrapper is pasted as one), never token by token.
+        for item in w.get('launch', []):
+            result, why = evaluate(item.get('when'), ctx)
+            clash = item.get('conflicts', [])
+            name = {'env': 'Launch environment', 'steam': 'Steam launch options', 'wrapper': 'Launch wrapper'}.get(item.get('kind'), 'Launch option')
+            if result is False:
+                hidden[why[0]] = hidden.get(why[0], 0) + 1
+            elif any(c.lower() in OFF_DX12_ARGS for c in clash):
                 hidden['launch options that leave DirectX 12'] = hidden.get('launch options that leave DirectX 12', 0) + 1
-            else:
-                shown.append(f'Launch option {arg} (not applied)')
+            elif clash:
+                shown.append(f'{name} {item["text"]}: not usable with FreeFG as it stands (it sets {names_text(clash)}, which '
+                             'FreeFG\'s own launch settings set or refuse)')
+            elif item['text'] not in verdict['launch_args']:
+                shown.append(f'{name} {item["text"]}' + (f' {"; ".join(why)}' if result is None else '') + ' (not applied)')
         if verdict['launch_source'] and verdict['launch_source'].startswith('OptiScaler wiki') and w['title'] in verdict['launch_source']:
             applied.append('Launch option ' + ' '.join(verdict['launch_args']))
         if w.get('compat') == 'not-working':

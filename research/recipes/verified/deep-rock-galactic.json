@@ -1,0 +1,27 @@
+{
+ "title": "Deep Rock Galactic",
+ "match": {
+  "exe": [
+   "fsd-win64-shipping.exe"
+  ],
+  "steam": [
+   "548430"
+  ]
+ },
+ "status": "verified-bc250",
+ "route": "opti",
+ "fg_input": "dlssg",
+ "ini": {
+  "Spoofing.Dxgi": "false"
+ },
+ "game_settings": [],
+ "launch_args": [
+  "-dx12"
+ ],
+ "note": "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart. An unselected reward screen can prevent reaching gameplay.",
+ "evidence": "gameplay",
+ "observed": "Sustained 2× generated presents in the Space Rig after a fresh restart, October 29, 2026",
+ "manual_steps": [
+  "Enable DLSS upscaling and DLSS Frame Generation in the game, then restart."
+ ]
+}
