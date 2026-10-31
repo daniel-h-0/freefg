@@ -140,7 +140,7 @@
   "optiscaler-fork": {
    "description": "OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll with its OptiScaler.ini: OptiScaler with this project's commits, from the fork's release bc250-ba0dedb. Its source is the commit below with the submodules that commit pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which ran it. release/fetch.py downloads both files by pinned hash; the source companion reads the fork's git checkout from XEMFG_OPTISCALER_SOURCE (or XEMFG_WORK/<source_in_work>).",
    "repository": "https://github.com/daniel-h-0/OptiScaler",
-   "commit": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
+   "commit": "3a958517c119d7c536fae38b34a257afd9f5119a",
    "release": "release bc250-ba0dedb (OptiScaler.dll, OptiScaler.ini and the recursive source archive OptiScaler-bc250-ba0dedb-source.tar.xz)",
    "url": "https://github.com/daniel-h-0/OptiScaler/releases/download/bc250-ba0dedb/{path}",
    "files": {
@@ -159,13 +159,40 @@
     "fixed_upstream": "f6db41dfa7bacb16ac50bd1e5787fdb44362da47",
     "tree": "65facb7ba6162a9abe16deb4a2a06e20f4ffa001",
     "tag": "bc250-ba0dedb",
-    "tag_commit": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
+    "tag_commit": "3a958517c119d7c536fae38b34a257afd9f5119a",
     "build_route": [
      "FORK.md",
      "tools/bc250-build.py"
     ],
     "build": "tools/bc250-build.py --jobs 4: clang-cl/lld-link 23.1.4, MSVC 14.44.35207, SDK 10.0.26100.0",
-    "source_in_work": "OptiScaler"
+    "source_in_work": "OptiScaler",
+    "archive": {
+     "name": "OptiScaler-bc250-ba0dedb-source.tar.xz",
+     "sha256": "265954874c3736f3ed0b10d0dd56a80bc7654a751bc9e23ba8b7b84a86f9fc3a",
+     "bytes": 347005768,
+     "tar_sha256": "c379f7ecbc5ed7a1bf8cce97a7519321a8be49c7a9ec7b0290773e7b38b8b32f",
+     "tar_bytes": 979568640,
+     "members": 7253,
+     "files": 6497,
+     "files_sha256": "f5849239109068449fe158eab3c08c12d0f9ae88018e9769a728215ae30d3178",
+     "tag": "bc250-ba0dedb",
+     "tag_commit": "3a958517c119d7c536fae38b34a257afd9f5119a",
+     "commit": "ba0dedb4681875a1a0b88a35385d5aeb91db4063",
+     "bundled": [
+      "external/FidelityFX-SDK",
+      "external/FidelityFX-SDK-v2",
+      "external/magic_enum",
+      "external/nvapi",
+      "external/simpleini",
+      "external/spdlog",
+      "external/unordered_dense",
+      "external/vulkan"
+     ],
+     "pointer_only": [
+      "external/xess"
+     ],
+     "made_by": "release/fork_source_archive.py"
+    }
    }
   }
  },
