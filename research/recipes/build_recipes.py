@@ -90,12 +90,19 @@ def loose(title):
     return EDITION.sub('', norm(title)).strip()
 
 
+def _compat():
+    """packaging/compat.py: the installer's own key rules and shared exe names, which the build follows."""
+    if str(ROOT / 'packaging') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'packaging'))
+    import compat
+    return compat
+
+
 def generic(exe):
     """True for an exe name many games share (packaging/compat.py GENERIC_EXES, also as its WinGDK build): never a
     game's identity."""
-    sys.path.insert(0, str(ROOT / 'packaging'))
-    import compat
-    return exe in compat.GENERIC_EXES or exe.replace('-wingdk-', '-win64-') in compat.GENERIC_EXES
+    names = _compat().GENERIC_EXES
+    return exe in names or exe.replace('-wingdk-', '-win64-') in names
 
 
 # ---------------------------------------------------------------------------------------------------- the build
@@ -230,8 +237,7 @@ def promote(wk, path):
     """Attach the reviewed wiki INI items of wiki_promote.json (decision "promote") to their wiki entries as
     "promoted" (RULES.md P1). Each must be an INI item of that entry (same key and value) and a key no rule keeps out
     of automatic writes; a reviewed item that is not refuses the build."""
-    sys.path.insert(0, str(ROOT / 'packaging'))
-    import compat
+    compat = _compat()
     review = read(path)
     by = {norm(w['title']): w for w in wk}
     count = 0
@@ -411,8 +417,7 @@ REPORT_KEYS = {'issue', 'freefg', 'package_sha256', 'proton', 'mesa', 'kernel', 
 
 def check_community(entry, quirk_keys=None, readable=None):
     """Problems with one community recipe (an empty list when it may be built in)."""
-    sys.path.insert(0, str(ROOT / 'packaging'))
-    import compat
+    compat = _compat()
     problems = [f'unknown field {k}' for k in sorted(set(entry) - COMMUNITY_KEYS)]
     for k in ('title', 'match', 'status', 'route', 'reports', 'reviewed_by', 'reviewed'):
         if not entry.get(k):
