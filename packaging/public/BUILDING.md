@@ -20,7 +20,7 @@ Reference build, x86-64 Linux:
 
 | Tool | Pinned version | Purpose |
 | --- | --- | --- |
-| Python | 3.14.7; build scripts require 3.11.4+ | Build scripts and archive extraction |
+| Python | 3.14.7; build scripts require 3.11.4+ (before 3.14, `toolchain.py` also needs the `zstd` program) | Build scripts and archive extraction |
 | clang / lld | 22.1.8 | Windows proxy DLL |
 | Wine | 11.16 | Headers/import libraries; CPU-only loader tests |
 | GCC | 16.2.1 | Pacing layer and sanitizer tests |

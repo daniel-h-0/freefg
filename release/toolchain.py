@@ -219,10 +219,28 @@ def member_filter(name, selection):
     return keep
 
 
-def unpack(path, dest, name):
+def unpack(path, dest, name, native=None):
+    """Unpack one package with member_filter. Python 3.14 reads .tar.zst itself; before it (BUILDING.md: 3.11.4+) the
+    zstd program decompresses the package into a temporary .tar beside dest first (seekable, so hard links resolve as in
+    the native route). native: force one route (tests)."""
     dest.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(path, 'r:zst') as archive:
-        archive.extractall(dest, filter=member_filter(name, SELECTED.get(name)))
+    if native is None:
+        native = 'zst' in getattr(tarfile.TarFile, 'OPEN_METH', {})
+    if native:
+        with tarfile.open(path, 'r:zst') as archive:
+            archive.extractall(dest, filter=member_filter(name, SELECTED.get(name)))
+        return
+    if not shutil.which('zstd'):
+        raise ReleaseError(f'Python {sys.version.split()[0]} cannot read .tar.zst packages: install zstd, or use Python 3.14+')
+    plain = dest.parent / f'.{name}.tar'
+    try:
+        subprocess.run(['zstd', '-dqf', '-o', str(plain), '--', str(path)], check=True, capture_output=True)
+        with tarfile.open(plain, 'r:') as archive:
+            archive.extractall(dest, filter=member_filter(name, SELECTED.get(name)))
+    except subprocess.CalledProcessError as error:
+        raise ReleaseError(f'zstd could not decompress {path.name}: {error.stderr.decode(errors="replace")[-300:]}') from None
+    finally:
+        plain.unlink(missing_ok=True)
 
 
 def tree_digest(root, parts=('tools', 'sysroot', 'bin')):

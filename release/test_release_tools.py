@@ -2594,18 +2594,45 @@ class PinnedToolchain(unittest.TestCase):
 
     @staticmethod
     def package(path, members):
-        """A .pkg.tar.zst with pacman's metadata file and the given members: name -> bytes, or ('link', target)."""
+        """A .pkg.tar.zst with pacman's metadata file and the given members: name -> bytes, or ('link', target) or
+        ('hardlink', target). Python before 3.14 writes a plain tar and compresses it with the zstd program."""
         import io
+        import subprocess
         import tarfile
-        with tarfile.open(path, 'w:zst') as archive:
+        native = 'zst' in getattr(tarfile.TarFile, 'OPEN_METH', {})
+        plain = Path(str(path) + '.tar')
+        with tarfile.open(path if native else plain, 'w:zst' if native else 'w') as archive:
             for name, data in {'.PKGINFO': b'pkgname = test\n', **members}.items():
                 info = tarfile.TarInfo(name)
                 if isinstance(data, tuple):
-                    info.type, info.linkname = tarfile.SYMTYPE, data[1]
+                    info.type, info.linkname = tarfile.SYMTYPE if data[0] == 'link' else tarfile.LNKTYPE, data[1]
                     archive.addfile(info)
                 else:
                     info.size = len(data)
                     archive.addfile(info, io.BytesIO(data))
+        if not native:
+            subprocess.run(['zstd', '-qf', '--rm', '-o', str(path), str(plain)], check=True)
+
+    @unittest.skipUnless(shutil.which('zstd'), 'needs the zstd program')
+    def test_unpack_without_native_zstd(self):
+        """Python before 3.14 (no .tar.zst in tarfile): the zstd program decompresses first, and the result equals
+        the native route's, filter and hard links included."""
+        import tarfile
+        import toolchain
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            self.package(tmp / 'g.pkg.tar.zst', {'usr/bin/gcc': b'g', 'usr/bin/x86_64-pc-linux-gnu-gcc': ('hardlink', 'usr/bin/gcc'),
+                                                 'usr/lib/libx.so': ('link', '/usr/lib/libx.so.1')})
+            routes = [False] + (['native'] if 'zst' in getattr(tarfile.TarFile, 'OPEN_METH', {}) else [])
+            seen = []
+            for route in routes:
+                toolchain.unpack(tmp / 'g.pkg.tar.zst', tmp / str(route), 'gcc', native=route == 'native')
+                seen.append(sorted((str(p.relative_to(tmp / str(route))), p.read_bytes() if p.is_file() and not p.is_symlink()
+                                    else str(p.readlink())) for p in (tmp / str(route)).rglob('*') if not p.is_dir()))
+                self.assertEqual([p.name for p in tmp.iterdir() if p.name.endswith('.tar')], [])  # the temporary .tar is gone
+            self.assertEqual(seen[0], [('usr/bin/gcc', b'g'), ('usr/bin/x86_64-pc-linux-gnu-gcc', b'g'),
+                                       ('usr/lib/libx.so', 'libx.so.1')])
+            self.assertEqual(seen[0], seen[-1])
 
     def test_every_pinned_package_has_a_role(self):
         import toolchain
