@@ -72,8 +72,10 @@ rows and `plan_digest`. Proton stores these as explicit per-game settings and
 uses its own prefix transaction; it must not run the game-local installer.
 
 The October 30 catalogue review covers wiki commit `5f927893`, with 761 titles
-and 295 INI instructions. Six existing automatic values now have verified Steam
-identities; other usable values remain explicit prefills. The review record is
+and 295 INI instructions. The catalogue keeps the 739 game titles (286 INI
+instructions); the 22 topic pages ("… (general)") match no game. Six existing
+automatic values now have verified Steam identities; other usable values remain
+explicit prefills. The review record is
 [`utilization-review-20261030.json`](../research/recipes/utilization-review-20261030.json).
 No new automatic promotion or gameplay qualification is implied.
 

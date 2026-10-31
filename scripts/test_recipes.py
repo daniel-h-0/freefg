@@ -276,7 +276,17 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(len(compact['optiscaler_ini_keys']), len({b['ini_sha256'] for b in self.data['optiscaler_builds'].values()}))
         self.assertEqual({c: dict(b, keys=compact['optiscaler_ini_keys'][b['ini_sha256']]) for c, b in compact['optiscaler_builds'].items()},
                          self.data['optiscaler_builds'])
-        self.assertEqual(len(self.data['wiki']), 761)
+        self.assertEqual(len(self.data['wiki']), 739)  # 761 wiki titles less the 22 topic pages
+
+    def test_topic_pages_are_no_games(self):
+        # "FSR4 on Linux (general)", "Unreal Engine (general)": advice for many games, matched to none.
+        doc = json.loads((self.ROOT/'research/recipes/wiki.json').read_text())
+        topics = [e['title'] for e in doc['entries'] if e['title'].endswith('(general)')]
+        self.assertEqual(len(topics), 22)
+        self.assertFalse(set(topics) & {w['title'] for w in self.data['wiki']})
+        for title in ('fsr4 on linux', 'unreal engine', 'optifg'):
+            game = dict(exe='game.exe', steam=set(), gog=set(), epic=set(), titles={title}, folders={title})
+            self.assertEqual((r.match(self.data, game)[1], self.compat.wiki_matches(self.data, game)), ([], []), title)
 
     def test_dependency_missing_cannot_be_confirmed_away(self):
         ids = {'exe': 'ffxiv_dx11.exe', 'titles': ['final fantasy xiv dawntrail']}
@@ -368,7 +378,7 @@ class BuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             folder = self.inputs(tmp)
             self.refresh(folder, self.DRAFTS)
-            with self.assertRaisesRegex(SystemExit, "no wiki entry is titled 'Apocalypse 2.0'"):
+            with self.assertRaisesRegex(SystemExit, "no wiki game entry is titled 'Apocalypse 2.0'"):
                 self.b.build(folder)
             (folder/'wiki-curation.json').write_text(json.dumps(dict(entries={})))
             with self.assertRaisesRegex(SystemExit, 'Apocalypse 2.0 InitFlags.DisplayResolution=false is not an INI item'):

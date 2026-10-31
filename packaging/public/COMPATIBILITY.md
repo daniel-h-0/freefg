@@ -29,7 +29,7 @@ Check and Install produce an offline verdict before dependency downloads or game
 | --- | --- |
 | Verified on BC-250 | A curated recipe supplies the input/settings; Check shows the recorded observation. |
 | Community-reported on BC-250 | A reviewed user report, not reproduced by a maintainer. |
-| Automatic, guided by the OptiScaler wiki | Detection is supplemented by one of 761 imported wiki entries. Most reports concern Windows and other GPUs. |
+| Automatic, guided by the OptiScaler wiki | Detection is supplemented by one of 739 imported wiki game entries. Most reports concern Windows and other GPUs. |
 | Automatic (no recipe) | Detection found a DirectX 12 input; in-game behavior is unverified. |
 | Not supported | A refusal with a reason and suggested next step. |
 

@@ -121,19 +121,26 @@ def launch_tokens(items):
     return l1, other
 
 
+# The wiki's topic pages (FSR4 on Linux, Resource Barriers, Unreal Engine...): advice for many games, no game's
+# identity. wiki.json keeps their facts; the recipe file has game entries only, and nothing shows topic advice.
+TOPIC = re.compile(r'\(general\)$', re.I)
+
+
 def wiki_entries(doc, curation, titles):
-    """The wiki part of the recipe file: wiki.json's facts per title, its exes from the quirk titles, the maintainers'
-    additions (wiki-curation.json)."""
-    known = {e['title'] for e in doc['entries']}
+    """The wiki part of the recipe file: wiki.json's facts per game title (not the topic pages), its exes from the
+    quirk titles, the maintainers' additions (wiki-curation.json)."""
+    known = {e['title'] for e in doc['entries'] if not TOPIC.search(e['title'])}
     for title, extra in curation.items():
         if title not in known:
-            raise SystemExit(f'wiki-curation.json: no wiki entry is titled {title!r}')
+            raise SystemExit(f'wiki-curation.json: no wiki game entry is titled {title!r}')
         if set(extra) - set(CURATED):
             raise SystemExit(f'wiki-curation.json {title!r}: unknown fields {sorted(set(extra) - set(CURATED))}')
     out = []
     for e in doc['entries']:
         if set(e) - set(WIKI_FACTS):
             raise SystemExit(f'wiki.json {e["title"]!r}: unknown fields {sorted(set(e) - set(WIKI_FACTS))}')
+        if TOPIC.search(e['title']):
+            continue
         key, extra = norm(e['title']), curation.get(e['title'], {})
         match = dict(title=list(extra.get('title') or [key]))
         exes = exe_links(key, titles)

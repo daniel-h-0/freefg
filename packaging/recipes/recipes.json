@@ -6568,21 +6568,6 @@
       "compat": "working"
     },
     {
-      "title": "DirectX 11 with DirectX 12 upscalers (general)",
-      "match": {
-        "title": [
-          "directx 11 with directx 12 upscalers"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1
-      }
-    },
-    {
       "title": "Dishonored 2",
       "match": {
         "title": [
@@ -6634,22 +6619,6 @@
         "menu": 1
       },
       "compat": "working"
-    },
-    {
-      "title": "Display Resolution Motion Vectors (general)",
-      "match": {
-        "title": [
-          "display resolution motion vectors"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1
-      }
     },
     {
       "title": "Dolmen",
@@ -7959,29 +7928,6 @@
       "compat": "working"
     },
     {
-      "title": "Exposure texture (general)",
-      "match": {
-        "title": [
-          "exposure texture"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "InitFlags.AutoExposure",
-          "value": "true"
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "menu": 1
-      }
-    },
-    {
       "title": "F.I.S.T.: Forged In Shadow Torch",
       "match": {
         "title": [
@@ -8203,24 +8149,6 @@
         "xess"
       ],
       "compat": "working"
-    },
-    {
-      "title": "Fakenvapi (general)",
-      "match": {
-        "title": [
-          "fakenvapi"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Fakenvapi"
-      ],
-      "counts": {
-        "game-setting": 2,
-        "other-mod": 1,
-        "ini": 2,
-        "issue": 1
-      }
     },
     {
       "title": "Far Cry 5",
@@ -9173,57 +9101,6 @@
       "compat": "working"
     },
     {
-      "title": "Frame generation options (general)",
-      "match": {
-        "title": [
-          "frame generation options"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Frame-Generation-Options"
-      ],
-      "fg_advice": [
-        {
-          "advice": "prefer",
-          "input": "dlssg",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        },
-        {
-          "advice": "works",
-          "input": "fsrfg",
-          "when": {
-            "condition": "game has native FG"
-          }
-        },
-        {
-          "advice": "works",
-          "input": "nukems",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        },
-        {
-          "advice": "avoid",
-          "input": "upscaler",
-          "when": {
-            "condition": "game has native FG"
-          }
-        }
-      ],
-      "counts": {
-        "game-setting": 13,
-        "fg-input": 4,
-        "issue": 9,
-        "menu": 4,
-        "other-mod": 2,
-        "upscaler-input": 1,
-        "engine-ini": 1
-      }
-    },
-    {
       "title": "Frostpunk 2",
       "match": {
         "title": [
@@ -9299,88 +9176,6 @@
       },
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "FSR4 (general)",
-      "match": {
-        "title": [
-          "fsr4"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/FSR4-Compatibility-List"
-      ],
-      "ini": [
-        {
-          "key": "FSR.FsrAgilitySDKUpgrade",
-          "value": "true",
-          "when": {
-            "os": "windows 10"
-          }
-        },
-        {
-          "key": "FSR.FsrNonLinearColorSpace",
-          "value": "true",
-          "when": {
-            "upscaler": "fsr4",
-            "preset": "ultra quality"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 4,
-        "menu": 2,
-        "ini": 3,
-        "game-setting": 3,
-        "other-mod": 1
-      }
-    },
-    {
-      "title": "FSR4 on Linux (general)",
-      "match": {
-        "title": [
-          "fsr4 on linux"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/FSR4-Compatibility-List"
-      ],
-      "other_launch_args": [
-        "PROTON_FSR4_UPGRADE=1"
-      ],
-      "counts": {
-        "game-setting": 9,
-        "launch": 1
-      }
-    },
-    {
-      "title": "FSR4 shimmering on Unreal Engine DX11 (general)",
-      "match": {
-        "title": [
-          "fsr4 shimmering on unreal engine dx11"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/FSR4-Compatibility-List"
-      ],
-      "ini": [
-        {
-          "key": "InitFlags.DisplayResolution",
-          "value": "false",
-          "when": {
-            "scaling": "native AA (1.0)"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "engine-ini": 1,
-        "game-setting": 1,
-        "ini": 1
-      }
     },
     {
       "title": "Funko Fusion",
@@ -10265,23 +10060,6 @@
       },
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "Graphical corruption and crashes (general)",
-      "match": {
-        "title": [
-          "graphical corruption and crashes"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 2,
-        "ini": 1,
-        "other-mod": 1
-      }
     },
     {
       "title": "GreedFall - The Dying World",
@@ -11659,33 +11437,6 @@
       "compat": "working"
     },
     {
-      "title": "Intel Arc spoofing issues (general)",
-      "match": {
-        "title": [
-          "intel arc spoofing issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Spoofing.Dxgi",
-          "value": "false",
-          "when": {
-            "gpu": "intel arc"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "upscaler-input": 2,
-        "other-mod": 1
-      }
-    },
-    {
       "title": "Into the Dead: Our Darkest Days",
       "match": {
         "title": [
@@ -12212,22 +11963,6 @@
       "compat": "working"
     },
     {
-      "title": "Known Issues: crashes and injectors (general)",
-      "match": {
-        "title": [
-          "known issues crashes and injectors"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 4,
-        "ini": 2
-      }
-    },
-    {
       "title": "Kunitsu-Gami: Path of the Goddess",
       "match": {
         "title": [
@@ -12353,22 +12088,6 @@
       ],
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "Legacy in-game menu (general)",
-      "match": {
-        "title": [
-          "legacy in game menu"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "game-setting": 1,
-        "issue": 2
-      }
     },
     {
       "title": "LEGO Batman : Legacy of the Dark Knight",
@@ -15425,71 +15144,6 @@
       "compat": "working"
     },
     {
-      "title": "OptiFG (general)",
-      "match": {
-        "title": [
-          "optifg"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/OptiFG"
-      ],
-      "fg_advice": [
-        {
-          "advice": "avoid",
-          "input": "upscaler",
-          "when": {
-            "condition": "game has working native FG"
-          }
-        },
-        {
-          "advice": "prefer",
-          "input": "dlssg",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        },
-        {
-          "advice": "prefer",
-          "input": "nukems",
-          "when": {
-            "condition": "game has native DLSS-FG"
-          }
-        }
-      ],
-      "ini": [
-        {
-          "key": "OptiFG.HUDFix",
-          "value": "true"
-        }
-      ],
-      "counts": {
-        "issue": 7,
-        "fg-input": 3,
-        "upscaler-input": 1,
-        "ini": 10,
-        "other-mod": 2,
-        "menu": 8,
-        "game-setting": 4
-      }
-    },
-    {
-      "title": "OptiFG HUDfix incompatible games (general)",
-      "match": {
-        "title": [
-          "optifg hudfix incompatible games"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Hudfix-incompatible"
-      ],
-      "counts": {
-        "issue": 2
-      }
-    },
-    {
       "title": "Orbit.Industries",
       "match": {
         "title": [
@@ -15541,22 +15195,6 @@
       "compat": "working"
     },
     {
-      "title": "Output Scaling greyed out (general)",
-      "match": {
-        "title": [
-          "output scaling greyed out"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1,
-        "engine-ini": 1
-      }
-    },
-    {
       "title": "Outriders",
       "match": {
         "title": [
@@ -15604,33 +15242,6 @@
         "issue": 1
       },
       "compat": "working"
-    },
-    {
-      "title": "Overlay does not open (general)",
-      "match": {
-        "title": [
-          "overlay does not open"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Menu.ShortcutKey",
-          "value": "0x24",
-          "when": {
-            "condition": "Opti splash message shows but overlay does not open with Insert"
-          }
-        }
-      ],
-      "counts": {
-        "game-setting": 4,
-        "issue": 1,
-        "other-mod": 2,
-        "ini": 1
-      }
     },
     {
       "title": "Pacific Drive",
@@ -16008,22 +15619,6 @@
         "fsr4"
       ],
       "compat": "working"
-    },
-    {
-      "title": "Performance issues (general)",
-      "match": {
-        "title": [
-          "performance issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 2,
-        "other-mod": 1
-      }
     },
     {
       "title": "Persona 5 Royal",
@@ -17659,29 +17254,6 @@
       "compat": "working"
     },
     {
-      "title": "Resource Barriers (general)",
-      "match": {
-        "title": [
-          "resource barriers"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Hotfix.ColorResourceBarrier",
-          "value": "4"
-        }
-      ],
-      "counts": {
-        "issue": 2,
-        "ini": 1,
-        "menu": 1
-      }
-    },
-    {
       "title": "Returnal",
       "match": {
         "title": [
@@ -18960,32 +18532,6 @@
       },
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "Shader compilation error on Linux (general)",
-      "match": {
-        "title": [
-          "shader compilation error on linux"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "ini": [
-        {
-          "key": "Hotfix.UsePrecompiledShaders",
-          "value": "true",
-          "when": {
-            "os": "linux"
-          }
-        }
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "other-mod": 1
-      }
     },
     {
       "title": "Shadow of the Tomb Raider",
@@ -23439,22 +22985,6 @@
       "compat": "working"
     },
     {
-      "title": "Unreal Engine (general)",
-      "match": {
-        "title": [
-          "unreal engine"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Unreal-Engine-Tweaks"
-      ],
-      "counts": {
-        "game-setting": 2,
-        "engine-ini": 13
-      }
-    },
-    {
       "title": "Until Dawn",
       "match": {
         "title": [
@@ -23482,23 +23012,6 @@
       },
       "compat": "working",
       "optipatcher": true
-    },
-    {
-      "title": "Upscale Ratio Override issues (general)",
-      "match": {
-        "title": [
-          "upscale ratio override issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 1,
-        "ini": 1,
-        "game-setting": 1
-      }
     },
     {
       "title": "Valkyrie Elysium",
@@ -24662,23 +24175,6 @@
         "game-setting": 1
       },
       "compat": "working"
-    },
-    {
-      "title": "XeSS issues (general)",
-      "match": {
-        "title": [
-          "xess issues"
-        ]
-      },
-      "status": "wiki-reported",
-      "pages": [
-        "https://github.com/optiscaler/OptiScaler/wiki/Known-Issues"
-      ],
-      "counts": {
-        "issue": 2,
-        "upscaler-input": 1,
-        "ini": 3
-      }
     },
     {
       "title": "Xuan-Yuan Sword VII",
