@@ -707,7 +707,7 @@ class RestoreFidelityTests(GameFixture):
         # A line separator in a value (U+2028, VT, FF, NEL, RS, ...): str.splitlines split it on the next edit, and the
         # rest became a section and a key of its own (an injected [Libraries] XeFGPath). Lines are split as configparser
         # (and OptiScaler) split them, and the installer writes no value that spans lines.
-        for separator in '  \x0b\x0c\x1c\x1d\x1e\x85':
+        for separator in '\u2028\u2029\x0b\x0c\x1c\x1d\x1e\x85':
             with self.subTest(separator=repr(separator)):
                 data=('[A]\nKey=x'+separator+'[Libraries]'+separator+'XeFGPath=evil\n').encode()
                 edited=m.patch_ini(data,{('A','Other'):'1'});again=m.patch_ini(edited,{('A','Other'):'2'})

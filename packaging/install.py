@@ -105,7 +105,7 @@ def xess_library_repair(data):
 KEY_LINE=re.compile(r'(\s*)([^;#=]+?)(\s*=\s*)')
 # Characters that end a line for some reader of an INI file: OptiScaler's (SimpleIni) ends one at \r or \n, Python's
 # str.splitlines at the others too. A value holding one would be a line of its own on the next read.
-LINE_BREAKS=re.compile('[\r\n\x0b\x0c\x1c\x1d\x1e\x85  \0]')
+LINE_BREAKS=re.compile('[\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029\0]')
 
 def ini_lines(text):
     """text's lines as configparser reads them: split at \\n only, a \\r before it dropped. (str.splitlines also splits
