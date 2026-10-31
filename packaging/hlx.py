@@ -149,6 +149,32 @@ def unpack(archive, target, folder=None, compiler=False):
             path.chmod(0o755 if (item.external_attr >> 16) & 0o111 else 0o644)
 
 
+def sandbox(staging, readable=(), environ=None, home=None, uid=None):
+    """The bubblewrap command prefix Prepare HLX runs upstream's build in: namespaces of its own (no network, no other
+    processes or abstract sockets), a session of its own (no input into this terminal), ended with this process, and an
+    empty environment but for what the build needs. The host is read-only and /dev holds only the standard devices. The
+    home folder, the session's runtime folder (D-Bus, PipeWire, Wayland and agent sockets) and the system bus folder are
+    empty in it, /tmp is staging's tmp folder, and readable paths inside those (the model inputs, Python, numpy or Wine
+    where they live there) are seen read-only. Only staging is writable."""
+    environ = os.environ if environ is None else environ
+    home, uid, staging = Path(home or Path.home()), os.getuid() if uid is None else uid, Path(staging)
+    command = ['bwrap', '--unshare-all', '--die-with-parent', '--new-session', '--clearenv',
+               '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc']
+    hidden = [folder for folder in (home, Path('/run/user') / str(uid), Path('/run/dbus')) if folder.is_dir()]
+    for folder in hidden:
+        command += ['--tmpfs', str(folder)]
+    command += ['--bind', str(staging / 'tmp'), '/tmp']
+    for path in sorted({Path(path) for path in readable}):
+        if any(folder in path.parents for folder in [*hidden, Path('/tmp')]):
+            command += ['--ro-bind', str(path), str(path)]
+    command += ['--bind', str(staging), str(staging), '--chdir', str(staging)]
+    for key, value in dict(PATH=environ.get('PATH') or '/usr/local/bin:/usr/bin:/bin', HOME=str(home), LANG='C.UTF-8',
+                           TMPDIR='/tmp', XDG_CACHE_HOME=str(staging / 'cache'), PYTHONDONTWRITEBYTECODE='1',
+                           HELIXSR_SETUP_JOBS='4', WINEDEBUG='-all').items():
+        command += ['--setenv', key, value]
+    return command + ['--']
+
+
 def prepare(package, dlss, amd, wine='wine', download=None, report=print):
     """Run upstream's build-only Python entry point, never its game setup script. Network access is disabled for builds.
     report prints the line that says what was prepared (install.py: with its event)."""
@@ -187,13 +213,12 @@ def prepare(package, dlss, amd, wine='wine', download=None, report=print):
                    '--dlss', str(Path(dlss).resolve()), '--amd', str(Path(amd).resolve()), '--dxc', str(wrapper),
                    '--dxc-dir', str(staging / 'dxc2607'), '--dxc2609-dir', str(staging / 'dxc2609'),
                    '--wine', wine_path, '--wineprefix', str(prefix)]
-        temp = staging / 'tmp';temp.mkdir()
-        isolation = ['bwrap', '--ro-bind', '/', '/', '--dev-bind', '/dev', '/dev', '--proc', '/proc', '--unshare-net',
-                     '--bind', str(staging), str(staging), '--bind', str(temp), '/tmp',
-                     '--setenv', 'TMPDIR', '/tmp', '--setenv', 'XDG_CACHE_HOME', str(staging / 'cache'),
-                     '--setenv', 'PYTHONDONTWRITEBYTECODE', '1', '--setenv', 'HELIXSR_SETUP_JOBS', '4',
-                     '--setenv', 'WINEDEBUG', '-all', '--unsetenv', 'DISPLAY', '--unsetenv', 'WAYLAND_DISPLAY', '--']
-        subprocess.run(isolation + command, check=True)
+        (staging / 'tmp').mkdir()
+        # What the build reads that may live in a folder the sandbox empties: the inputs, Python, numpy and Wine.
+        readable = [Path(dlss).resolve(), Path(amd).resolve(), Path(sys.executable).resolve().parent,
+                    *{Path(folder).resolve() for folder in (sys.prefix, sys.base_prefix, sys.exec_prefix)},
+                    Path(numpy.__file__).resolve().parents[1], Path(wine_path).resolve().parent]
+        subprocess.run(sandbox(staging, readable) + command, check=True)
         for provider in NAMES:check(release, spec, provider)
         target = work / spec['folder']
         old = work / ('.previous-' + os.urandom(4).hex())

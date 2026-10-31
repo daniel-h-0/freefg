@@ -306,8 +306,9 @@ legacy HelixSR FidelityFX/network format. `hlx.py` validates complete prepared m
 custom NGX and FFX provider layouts. HLX DLSS retains its `helixsr.dll` filename to avoid the NGX file-redirection
 hook; renaming it `nvngx.dll` prevents it from reading its embedded network on the tested integration. Adapters propose content and metadata; the shared transaction engine owns
 all writes and recovery. Unknown provider formats are deferred. Core-only and upscaler-only updates use the same
-engine. HLX preparation uses upstream’s build-only entry point inside a read-only host mount with network access
-disabled and only its staging directory writable. The qualified preparation replaces the shared cache atomically;
+engine. HLX preparation runs upstream’s build-only entry point in a bubblewrap sandbox ([SECURITY.md](SECURITY.md#the-installer)):
+no network, the host read-only, the home folder and session sockets hidden, only its staging directory writable. The
+qualified preparation replaces the shared cache atomically;
 games retain independent copies. No model-bearing output enters release artifacts.
 
 Update verifies current owned files, original backups, package hashes, integration compatibility and game idleness.
