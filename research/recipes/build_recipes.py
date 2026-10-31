@@ -179,9 +179,129 @@ def promote(wk, path):
     return count
 
 
+SETTING_FORMATS = ('json', 'json-options', 'xml-option', 'ini-replace', 'ini')
+GAME_INPUTS = ('upscaler', 'dlssg', 'fsrfg')  # the FG inputs a recipe may choose (FSR 3.0 FG never reached OptiScaler; F0)
+EVIDENCE_LEVELS = ('gameplay', 'generates', 'startup', 'installed', 'fails')  # packaging/compat.py EVIDENCE
+VERIFIED_KEYS = {'title', 'match', 'status', 'route', 'fg_input', 'ini', 'upscaler_ini', 'game_settings', 'launch_args', 'required_args',
+                 'manual_steps', 'note', 'evidence', 'observed', 'pending_verification', 'qualification', 'replaces'}
+SETTING_KEYS = {'file', 'base', 'format', 'section', 'values', 'why', 'requires_fg_input'}
+INI_KEY = re.compile(r'[A-Za-z0-9_-]+\.[A-Za-z0-9_]+')  # what packaging/compat.py's wiki planner accepts
+# Graphics-API switches (launcher_config.API_ARGS, compat.OFF_DX12_ARGS): the installer adds a recipe's only where the
+# user's own options choose none.
+API_ARGS = DX12_ARGS | {'-dx11', '-d3d11', '-force-d3d11', '-vulkan', '-force-vulkan', '-opengl', '-force-glcore'}
+
+
+def _strings(value):
+    return isinstance(value, list) and all(isinstance(v, str) and v for v in value)
+
+
+def check_verified(entry):
+    """Problems with one verified recipe (an empty list when it may be built in): the fields packaging/recipes.py and
+    install.py read, in the types they read them."""
+    problems = [f'unknown field {k}' for k in sorted(set(entry) - VERIFIED_KEYS)]
+    for k in ('title', 'match', 'route', 'evidence', 'observed'):
+        if not entry.get(k):
+            problems.append(f'missing {k}')
+    if entry.get('status') != 'verified-bc250':
+        problems.append('status must be verified-bc250')
+    m = entry.get('match') or {}
+    if set(m) - {'steam', 'gog', 'epic', 'exe', 'title'} or not all(_strings(v) for v in m.values()):
+        problems.append('match holds lists of steam, gog, epic, exe and title names only')
+    elif not any(m.get(k) for k in ('steam', 'gog', 'epic')) and not m.get('exe'):
+        problems.append('match needs a launcher ID (steam, gog, epic) or exe names')
+    # recipes.identity lower-cases the exe and normalizes titles (lower-case words of letters and digits): anything else
+    # never matches.
+    if any(e != e.lower() for e in m.get('exe') or []) or not all(re.fullmatch(r'[a-z0-9]+( [a-z0-9]+)*', t) for t in m.get('title') or []):
+        problems.append('match exe names are lower case and titles normalized (recipes.norm)')
+    if entry.get('route') not in ('native', 'opti'):
+        problems.append('route must be native or opti')
+    elif (entry.get('fg_input') not in GAME_INPUTS) if entry['route'] == 'opti' else entry.get('fg_input') is not None:
+        problems.append('fg_input must be upscaler, dlssg or fsrfg on the opti route, null on the native route')
+    for name, ini in [('ini', entry.get('ini', {}))] + [(f'upscaler_ini {u}', v) for u, v in (entry.get('upscaler_ini') or {}).items()]:
+        if not isinstance(ini, dict) or not all(isinstance(k, str) and INI_KEY.fullmatch(k) and isinstance(v, str) for k, v in ini.items()):
+            problems.append(f'{name}: Section.Key names with text values')
+    for s in entry.get('game_settings', []):
+        if not isinstance(s, dict) or set(s) - SETTING_KEYS or s.get('format') not in SETTING_FORMATS or not s.get('file') \
+                or not isinstance(s.get('values'), dict) or not s['values'] or s.get('requires_fg_input') not in GAME_INPUTS + (None,):
+            problems.append(f'game setting {s.get("file") if isinstance(s, dict) else s}: file, format, values and the fields of '
+                            f'{", ".join(sorted(SETTING_KEYS))} only')
+        elif Path(s['file']).is_absolute() or '..' in Path(s['file']).parts:
+            problems.append(f'game setting {s["file"]}: a path relative to the prefix user folder (drive_c/users/steamuser)')
+    args = entry.get('launch_args')
+    if not isinstance(args, list) or len(args) > 1 or any(a.lower() not in DX12_ARGS for a in args):
+        problems.append(f'launch_args: at most one DX12 switch ({", ".join(sorted(DX12_ARGS))})')
+    for k in ('manual_steps', 'replaces', 'required_args'):
+        if k in entry and not _strings(entry[k]):
+            problems.append(f'{k}: a list of texts')
+    # A required argument is added whatever the user's API choice, so it never is one (that is launch_args').
+    if any(a.lower() in API_ARGS or a != a.strip() for a in entry.get('required_args') or []):
+        problems.append('required_args: game arguments without blanks around them, no graphics-API switch')
+    if entry.get('evidence') and entry['evidence'] not in EVIDENCE_LEVELS:
+        problems.append(f'evidence must be one of {", ".join(EVIDENCE_LEVELS)}')
+    return problems
+
+
+def overlaps(a, b):
+    """True when one game identity would match both recipes: a launcher ID of the same store, or an exe name together
+    with a title (recipes.match takes the first verified recipe that matches, so the other would never apply)."""
+    ma, mb = a['match'], b['match']
+    if any(set(ma.get(k, [])) & set(mb.get(k, [])) for k in ('steam', 'gog', 'epic')):
+        return True
+    named = [{norm(e['title'])} | set(e['match'].get('title', [])) for e in (a, b)]
+    return bool(set(ma.get('exe', [])) & set(mb.get('exe', [])) and named[0] & named[1])
+
+
 def verified_recipes(folder=VERIFIED):
-    """verified/*.json, one recipe per game, in title order."""
-    return sorted((read(f) for f in sorted(Path(folder).glob('*.json'))), key=lambda v: (v['title'].casefold(), v['title']))
+    """verified/*.json, one recipe per game, in title order. A recipe whose identity overlaps another's refuses the
+    build, unless it names that file in "replaces" (which then leaves the build)."""
+    files = {f.stem: read(f) for f in sorted(Path(folder).glob('*.json'))}
+    for stem, entry in files.items():
+        problems = check_verified(entry)
+        if problems:
+            raise SystemExit(f'verified/{stem}.json: ' + '; '.join(problems))
+    replaced = set()
+    for stem, entry in files.items():
+        for old in entry.get('replaces', []):
+            if old not in files or not overlaps(entry, files[old]):
+                raise SystemExit(f'verified/{stem}.json replaces {old}.json, which is no recipe for the same game')
+            replaced.add(old)
+    kept = sorted(stem for stem in files if stem not in replaced)
+    for n, a in enumerate(kept):
+        for b in kept[n + 1:]:
+            if overlaps(files[a], files[b]):
+                raise SystemExit(f'verified/{a}.json and verified/{b}.json claim the same game (a launcher ID, or an exe and '
+                                 f'a title): merge them, or name the older one in the newer one\'s "replaces"')
+    return sorted(({k: v for k, v in files[s].items() if k != 'replaces'} for s in kept), key=lambda v: (v['title'].casefold(), v['title']))
+
+
+def text_problems(data):
+    """Strings in the recipe file that are not one printable line (a control, line- or paragraph-separator character
+    would split an INI line the installer writes, or a line Check prints), and INI keys, INI values and game-setting
+    values with blanks around them (packaging/compat.py and install.py apply the same rule to what they write)."""
+    out = []
+
+    def walk(value, where):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                walk(k, where)
+                walk(v, f'{where}.{k}')
+        elif isinstance(value, list):
+            for n, v in enumerate(value):
+                walk(v, f'{where}[{n}]')
+        elif isinstance(value, str) and not value.isprintable():
+            out.append(f'{where}: {value[:60]!r} has a control or separator character')
+
+    walk(data, '')
+    recipes = data['verified'] + data.get('community', [])
+    ini = [(v['title'], v.get('ini', {})) for v in recipes] + [(v['title'], i) for v in recipes for i in v.get('upscaler_ini', {}).values()]
+    ini += [(w['title'], {i['key']: i['value'] for i in w.get('ini', []) + w.get('promoted', [])}) for w in data['wiki']]
+    for where, values in ini:
+        out += [f'{where}: INI key {key!r} is no Section.Key name' for key in values if not INI_KEY.fullmatch(key)]
+    for where, values in ini + [(f'{v["title"]} {s["file"]}', s['values']) for v in recipes for s in v.get('game_settings', [])]:
+        for key, value in values.items():
+            if isinstance(value, str) and value != value.strip() or key != key.strip():
+                out.append(f'{where}: {key}={value!r} has blanks around it')
+    return out
 
 
 def build(folder=HERE):
@@ -196,12 +316,16 @@ def build(folder=HERE):
     sources = dict(optiscaler_pinned=opti['pinned'], optiscaler_upstream=opti['upstream'],
                    optiscaler_compatible_commits=opti['compatible_commits'], wiki=f'{doc["wiki"]["commit"]} ({doc["wiki"]["date"]})',
                    wiki_url=doc['wiki']['url'], **catalogue['notes'])
-    return dict(schema=catalogue['schema'], generated_by='research/recipes/build_recipes.py', sources=sources,
+    data = dict(schema=catalogue['schema'], generated_by='research/recipes/build_recipes.py', sources=sources,
                 rules=catalogue['rules'], verified=verified_recipes(folder / 'verified'),
                 community=community(folder / 'community', quirks['quirk_keys'], build_keys(opti)),
                 leave_auto=quirks['leave_auto'], backports=quirks['backports'], quirk_keys=quirks['quirk_keys'],
                 wiki=[{k: w[k] for k in WIKI_ORDER if k in w} for w in sorted(wk, key=lambda w: (w['title'].casefold(), w['title']))],
                 optiscaler_builds={c: dict(b, keys=opti['ini_keys'][b['ini_sha256']]) for c, b in opti['builds'].items()})
+    problems = text_problems(data)
+    if problems:
+        raise SystemExit('The recipe file would carry text the installer cannot write or show as one line:\n  ' + '\n  '.join(problems[:20]))
+    return data
 
 
 # ------------------------------------------------------------------------------------------------ community recipes
@@ -210,7 +334,6 @@ COMMUNITY_KEYS = {'title', 'match', 'status', 'route', 'fg_input', 'ini', 'game_
                   'known_problems', 'reports', 'reviewed_by', 'reviewed', 'note'}
 REPORT_KEYS = {'issue', 'freefg', 'package_sha256', 'proton', 'mesa', 'kernel', 'gamescope', 'hdr', 'vrr', 'resolution',
                'upscaler_mode', 'ratio', 'minutes', 'starts', 'restore_checked', 'date'}
-SETTING_FORMATS = ('json', 'json-options', 'xml-option', 'ini-replace', 'ini')
 
 
 def check_community(entry, quirk_keys=None, readable=None):

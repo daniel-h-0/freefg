@@ -425,6 +425,69 @@ class BuildTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, 'pinned side'):
                 self.b.refresh_quirks(Path(tmp)/'quirks.json', folder)
 
+    def verified(self, name='voin'):
+        return json.loads((self.ROOT/'research/recipes/verified'/(name + '.json')).read_text())
+
+    def test_verified_recipes_are_checked(self):
+        for v in self.data['verified']:
+            self.assertEqual(self.b.check_verified(v), [], v['title'])
+        good = self.verified()
+        setting = dict(file='AppData/Local/V/GameUserSettings.ini', format='ini-replace', values={'A': '1'}, requires_fg_input=None)
+        cases = [(dict(extra=1), 'unknown field extra'), (dict(status='community-bc250'), 'status'),
+                 (dict(fg_input='fsrfg30'), 'fg_input'), (dict(route='native'), 'fg_input'), (dict(evidence='maybe'), 'evidence'),
+                 (dict(launch_args=['-nobattleye']), 'launch_args'), (dict(launch_args=['-dx12', '-d3d12']), 'launch_args'),
+                 (dict(required_args=['-dx12']), 'required_args'), (dict(required_args=['-x ']), 'required_args'),
+                 (dict(match=dict(exe=['VOIN-Win64-Shipping.exe'], steam=['2464530'])), 'lower case'),
+                 (dict(match=dict(exe=['voin.exe'], title=['VOIN'])), 'normalized'), (dict(match=dict(title=['voin'])), 'launcher ID'),
+                 (dict(match=dict(steam=[2464530])), 'lists of'), (dict(ini={'Spoofing Dxgi': 'false'}), 'Section.Key'),
+                 (dict(ini={'Spoofing.Dxgi': False}), 'text values'), (dict(game_settings=[dict(setting, file='/tmp/x.ini')]), 'relative'),
+                 (dict(game_settings=[dict(setting, format='yaml')]), 'format'), (dict(manual_steps='Choose DLSS.'), 'manual_steps')]
+        for change, message in cases:
+            self.assertTrue(any(message in p for p in self.b.check_verified(dict(good, **change))), (change, message))
+        self.assertEqual(self.b.check_verified(dict(good, required_args=['-nobattleye'], game_settings=[setting])), [])
+
+    def test_overlapping_verified_recipes_refuse_the_build(self):
+        # recipes.match takes the first verified recipe that matches: an overlapping one would silently never apply.
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            newer = dict(self.verified(), title='VOIN (new evidence)', evidence='gameplay', observed='2.0 in gameplay')
+            (folder/'verified/voin-2.json').write_text(json.dumps(newer))
+            with self.assertRaisesRegex(SystemExit, 'verified/voin.json and verified/voin-2.json claim the same game'):
+                self.b.build(folder)
+            (folder/'verified/voin-2.json').write_text(json.dumps(dict(newer, replaces=['voin'])))
+            entries = [v for v in self.b.build(folder)['verified'] if '2464530' in v['match'].get('steam', [])]
+            self.assertEqual(entries, [newer])  # the replaced recipe leaves the build, and so does "replaces"
+            (folder/'verified/voin-2.json').write_text(json.dumps(dict(newer, replaces=['witchfire'])))
+            with self.assertRaisesRegex(SystemExit, 'replaces witchfire.json, which is no recipe for the same game'):
+                self.b.build(folder)
+        a = dict(self.verified(), match=dict(exe=['voin-win64-shipping.exe']))
+        self.assertTrue(self.b.overlaps(a, dict(a, title='VOIN')))
+        self.assertFalse(self.b.overlaps(a, dict(a, title='Another Game')))  # one exe name, two games: exe and title tell them apart
+        self.assertTrue(self.b.overlaps(dict(a, match=dict(gog=['1'])), dict(a, match=dict(gog=['1'], exe=['other.exe']))))
+
+    def test_text_the_installer_cannot_write_refuses_the_build(self):
+        # The INI writer splits lines like configparser (U+2028, U+0085, VT, FF...): such a value could add a
+        # [Libraries] line on the next edit. Every catalogue string is one printable line; written values have no blanks
+        # around them.
+        cases = [(lambda d: d['entries'][0]['ini'].append(dict(key='Hotfix.X', value='true [Libraries]')), 'control or separator'),
+                 (lambda d: d['entries'][0]['ini'].append(dict(key='Hotfix.X', value=' true')), 'blanks around it'),
+                 (lambda d: d['entries'][0]['ini'].append(dict(key='Hotfix X', value='true')), 'no Section.Key name'),
+                 (lambda d: d['entries'][0].update(title=d['entries'][0]['title'] + '\x1b[31m'), 'control or separator')]
+        for change, message in cases:
+            with tempfile.TemporaryDirectory() as tmp:
+                folder = self.inputs(tmp)
+                doc = json.loads((folder/'wiki.json').read_text())
+                doc['entries'][0].setdefault('ini', [])
+                change(doc)
+                (folder/'wiki.json').write_text(json.dumps(doc))
+                with self.assertRaisesRegex(SystemExit, message):
+                    self.b.build(folder)
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.inputs(tmp)
+            (folder/'verified/voin.json').write_text(json.dumps(dict(self.verified(), note='fine\x85then')))
+            with self.assertRaisesRegex(SystemExit, 'control or separator'):
+                self.b.build(folder)
+
     def test_every_verified_recipe_has_its_evidence(self):
         for v in self.data['verified']:
             self.assertIn(v['evidence'], ('gameplay', 'generates', 'startup', 'installed', 'fails'), v['title'])
