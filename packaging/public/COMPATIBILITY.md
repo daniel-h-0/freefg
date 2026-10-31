@@ -41,7 +41,7 @@ lifts the anti-cheat refusal (kind `risk`), which has an [override](#anti-cheat)
 | `no-input` | DirectX 12, but no upscaler or frame-generation SDK. | As above. |
 | `input-unconfirmed` (soft) | A Unity game whose only DLSS evidence is the DLL Unity's NVIDIA module bundles; its code never names DLSS. | Accept only if the game's menu offers DLSS. |
 | `wrong-exe` | The executable is a launcher stub. | Choose the executable Check names. |
-| `no-launcher` | No Steam, Heroic or Lutris entry starts the executable. | Add the game to one of them. |
+| `no-launcher` (soft) | No Steam, Heroic or Lutris entry starts the executable. | Add the game to one of them, or accept and set the printed launch settings in your launcher ([other launchers](INSTALLATION.md#other-launchers)). |
 | `shared-entry` | The launcher entry already starts an installation in another folder. | Restore that installation first. |
 | `ge-optiscaler` | GE-Proton is told to place its own OptiScaler or upscaler DLLs (`PROTON_USE_OPTISCALER`, `PROTON_*_UPGRADE`). | Remove the variable from the launch options. |
 | `protonfix-api` (soft) | GE-Proton's fix for the game switches it away from DirectX 12. | Accepting adds `PROTONFIXES_DISABLE=1`, turning off all of GE-Proton's fixes for the game (Check names what else the fix does); Restore removes it. |

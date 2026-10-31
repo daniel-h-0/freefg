@@ -60,6 +60,20 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(env['VK_LAYER_PATH'],str(self.game/'BC250-XeFG/layer'))
         self.assertNotIn('run.sh',result)
 
+    def test_manual_settings_are_a_new_entrys_and_read_back_as_a_command(self):
+        cache = self.game/'.bc250-xefg-experimental/vkd3d-cache'
+        settings = l.manual_settings(self.game, 'dxgi.dll', 'xemfg-proxy', 'opti', ['-dx12'], {'PROTONFIXES_DISABLE': '1'}, cache)
+        steam = l.steam_options('', self.game, 'dxgi.dll', 'xemfg-proxy', 'opti', ['-dx12'], {'PROTONFIXES_DISABLE': '1'}, cache)
+        self.assertEqual(settings, {'env': l.split_steam(steam)[0], 'args': ['-dx12']})
+        lines = l.manual_lines(settings)
+        self.assertEqual(lines[-1], 'Game arguments (after the .exe): -dx12')
+        # On a command line, before the command (the game folder's name has a space and a quote).
+        code = 'import os,json;print(json.dumps(dict(os.environ)))'
+        env = json.loads(subprocess.check_output(['/bin/sh', '-c', ' '.join(lines[:-1]+[shlex.join([sys.executable, '-c', code])])], text=True))
+        self.assertEqual({key: env[key] for key in settings['env']}, settings['env'])
+        # As rows of a launcher that splits its launch arguments as a shell does (Faugus joins them with newlines).
+        self.assertEqual(dict(word.split('=', 1) for word in shlex.split('\n'.join(lines[:-1]))), settings['env'])
+
     def test_removes_only_exact_old_wrapper(self):
         value = 'gamemoderun '+shlex.quote(str(self.game/'BC250-XeFG/run.sh'))+' %command% --intro-skip'
         result = l.steam_options(value,self.game,'dxgi.dll')

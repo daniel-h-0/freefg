@@ -607,9 +607,12 @@ def conflicts(exe, targets, environ=None):
     return list(unique.values())
 
 
-def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
+def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None, manual=False):
     targets = discover(exe, home)
     if not targets:
+        # manual: the user accepted the no-launcher refusal and sets manual_settings() in a launcher this module does not edit.
+        if manual:
+            return []
         raise ValueError('No launcher entry found for this executable. Add the game to Steam, Heroic or Lutris first.')
     require_stopped(t['launcher'] for t in targets)
     root = exe.parent.resolve()
@@ -651,6 +654,22 @@ def plan(exe, owner, home=None, runtime='xemfg', route='opti', args=(), extra_en
                          prefix_command=shlex.join(t for t in tokens if t not in wrappers))
         operations.append(dict({k: v for k, v in target.items() if k != 'args'}, before=before, after=after))
     return operations
+
+
+def manual_settings(root, owner, runtime='xemfg', route='opti', args=(), extra_env=None, vkd3d_cache=None):
+    """The launch settings a new launcher entry would get from plan(), for a launcher this module does not edit (an
+    accepted no-launcher refusal): dict(env, args). The user sets them; the installation records them, and Status, Update
+    and Restore show them again."""
+    return dict(env=environment(root, owner, {}, runtime, route, extra_env, vkd3d_cache), args=list(args))
+
+
+def manual_lines(settings):
+    """manual_settings() as the user copies them: one KEY=value per line, quoted as a shell reads it (launchers that take
+    a command line, Faugus's launch arguments among them, read them so), then the game's arguments."""
+    lines = [key + '=' + shlex.quote(value) for key, value in settings['env'].items()]
+    if settings.get('args'):
+        lines.append('Game arguments (after the .exe): ' + shlex.join(settings['args']))
+    return lines
 
 
 def added_args(operations):

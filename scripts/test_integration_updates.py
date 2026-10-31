@@ -35,6 +35,24 @@ class IntegrationUpdateTests(UpdateFixture):
         self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),before)
         self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll');m.restore(self.exe);self.assertOriginal()
 
+    def test_manual_launch_settings_follow_a_loader_change_and_its_rollback(self):
+        # An installation in a launcher this installer does not edit (an accepted no-launcher refusal).
+        self.config.unlink()
+        m.install(self.package,self.exe,route='opti',accept=('no-launcher',))
+        self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'],'dxgi=n,b')
+        status,out=self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')
+        self.assertEqual(status,'update');self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'],'winmm=n,b')
+        self.assertIn('  launch settings change; set these in the game’s launcher (this installer does not edit it):\n    WINEDLLOVERRIDES=winmm=n,b\n',out)
+        self.assertFalse(self.config.exists())
+        _,out=self.run_quiet(m.rollback,self.exe)
+        self.assertEqual(self.record()['manual_launch']['env']['WINEDLLOVERRIDES'],'dxgi=n,b')
+        self.assertIn('Set the game’s launch settings in its launcher back to these:\n  WINEDLLOVERRIDES=dxgi=n,b\n',out)
+        # An update that leaves them as they are does not name them.
+        status,out=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'update');self.assertNotIn('launch settings',out)
+        _,out=self.run_quiet(m.restore,self.exe);self.assertIn('  WINEDLLOVERRIDES=dxgi=n,b\n',out)
+        for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
+
     def test_loader_change_removes_even_an_original_override_until_restore(self):
         doc=json.loads(self.config.read_text());doc['123']['enviromentOptions'].append(dict(key='WINEDLLOVERRIDES',value='dxgi=n,b'))
         self.config.write_text(json.dumps(doc));self.original_config_bytes=self.config.read_bytes();self.original_config=json.loads(self.original_config_bytes)

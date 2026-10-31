@@ -26,6 +26,20 @@ the rendering executable. It preserves existing launcher options and wrappers. S
 their loader filename; unknown DLLs, custom paths and other proxy mods can require manual integration. The installation
 record and original backups are in `.bc250-xefg-experimental`.
 
+## Other launchers
+
+Setup writes its launch settings into the game's Steam, Heroic or Lutris entry. A game that only another launcher
+starts (Faugus, Bottles, umu-run or a script) is refused with `no-launcher`. Choose **Install anyway**
+(`--accept no-launcher`): Setup installs the files as usual, changes no launcher entry and prints the environment
+variables, and any game arguments, to add to that launcher. In Faugus, put the `KEY=value` lines under **Launch
+Arguments**; on a command line, put them before the command; where a launcher takes each name and value separately,
+leave out the quotes around a value. Faugus's global environment variables override a game's own, so keep
+`WINEDLLOVERRIDES` out of them.
+
+Status shows the settings again, an update or Rollback that changes them prints the new values, and Restore lists them
+for removal. Setup cannot check that launcher for GE-Proton's `PROTON_USE_OPTISCALER` or `PROTON_*_UPGRADE`; leave them
+unset for the game. Game settings a recipe would write into the Proton prefix stay pending: set them in the game.
+
 ## Command line
 
 ```sh

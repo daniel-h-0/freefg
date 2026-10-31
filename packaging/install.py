@@ -1098,8 +1098,13 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     vkd3d_cache=state/VKD3D_CACHE if launcher_config.vkd3d_cache_fits(state/VKD3D_CACHE,exe.name) else None
     if vkd3d_cache is None:notes.append('Game folder path too long for vkd3d-proton’s cache file names: its shader cache stays the game’s own, and '
                                         'wave sizes apply only to pipelines Mesa’s cache does not already hold.')
+    # An accepted no-launcher refusal: no entry to edit. The settings a new entry would get are recorded (manual_launch) and
+    # printed, for the user to set in a launcher this installer does not edit; Status, Update and Restore name them again.
     launchers=launcher_config.plan(exe,owner_module,home=launcher_home,runtime='xemfg-proxy' if proxy else 'xemfg',route=route,args=launch_args,
-                                   extra_env=(verdict or {}).get('extra_env'),vkd3d_cache=vkd3d_cache)
+                                   extra_env=(verdict or {}).get('extra_env'),vkd3d_cache=vkd3d_cache,
+                                   manual='no-launcher' in (verdict or {}).get('accepted',[]))
+    manual_launch=None if launchers else launcher_config.manual_settings(root,owner_module,'xemfg-proxy' if proxy else 'xemfg',route,launch_args,
+                                                                         (verdict or {}).get('extra_env'),vkd3d_cache)
     # The runtime: the package's own copies when it carries them all (checked above), otherwise the pinned downloads,
     # fetched below once every check has passed.
     packaged_runtime={source:files[name] for name,source in layout.items() if name in files}
@@ -1182,13 +1187,16 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         print('\n'.join(item['path'] for item in plan))
         for name in displaced:print('Set aside until Restore: '+name+' (an earlier log by the same name)')
         for target in launchers:print('Configure '+target['launcher']+': '+target['path'])
+        if manual_launch:
+            print('No launcher entry is changed; set these in the game’s launcher:')
+            for line in launcher_config.manual_lines(manual_launch):print('  '+line)
         if vkd3d_cache is not None:print('vkd3d-proton shader cache: '+str(vkd3d_cache))
         for item in settings_plan:print(('Game setting: ' if item['after'] is not None else 'Game setting (pending): ')+item['file'])
         if helper:print(helper_line(helper))
         print(upscaler_line(upscaler_record,runtime['Files'].get('fsr4/'+DLL)))
         for line in notes:print(line)
         return
-    print('Installing '+('HelixSR' if helix else 'FSR 4')+', frame generation and launcher settings; saving original files.')
+    print('Installing '+('HelixSR' if helix else 'FSR 4')+', frame generation'+(' and launcher settings' if launchers else '')+'; saving original files.')
     if archive_state:state.rename(archive_state)
     # wrapper=None: records of wrapper-based builds named their run.sh here.
     record=dict(status='prepared',runtime='xemfg',route=route,fresh=fresh,wrapper=None,game=str(exe.resolve()),files=plan,package=package_record.get('name'),
@@ -1196,6 +1204,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
                 launch_args_added=launcher_config.added_args(launchers))
     record['installation_id']=uuid.uuid4().hex
     record['created_dirs']=created_dirs
+    if manual_launch:record['manual_launch']=manual_launch
     if vkd3d_cache is not None:record['vkd3d_cache']=VKD3D_CACHE
     record['upscaler']=upscaler_record
     # displaced_logs (also when empty) tells Restore that every proxy log in the game folder is this installation's.
@@ -1255,7 +1264,11 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
     remember_installation(exe,record,home=launcher_home)
     if upscaler in hlx.NAMES:remember_prepared(package,helixsr_dir)
-    print('\nInstalled. Open your launcher and play normally. No wrapper command is needed.')
+    if manual_launch:
+        print('\nInstalled. No launcher entry was changed: set these for the game in its launcher before you play (on a command line, '
+              'before the command). install.py status shows them again.')
+        for line in launcher_config.manual_lines(manual_launch):print('  '+line)
+    else:print('\nInstalled. Open your launcher and play normally. No wrapper command is needed.')
     if kept:print('Kept your settings from the previous installation: '+', '.join(kept))
     for item in record.get('game_settings',[]):
         if item['status']=='pending':print('Game setting pending: '+setting_line(item)+' ('+(item.get('reason') or 'start the game once, then Settings')+')')
@@ -1267,7 +1280,8 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     if skipped and launchers:print('Launch option not added: '+' '.join(skipped)+' (the launch options already choose a graphics API, or the launcher’s arguments are not managed)')
     if helper and (helper['placed'] or helper['game_copy'] or helper.get('dxgi_spoofing') or dlss_helper!='auto'):print(helper_line(helper))
     print(upscaler_line(upscaler_record,runtime['Files'].get('fsr4/'+DLL)))
-    if vkd3d_cache is not None and any(launcher_config.planned_environment(row).get('VKD3D_SHADER_CACHE_PATH')==str(vkd3d_cache) for row in launchers):
+    envs=[launcher_config.planned_environment(row) for row in launchers]+([manual_launch['env']] if manual_launch else [])
+    if vkd3d_cache is not None and any(env.get('VKD3D_SHADER_CACHE_PATH')==str(vkd3d_cache) for env in envs):
         print('vkd3d-proton keeps this game’s shader cache in '+str(vkd3d_cache)+': the first start fills it and takes longer.')
     for line in notes:print(line)
     print('In game: '+('select native XeSS Frame Generation.' if route=='native' else 'open OptiScaler with Insert; confirm FG Input / XeFG Output and Active. Save Settings and restart after changing the input.'))
@@ -1418,7 +1432,11 @@ def restore(exe):
     try:freefg_library.unregister(exe)
     except (OSError,ValueError) as error:print('Library index was left unchanged: '+str(error))
     if (state/GENERATIONS).is_dir() and not (state/GENERATIONS).is_symlink():shutil.rmtree(state/GENERATIONS)
-    print(('Original files and launcher settings restored. ' if record.get('launchers') else 'Original files restored; later INI edits preserved. Remove the earlier build’s run.sh launch wrapper from the game’s launch options. ')+'Backups remain in '+str(state))
+    if record.get('manual_launch'):
+        import launcher_config
+        print('Original files restored. Backups remain in '+str(state)+'\nRemove the launch settings you set for this game from its launcher:')
+        for line in launcher_config.manual_lines(record['manual_launch']):print('  '+line)
+    else:print(('Original files and launcher settings restored. ' if record.get('launchers') else 'Original files restored; later INI edits preserved. Remove the earlier build’s run.sh launch wrapper from the game’s launch options. ')+'Backups remain in '+str(state))
     if record.get('preserved_ini'):print('Settings from the removed fresh OptiScaler setup: '+str(state/record['preserved_ini']))
     if record.get('preserved_helixsr_ini') and any(Path(item['path']).name.lower()==helixsr.INI for item in record['files']):
         print('Your edited '+helixsr.INI+' is kept in '+str(state/record['preserved_helixsr_ini'])+' (the next HelixSR installation starts from it).')
@@ -1633,7 +1651,7 @@ UPDATES_FROM={'freefg-1.1.3.1','freefg-1.1.4','freefg-1.1.5'}
 LEGACY_UPDATE_TARGETS=frozenset(UPDATES_FROM)
 UPDATE_CONTRACT={'format':2,'layout':'game-local-xemfg-proxy','configuration':1}
 LEGACY_CONTRACT={'format':1,'layout':'game-local-xemfg-proxy','configuration':1}
-RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler','ini_changes','launchers',
+RELEASE_FIELDS=('package','max_factor','update_contract','components','upscaler','ini_changes','launchers','manual_launch',
                 'launcher_policy_keys','opti_owner','launch_args','launch_args_added','recipe','game_settings','route','fg_input')
 # Generations kept for rollback: the release before the last update.
 GENERATIONS='generations'
@@ -1981,14 +1999,21 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
         except ValueError as error:return stop('blocked',str(error))
         integration['edits']['OptiScaler.ini']=changed;integration['metadata'].update(metadata);out['notes']+=notes
         policy_record=dict(record,**metadata)
+    cache=root/STATE/VKD3D_CACHE if record.get('vkd3d_cache')==VKD3D_CACHE else None
     migrations=launcher_migrations.plan(record,root,integration['owner'],
                  route=policy_record.get('route'),args=policy_record.get('launch_args'),
                  extra=(record.get('compat') or {}).get('extra_env'),
-                 cache=root/STATE/VKD3D_CACHE if record.get('vkd3d_cache')==VKD3D_CACHE else None,
+                 cache=cache,
                  previous_owner=integration['previous_owner'])
     out['launcher_ops']=migrations['operations']
     if migrations['records']!=record.get('launchers',[]):out['metadata']['launchers']=migrations['records']
     if migrations['operations']:out['metadata']['launcher_policy_keys']=migrations['policy_keys']
+    if record.get('manual_launch'):
+        # Settings the user keeps in a launcher this installer does not edit: this release's, shown when they change.
+        import launcher_config
+        manual=launcher_config.manual_settings(root,integration['owner'],'xemfg-proxy',policy_record.get('route') or record.get('route','native'),
+                                               policy_record.get('launch_args') or [],(record.get('compat') or {}).get('extra_env'),cache)
+        if manual!=record['manual_launch']:out['metadata']['manual_launch']=manual
     out['metadata'].update({key:value for key,value in integration['metadata'].items() if record.get(key)!=value})
     edits=integration['edits']
     # What the package places, as install() places it: its own payload files, and the pinned runtime (the package's copy
@@ -2120,6 +2145,10 @@ def plan_lines(plan):
     if downloads:lines.append('  downloads (pinned upstream files): '+', '.join(downloads))
     if plan.get('launcher_ops'):lines.append('  launcher entries migrated: '+', '.join(op['target']['launcher']+'/'+str(op['target'].get('id','game')) for op in plan['launcher_ops']))
     if plan.get('metadata',{}).get('opti_owner'):lines.append('  OptiScaler loader: '+plan['metadata']['opti_owner'])
+    if plan.get('metadata',{}).get('manual_launch'):
+        import launcher_config
+        lines+=['  launch settings change; set these in the game’s launcher (this installer does not edit it):']+[
+            '    '+line for line in launcher_config.manual_lines(plan['metadata']['manual_launch'])]
     if plan.get('metadata',{}).get('upscaler'):lines.append('  '+upscaler_line(plan['metadata']['upscaler']))
     lines.append('  original-file backups and user settings are retained')
     return lines+plan['notes']
@@ -2470,6 +2499,10 @@ def rollback_generation(root,record,generation):
     print('Rolled back from '+str(generation['to']['package'])+' to '+str(generation['from']['package'])+': '+str(len(actions))+' file'+('s' if len(actions)!=1 else '')+
           ' put back as they were. Launch the game as before.')
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
+    if 'manual_launch' in (generation.get('metadata_after') or {}) and record.get('manual_launch'):
+        import launcher_config
+        print('Set the game’s launch settings in its launcher back to these:')
+        for line in launcher_config.manual_lines(record['manual_launch']):print('  '+line)
 
 @locked
 @launcher_locked
@@ -2608,6 +2641,10 @@ def status(exe):
                 try:current=launcher_config.fields(target,path.read_bytes())
                 except launcher_config.Missing:pass
             print(target['launcher']+' launch settings: '+('no longer present' if current is None else 'installed' if current==target['after'] else 'changed since installation'))
+    if record.get('manual_launch'):
+        import launcher_config
+        print('Launch settings to keep in the game’s launcher (set by you; this installer does not edit it):')
+        for line in launcher_config.manual_lines(record['manual_launch']):print('  '+line)
     if record.get('vkd3d_cache')==VKD3D_CACHE:
         cache=root/STATE/VKD3D_CACHE
         size=sum(p.stat().st_size for p in cache.rglob('*') if p.is_file() and not p.is_symlink()) if cache.is_dir() else 0
@@ -2634,7 +2671,7 @@ def status(exe):
         elif decision:print('Last scaling decision: '+decision.removeprefix('FRAME_CAP fallback: ').removeprefix('FREEFG_SCALE fallback: '))
         else:print('No generated-frame scaling recorded in this log.')
         print('Logs describe the last recorded session; they do not prove current frame generation or visual correctness.')
-    else:print('No acceleration log yet. Launch normally with FG active.' if record.get('launchers') else 'No acceleration log yet. Launch through the installed wrapper with FG active.')
+    else:print('No acceleration log yet. Launch normally with FG active.' if record.get('launchers') or record.get('manual_launch') else 'No acceleration log yet. Launch through the installed wrapper with FG active.')
     if compat:
         for line in compat.setup_notes(root,route,True,run):print(line)
         for line in compat.last_run_lines(run):print('Last run: '+line)
@@ -2762,7 +2799,8 @@ def main():
                         help='plan/update: update the whole compatible set, only FreeFG/Intel, or only the selected upscaler; never switches providers')
     parser.add_argument('--accept',action='append',default=[],metavar='CODE[=EXE]',
                         help='install despite a soft refusal (install.py check names them: protonfix-api, wiki-not-working, '
-                             'input-unconfirmed, and with an explicit --route/--fg-input no-input, no-dx12, api-*); CODE=EXE '
+                             'input-unconfirmed, no-launcher (no launcher entry is changed: it prints the launch settings to set '
+                             'in your own launcher), and with an explicit --route/--fg-input no-input, no-dx12, api-*); CODE=EXE '
                              'accepts it for that game only (Setup passes one per game it listed)')
     parser.add_argument('--accept-anticheat-risk',action='append',nargs='?',const='',default=[],metavar='EXE',
                         help='install or preview despite the game’s anti-cheat, at the risk of an account ban (COMPATIBILITY.md); '
