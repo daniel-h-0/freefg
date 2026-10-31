@@ -91,6 +91,19 @@ class GameFixture(unittest.TestCase):
         self.assertEqual(json.loads(self.config.read_text()),self.original_config)
         self.assertEqual(self.config.read_bytes(),self.original_config_bytes)  # the launcher's file as found, byte for byte
 
+class EventTests(unittest.TestCase):
+    def test_events_are_json_lines_beside_the_ordinary_output(self):
+        # One outcome per game, among the ordinary output; nothing extra without --events.
+        missing=str(Path(tempfile.mkdtemp())/'Game.exe')
+        def run(*extra):
+            return __import__('subprocess').run([sys.executable,'-I',str(PACKAGING/'install.py'),'status',missing,*extra],capture_output=True,text=True)
+        plain,with_events=run(),run('--events')
+        self.assertEqual((plain.returncode,with_events.returncode),(1,1))
+        self.assertNotIn(m.EVENT_PREFIX,plain.stdout)
+        events=[json.loads(line[len(m.EVENT_PREFIX):]) for line in with_events.stdout.splitlines() if line.startswith(m.EVENT_PREFIX)]
+        self.assertEqual(events,[{'v':1,'type':'outcome','exe':missing,'result':'failed'}])
+        self.assertEqual([line for line in with_events.stdout.splitlines() if not line.startswith(m.EVENT_PREFIX)],plain.stdout.splitlines())
+
 class InstallationTests(GameFixture):
     def test_round_trip(self):
         m.install(self.package,self.exe);self.assertFalse((self.game/'OptiScaler/libxell.dll').exists())

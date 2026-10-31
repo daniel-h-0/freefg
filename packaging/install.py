@@ -13,6 +13,19 @@ import upscaler_updates
 import launcher_migrations
 import hlx
 
+# Machine-readable events for Setup and other front ends (install.py --events): one line each, EVENT_PREFIX and a JSON
+# object {"v": 1, "type": ...}, among the ordinary output, which stays as it is. Types: outcome (exe; result: the command
+# when it completed, else plan/update's outcome, running or failed), once per game; changed (text); step (where: game,
+# launcher or setting; text), a step left to the user; manual (action: set, replace or remove; settings:
+# launcher_config.manual_settings()), launch settings the user keeps in a launcher this installer does not edit.
+EVENT_PREFIX='FREEFG-EVENT '
+EVENTS=False
+def event(kind,**fields):
+    if EVENTS:print(EVENT_PREFIX+json.dumps(dict(v=1,type=kind,**fields),separators=(',',':'),default=str),flush=True)
+# Exit codes: 0 done (a step left to the user is a step or manual event), 1 failed, 3 refused: a game still running, or a
+# game that needs attention first. argparse's usage errors are 2.
+EXIT_OK,EXIT_FAILED,EXIT_REFUSED=0,1,3
+
 STATE='.bc250-xefg-experimental'
 DLL='amd_fidelityfx_upscaler_dx12.dll'
 # Packages whose add-on is a libxess_fg.dll proxy for Intel's unmodified XeFG runtime (manifest addon_entry; no XeSSMFG
@@ -2916,7 +2929,10 @@ def main():
     parser.add_argument('--wiki-setting', action='append', default=[], metavar='ID', help='wiki-apply: a selected row ID from wiki-plan')
     parser.add_argument('--wiki-confirm', action='append', default=[], metavar='ID', help='wiki-apply: confirm a selected row’s displayed game/conditions')
     parser.add_argument('--wiki-plan-digest', help='wiki-apply: digest of the preview shown before selection')
+    parser.add_argument('--events',action='store_true',help='also print machine-readable event lines (EVENT_PREFIX and JSON) for front ends')
     args=parser.parse_args()
+    global EVENTS
+    EVENTS=args.events
     if (args.wiki_setting or args.wiki_confirm or args.wiki_plan_digest) and args.command != 'wiki-apply':
         parser.error('Wiki selection options apply only to wiki-apply')
     if args.command == 'wiki-apply' and (len(args.exe) != 1 or not args.wiki_setting or not args.wiki_plan_digest):
@@ -2957,16 +2973,17 @@ def main():
     if not games:parser.error('choose at least one game executable')
     failed=False;outcomes=[]
     for exe in games:
-        print('\n'+str(exe))
+        print('\n'+str(exe));result=args.command
         try:
             if args.command in ('plan','update') and (not exe.is_file() or exe.resolve() in unavailable):
                 print('Unavailable: '+str(exe)+'; '+str(unavailable.get(exe.resolve()) or 'executable not found')+'; this game was deferred.')
-                outcomes.append((exe,'unavailable'));failed=failed or args.command=='update';continue
+                outcomes.append((exe,'unavailable'));failed=failed or args.command=='update';event('outcome',exe=str(exe),result='unavailable');continue
             if args.command=='restore':restore(exe.absolute())
             elif args.command=='status':status(exe.absolute())
-            elif args.command=='plan':outcomes.append((exe,show_plan(Path(__file__).resolve().parent,exe.absolute(),args.component,args.helixsr,args.loader,args.refresh_recipe)))
+            elif args.command=='plan':
+                outcomes.append((exe,show_plan(Path(__file__).resolve().parent,exe.absolute(),args.component,args.helixsr,args.loader,args.refresh_recipe)));result=outcomes[-1][1]
             elif args.command=='update':
-                outcome=update(exe.absolute(),component=args.component,helixsr_dir=args.helixsr,loader=args.loader,refresh_recipe=args.refresh_recipe);outcomes.append((exe,outcome))
+                outcome=update(exe.absolute(),component=args.component,helixsr_dir=args.helixsr,loader=args.loader,refresh_recipe=args.refresh_recipe);outcomes.append((exe,outcome));result=outcome
                 # A game left as it is for a reason (blocked) needs attention; up to date and pinned do not.
                 if outcome in ('blocked','partial','deferred'):failed=True
             elif args.command=='rollback':rollback(exe.absolute())
@@ -3013,13 +3030,14 @@ def main():
                         upscaler=args.upscaler or 'fsr4',helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted,verdict=verdict,
                         accept_risk=risk)
         except GameRunningError as error:
-            print(str(error),file=sys.stderr);failed=True;outcomes.append((exe,'running'))
+            print(str(error),file=sys.stderr);failed=True;outcomes.append((exe,'running'));result='running'
         except (ValueError,OSError,configparser.Error,subprocess.SubprocessError) as error:
-            print(str(error),file=sys.stderr);failed=True;outcomes.append((exe,'failed'))
+            print(str(error),file=sys.stderr);failed=True;outcomes.append((exe,'failed'));result='failed'
         except Exception as error:  # noqa: BLE001 - one game's unexpected failure must not skip the others
             import traceback
             print('Unexpected error ('+type(error).__name__+'): '+str(error)+'\nPlease include this in a report:\n'+traceback.format_exc(),file=sys.stderr)
-            failed=True;outcomes.append((exe,'failed'))
+            failed=True;outcomes.append((exe,'failed'));result='failed'
+        event('outcome',exe=str(exe),result=result)
     if args.command in ('plan','update') and len(games)>1:print('\n'+batch_summary(args.command,outcomes))
     return int(failed)
 

@@ -672,6 +672,29 @@ def manual_lines(settings):
     return lines
 
 
+def manual_args(settings):
+    """The game arguments of manual_settings(): the graphics-API switch (args; skip it where the user's launcher already
+    chooses an API), then the arguments the game always needs (required_args)."""
+    args = list(settings.get('args') or [])
+    return args + [a for a in settings.get('required_args') or [] if a not in args]
+
+
+def manual_removals(settings):
+    """Variables to delete from the game's launch settings where present: FreeFG takes them out of the launchers it edits,
+    and a stale value would change what the add-on does."""
+    return list(settings.get('remove') or [])
+
+
+def manual_env_table(settings):
+    """manual_settings() as rows of a launcher's environment table (Heroic, Lutris, Faugus): (KEY, value), unquoted."""
+    return list(settings['env'].items())
+
+
+def manual_steam_line(settings):
+    """manual_settings() as one launch-options line in Steam's form: assignments, %command%, then the game's arguments."""
+    return _join_steam(dict(settings['env']), ' '.join(['%command%', *map(shlex.quote, manual_args(settings))]))
+
+
 def added_args(operations):
     """Game arguments the planned launcher fields add (Steam LaunchOptions after %command%, Heroic launcherArgs), in
     order and once each: with_args adds none where the user's options already choose a graphics API, and Lutris's

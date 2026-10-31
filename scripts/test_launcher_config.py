@@ -73,6 +73,13 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual({key: env[key] for key in settings['env']}, settings['env'])
         # As rows of a launcher that splits its launch arguments as a shell does (Faugus joins them with newlines).
         self.assertEqual(dict(word.split('=', 1) for word in shlex.split('\n'.join(lines[:-1]))), settings['env'])
+        # The forms a front end offers to copy: Steam's launch-options line reads back as the same settings, and the
+        # environment table is the same pairs, unquoted.
+        line = l.manual_steam_line(dict(settings, required_args=['-nobattleye', '-dx12']))
+        env, rest, _ = l.split_steam(line)
+        self.assertEqual((env, shlex.split(rest)), (settings['env'], ['%command%', '-dx12', '-nobattleye']))
+        self.assertEqual(dict(l.manual_env_table(settings)), settings['env'])
+        self.assertEqual(l.manual_removals(settings), [])
 
     def test_removes_only_exact_old_wrapper(self):
         value = 'gamemoderun '+shlex.quote(str(self.game/'BC250-XeFG/run.sh'))+' %command% --intro-skip'
