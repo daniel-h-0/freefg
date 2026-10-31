@@ -412,6 +412,58 @@ class ScalingControls(ProxyFixture):
             with self.subTest(args=args),self.assertRaises(ValueError):m.configure(self.exe,**args)
         self.assertEqual({p:p.read_bytes() for p in before},before)
 
+class IntegrationContractTests(ProxyFixture):
+    """install.py contract and integration.json (integration_contract): what an installation does, as data. It must say
+    what install() does: the same launcher variables and the same OptiScaler.ini keys."""
+    def contract(self,**options):
+        return m.integration_contract(*m.package_contract(self.package),**options)
+    def test_ini_keys_are_the_ones_install_writes(self):
+        # A fresh setup last: Restore takes the fresh OptiScaler setup out again.
+        for route,fg_input,fresh in (('opti','upscaler',False),('opti','fsrfg',False),('native','upscaler',False),('opti','dlssg',True)):
+            with self.subTest(route=route,fg_input=fg_input,fresh=fresh):
+                if fresh:
+                    for name in ('dxgi.dll','OptiScaler.ini','OptiScaler/'+m.DLL,'OptiScaler/libxell.dll'):(self.game/name).unlink()
+                m.install(self.package,self.exe,route=route,fg_input=fg_input)
+                written={c['section']+'.'+c['key']:c['value'] for c in self.record()['ini_changes']}
+                m.restore(self.exe)
+                keys=next(r['ini'] for r in self.contract()['routes'] if r['route']==route)
+                expected={k['key']:k['value'].replace('{fg_input}',fg_input) for k in keys if k['write']!='repair' and
+                          (not k['when'] or ('fresh' in k['when'] and fresh) or fg_input in k['when'].replace(',',' ').split())}
+                self.assertEqual(written,expected)
+    def test_environment_operations_are_what_install_writes(self):
+        # The contract's operations with its placeholders filled in give the launcher entry install() writes.
+        import launcher_config
+        before=self.env()
+        m.install(self.package,self.exe,route='opti')
+        root,cache=self.game.resolve(),self.game.resolve()/m.STATE/m.VKD3D_CACHE
+        ops=[dict(op,value=op['value'].replace('{game}',str(root)).replace('{cache}',str(cache))) if 'value' in op else op
+             for op in next(r for r in self.contract()['routes'] if r['route']=='opti')['environment']]
+        self.assertEqual(launcher_config.apply_contract(before,ops),self.env())
+        m.restore(self.exe);self.assertOriginal()
+    def test_contract_command_prints_the_contract(self):
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):m.show_contract(self.package,True)
+        self.assertEqual(out.getvalue(),m.integration_text(*m.package_contract(self.package)))
+        contract=json.loads(out.getvalue())
+        self.assertEqual((contract['format'],contract['package'],contract['optiscaler'],contract['host']),(1,'bc250-fsr4-xemfg-private-test-99',None,{}))
+        self.assertEqual(contract['files']['downloads'],[
+            dict(target='OptiScaler/'+m.DLL,file='fsr4/'+m.DLL,sha256=m.digest(DEPENDENCIES['runtime']['fsr4/'+m.DLL])),
+            dict(target='bc250_xefg_original.dll',file='OptiScaler/libxess_fg.dll',sha256=m.digest(DEPENDENCIES['runtime']['OptiScaler/libxess_fg.dll'])),
+            dict(target='libxell.dll',file='OptiScaler/libxell.dll',sha256=m.digest(DEPENDENCIES['runtime']['OptiScaler/libxell.dll']))])
+        self.assertNotIn('OptiScaler/libxess_fg.dll',[f['target'] for f in contract['files']['optiscaler']['fresh_setup']])
+        self.assertIn(dict(target='dxgi.dll',file='OptiScaler.dll',sha256=m.digest(DEPENDENCIES['payload']['OptiScaler.dll'])),
+                      contract['files']['optiscaler']['fresh_setup'])
+        self.assertEqual(contract['settings'],['OptiScaler.ini','BC250-XeFG/settings.ini'])
+        one=self.contract(route='native',owner='winmm.dll')
+        self.assertEqual([(r['route'],r['owner'],r['environment'][0]['value']) for r in one['routes']],[('native','winmm.dll','winmm=n,b')])
+        # The command itself, run as Setup and integrators run it (here from the source tree: no manifest).
+        run=__import__('subprocess').run([__import__('sys').executable,'-I',str(m.Path(m.__file__)),'contract','--json','--route','opti'],
+                                         capture_output=True,text=True)
+        self.assertEqual(run.returncode,0,run.stderr)
+        self.assertEqual([r['route'] for r in json.loads(run.stdout)['routes']],['opti'])
+        run=__import__('subprocess').run([__import__('sys').executable,'-I',str(m.Path(m.__file__)),'contract'],capture_output=True,text=True)
+        self.assertIn('  WINEDLLOVERRIDES dll-override dxgi=n,b (separator ;)\n',run.stdout)
+
 class ManualLaunchTests(ProxyFixture):
     """A game no Steam, Heroic or Lutris entry starts (one in Faugus, Bottles or a script): Install refuses unless the
     no-launcher refusal is accepted; accepted, it installs the files as usual, writes no launcher file, and records and
@@ -444,7 +496,8 @@ class ManualLaunchTests(ProxyFixture):
                       'them again.\n'+block,out)
         self.assertNotIn('Open your launcher and play normally',out)
         record=self.record()
-        self.assertEqual((record['launchers'],record['manual_launch'],record['compat']['accepted']),([],{'env':env,'args':[]},['no-launcher']))
+        self.assertEqual((record['launchers'],{key:record['manual_launch'][key] for key in ('env','args')},record['compat']['accepted']),
+                         ([],{'env':env,'args':[]},['no-launcher']))
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),b'BC250 proxy');self.assertTrue((self.game/m.STATE/m.VKD3D_CACHE).is_dir())
         self.assertFalse(self.config.exists())
         # No launcher entry names it: Update all finds it through the library index.
@@ -456,6 +509,84 @@ class ManualLaunchTests(ProxyFixture):
         self.assertIn('In your launcher: remove the launch settings listed below from the game (in Setup: under Installer output).\n'+block,out);self.assertNotIn('run.sh',out)
         for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
         self.assertFalse((self.game/'bc250_xefg_original.dll').exists());self.assertFalse(self.config.exists())
+    def events(self,function,*args,**kwargs):
+        """(output, events) of a call with --events on."""
+        with patch.object(m,'EVENTS',True):out=self.quiet(function,*args,**kwargs)
+        return out,[json.loads(line[len(m.EVENT_PREFIX):]) for line in out.splitlines() if line.startswith(m.EVENT_PREFIX)]
+    def recipe(self,**fields):
+        """A verified recipe for the fixture game (no launcher ID: Game.exe in its folder 'game')."""
+        entry=dict(dict(title='Test Game',match=dict(exe=['game.exe'],title=['game']),status='verified-bc250',route='opti',fg_input='upscaler',
+                        ini={},game_settings=[],launch_args=[]),**fields)
+        set_package_file(self.package,'recipes/recipes.json',json.dumps(dict(schema=1,verified=[entry],wiki=[],leave_auto={},backports={})).encode())
+    def test_settings_are_complete_and_printed_in_every_form(self):
+        import launcher_config
+        env,block=self.expected()
+        self.recipe(required_args=['-nobattleye'])
+        out,events=self.events(m.install,self.package,self.exe,route='opti',accept=('no-launcher',))
+        settings=self.record()['manual_launch']
+        self.assertEqual((settings['format'],settings['env'],settings['args'],settings['required_args'],settings['remove'],settings['notes']),
+                         (launcher_config.MANUAL_FORMAT,env,[],['-nobattleye'],['XEFG_GAME_PROFILE','BC250_XEFG_OWNER_MODULE','XEFG_FLOW_CAP'],[]))
+        self.assertEqual([op['var'] for op in settings['merge']],list(env))
+        # Read back by the launch contract: a new entry gets env, and the user's own values combine as merge says.
+        self.assertEqual(launcher_config.apply_contract({},settings['merge']),env)
+        self.assertEqual(launcher_config.apply_contract({'WINEDLLOVERRIDES':'dxgi=b;mine=n','VKD3D_SHADER_CACHE_PATH':'0'},settings['merge'])
+                         ['WINEDLLOVERRIDES'],'mine=n;dxgi=n,b')
+        steam=launcher_config.manual_steam_line(settings)
+        self.assertIn(block+'    Game arguments (after the .exe): -nobattleye\n    As one launch-options line (Steam’s form): '+steam+'\n',out)
+        self.assertEqual(launcher_config.split_steam(steam)[0],env);self.assertTrue(steam.endswith(' %command% -nobattleye'))
+        self.assertNotIn('In a table of variables',out)  # no value here needs quotes
+        self.assertIn('    Delete where present: XEFG_GAME_PROFILE, BC250_XEFG_OWNER_MODULE, XEFG_FLOW_CAP\n',out)
+        self.assertIn('    Where the launcher already sets one of these, combine them:\n      WINEDLLOVERRIDES: keep your entries without any '
+                      'for dxgi, then add dxgi=n,b (entries separated by ;)\n',out)
+        self.assertIn('      VKD3D_SHADER_CACHE_PATH: keep yours where you set one (0 included)\n',out)
+        step='In your launcher: set the launch settings listed below for the game before you play (in Setup: under Installer output; on a command line: before the command). Status shows them again.'
+        self.assertIn({'v':1,'type':'manual','action':'set','settings':settings},events)
+        self.assertIn({'v':1,'type':'step','where':'launcher','text':step},events)
+        # Restore: what to delete, also from values the user combined with their own; the same events with remove.
+        out,events=self.events(m.restore,self.exe)
+        self.assertIn('    Where you combined them with your own values, take out only these parts:\n      WINEDLLOVERRIDES: dxgi=n,b\n',out)
+        self.assertIn('      VKD3D_SHADER_CACHE_PATH: only where it is '+env['VKD3D_SHADER_CACHE_PATH']+'\n',out)
+        self.assertEqual([e['action'] for e in events if e['type']=='manual'],['remove'])
+        self.assertEqual([e['text'] for e in events if e['type']=='step'],
+                         ['In your launcher: remove the launch settings listed below from the game (in Setup: under Installer output).'])
+    def test_a_path_too_long_for_vkd3d_protons_cache_is_noted_with_the_settings(self):
+        import launcher_config
+        with patch.object(launcher_config,'vkd3d_cache_fits',return_value=False):
+            out=self.quiet(m.install,self.package,self.exe,route='opti',accept=('no-launcher',))
+        settings=self.record()['manual_launch']
+        self.assertEqual(settings['notes'],[launcher_config.CACHE_PATH_NOTE]);self.assertNotIn('VKD3D_SHADER_CACHE_PATH',settings['env'])
+        self.assertEqual(out.count(launcher_config.CACHE_PATH_NOTE),1);self.assertIn('    '+launcher_config.CACHE_PATH_NOTE+'\n',out)
+    def test_status_confirms_the_settings_from_the_last_session(self):
+        m.install(self.package,self.exe,route='opti',accept=('no-launcher',))
+        out=self.quiet(m.status,self.exe)
+        self.assertIn('Manual launch settings: not yet confirmed: no session since installation shows them. Start the game with them and '
+                      'frame generation on.\n',out)
+        self.assertNotIn('library index',out)
+        (self.game/'OptiScaler.log').write_text('[I] OptiScaler loaded\n')
+        self.assertIn('Manual launch settings: not yet confirmed (the last session: OptiScaler loaded).',self.quiet(m.status,self.exe))
+        (self.game/'BC250-MFG.log').write_text("MFG proxy ready: Intel's XeFG runtime unmodified beside it\nFAST_OWNER first initialized context selected\n")
+        self.assertIn('Manual launch settings: added by you; the last session ran with them (OptiScaler loaded, MFG proxy ready, '
+                      'frame-generation context selected).\n',self.quiet(m.status,self.exe))
+        # No launcher entry names the game: without its index entry Update all would not find it.
+        index=self.root/'.local/share/freefg/library.json';index.unlink()
+        self.assertEqual(m.library_inventory(),[])
+        self.assertIn('Not in the library index, so Update all does not find this game: install.py register '+str(self.exe)+' adds it.',
+                      self.quiet(m.status,self.exe))
+        self.quiet(m.register_installation,self.exe)
+        self.assertEqual([row['exe'] for row in m.library_inventory()],[self.exe.resolve()])
+        self.assertNotIn('library index',self.quiet(m.status,self.exe))
+    def test_records_of_the_first_manual_installations_stay_valid(self):
+        # PR #8 recorded env and args only, GTA's -nobattleye among args: Status and Restore show them as they are.
+        self.recipe(launch_args=['-nobattleye'])
+        m.install(self.package,self.exe,route='opti',accept=('no-launcher',))
+        self.assertEqual(self.record()['manual_launch']['required_args'],['-nobattleye'])
+        record=self.record();record['manual_launch']={'env':record['manual_launch']['env'],'args':['-nobattleye']}
+        (self.game/m.STATE/'state.json').write_text(json.dumps(record))
+        out=self.quiet(m.status,self.exe)
+        self.assertIn('    Game arguments (after the .exe): -nobattleye\n',out);self.assertNotIn('Leave out',out)
+        self.assertNotIn('Delete where present',out)
+        out=self.quiet(m.restore,self.exe)
+        self.assertIn('    Game arguments (after the .exe): -nobattleye\n',out);self.assertNotIn('take out only',out)
     def test_a_launcher_entry_found_after_all_is_configured(self):
         # Accepting the refusal only allows an installation without an entry: an entry the installer finds is configured.
         self.config=heroic(self.root,self.game)

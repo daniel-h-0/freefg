@@ -32,17 +32,30 @@ and **Automatic per game**. An explicit input applies to every selected game in 
 
 ## Other launchers
 
-Setup writes its launch settings into the game's Steam, Heroic or Lutris entry. A game that only another launcher
-starts (Faugus, Bottles, umu-run or a script) gets the soft refusal `no-launcher`. Accept it under **Needs your OK**
-(Zenity: **Install anyway**; command line: `--accept no-launcher`). Setup then installs the files as usual, changes no
-launcher entry and prints the environment variables, and any game arguments, to add to that launcher; in Setup's window
-they are under **Installer output**. In Faugus, put the `KEY=value` lines under **Launch Arguments**; on a command line,
-put them before the command; where a launcher takes each name and value separately, leave out the quotes around a
-value. Faugus's global environment variables override a game's own, so keep `WINEDLLOVERRIDES` out of them.
+Setup writes its launch settings into the game's Steam, Heroic or Lutris entry. It adds a recipe's graphics-API switch
+only where the game's arguments choose no API, and arguments the game needs always (GTA V Enhanced: `-nobattleye`).
+It does not edit Lutris's game arguments: add such an argument there first, or the install is refused (`required-args`).
 
-Status shows the settings again, an update or Rollback that changes them prints the new values, and Restore lists them
-for removal. Setup cannot check that launcher for GE-Proton's `PROTON_USE_OPTISCALER` or `PROTON_*_UPGRADE`; leave them
-unset for the game. Game settings a recipe would write into the Proton prefix stay pending: set them in the game.
+A game that only another launcher starts (Faugus, Bottles, umu-run or a script) gets the soft refusal `no-launcher`.
+Accept it under **Needs your OK** (Zenity: **Install anyway**; command line: `--accept no-launcher`). Setup then
+installs the files as usual, changes no launcher entry and prints the launch settings to add to that launcher; in
+Setup's window they are under **Installer output**. They come as:
+
+- `KEY=value` lines, then the game arguments. In Faugus, put the lines under **Launch Arguments**; on a command line,
+  put them before the command.
+- One launch-options line in Steam's form (`KEY=value … %command% arguments`).
+- The values a table of variables takes without their quotes, where a launcher takes each name and value separately.
+- Variables to delete where present, and how to combine a variable the launcher already sets (keep your other Wine
+  overrides, put FreeFG's layer first, add a list member).
+
+Faugus's global environment variables override a game's own, so keep `WINEDLLOVERRIDES` out of them. Status shows the
+settings again and says whether the last session ran with them (`added by you` once the logs show OptiScaler, the
+proxy and a frame-generation context; else `not yet confirmed`). An update or Rollback that changes them names each
+value to replace, and Restore names what to remove. Update all finds such a game through the local index;
+`install.py register GAME.exe` adds it again if the index was lost. Setup cannot check that launcher for GE-Proton's
+`PROTON_USE_OPTISCALER` or `PROTON_*_UPGRADE`; leave them unset for the game. Game settings a recipe would write into
+the Proton prefix stay pending: set them in the game. For integrators, the release folder's `integration.json`
+(`python3 install.py contract --json`) states the same settings, OptiScaler.ini keys and file layout as data.
 
 ## Command line
 

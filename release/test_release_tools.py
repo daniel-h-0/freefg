@@ -1266,6 +1266,33 @@ class PublicNameAssembly(unittest.TestCase):
         self.assertEqual(manifest['update_contract'], contract)
         self.assertEqual(json.loads((out / 'manifest.json').read_text())['update_contract'], contract)
 
+    def test_integration_contract_is_the_shipped_installers(self):
+        """integration.json is the shipped installer's integration_text() for the assembled package (what install.py
+        contract --json prints in it), listed in the manifest and covered by the receipt."""
+        import importlib.util
+        spec = self.public_spec(CHOSEN)
+        spec['manifest']['host_requirements'] = {'glibc': '2.34'}
+        out, manifest, receipt, _root = self.assembled(spec)
+        loader = importlib.util.spec_from_file_location('installer_contract', TREE / 'packaging/install.py')
+        installer = importlib.util.module_from_spec(loader)
+        saved = list(sys.path)
+        try:
+            loader.loader.exec_module(installer)
+            expected = installer.integration_text(*installer.package_contract(out))
+        finally:
+            sys.path[:] = saved
+        written = (out / 'integration.json').read_text()
+        self.assertEqual(written, expected)
+        contract = json.loads(written)
+        self.assertEqual((contract['format'], contract['package'], contract['host']), (1, 'lumen-pace-31-2x', {'glibc': '2.34'}))
+        self.assertEqual([(r['runtime'], r['route']) for r in contract['routes']], [('xemfg-proxy', 'opti'), ('xemfg-proxy', 'native')])
+        self.assertIn('libxess_fg.dll', contract['files']['payload'])
+        self.assertEqual(contract['files']['downloads'], [{'target': 'bc250_xefg_original.dll', 'file': 'intel/libxess_fg.dll',
+                                                           'sha256': '0' * 64}])
+        self.assertEqual(manifest['components']['integration'], ['integration.json'])
+        self.assertEqual(manifest['files']['integration.json'], hashlib.sha256(written.encode()).hexdigest())
+        self.assertEqual(receipt['components']['integration.json'], manifest['files']['integration.json'])
+
     def test_private_name_assembles_as_before(self):
         spec = self.public_spec()
         self.assertEqual(spec['name'], 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg')
