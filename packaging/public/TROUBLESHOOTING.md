@@ -46,6 +46,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | The game's standard error (for Steam: launch option `PROTON_LOG=1 %command%`, then `$HOME/steam-<appid>.log`) | `BC250_PACE on …`, `BC250_PACE off (…)` | The layer can pace this process (a Wine game under gamescope), or why not. |
 | | `BC250_PACE the BC250 add-on answered …` | Presents go through the pacer from here; before it they go straight to the driver. |
 | | `BC250_PACE holding: XeFG generates frames`, `BC250_PACE passing presents through` | The layer holds presents, or passes them through. |
+| `OptiScaler.log` (with `LogToFile=true` under `[Log]` in `OptiScaler.ini`) | `… inactive in GAME.exe: the command line has no -nobattleye ([BC250] RequireArgument) …` | OptiScaler stays a plain proxy in that process, without hooks or frame generation: the launch options lack the argument the game's recipe requires. |
 
 ## Problems
 

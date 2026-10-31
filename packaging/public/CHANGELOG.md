@@ -4,23 +4,31 @@ Release summaries are below; [measurements](MEASUREMENTS.md) describe their spec
 [detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
 retains earlier release notes.
 
-## 1.3.0 candidate
+## 1.3.0 – 2026-10-31
 
-- Keep a recipe's required launch arguments, once: GTA V Enhanced keeps `-nobattleye` beside a player's own API
-  switch, and a Lutris entry that cannot take it holds the update.
+- GTA V Enhanced: the recipe also sets OptiScaler's `[BC250] RequireArgument=-nobattleye`, so a start without
+  `-nobattleye` leaves OptiScaler a plain proxy, without hooks or frame generation. A 1.2.0 installation gets it with
+  **Refresh recipe**. Restore FreeFG before playing GTA Online: the DLL still loads, inactive.
+- Keep a recipe's required launch arguments once, beside a player's own API switch; a Lutris entry that cannot take
+  one holds the update.
 - Complete manual mode: Install, Update, Rollback and Restore print the launch settings to add, merge, replace or
-  remove. `install.py contract --json` and the release's `integration.json` describe the launch contract.
+  remove, and Setup shows them ready to copy. `install.py contract --json` and the release's `integration.json`
+  describe the launch contract.
 - Add `--events` output and exit status 3 for refusals, which Setup reads. Install re-checks the game and launcher
   files just before writing; Rollback keeps one generation per kind (release or provider, and wiki settings); Restore
   restores the other files past a damaged backup; Update moves `FSR.Fsr4ForceModel` to `FSR.Fsr4GpuSupport`.
-- Setup shows copyable launch settings for manual installations and keeps unsaved settings edits across refreshes.
-- The pacing layer passes presents through until FreeFG's add-on answers and needs glibc 2.34. The proxy has its own
-  entry for every declared export, refuses a second copy of Intel's runtime, logs one `FAST_DECISION` line per context
-  and reads game folders the ANSI code page cannot spell.
+- Setup keeps unsaved settings edits across refreshes, updates rows in place and falls back to Zenity on any toolkit
+  error.
+- The pacing layer passes presents through until FreeFG's add-on answers, so launchers and helper processes are not
+  held, and needs glibc 2.34. The proxy has its own entry for every declared export, refuses a second copy of Intel's
+  runtime, logs one `FAST_DECISION` line per context and reads game folders the ANSI code page cannot spell.
 - Rebuild the recipe files from committed inputs; show wiki launch options as whole strings; apply wiki settings
   automatically only for a strong game identity.
 - OptiScaler `ba0dedb`: minimized game windows stay eligible for frame generation, the auxiliary DXGI-factory modules
   are configurable, and `[BC250] RequireArgument` keeps it a plain proxy without that launch argument.
+- The shaders retain 1.2.0 bytes; the proxy and pacing layer change. Update games through Setup. The update empties
+  the vkd3d-proton cache FreeFG keeps for a game, so its first start afterwards is slower.
+  [Checks](MEASUREMENTS.md#checks-of-130).
 
 ## 1.2.0 – 2026-10-30
 
