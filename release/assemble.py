@@ -721,6 +721,10 @@ def assemble(config, spec, receipt_path=None, companion=True, archive_requested=
     files = plan(spec, sources)
     addon_record, _addon, _ = sources.record('addon-' + variant if variant else 'addon')
     layer_record, _layer, _ = sources.record('layer')
+    if 'glibc' in layer_record:
+        # The oldest glibc the built layer loads on joins the package's host requirements: the manifest and
+        # integration.json (install.py contract) state it alike, and doctor.py warns below it.
+        static = dict(static, host_requirements={'glibc': layer_record['glibc']['minimum'], **(static.get('host_requirements') or {})})
     if variant:
         check_variant_profile(spec, addon_record)
     check_runtime_supply(spec, files)

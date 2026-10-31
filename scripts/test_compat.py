@@ -797,6 +797,24 @@ class RunAndReportTests(unittest.TestCase):
                                  "module's shaders ran from then on.",
                                  'Fix: use MFG Unlocker v1.6.0 (the version this build was checked with) with XeFGModel=default, or '
                                  'remove the other module.'])
+        # This build stepping aside on its own (a census it has not verified, no other module): no module to remove.
+        own = ("FAST_ASIDE the initial model census is not one this project verified: this context now runs Intel's shaders "
+               "(originals from the pipeline cache); FreeFG's are off until it is destroyed\n")
+        self.logs(self.READY + self.OWNER + self.GENERATES + own, 13)
+        run = c.last_run(self.root, 'opti')
+        self.assertEqual((run['aside'], run['aside_module']), ('the initial model census is not one this project verified', False))
+        self.assertEqual(c.acceleration_lines(run),
+                         ["Acceleration: stepped aside during the session (the initial model census is not one this project "
+                          "verified): Intel's shaders ran from then on; the game kept its frame generation.",
+                          'Report: this build met a model it has not verified; BC250-MFG.log names it (TROUBLESHOOTING.md).'])
+
+    def test_not_accelerated_names_the_proxys_reason(self):
+        # FAST_DECISION: the proxy says why a context was not accelerated (here another GPU without the opt-in).
+        reason = 'the adapter is not an AMD BC-250 (BC250_XEFG_ANY_GPU=1 accelerates any GPU)'
+        self.logs(self.READY + 'FAST_DECISION not accelerated: ' + reason + '\n' + self.GENERATES)
+        run = c.last_run(self.root, 'native')
+        self.assertEqual((run['decision'], run['acceleration']), (reason, 'not-running'))
+        self.assertEqual(c.acceleration_lines(run), ['Acceleration: none: ' + reason + '.'])
 
     def test_partial_beside_renamed_mfg_unlocker(self):
         # MFG Unlocker under another name: the RTXMFG-* files or the FAST_COEXIST line still give the XeFGModel fix.

@@ -928,8 +928,10 @@ def _mfg_unlocker_files(root):
 def last_run(root, route=None, beside_exe=False, since=None):
     """What the logs in the game folder say about the last session: dict(found, optiscaler, xefg, fg_input, upscaler,
     proxy, accelerated, problems, cause, own_programs, f4q, owner, coexist_accelerated, skipped_game_context,
-    context_caller, other_module, aside, mfg_unlocker, mfg_unlocker_files, xefg_model, route, fast_stale, acceleration,
-    acceleration_reason, output, output_fallbacks). output: the FP16 forms' state of the last session (dict(mode, source,
+    context_caller, other_module, aside, aside_module, decision, mfg_unlocker, mfg_unlocker_files, xefg_model, route,
+    fast_stale, acceleration, acceleration_reason, output, output_fallbacks). aside_module: the FAST_ASIDE line names another
+    module hooking Intel's runtime (else this build stepped aside on its own: a model it has not verified). decision: the
+    proxy's last FAST_DECISION reason for not accelerating a context. output: the FP16 forms' state of the last session (dict(mode, source,
     forms) from its FP16_CONFIG line; None when the log has none: builds before 1.1.2). output_fallbacks: the shaders of its
     F4Q_FALLBACK and FP16_FALLBACK lines (pipelines that ran an exact form instead; an FP16 pipeline that could not be
     created logs FP16_REPLACE first, then F4Q_FALLBACK). route: the installation's route ('native' or 'opti', None when unknown); the logs alone tell
@@ -948,7 +950,8 @@ def last_run(root, route=None, beside_exe=False, since=None):
                                                                      'OptiScaler/plugins/BC250-XeFG-fast.log')), since=since)
     out = dict(found=bool(opti or proxy or fast), optiscaler=opti is not None, xefg=False, fg_input=None, upscaler=None,
                proxy=None, accelerated=0, problems=[], cause=None, own_programs=0, f4q=0, owner=False, coexist_accelerated=False,
-               skipped_game_context=False, context_caller=False, other_module=False, aside=None, mfg_unlocker=None,
+               skipped_game_context=False, context_caller=False, other_module=False, aside=None, aside_module=False,
+               decision=None, mfg_unlocker=None,
                mfg_unlocker_files=_mfg_unlocker_files(root), xefg_model=xefg_model(root), route=route, fast_stale=False,
                acceleration=None, acceleration_reason=None, output=None, output_fallbacks=[])
     if opti:
@@ -966,6 +969,8 @@ def last_run(root, route=None, beside_exe=False, since=None):
         out['coexist_accelerated'] = bool(re.search(r'^FAST_COEXIST this context is accelerated', proxy, re.M))
         out['skipped_game_context'] = bool(re.search(r'^FAST_SKIP beside another module', proxy, re.M))
         out['context_caller'] = bool(re.search(r'^CONTEXT_CALLER ', proxy, re.M))
+        decisions = re.findall(r'^FAST_DECISION not accelerated: (.+?)\s*$', proxy, re.M)
+        out['decision'] = decisions[-1][:160] if decisions else None
         out['other_module'] = bool(re.search(r'^FAST_COEXIST another module hooks', proxy, re.M))
         module = re.search(r'^FAST_COEXIST .*?jumps to ([^)\r\n]+)\)', proxy, re.M)
         if module:
@@ -974,9 +979,9 @@ def last_run(root, route=None, beside_exe=False, since=None):
     # session that selected a context, so without FAST_OWNER here it is an earlier session's.
     if proxy is not None and fast is not None and not out['owner'] and not out['coexist_accelerated']:
         out['fast_stale'], fast = True, None
-    aside = re.search(r'^FAST_ASIDE (.+?)(?:, with another module|$)', proxy or fast or '', re.M)
+    aside = re.search(r'^FAST_ASIDE (.+?)(, with another module|: this context now runs|$)', proxy or fast or '', re.M)
     if aside:
-        out['aside'] = aside[1].strip()[:120]
+        out['aside'], out['aside_module'] = aside[1].strip()[:120], aside[2].startswith(', with another module')
     if fast:
         out['accelerated'] = len(set(re.findall(r'WINOGRAD_EXECUTE shader=([0-9a-f]+)', fast)))
         out['own_programs'] = len(set(re.findall(r'^REPLACE ([0-9A-Fa-f]+)\b', fast, re.M)))
@@ -1046,6 +1051,10 @@ def acceleration_lines(summary):
                 'replaced the rest.', 'Fix: ' + XEFG_MODEL_FIX + '.']
     if kind == 'partial':
         return [f'Acceleration: partial (this build\'s shaders ran on {n} of {FULL_PROGRAMS} programs).']
+    if kind == 'not-running' and why == 'aside' and not summary.get('aside_module'):
+        return [f'Acceleration: stepped aside during the session ({summary.get("aside")}): Intel\'s shaders ran from then on; '
+                'the game kept its frame generation.',
+                'Report: this build met a model it has not verified; BC250-MFG.log names it (TROUBLESHOOTING.md).']
     if kind == 'not-running' and why == 'aside':
         return [f'Acceleration: stepped aside during the session ({summary.get("aside")}): Intel\'s or the other module\'s shaders '
                 'ran from then on.',
@@ -1063,6 +1072,8 @@ def acceleration_lines(summary):
                 'was used: this build accelerates only OptiScaler\'s frame generation beside it.',
                 'Fix: remove that module, or use OptiScaler\'s frame generation.' if opti else
                 'Fix: remove that module, or install on the OptiScaler route.']
+    if kind == 'not-running' and not summary.get('cause') and summary.get('proxy') != 'failed' and summary.get('decision'):
+        return ['Acceleration: none: ' + summary['decision'].rstrip('.') + '.']
     if kind == 'not-running' and not summary.get('cause') and summary.get('proxy') != 'failed':
         return ['Acceleration: none (no acceleration log' + (' from this session' if summary.get('fast_stale') else '') + ').',
                 'Check: the launch options for BC250_XEFG_DISABLE, and BC250-MFG.log for FAST_FALLBACK, FAST_SKIP or FAST_ASIDE lines.']

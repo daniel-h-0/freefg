@@ -1293,6 +1293,26 @@ class PublicNameAssembly(unittest.TestCase):
         self.assertEqual(manifest['files']['integration.json'], hashlib.sha256(written.encode()).hexdigest())
         self.assertEqual(receipt['components']['integration.json'], manifest['files']['integration.json'])
 
+    def test_layer_glibc_minimum_is_a_host_requirement(self):
+        """The oldest glibc the built layer loads on (build_layer.py's record) is a host requirement of the manifest and
+        integration.json without package.json repeating it; a value package.json states wins."""
+        record = FakeSources.record
+        def with_glibc(sources, kind):
+            found = record(sources, kind)
+            if kind == 'layer':
+                found[0]['glibc'] = {'minimum': '2.34'}
+            return found
+        for stated, host in ((None, {'glibc': '2.34'}), ({'glibc': '2.36'}, {'glibc': '2.36'})):
+            spec = self.public_spec(CHOSEN)
+            spec['manifest'].pop('host_requirements', None)
+            if stated:
+                spec['manifest']['host_requirements'] = stated
+            with mock.patch.object(FakeSources, 'record', with_glibc):
+                out, manifest, _receipt, _root = self.assembled(spec)
+            self.assertEqual(manifest['host_requirements'], host)
+            self.assertEqual(json.loads((out / 'integration.json').read_text())['host'], host)
+            self.assertEqual(manifest['present_pacing']['glibc'], '2.34')
+
     def test_private_name_assembles_as_before(self):
         spec = self.public_spec()
         self.assertEqual(spec['name'], 'bc250-fsr4-xemfg-private-test-31-intel-free-mfg')
