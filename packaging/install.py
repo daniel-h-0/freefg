@@ -723,10 +723,6 @@ def write_restored_settings(writes):
         except OSError as error:messages.append('Left '+str(path)+': '+str(error))
     return messages
 
-def restore_settings(root,record):
-    """Put recipe-edited game settings back (plan_restore_settings, then write); returns the messages."""
-    writes,messages=plan_restore_settings(root,record);return messages+write_restored_settings(writes)
-
 def previous_settings(state,record,rm):
     """Recipe values an earlier installation's Restore left in place, with their true originals: {(file, format,
     section): {key: dict(recipe=value, original=...)}}. A v26 Restore left a whole file the game had rewritten (its

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Per-game recipes: matching, INI keys only where auto, reversible game settings and launch arguments."""
-import contextlib, copy, io, json, sys, tempfile, unittest
+import contextlib, copy, io, json, os, sys, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -604,6 +604,7 @@ class RecipeInstallTests(unittest.TestCase):
         self.assertEqual(self.record()['status'], 'restored')
         self.assertOriginal()
 
+    @unittest.skipIf(os.geteuid() == 0, 'root reads a file whatever its mode')
     def test_unreadable_settings_file_is_left_and_restore_completes(self):
         self.install_quietly()
         installed = self.renderer.read_bytes()
@@ -680,6 +681,7 @@ class RecipeInstallTests(unittest.TestCase):
         self.restore_quietly()
         self.assertEqual(ini.read_bytes(), original + 'Saved=1\r\n'.encode('utf-16-le'))
 
+    @unittest.skipIf(os.geteuid() == 0, 'root reads a file whatever its mode')
     def test_unreadable_settings_file_never_fails_install_or_configure(self):
         self.renderer.write_bytes(b'{"m_eDLSSFGMode": 0, "name": "Jos\xe9"}')  # not UTF-8
         out = self.install_quietly()

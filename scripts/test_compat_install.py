@@ -290,10 +290,6 @@ class VerdictInstallTests(CompatFixture):
         self.assertIn('Your steps:', out.getvalue())
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class FolderStateTests(CompatFixture):
     """Every refusal install() makes for the game folder's state before it downloads or writes anything is named by
     Check first (install.preconditions, which repeats install()'s own conditions): the same games refuse in both."""
@@ -778,3 +774,7 @@ class WikiPrefillInstallTests(ProxyFixture):
             with self.assertRaisesRegex(m.Refusal, 'preview changed'):
                 m.apply_wiki_settings(self.exe, ids[:1], ids[:1], package=self.package, expected='0' * 64)
         self.assertEqual(self.ini_path.read_bytes(), before)
+
+
+if __name__ == '__main__':
+    unittest.main()
