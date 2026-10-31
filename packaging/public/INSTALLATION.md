@@ -68,7 +68,8 @@ python3 install.py restore GAME.exe      # restore the original installation
 Extract the new release before updating. Setup’s sidebar lists games by state; each game’s page shows its provider,
 last-session logs and recovery actions. Choose **Update…** on a game page, or **Update All Games…** from the menu.
 Review the grouped plan before applying it. On the command line, run
-`python3 install.py plan --all` followed by `python3 install.py update --all` to apply the plan.
+`python3 install.py plan --all` followed by `python3 install.py update --all --expect-plan DIGEST`, with the digest the
+plan printed: the update changes nothing if any game's plan differs from the one shown.
 
 Update all combines Steam, Heroic and Lutris discovery with the optional local index; it can find installations you
 did not select. Use a game’s **Update…** or name specific executables to limit the scope. Running, missing, blocked,

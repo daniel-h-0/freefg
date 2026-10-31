@@ -717,6 +717,27 @@ class LibraryTests(UpdateFixture):
             self.assertEqual(m.main(),m.EXIT_REFUSED)
         self.assertIn('Plan: 1 up to date; 1 need attention (Other.exe).',out.getvalue())
 
+    def test_update_applies_only_the_plan_that_was_shown(self):
+        # plan prints its digest; update --expect-plan DIGEST changes nothing once any game's plan differs from it.
+        game,exe=self.second_game()
+        m.install(self.package,self.exe,route='opti');m.install(self.package,exe,route='opti')
+        def cli(*argv):
+            out,err=io.StringIO(),io.StringIO()
+            with patch.object(m,'__file__',str(self.new/'install.py')),patch('sys.argv',['install.py',*argv]),\
+                 contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
+                return m.main(),out.getvalue(),err.getvalue()
+        code,out,_=cli('plan','--all');digest=out.split('Plan digest: ')[1].split()[0]
+        self.assertEqual((code,cli('plan','--all')[1].split('Plan digest: ')[1].split()[0]),(m.EXIT_OK,digest))  # the same plan, the same digest
+        (game/'BC250-XeFG/shaders/waves.txt').write_bytes(b'edited')  # the second game now needs attention
+        before=(self.snapshot(),(game/'libxess_fg.dll').read_bytes())
+        code,_,err=cli('update','--all','--expect-plan',digest)
+        self.assertEqual(code,m.EXIT_REFUSED);self.assertIn('The plan changed since it was shown',err)
+        self.assertEqual((self.snapshot(),(game/'libxess_fg.dll').read_bytes()),before)
+        code,out,_=cli('plan','--all');digest=out.split('Plan digest: ')[1].split()[0]
+        code,out,_=cli('update','--all','--expect-plan',digest)
+        self.assertEqual(code,m.EXIT_REFUSED);self.assertIn('Update: 1 updated; 1 need attention (Other.exe).',out)
+        with self.assertRaises(SystemExit):cli('plan','--all','--expect-plan',digest)
+
     def test_installation_roots_from_steam_and_lutris(self):
         steam=self.root/'.local/share/Steam';layer='VK_LAYER_PATH=/games/a/BC250-XeFG/layer:/usr/share/vulkan %command%'
         m.write(steam/'userdata/1/config/localconfig.vdf',('"UserLocalConfigStore"\n{\n\t"Software"\n\t{\n\t\t"Valve"\n\t\t{\n\t\t\t"Steam"\n\t\t\t{\n'

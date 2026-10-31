@@ -16,9 +16,10 @@ from versions import release_number
 
 # Machine-readable events for Setup and other front ends (install.py --events): one line each, EVENT_PREFIX and a JSON
 # object {"v": 1, "type": ...}, among the ordinary output, which stays as it is. Types: outcome (exe; result: the command
-# when it completed, else plan/update's outcome, running or failed), once per game; changed (text); step (where: game,
-# launcher or setting; text), a step left to the user; manual (action: set, replace or remove; settings:
-# launcher_config.manual_settings()), launch settings the user keeps in a launcher this installer does not edit.
+# when it completed, else plan/update's outcome, running, refused or failed), once per game; changed (text); step (where:
+# game, launcher or setting; text), a step left to the user; manual (action: set, replace or remove; settings:
+# launcher_config.manual_settings()), launch settings the user keeps in a launcher this installer does not edit; plan
+# (digest), once at the end of plan: the plan_digest update --expect-plan takes.
 EVENT_PREFIX='FREEFG-EVENT '
 EVENTS=False
 def event(kind,**fields):
@@ -2900,10 +2901,29 @@ def show_library():
               ('; '+row['reason'] if row['reason'] else ''))
     return rows
 
-def show_plan(package,exe,component='all',helixsr_dir=None,loader=None,refresh_recipe=False):
-    """install.py plan: what update would do in one game (changes nothing). Returns the plan's status."""
+def game_plan(package,exe,component='all',helixsr_dir=None,loader=None,refresh_recipe=False):
+    """update_plan for the game of exe (changes nothing)."""
     root=exe.parent.resolve();record=json.loads(safe(root,STATE+'/state.json').read_text())
-    plan=update_plan(package,root,record,component,helixsr_dir,loader,refresh_recipe=refresh_recipe)
+    return update_plan(package,root,record,component,helixsr_dir,loader,refresh_recipe=refresh_recipe)
+
+def plan_digest(plans):
+    """SHA-256 of the plans of a plan command ([(exe, update_plan's plan, or the game's outcome: unavailable or failed)]):
+    each game's status and reason, and an update's releases, files, launcher entries and record changes. update
+    --expect-plan applies the plans only while they are still these."""
+    rows=[]
+    for exe,plan in sorted(plans,key=lambda row:str(row[0])):
+        if isinstance(plan,str):rows.append([str(exe),plan]);continue
+        rows.append([str(exe),plan['status'],plan.get('reason'),plan.get('source'),plan.get('target'),plan.get('component'),
+                     [[a['path'],a['kind'],a['component'],a['old'],a['new']] for a in plan['actions']],
+                     [[op['target']['path'],op['target'].get('id'),op['after']] for op in plan.get('launcher_ops') or []],
+                     plan.get('metadata'),plan.get('deferred'),plan.get('notes')])
+    return hashlib.sha256(json.dumps(rows,sort_keys=True,default=str).encode()).hexdigest()
+
+def show_plan(package,exe,component='all',helixsr_dir=None,loader=None,refresh_recipe=False,plans=None):
+    """install.py plan: what update would do in one game (changes nothing). Returns the plan's status; plans, a list,
+    gets (exe, plan) for plan_digest."""
+    root=exe.parent.resolve();plan=game_plan(package,exe,component,helixsr_dir,loader,refresh_recipe)
+    if plans is not None:plans.append((exe,plan))
     for line in plan_lines(plan):print(line)
     if plan['status']=='update':
         try:idle(root)
@@ -3143,6 +3163,8 @@ def main():
     parser.add_argument('--wiki-confirm', action='append', default=[], metavar='ID', help='wiki-apply: confirm a selected row’s displayed game/conditions')
     parser.add_argument('--wiki-plan-digest', help='wiki-apply: digest of the preview shown before selection')
     parser.add_argument('--events',action='store_true',help='also print machine-readable event lines (EVENT_PREFIX and JSON) for front ends')
+    parser.add_argument('--expect-plan',metavar='DIGEST',help='update: apply only while the plan of these games is still the one plan '
+                        'printed as "Plan digest: DIGEST"; otherwise change nothing (exit 3)')
     args=parser.parse_args()
     global EVENTS
     EVENTS=args.events
@@ -3152,6 +3174,7 @@ def main():
         parser.error('wiki-apply needs one game, selected IDs and the preview digest')
     if args.refresh_recipe and args.command not in ('plan','update'):parser.error('--refresh-recipe applies to plan and update')
     if args.loader and args.command not in ('plan','update'):parser.error('--loader applies to plan and update')
+    if args.expect_plan and args.command!='update':parser.error('--expect-plan applies to update')
     if args.command=='hlx':
         try:hlx.prepare(Path(__file__).resolve().parent,args.dlss_input,args.amd_input,report=say);return EXIT_OK
         except (OSError,ValueError,subprocess.SubprocessError) as error:
@@ -3185,17 +3208,29 @@ def main():
         if not games:print('No game with this build installed was found in Steam, Heroic or Lutris.');return 0
     elif args.all and args.command!='check':parser.error('--all applies to check, plan and update')
     if not games:parser.error('choose at least one game executable')
-    failed=refused=False;outcomes=[]
+    failed=refused=False;outcomes=[];plans=[]
+    if args.expect_plan:
+        # What runs is what plan showed: every game's plan, as plan makes it, before any game changes.
+        for exe in games:
+            if not exe.is_file() or exe.resolve() in unavailable:plans.append((exe,'unavailable'));continue
+            try:plans.append((exe,game_plan(Path(__file__).resolve().parent,exe.absolute(),args.component,args.helixsr,args.loader,args.refresh_recipe)))
+            except (ValueError,OSError,configparser.Error,subprocess.SubprocessError):plans.append((exe,'failed'))
+        if plan_digest(plans)!=args.expect_plan:
+            print('The plan changed since it was shown (a game, release, file or launcher entry changed): nothing was updated. '
+                  'Review the plan again.',file=sys.stderr)
+            for exe in games:event('outcome',exe=str(exe),result='refused')
+            return EXIT_REFUSED
+        plans=[]
     for exe in games:
         print('\n'+str(exe));result=args.command
         try:
             if args.command in ('plan','update') and (not exe.is_file() or exe.resolve() in unavailable):
                 print('Unavailable: '+str(exe)+'; '+str(unavailable.get(exe.resolve()) or 'executable not found')+'; this game was deferred.')
-                outcomes.append((exe,'unavailable'));failed=failed or args.command=='update';event('outcome',exe=str(exe),result='unavailable');continue
+                outcomes.append((exe,'unavailable'));plans.append((exe,'unavailable'));failed=failed or args.command=='update';event('outcome',exe=str(exe),result='unavailable');continue
             if args.command=='restore':restore(exe.absolute())
             elif args.command=='status':status(exe.absolute())
             elif args.command=='plan':
-                outcomes.append((exe,show_plan(Path(__file__).resolve().parent,exe.absolute(),args.component,args.helixsr,args.loader,args.refresh_recipe)));result=outcomes[-1][1]
+                outcomes.append((exe,show_plan(Path(__file__).resolve().parent,exe.absolute(),args.component,args.helixsr,args.loader,args.refresh_recipe,plans)));result=outcomes[-1][1]
                 refused=refused or result=='blocked'  # a valid plan whose game needs attention first
             elif args.command=='update':
                 outcome=update(exe.absolute(),component=args.component,helixsr_dir=args.helixsr,loader=args.loader,refresh_recipe=args.refresh_recipe);outcomes.append((exe,outcome));result=outcome
@@ -3251,6 +3286,7 @@ def main():
             print(str(error),file=sys.stderr);refused=True;outcomes.append((exe,'running'));result='running'
         except (ValueError,OSError,configparser.Error,subprocess.SubprocessError) as error:
             print(str(error),file=sys.stderr);result='refused' if refusal(error) else 'failed';outcomes.append((exe,result))
+            if args.command=='plan':plans.append((exe,'failed'))
             if result=='refused':refused=True
             else:failed=True
         except Exception as error:  # noqa: BLE001 - one game's unexpected failure must not skip the others
@@ -3259,6 +3295,9 @@ def main():
             failed=True;outcomes.append((exe,'failed'));result='failed'
         event('outcome',exe=str(exe),result=result)
     if args.command in ('plan','update') and len(games)>1:print('\n'+batch_summary(args.command,outcomes))
+    if args.command=='plan':
+        digest=plan_digest(plans);print('Plan digest: '+digest+' (install.py update --expect-plan '+digest+' applies exactly this plan)')
+        event('plan',digest=digest)
     return EXIT_FAILED if failed else EXIT_REFUSED if refused else EXIT_OK
 
 def refusal(error):
