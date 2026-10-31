@@ -98,15 +98,27 @@ def vkd3d_cache_fits(folder, program, margin=16):
     return len(longest) + margin <= VKD3D_PATH_LIMIT
 
 
-def _with_member(value, member):
-    """A vkd3d-proton list value (members separated by ',' or ';') with member at its end, unless it has it already."""
-    if member in re.split(r'[,;]', value):
-        return value
-    return value + (',' if value and value[-1] not in ',;' else '') + member
+# The launch contract: what an installation does to the variables of the game's launcher entry, as data (contract()),
+# so the launcher writers, their migrations and undo, the manual settings and integration.json (install.py contract) share
+# one definition. Operations, applied in order (apply_contract()):
+#   replace        var = value; with when 'unset' only where var has no value (a user's own value, 0 included, stays)
+#   prepend        value first in the sep-separated list, which loses empty and repeated members
+#   append-member  value last in the sep-separated list unless already a member. With split (further characters that
+#                  separate members, as vkd3d-proton reads them) the list stays as written; otherwise it loses empty and
+#                  repeated members
+#   dll-override   Wine DLL overrides: value's sep-separated name=setting entries after the variable's other entries,
+#                  from which the DLLs value names are taken out
+#   remove         var deleted
+# unless {VAR: value}: the operation is skipped where VAR holds that value.
+CONTRACT_OPS = ('replace', 'prepend', 'append-member', 'dll-override', 'remove')
+# Variables an add-on of the shipped runtimes owns in its own files: the proxy still reads the first two from the
+# environment (a stale value would change what it does), so every installation takes them out.
+OWNED_ELSEWHERE = ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP')
 
 
-def environment(root, owner, current, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
-    """Retain the wrapper's fast path using ordinary launcher environment fields.
+def contract(root, owner, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
+    """The launch contract's operations for an installation in root (the game folder; a placeholder path such as
+    Path('{game}') gives its general form), with owner as OptiScaler's loader module.
 
     runtime 'xemfg' loads the multi-frame loader (version.dll) and its addon; runtime 'xemfg-proxy' is the add-on as a
     libxess_fg.dll proxy (no loader, 2x), with its shader profile beside it in BC250-XeFG/; runtime 'xefg' is Intel's
@@ -115,56 +127,82 @@ def environment(root, owner, current, runtime='xemfg', route='opti', extra=None,
     out like the others. vkd3d_cache: the installation's vkd3d-proton cache folder; given, vkd3d-proton gets it as its
     cache path (unless the user set one: kept, as is VKD3D_SHADER_CACHE_PATH=0) and does not use shader module
     identifiers (IDENTIFIER_EXTENSION, added to the user's VKD3D_DISABLE_EXTENSIONS)."""
-    if not isinstance(current, dict) or any(not isinstance(key, str) or not KEY.fullmatch(key)
-           or not isinstance(value, str) or '\0' in value for key, value in current.items()):
-        raise ValueError('Launcher environment keys and values must be strings with valid names')
-    result = dict(current)
-    overrides = current.get('WINEDLLOVERRIDES', '')
-    required = {owner.removesuffix('.dll').lower()} | ({'version'} if runtime == 'xemfg' else set())
-    pieces = []
-    for part in overrides.split(';'):
-        if not part:
-            continue
-        if '=' not in part:
-            raise ValueError('Unrecognized Wine override: '+part)
-        names, value = part.split('=', 1)
-        kept = [n for n in names.split(',') if n.lower().removesuffix('.dll') not in required]
-        if kept:
-            pieces.append(','.join(kept)+'='+value)
-    pieces.extend(n+'=n,b' for n in sorted(required))
-    result['WINEDLLOVERRIDES'] = ';'.join(pieces)
+    loaders = sorted({owner.removesuffix('.dll').lower()} | ({'version'} if runtime == 'xemfg' else set()))
     base = root/'OptiScaler' if runtime == 'xefg' and route == 'opti' else root
-    for key, first, separator in (
-        ('VK_LAYER_PATH', str(base/'BC250-XeFG/layer'), ':'),
-        ('VK_INSTANCE_LAYERS', 'VK_LAYER_BC250_xefg_wave', ':'),
-    ):
-        result[key] = separator.join(dict.fromkeys([first, *filter(None, current.get(key, '').split(separator))]))
-    result['XEFG_WAVE_CONFIG'] = str(root/'OptiScaler/plugins/BC250-XeFG/shaders/waves.txt' if runtime == 'xemfg'
-                                     else base/'BC250-XeFG/shaders/waves.txt')
-    if current.get('BC250_XEFG_NO_STAGGERED_SUBMIT') != '0':
-        result['VKD3D_CONFIG'] = ','.join(dict.fromkeys([
-            *filter(None, current.get('VKD3D_CONFIG', '').split(',')), 'no_staggered_submit']))
+    ops = [dict(var='WINEDLLOVERRIDES', op='dll-override', value=';'.join(name+'=n,b' for name in loaders), sep=';'),
+           dict(var='VK_LAYER_PATH', op='prepend', value=str(base/'BC250-XeFG/layer'), sep=':'),
+           dict(var='VK_INSTANCE_LAYERS', op='prepend', value='VK_LAYER_BC250_xefg_wave', sep=':'),
+           dict(var='XEFG_WAVE_CONFIG', op='replace', value=str(root/'OptiScaler/plugins/BC250-XeFG/shaders/waves.txt'
+                                                                 if runtime == 'xemfg' else base/'BC250-XeFG/shaders/waves.txt')),
+           dict(var='VKD3D_CONFIG', op='append-member', value='no_staggered_submit', sep=',',
+                unless={'BC250_XEFG_NO_STAGGERED_SUBMIT': '0'})]
     if vkd3d_cache is not None:
-        result['VKD3D_DISABLE_EXTENSIONS'] = _with_member(current.get('VKD3D_DISABLE_EXTENSIONS', ''), IDENTIFIER_EXTENSION)
-        if not current.get('VKD3D_SHADER_CACHE_PATH'):
-            result['VKD3D_SHADER_CACHE_PATH'] = str(vkd3d_cache)
-    for key, value in (extra or {}).items():
-        if not KEY.fullmatch(key) or not isinstance(value, str) or '\0' in value:
-            raise ValueError('Invalid launcher environment setting: '+str(key))
-        result[key] = value
+        ops += [dict(var='VKD3D_DISABLE_EXTENSIONS', op='append-member', value=IDENTIFIER_EXTENSION, sep=',', split=';'),
+                dict(var='VKD3D_SHADER_CACHE_PATH', op='replace', value=str(vkd3d_cache), when='unset')]
+    ops += [dict(var=key, op='replace', value=value) for key, value in (extra or {}).items()]
     if runtime in ('xemfg', 'xemfg-proxy'):
         # The installed addon owns its local verified payload and saved settings.
-        for key in ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP'):
-            result.pop(key, None)
+        ops += [dict(var=key, op='remove') for key in OWNED_ELSEWHERE]
     else:
         # The proxy accelerates only the OptiScaler-owned context on that route; a user's XEFG_FLOW_CAP=1 (1080p
         # generated frames) is kept.
-        result.pop('XEFG_GAME_PROFILE', None)
-        if route == 'opti':
-            result['BC250_XEFG_OWNER_MODULE'] = owner
+        ops += [dict(var='XEFG_GAME_PROFILE', op='remove'),
+                dict(var='BC250_XEFG_OWNER_MODULE', op='replace', value=owner) if route == 'opti' else
+                dict(var='BC250_XEFG_OWNER_MODULE', op='remove')]
+    return ops
+
+
+def apply_contract(current, ops):
+    """current (a launcher entry's variables) with the launch contract's operations applied, in order."""
+    result = dict(current)
+    for op in ops:
+        var, kind, value, sep = op['var'], op['op'], op.get('value'), op.get('sep')
+        if kind == 'remove':
+            result.pop(var, None)
+            continue
+        if any(result.get(key) == held for key, held in (op.get('unless') or {}).items()) or \
+                (op.get('when') == 'unset' and result.get(var)):
+            continue
+        now = result.get(var, '')
+        if kind == 'replace':
+            if not KEY.fullmatch(var) or not isinstance(value, str) or '\0' in value:
+                raise ValueError('Invalid launcher environment setting: '+str(var))
+            result[var] = value
+        elif kind == 'prepend':
+            result[var] = sep.join(dict.fromkeys([value, *filter(None, now.split(sep))]))
+        elif kind == 'append-member' and op.get('split'):
+            separators = sep + op['split']
+            if value not in re.split('[' + re.escape(separators) + ']', now):
+                now += (sep if now and now[-1] not in separators else '') + value
+            result[var] = now
+        elif kind == 'append-member':
+            result[var] = sep.join(dict.fromkeys([*filter(None, now.split(sep)), value]))
+        elif kind == 'dll-override':
+            entries = value.split(sep)
+            names = {entry.split('=', 1)[0] for entry in entries}
+            pieces = []
+            for part in now.split(sep):
+                if not part:
+                    continue
+                if '=' not in part:
+                    raise ValueError('Unrecognized Wine override: '+part)
+                dlls, setting = part.split('=', 1)
+                kept = [n for n in dlls.split(',') if n.lower().removesuffix('.dll') not in names]
+                if kept:
+                    pieces.append(','.join(kept)+'='+setting)
+            result[var] = sep.join([*pieces, *entries])
         else:
-            result.pop('BC250_XEFG_OWNER_MODULE', None)
+            raise ValueError('Unknown launch contract operation: '+str(kind))
     return result
+
+
+def environment(root, owner, current, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
+    """Retain the wrapper's fast path using ordinary launcher environment fields: current with the launch contract of
+    contract() (same arguments) applied."""
+    if not isinstance(current, dict) or any(not isinstance(key, str) or not KEY.fullmatch(key)
+           or not isinstance(value, str) or '\0' in value for key, value in current.items()):
+        raise ValueError('Launcher environment keys and values must be strings with valid names')
+    return apply_contract(current, contract(root, owner, runtime, route, extra, vkd3d_cache))
 
 
 API_ARGS = {'-dx11', '-d3d11', '-dx12', '-d3d12', '-force-d3d11', '-force-d3d12', '-vulkan', '-force-vulkan'}

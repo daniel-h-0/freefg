@@ -5,6 +5,8 @@ import io
 import json
 import os
 from pathlib import Path
+import random
+import re
 import shlex
 import struct
 import subprocess
@@ -16,6 +18,117 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'packaging'))
 import launcher_config as l
 from steam_config import Document
+
+
+def environment_1_2_0(root, owner, current, runtime='xemfg', route='opti', extra=None, vkd3d_cache=None):
+    """launcher_config.environment() as 1.2.0 wrote it (fc70296), before the launch contract: the reference that
+    contract() and apply_contract() reproduce for every input."""
+    if not isinstance(current, dict) or any(not isinstance(key, str) or not l.KEY.fullmatch(key)
+           or not isinstance(value, str) or '\0' in value for key, value in current.items()):
+        raise ValueError('Launcher environment keys and values must be strings with valid names')
+    result = dict(current)
+    overrides = current.get('WINEDLLOVERRIDES', '')
+    required = {owner.removesuffix('.dll').lower()} | ({'version'} if runtime == 'xemfg' else set())
+    pieces = []
+    for part in overrides.split(';'):
+        if not part:
+            continue
+        if '=' not in part:
+            raise ValueError('Unrecognized Wine override: '+part)
+        names, value = part.split('=', 1)
+        kept = [n for n in names.split(',') if n.lower().removesuffix('.dll') not in required]
+        if kept:
+            pieces.append(','.join(kept)+'='+value)
+    pieces.extend(n+'=n,b' for n in sorted(required))
+    result['WINEDLLOVERRIDES'] = ';'.join(pieces)
+    base = root/'OptiScaler' if runtime == 'xefg' and route == 'opti' else root
+    for key, first, separator in (('VK_LAYER_PATH', str(base/'BC250-XeFG/layer'), ':'),
+                                  ('VK_INSTANCE_LAYERS', 'VK_LAYER_BC250_xefg_wave', ':')):
+        result[key] = separator.join(dict.fromkeys([first, *filter(None, current.get(key, '').split(separator))]))
+    result['XEFG_WAVE_CONFIG'] = str(root/'OptiScaler/plugins/BC250-XeFG/shaders/waves.txt' if runtime == 'xemfg'
+                                     else base/'BC250-XeFG/shaders/waves.txt')
+    if current.get('BC250_XEFG_NO_STAGGERED_SUBMIT') != '0':
+        result['VKD3D_CONFIG'] = ','.join(dict.fromkeys([*filter(None, current.get('VKD3D_CONFIG', '').split(',')), 'no_staggered_submit']))
+    if vkd3d_cache is not None:
+        value, member = current.get('VKD3D_DISABLE_EXTENSIONS', ''), l.IDENTIFIER_EXTENSION
+        result['VKD3D_DISABLE_EXTENSIONS'] = value if member in re.split(r'[,;]', value) else \
+            value + (',' if value and value[-1] not in ',;' else '') + member
+        if not current.get('VKD3D_SHADER_CACHE_PATH'):
+            result['VKD3D_SHADER_CACHE_PATH'] = str(vkd3d_cache)
+    for key, value in (extra or {}).items():
+        if not l.KEY.fullmatch(key) or not isinstance(value, str) or '\0' in value:
+            raise ValueError('Invalid launcher environment setting: '+str(key))
+        result[key] = value
+    if runtime in ('xemfg', 'xemfg-proxy'):
+        for key in ('XEFG_GAME_PROFILE', 'BC250_XEFG_OWNER_MODULE', 'XEFG_FLOW_CAP'):
+            result.pop(key, None)
+    else:
+        result.pop('XEFG_GAME_PROFILE', None)
+        if route == 'opti':
+            result['BC250_XEFG_OWNER_MODULE'] = owner
+        else:
+            result.pop('BC250_XEFG_OWNER_MODULE', None)
+    return result
+
+
+class ContractTests(unittest.TestCase):
+    def outcome(self, function, *args):
+        """(variables in order) or (error type, message): what a call gives, for comparing two implementations."""
+        try:
+            return ('ok', list(function(*args).items()))
+        except ValueError as error:
+            return ('error', type(error).__name__, str(error))
+
+    def test_environment_is_the_contract_applied_and_equals_1_2_0_for_every_input(self):
+        # Launcher variables as users and earlier tools leave them: lists with empty, repeated and foreign members,
+        # Wine overrides naming the owner in any spelling or grouped with other DLLs, malformed entries, user values.
+        values = {
+            'WINEDLLOVERRIDES': ['', 'dxgi=b', 'dxgi,other=b;version=b', 'DXGI.dll=n,b', 'winmm=n,b;dxgi=n', 'other=n,b;;x=',
+                                 'bad', ';', 'version,winmm=b;amdxcffx64='],
+            'VK_LAYER_PATH': ['', '/other', '/other::/x', ':', '/game/BC250-XeFG/layer:/other'],
+            'VK_INSTANCE_LAYERS': ['', 'another:VK_LAYER_BC250_xefg_wave', 'VK_LAYER_BC250_xefg_wave', 'a::a'],
+            'VKD3D_CONFIG': ['', 'dxr', 'dxr,,dxr', 'no_staggered_submit,dxr', 'a;', ','],
+            'VKD3D_DISABLE_EXTENSIONS': ['', 'A', 'A;', 'A,', l.IDENTIFIER_EXTENSION, l.IDENTIFIER_EXTENSION+'_X', 'A;'+l.IDENTIFIER_EXTENSION],
+            'VKD3D_SHADER_CACHE_PATH': ['', '0', '/my/cache'],
+            'BC250_XEFG_NO_STAGGERED_SUBMIT': ['0', '1', ''],
+            'XEFG_WAVE_CONFIG': ['user-waves.txt'], 'XEFG_GAME_PROFILE': ['stale'], 'BC250_XEFG_OWNER_MODULE': ['dxgi.dll'],
+            'XEFG_FLOW_CAP': ['1'], 'PROTONFIXES_DISABLE': ['0'], 'USER': ['x', 'nul\0', 'a b'],
+        }
+        extras = [None, {}, {'PROTONFIXES_DISABLE': '1'}, {'VKD3D_CONFIG': 'x', 'XEFG_FLOW_CAP': '1'}, {'BAD NAME': '1'},
+                  {'X': 'nul\0'}, {'BC250_XEFG_OWNER_MODULE': 'winmm.dll'}]
+        rng = random.Random(20261030)
+        root, cache = Path('/games/A Game'), Path('/games/A Game/.bc250-xefg-experimental/vkd3d-cache')
+        compared = 0
+        for _ in range(4000):
+            current = {key: rng.choice(options) for key, options in values.items() if rng.random() < 0.45}
+            if rng.random() < 0.05:
+                current['bad key'] = 'x'
+            args = (root, rng.choice(['dxgi.dll', 'winmm.dll', 'DXGI.DLL', 'OptiScaler.asi', 'version.dll']), current,
+                    rng.choice(['xemfg', 'xemfg-proxy', 'xefg', 'other']), rng.choice(['opti', 'native']),
+                    rng.choice(extras), rng.choice([None, cache]))
+            with self.subTest(args=args):
+                self.assertEqual(self.outcome(l.environment, *args), self.outcome(environment_1_2_0, *args))
+                if self.outcome(l.environment, *args)[0] == 'ok':
+                    self.assertEqual(l.environment(*args), l.apply_contract(current, l.contract(*args[:2], *args[3:])))
+                    compared += 1
+        self.assertGreater(compared, 1000)
+
+    def test_contract_is_data_in_a_closed_vocabulary(self):
+        ops = l.contract(Path('{game}'), 'dxgi.dll', 'xemfg-proxy', 'opti', {'PROTONFIXES_DISABLE': '1'}, Path('{cache}'))
+        self.assertEqual(json.loads(json.dumps(ops)), ops)  # plain JSON
+        self.assertLessEqual({op['op'] for op in ops}, set(l.CONTRACT_OPS))
+        self.assertEqual([(op['var'], op['op']) for op in ops], [
+            ('WINEDLLOVERRIDES', 'dll-override'), ('VK_LAYER_PATH', 'prepend'), ('VK_INSTANCE_LAYERS', 'prepend'),
+            ('XEFG_WAVE_CONFIG', 'replace'), ('VKD3D_CONFIG', 'append-member'), ('VKD3D_DISABLE_EXTENSIONS', 'append-member'),
+            ('VKD3D_SHADER_CACHE_PATH', 'replace'), ('PROTONFIXES_DISABLE', 'replace'),
+            ('XEFG_GAME_PROFILE', 'remove'), ('BC250_XEFG_OWNER_MODULE', 'remove'), ('XEFG_FLOW_CAP', 'remove')])
+        self.assertEqual(ops[0]['value'], 'dxgi=n,b')
+        self.assertEqual((ops[1]['value'], ops[6]['value'], ops[6]['when']), ('{game}/BC250-XeFG/layer', '{cache}', 'unset'))
+        self.assertEqual(ops[4]['unless'], {'BC250_XEFG_NO_STAGGERED_SUBMIT': '0'})
+        # Without a cache folder (a path too long for vkd3d-proton) neither vkd3d-proton cache setting is part of it.
+        self.assertNotIn('VKD3D_SHADER_CACHE_PATH', [op['var'] for op in l.contract(Path('/g'), 'dxgi.dll', 'xemfg-proxy')])
+        with self.assertRaisesRegex(ValueError, 'Unknown launch contract operation'):
+            l.apply_contract({}, [dict(var='A', op='append')])
 
 
 class LauncherTests(unittest.TestCase):
