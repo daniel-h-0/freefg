@@ -11,6 +11,10 @@ from pathlib import Path
 FORMAT = 1
 
 
+class Busy(ValueError):
+    """Another process holds the index lock: nothing was changed; retry later."""
+
+
 def location(home=None):
     if home is not None:
         return Path(home) / '.local/share/freefg/library.json'
@@ -70,7 +74,7 @@ def _change(callback, home=None):
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
-            raise ValueError('Another process is updating the FreeFG library index; retry registration later') from error
+            raise Busy('Another process is updating the FreeFG library index; retry registration later') from error
         value = load(home)
         if callback(value['games']):
             _write(path, value)

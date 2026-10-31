@@ -72,8 +72,9 @@ Review the grouped plan before applying it. On the command line, run
 
 Update all combines Steam, Heroic and Lutris discovery with the optional local index; it can find installations you
 did not select. Use a game’s **Update…** or name specific executables to limit the scope. Running, missing, blocked,
-pinned or deferred games are reported separately. Successful games remain updated; a nonzero update exit status
-signals deferred or failed work. There is no atomic transaction across games.
+pinned or deferred games are reported separately. Successful games remain updated. The exit status is 3 when a game
+needs attention first (blocked, running) and none failed, 1 for failed or deferred work. There is no atomic transaction
+across games.
 
 Compatible 1.1.3.1, 1.1.4, 1.1.5 and 1.1.6 installations update in place. Updates cover the compatible FreeFG/Intel set,
 selected upscaler, OptiScaler integration and owned launcher fields while retaining user additions and original

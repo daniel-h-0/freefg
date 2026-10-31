@@ -16,6 +16,10 @@ import helixsr
 NAMES = {'hlx-dlss': 'HLX DLSS', 'hlx-fsr4': 'HLX FSR 4'}
 
 
+class Busy(ValueError):
+    """Another HLX preparation is running: nothing was changed; wait for it."""
+
+
 def sha(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -145,8 +149,9 @@ def unpack(archive, target, folder=None, compiler=False):
             path.chmod(0o755 if (item.external_attr >> 16) & 0o111 else 0o644)
 
 
-def prepare(package, dlss, amd, wine='wine', download=None):
-    """Run upstream's build-only Python entry point, never its game setup script. Network access is disabled for builds."""
+def prepare(package, dlss, amd, wine='wine', download=None, report=print):
+    """Run upstream's build-only Python entry point, never its game setup script. Network access is disabled for builds.
+    report prints the line that says what was prepared (install.py: with its event)."""
     spec = catalog(package)
     if not spec:raise ValueError('This package has no HLX catalog')
     for name, path in [('dlss', dlss), ('amd', amd)]:
@@ -164,7 +169,7 @@ def prepare(package, dlss, amd, wine='wine', download=None):
     descriptor=os.open(work/'.prepare.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
     try:fcntl.flock(descriptor,fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError as error:
-        os.close(descriptor);raise ValueError('HLX preparation is already running; wait for it to finish') from error
+        os.close(descriptor);raise Busy('HLX preparation is already running; wait for it to finish') from error
     staging=None
     try:
         staging = Path(tempfile.mkdtemp(prefix='.prepare-', dir=work))
@@ -196,7 +201,7 @@ def prepare(package, dlss, amd, wine='wine', download=None):
         os.replace(release, target)
         if old.exists():shutil.rmtree(old)
         remember(package,target)
-        print('HLX ' + spec['version'] + ' prepared for all enrolled games: ' + str(target))
+        report('HLX ' + spec['version'] + ' prepared for all enrolled games: ' + str(target))
         return target
     finally:
         if staging is not None:shutil.rmtree(staging, ignore_errors=True)

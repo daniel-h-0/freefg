@@ -459,7 +459,7 @@ class AntiCheatOverrideTests(CompatFixture):
         err = io.StringIO()
         with patch.object(sys, 'argv', ['install.py', 'install', str(self.exe), '--accept', 'anticheat']), \
              contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            self.assertEqual(m.main(), 1)
+            self.assertEqual(m.main(), m.EXIT_REFUSED)
         self.assertIn('[anticheat]', err.getvalue())
         self.assertEqual(self.snapshot(), before)
 
@@ -576,7 +576,7 @@ class AntiCheatOverrideTests(CompatFixture):
     def test_another_refusal_comes_first_without_asking(self):
         self.set_options('PROTON_FSR4_UPGRADE=1 %command%')
         code, calls, out, err = self.main('install', self.exe, '--accept-anticheat-risk')
-        self.assertEqual((code, calls), (1, []))
+        self.assertEqual((code, calls), (m.EXIT_REFUSED, []))
         self.assertIn('[ge-optiscaler]', err)
         self.assertNotIn('type this sentence', out)
 

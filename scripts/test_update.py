@@ -707,14 +707,14 @@ class LibraryTests(UpdateFixture):
         with patch.object(m,'__file__',str(self.new/'install.py')),patch('sys.argv',['install.py','update','--all']),\
              contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
             code=m.main()
-        self.assertEqual(code,1)
+        self.assertEqual(code,m.EXIT_REFUSED)  # a game that needs attention, none failed
         self.assertEqual((self.game/'libxess_fg.dll').read_bytes(),CHANGES['payload/libxess_fg.dll'])
         self.assertEqual((game/'libxess_fg.dll').read_bytes(),b'BC250 proxy')
         self.assertIn('Update: 1 updated; 1 need attention (Other.exe).',out.getvalue())
         # Again: the first is up to date, the second still needs attention; plan says the same and changes nothing.
         with patch.object(m,'__file__',str(self.new/'install.py')),patch('sys.argv',['install.py','plan','--all']),\
              contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
-            self.assertEqual(m.main(),0)
+            self.assertEqual(m.main(),m.EXIT_REFUSED)
         self.assertIn('Plan: 1 up to date; 1 need attention (Other.exe).',out.getvalue())
 
     def test_installation_roots_from_steam_and_lutris(self):
@@ -724,5 +724,74 @@ class LibraryTests(UpdateFixture):
                 '\t\t\t\t\t"20"\n\t\t\t\t\t{\n\t\t\t\t\t\t"LaunchOptions"\t\t"gamemoderun %command%"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n').encode())
         m.write(self.root/'.config/lutris/games/b.yml',b'game:\n  exe: /games/b/B.exe\nsystem:\n  env:\n    VK_LAYER_PATH: /games/b/BC250-XeFG/layer\n')
         self.assertEqual(launcher_config.installation_roots(self.root),[Path('/games/a'),Path('/games/b')])
+
+class EventAndExitTests(UpdateFixture):
+    """install.py --events (Setup reads these instead of the text) and its exit codes: 0 done, 1 failed, 3 refused."""
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(setattr,m,'EVENTS',False)
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('setup_model_events',Path(m.__file__).parent/'mfg/setup_model.py')
+        self.model=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.model)
+    def cli(self,*argv,package=None):
+        """main() for argv with --events, from package's install.py: (exit code, ordinary lines, events)."""
+        out,err=io.StringIO(),io.StringIO()
+        with patch.object(m,'__file__',str((package or self.package)/'install.py')),patch('sys.argv',['install.py',*map(str,argv),'--events']),\
+             contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
+            code=m.main()
+        lines=out.getvalue().splitlines()
+        events=[json.loads(line[len(m.EVENT_PREFIX):]) for line in lines if line.startswith(m.EVENT_PREFIX)]
+        return code,[line for line in lines if not line.startswith(m.EVENT_PREFIX)],events
+    def assertEventsCoverText(self,lines,events):
+        """Every line Setup reads from the text (setup_model.summary_lines, next_steps) is an event with that text."""
+        changed=[e['text'] for e in events if e['type']=='changed'];steps=[e['text'] for e in events if e['type']=='step']
+        stream=[('out',line) for line in lines]
+        # summary_lines also took the verdict's numbered steps ("  1. ...") for changes: they are step events.
+        self.assertEqual([line for line in self.model.summary_lines(stream) if line not in changed and not line[:1].isdigit()],[])
+        self.assertEqual([line for line in self.model.next_steps(stream) if line not in steps and not line.startswith('In your launcher:')],[])
+        return changed,steps
+
+    def test_events_name_what_changed_and_the_steps_left(self):
+        code,lines,events=self.cli('install',self.exe,'--route','opti')
+        changed,steps=self.assertEventsCoverText(lines,events)
+        self.assertEqual(code,m.EXIT_OK);self.assertEqual(events[-1],{'v':1,'type':'outcome','exe':str(self.exe),'result':'install'})
+        self.assertTrue(any(text.startswith('Frame-generation input:') for text in changed))
+        self.assertEqual([e['where'] for e in events if e['type']=='step'],['game'])
+        self.assertTrue(steps[0].startswith('In game: open OptiScaler with Insert'))
+        code,lines,events=self.cli('configure',self.exe,'--percent','67')
+        self.assertEqual(self.assertEventsCoverText(lines,events)[0][0],'Settings saved. Launch the game to apply them.')
+        # An update that merges a setting: its four-space lines are changes too.
+        newer=self.newer({**CHANGES,'payload/BC250-XeFG/settings.ini':SETTINGS+b'NewKey=5\n'},folder='package-events')
+        code,lines,events=self.cli('update',self.exe,package=newer)
+        changed,_=self.assertEventsCoverText(lines,events)
+        self.assertEqual(code,m.EXIT_OK);self.assertIn('bc250.newkey: (unset) → 5',changed);self.assertIn('    bc250.newkey: (unset) → 5',lines)
+        code,lines,events=self.cli('rollback',self.exe)
+        self.assertTrue(self.assertEventsCoverText(lines,events)[0][0].startswith('Rolled back from freefg-1.1.5 to '+OLD))
+        code,lines,events=self.cli('restore',self.exe)
+        self.assertTrue(self.assertEventsCoverText(lines,events)[0][0].startswith('Original files and launcher settings restored.'))
+        self.assertOriginal()
+
+    def test_refusals_exit_3_and_failures_1(self):
+        m.install(self.package,self.exe,route='opti')
+        with patch.object(m,'idle',side_effect=m.GameRunningError('Close the game before installing, updating or restoring')):
+            code,_,events=self.cli('restore',self.exe)
+        self.assertEqual((code,events[-1]['result']),(m.EXIT_REFUSED,'running'))
+        with patch.object(launcher_config,'require_stopped',side_effect=ValueError('Close heroic before installing or restoring launcher settings')):
+            code,_,events=self.cli('restore',self.exe)
+        self.assertEqual((code,events[-1]['result']),(m.EXIT_REFUSED,'refused'))
+        import fcntl
+        lock=os.open(self.game,os.O_RDONLY|os.O_DIRECTORY)
+        try:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            code,_,events=self.cli('restore',self.exe)
+        finally:os.close(lock)
+        self.assertEqual((code,events[-1]['result']),(m.EXIT_REFUSED,'refused'))
+        self.assertEqual(self.record()['status'],'installed')
+        # A game refused and another failed: 1.
+        missing=self.root/'gone/Game.exe'  # no such folder: the lock fails before the running check
+        with patch.object(m,'idle',side_effect=m.GameRunningError('Close the game before installing, updating or restoring')):
+            code,_,events=self.cli('restore',self.exe,missing)
+        self.assertEqual((code,[e['result'] for e in events if e['type']=='outcome']),(m.EXIT_FAILED,['running','failed']))
+        code,_,_=self.cli('restore',self.exe);self.assertEqual(code,m.EXIT_OK);self.assertOriginal()
 
 if __name__=='__main__':unittest.main()
