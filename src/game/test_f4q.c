@@ -200,7 +200,7 @@ static void rt_dispatch(ID3D12PipelineState*exact,uint64_t shader,UINT x,UINT y,
  fq_after(L,shader);
 }
 static void write_file(const char*name,const char*text){
- char path[1200];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=fopen(path,"wb");if(!f){logline("TEST cannot write profile file\n");ExitProcess(3);}
+ char path[1200];snprintf(path,sizeof(path),"%s\\%s",patchdir,name);FILE*f=profile_fopen(path,"wb");if(!f){logline("TEST cannot write profile file\n");ExitProcess(3);}
  fwrite(text,1,strlen(text),f);fclose(f);
 }
 #define OTHER 0x1a3b0782583fef19ULL   /* F4Q2's 16 -> 16 encoder; its F(2x2) file is named exact-other */
@@ -242,7 +242,8 @@ static void pack_check(UINT bytes,unsigned seed){
 
 void mainCRTStartup(void){
  out=GetStdHandle(STD_OUTPUT_HANDLE);
- char*cmd=GetCommandLineA();
+ /* The command line as UTF-8, like the proxy's patchdir: DIR may name a folder the ANSI code page cannot spell. */
+ static char cmd[8192];if(!WideCharToMultiByte(CP_UTF8,0,GetCommandLineW(),-1,cmd,sizeof(cmd),NULL,NULL)){logline("TEST command line\n");ExitProcess(2);}
  int mode=strstr(cmd," shadow ")?4:strstr(cmd," layout ")?3:strstr(cmd," fallback ")?2:strstr(cmd," pack ")?5:strstr(cmd," switch ")?1:
           strstr(cmd," layout2 ")?6:strstr(cmd," fp16fallback ")?7:0;
  if(!mode){logline("TEST usage: test_f4q.exe switch|fallback|fp16fallback|layout|layout2|shadow|pack DIR\n");ExitProcess(2);}

@@ -71,6 +71,7 @@ src/game/test_proxy_load.c is compiled to a console program and run under `wine`
                            equal to an independent product
                settings-env, settings-env-dos  BC250_XEFG_SETTINGS names another settings file (F4Q=0 there) as a Unix
                            path (Wine maps it) or a Windows path: off from settings.ini, as ini-off
+               utf8-folder the profile in a folder whose name the ANSI code page cannot spell: as default
              1.1.2 (F4Q3 and the FP16 forms): every switch case also checks FP16_CONFIG and F4Q3_CONFIG, the pipeline
              and geometry of all eleven U-Net shaders and a shader no form replaces, the FP16 copies' sizes of every
              model size (SEGMENT3) and the FP16_REPLACE lines; by default (the FP16 forms' bits 1 and 2) seven are
@@ -187,7 +188,11 @@ F4Q_CASES = {
     # Unix path (mapped through Wine) and as a Windows path
     'settings-env': ('switch', {'BC250_XEFG_SETTINGS': '{unix}/elsewhere/settings.ini'}, 'package'),
     'settings-env-dos': ('switch', {'BC250_XEFG_SETTINGS': '{dos}\\elsewhere\\settings.ini'}, 'package'),
+    # the profile in a folder whose name is not ASCII (F4Q_SHADER_FOLDERS): read through the wide-character API
+    'utf8-folder': ('switch', {}, 'package'),
 }
+# The scratch shader folder of a case (default "shaders"): a name the ANSI code page cannot spell.
+F4Q_SHADER_FOLDERS = {'utf8-folder': 'shaders-\u00fcn\u00ef-\u65e5\u672c'}
 # Files a case writes besides its settings.ini (relative to its folder).
 F4Q_FILES = {case: {'elsewhere/settings.ini': '[BC250]\nResolutionMode=0\nF4Q=0\n'} for case in ('settings-env', 'settings-env-dos')}
 
@@ -209,7 +214,8 @@ def compile_f4q(config, xess, output):
 def run_f4q(program, work, case):
     mode, extra, ini = F4Q_CASES[case]
     folder = work / f'f4q-{case}'
-    (folder / 'shaders').mkdir(parents=True)
+    shaders_folder = F4Q_SHADER_FOLDERS.get(case, 'shaders')
+    (folder / shaders_folder).mkdir(parents=True)
     shutil.copy2(program, folder / program.name)
     if ini is not None:
         (folder / 'BC250-XeFG').mkdir()
@@ -221,7 +227,7 @@ def run_f4q(program, work, case):
     extra = {key: value.format(unix=folder, dos='Z:' + str(folder).replace('/', '\\')) for key, value in extra.items()}
     env = {k: v for k, v in os.environ.items() if not k.startswith(('WINE', 'DISPLAY', 'WAYLAND', 'XEFG_', 'BC250_'))}
     env.update(WINEPREFIX=str(work / 'prefix'), WINEDEBUG='-all', WINEDLLOVERRIDES='mscoree,mshtml=', **extra)
-    shaders = 'Z:' + str(folder / 'shaders').replace('/', '\\')
+    shaders = 'Z:' + str(folder / shaders_folder).replace('/', '\\')
     ran = subprocess.run(['wine', str(folder / program.name), mode, shaders], cwd=folder, env=env, capture_output=True,
                          text=True, timeout=600)
     return dict(returncode=ran.returncode, stdout=ran.stdout.replace('\r', ''), log=None)
@@ -323,6 +329,7 @@ def f4q_problems(results):
                     ('ini-off', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('settings-env', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('settings-env-dos', 0, 'settings.ini', 0, 'off', 'F4Q', 0, 'F4Q'),
+                    ('utf8-folder', 1, 'default', 7, 'on', 'default', 3, 'default'),
                     ('env-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('shadow-off', 0, 'BC250_XEFG_F4Q', 0, 'off', 'F4Q', 0, 'F4Q'),
                     ('f4q2-ini-off', 1, 'default', 0, 'off', 'settings.ini', 3, 'default'),
