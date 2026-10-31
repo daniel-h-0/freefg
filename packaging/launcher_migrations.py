@@ -238,16 +238,28 @@ def check(operations):
             raise ValueError('Launcher configuration changed since planning; retry: ' + path)
 
 
-def prepare_apply(operations, reverse=False, strict=True):
-    """Validate and prepare the entry patches without writing; rollback preflights every resource this way."""
+def prepare_apply(operations, reverse=False, strict=True, gone=None):
+    """Validate and prepare the entry patches without writing; rollback preflights every resource this way. gone (a list;
+    undoing only): an entry the user removed since, or its whole launcher file, has nothing to undo, as for Restore
+    (launcher_config.apply): a line saying so goes into gone instead of a refusal."""
     if operations:lc.require_stopped(op['target']['launcher'] for op in operations)
     prepared = []
     for path, rows in grouped(operations).items():
         p = Path(path)
-        if p.is_symlink() or not p.is_file():raise ValueError('Launcher configuration was replaced: ' + path)
+        if p.is_symlink() or not p.is_file():
+            if gone is None:raise ValueError('Launcher configuration was replaced: ' + path)
+            gone.append('Launcher entry no longer present, nothing to undo: ' + path);continue
         data = p.read_bytes();start = data
         for row in rows:
-            current = lc.fields(dict(row['target'], before=row['before']), data)
+            try:current = lc.fields(dict(row['target'], before=row['before']), data)
+            except lc.Missing as error:
+                if gone is None:raise
+                gone.append('Launcher entry no longer present, nothing to undo: ' + path + ' (' + str(error) + ')');continue
+            if gone is not None and row['target']['launcher'] == 'steam' and current.get('LaunchOptions') is None and \
+                    row['after'].get('LaunchOptions') is not None:
+                # Steam's entry lost its launch options since (the user cleared them, or Steam its app settings).
+                gone.append('Launcher entry no longer present, nothing to undo: ' + path + ' (no launch options for Steam app ' +
+                            str(row['target'].get('id')) + ')');continue
             old, new = (row['after'], row['before']) if reverse else (row['before'], row['after'])
             target = merge_fields(row['target'], current, old, new, strict=strict)
             data = lc.patch(row['target'], data, target)
@@ -255,9 +267,10 @@ def prepare_apply(operations, reverse=False, strict=True):
     return prepared
 
 
-def apply(operations, writer, reverse=False, strict=True):
-    """Patch only selected entries. The caller holds locks and journals before invoking this function."""
-    prepared = prepare_apply(operations, reverse, strict)
+def apply(operations, writer, reverse=False, strict=True, gone=None):
+    """Patch only selected entries. The caller holds locks and journals before invoking this function. gone: as for
+    prepare_apply."""
+    prepared = prepare_apply(operations, reverse, strict, gone)
     for path, before, data in prepared:
         if path.read_bytes() != before:raise ValueError('Launcher configuration changed while applying: ' + str(path))
         if data != before:writer(path, data, path.stat().st_mode & 0o777)

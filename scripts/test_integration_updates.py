@@ -93,6 +93,38 @@ class IntegrationUpdateTests(UpdateFixture):
         self.assertIn('    Replace WINEDLLOVERRIDES=dxgi=n,b with WINEDLLOVERRIDES=winmm=n,b\n',out);self.assertNotIn('Game arguments:',out)
         self.assertEqual(self.record()['manual_launch']['required_args'],['-nobattleye'])
 
+    def test_a_launcher_entry_removed_after_an_update_never_blocks_its_undoing(self):
+        # The user removes the game from Heroic after an update that changed its entry: Rollback puts the files back and
+        # says the entry has nothing to undo; a later update that would change it needs attention (blocked, with the
+        # remedy), and Restore still returns every original file.
+        self.install_old();before={k:v for k,v in self.snapshot().items() if k!='launcher'}
+        self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')
+        self.config.write_text(json.dumps({}))
+        _,out=self.run_quiet(m.rollback,self.exe)
+        self.assertIn('Launcher entry no longer present, nothing to undo: '+str(self.config)+' (Heroic game 123 no longer exists)\n',out)
+        self.assertEqual({k:v for k,v in self.snapshot().items() if k!='launcher'},before);self.assertEqual(json.loads(self.config.read_text()),{})
+        status,out=self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')
+        self.assertEqual(status,'blocked');self.assertIn('Launcher entry is no longer present; use Restore, then Install again',out)
+        m.restore(self.exe)
+        for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
+
+    def test_an_interrupted_update_is_undone_when_its_launcher_file_is_gone(self):
+        # The pending journal's recovery (here through Restore) undoes the files and reports the launcher file it cannot.
+        self.install_old();real=m.write
+        def crash(path,*args,**kwargs):
+            result=real(path,*args,**kwargs)
+            if path==self.config:raise Crash()
+            return result
+        with patch.object(m,'write',side_effect=crash):
+            with self.assertRaises(Crash):self.run_quiet(m.update,self.exe,self.new,loader='winmm.dll')
+        self.assertIn('pending_update',self.record())
+        self.config.unlink()
+        _,out=self.run_quiet(m.restore,self.exe)
+        self.assertIn('was interrupted: undone, back to',out)
+        self.assertIn('Launcher entry no longer present, nothing to undo: '+str(self.config)+'\n',out)
+        record=self.record();self.assertEqual(record['status'],'restored');self.assertNotIn('pending_update',record)
+        for name,data in self.original.items():self.assertEqual((self.game/name).read_bytes(),data,name)
+
     def test_loader_change_removes_even_an_original_override_until_restore(self):
         doc=json.loads(self.config.read_text());doc['123']['enviromentOptions'].append(dict(key='WINEDLLOVERRIDES',value='dxgi=n,b'))
         self.config.write_text(json.dumps(doc));self.original_config_bytes=self.config.read_bytes();self.original_config=json.loads(self.original_config_bytes)

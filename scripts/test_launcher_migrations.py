@@ -60,6 +60,25 @@ class LauncherMigrationTests(UpdateFixture):
         with self.assertRaisesRegex(ValueError,r'Launcher entry is no longer present; use Restore, then Install again: .* \(Heroic game 123 no longer exists\)'):
             self.planned()
 
+    def test_undoing_skips_an_entry_that_is_gone(self):
+        # Undoing (gone given) reports an entry or file removed since instead of refusing; installing still refuses.
+        m.install(self.package,self.exe,route='opti');plan=self.planned();lm.apply(plan['operations'],m.write)
+        self.config.write_text(json.dumps({'other':{}}))
+        gone=[];self.assertEqual(lm.prepare_apply(plan['operations'],reverse=True,gone=gone),[(self.config,self.config.read_bytes(),self.config.read_bytes())])
+        self.assertEqual(gone,['Launcher entry no longer present, nothing to undo: '+str(self.config)+' (Heroic game 123 no longer exists)'])
+        with self.assertRaises(lm.lc.Missing):lm.prepare_apply(plan['operations'],reverse=True)
+        self.config.unlink();gone=[]
+        self.assertEqual(lm.prepare_apply(plan['operations'],reverse=True,gone=gone),[])
+        self.assertEqual(gone,['Launcher entry no longer present, nothing to undo: '+str(self.config)])
+        # Steam: an app entry whose launch options went (Steam's own app settings reset) has nothing to undo either.
+        config=self.root/'localconfig.vdf'
+        config.write_bytes(b'"UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" { "100" { "LastPlayed" "1" } } } } } }')
+        row=dict(target=dict(launcher='steam',path=str(config),id='100'),before={'LaunchOptions':'A=1 %command%'},
+                 after={'LaunchOptions':'B=2 %command%'})
+        gone=[];lm.apply([row],m.write,reverse=True,gone=gone)
+        self.assertEqual(gone,['Launcher entry no longer present, nothing to undo: '+str(config)+' (no launch options for Steam app 100)'])
+        self.assertNotIn(b'LaunchOptions',config.read_bytes())
+
     def test_late_file_change_blocks_the_commit_preflight(self):
         m.install(self.package,self.exe,route='opti');plan=self.planned()
         self.config.write_bytes(self.config.read_bytes()+b'\n')

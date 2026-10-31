@@ -2163,11 +2163,15 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
         policy_record=dict(record,**metadata)
     cache=root/STATE/VKD3D_CACHE if record.get('vkd3d_cache')==VKD3D_CACHE else None
     api_args,required_args=record_arguments(policy_record)
-    migrations=launcher_migrations.plan(record,root,integration['owner'],
-                 route=policy_record.get('route'),args=api_args,
-                 extra=(record.get('compat') or {}).get('extra_env'),
-                 cache=cache,
-                 previous_owner=integration['previous_owner'],required=required_args)
+    # A launcher entry this update cannot migrate (removed, moved, or changed by the user) needs the user's attention,
+    # with the remedy the refusal names.
+    try:
+        migrations=launcher_migrations.plan(record,root,integration['owner'],
+                     route=policy_record.get('route'),args=api_args,
+                     extra=(record.get('compat') or {}).get('extra_env'),
+                     cache=cache,
+                     previous_owner=integration['previous_owner'],required=required_args)
+    except ValueError as error:return stop('blocked',str(error))
     out['launcher_ops']=migrations['operations']
     if migrations['records']!=record.get('launchers',[]):out['metadata']['launchers']=migrations['records']
     if migrations['operations']:out['metadata']['launcher_policy_keys']=migrations['policy_keys']
@@ -2411,18 +2415,23 @@ def validate_external_generation(root,record,generation):
     return snapshots
 
 def restore_external_generation(root,record,generation):
-    """Undo owned entry changes, restoring exact file layout/metadata only when no other edits would be lost."""
+    """Undo owned entry changes, restoring exact file layout/metadata only when no other edits would be lost. An entry the
+    user removed since (or its launcher file) has nothing to undo: returns lines saying so."""
     snapshots=validate_external_generation(root,record,generation)
     operations=generation.get('launcher_ops') or []
-    launcher_migrations.apply(operations,write,reverse=True)
+    gone=[]
+    launcher_migrations.apply(operations,write,reverse=True,gone=gone)
     import launcher_config
     for entry in generation.get('external_files') or []:
-        path=Path(entry['path']);data=path.read_bytes();original=snapshots[str(path)]
+        path=Path(entry['path'])
+        if path.is_symlink() or not path.is_file():continue
+        data=path.read_bytes();original=snapshots[str(path)]
         row=next(op['target'] for op in operations if op['target']['path']==str(path))
         if data==original or launcher_config.same_settings(row,data,original):
             if data!=original:write(path,original,entry['mode'])
             restore_generation_metadata(path,entry)
         sync_folder(path.parent)
+    return gone
 
 def forget_folders(root,record,folders):
     """Folders an update created that its undoing left empty: removed, and no longer named in the record."""
@@ -2464,7 +2473,8 @@ def settle_interrupted(root,record):
     if generation is None:raise ValueError('Recovery generation is missing: pending journal and game files were kept. Restore its saved files before recovery.')
     validate_generation(record,generation)
     validate_external_generation(root,record,generation)
-    launcher_migrations.prepare_apply(generation.get('launcher_ops') or [],reverse=True)
+    # A launcher entry removed since has nothing to undo: it never blocks the recovery (restore_external_generation).
+    launcher_migrations.prepare_apply(generation.get('launcher_ops') or [],reverse=True,gone=[])
     if set(pending.get('files') or {})!={entry['path'] for entry in generation['files']}:
         raise ValueError('Recovery generation does not match the pending file set')
     if pending.get('kind','update')=='update':
@@ -2487,12 +2497,12 @@ def settle_interrupted(root,record):
             item['after']=change['before']
         for parent in touched:
             if parent.is_dir():sync_folder(parent)
-        restore_external_generation(root,record,generation)
+        gone=restore_external_generation(root,record,generation)
         restore_release_metadata(record,generation)
         record.pop('pending_update');forget_folders(root,record,generation.get('created_dirs') or []);save_record(state,record)
         shutil.rmtree(state/GENERATIONS/generation['id'])
         sync_folder(state/GENERATIONS)
-        return True,['An update to '+str(generation['to']['package'])+' was interrupted: undone, back to '+str(generation['from']['package'])+'.']
+        return True,['An update to '+str(generation['to']['package'])+' was interrupted: undone, back to '+str(generation['from']['package'])+'.']+gone
     if pending.get('kind')!='rollback':raise ValueError('Unknown pending update operation')
     rollback_generation(root,record,generation)
     return True,['An interrupted rollback was completed: back to '+str(generation['from']['package'])+'.']
@@ -2631,7 +2641,7 @@ def rollback_generation(root,record,generation):
     if not history or history[-1]['id']!=generation['id']:raise ValueError('Rollback generation does not match history')
     validate_generation(record,generation)
     validate_external_generation(root,record,generation)
-    launcher_migrations.prepare_apply(generation.get('launcher_ops') or [],reverse=True)
+    launcher_migrations.prepare_apply(generation.get('launcher_ops') or [],reverse=True,gone=[])
     actions=[];conflicts=[]
     for entry in generation['files']:
         item=record['files'][entry['index']];now=file_digest(root,entry['path'])
@@ -2656,7 +2666,7 @@ def rollback_generation(root,record,generation):
         touched.add(target.parent)
     for parent in touched:
         if parent.is_dir():sync_folder(parent)
-    restore_external_generation(root,record,generation)
+    gone=restore_external_generation(root,record,generation)
     emptied=reset_vkd3d_cache(state,record,[a['entry']['path'] for a in actions])
     for action in actions:action['item']['after']=action['entry']['old']
     record.pop('pending_update');forget_folders(root,record,generation.get('created_dirs') or [])
@@ -2671,6 +2681,7 @@ def rollback_generation(root,record,generation):
     print('Rolled back from '+str(generation['to']['package'])+' to '+str(generation['from']['package'])+': '+str(len(actions))+' file'+('s' if len(actions)!=1 else '')+
           ' put back as they were. Launch the game as before.')
     if emptied:print('vkd3d-proton’s shader cache for this game was emptied: the first start rebuilds it and takes longer.')
+    for line in gone:print(line)
     if 'manual_launch' in (generation.get('metadata_after') or {}) and record.get('manual_launch'):
         manual_step('set the game’s launch settings back to those listed below (in Setup: under Installer output).',record['manual_launch'],
                     'replace',generation['metadata_after']['manual_launch'])
