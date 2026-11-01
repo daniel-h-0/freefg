@@ -53,7 +53,8 @@ unless you explicitly accept the [per-game risk](COMPATIBILITY.md#anti-cheat).
 
 Extract a new release and use **Update…** on a game’s page, or **Update All Games…** in the menu. Update All Games
 discovers installations through launchers as well as the local index; choose specific games for a narrower scope.
-**Rollback** undoes the most recent update or provider switch. **Restore** returns the original installation files.
+**Rollback** undoes the most recent update, provider switch, recipe refresh or wiki settings. **Restore** returns the
+original installation files.
 
 Close the affected games first and close their launchers when the plan changes launcher entries. Updates are
 per-game, so a blocked game does not prevent other selected games from updating.

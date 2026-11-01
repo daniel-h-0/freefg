@@ -262,6 +262,9 @@ class Words(unittest.TestCase):
         provider = dict(release, kind='provider', upscaler='FSR 4')
         self.assertEqual(model.change_words(provider)[:3], ('Undo the upscaler switch', 'Back to FSR 4, byte for byte. Your settings are kept.',
                                                             'Undo the upscaler switch?'))
+        recipe = dict(release, kind='recipe', release='freefg-1.3.0')
+        self.assertEqual(model.change_words(recipe)[:3], ('Undo the recipe refresh', 'Return to 1.3.0 as it was before the '
+                                                          'recipe refresh, byte for byte.', 'Undo the recipe refresh?'))
         self.assertIsNone(model.change_words(dict(release, missing=True))[2])
 
 
@@ -483,7 +486,10 @@ class Changes(UpdateFixture):
         # A provider switch keeps the release; wiki settings name what they set; a kind the installer records wins.
         for after, entry, kind in (({'upscaler': {'name': 'hlx-dlss'}}, dict(to=OLD), 'provider'),
                                    ({'wiki_settings': {'settings': {'Hotfix.ColorResourceBarrier': '4'}}}, dict(to=OLD), 'settings'),
-                                   ({}, dict(to=OLD), 'change'), ({}, dict(kind='ini'), 'settings'), ({}, dict(kind='provider'), 'provider')):
+                                   ({}, dict(to=OLD), 'change'), ({}, dict(kind='ini'), 'settings'), ({}, dict(kind='provider'), 'provider'),
+                                   # A recipe refresh within a release; an earlier build recorded one as a release.
+                                   ({}, dict(kind='recipe', to=OLD), 'recipe'), ({}, dict(kind='release', to=OLD), 'change'),
+                                   ({}, dict(kind='release'), 'release')):
             path.write_text(json.dumps(dict(saved, metadata_before=dict(saved['metadata_before'], upscaler={'name': 'fsr4'}),
                                             metadata_after=after)))
             # Entries of earlier builds record no kind: Setup works it out from the generation (this installer's own
