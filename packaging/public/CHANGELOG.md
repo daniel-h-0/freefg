@@ -4,7 +4,7 @@ Release summaries are below; [measurements](MEASUREMENTS.md) describe their spec
 [detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
 retains earlier release notes.
 
-## Unreleased
+## 1.4.0 candidate
 
 - HelixSR 3.3.0: its four upscalers are choices of their own, HLX DLSS Model E (the suggested one, used by a new
   installation once it is prepared), HLX DLSS Preset K, HLX FSR 4 and HLX FSR 4 Full. The two HLX FSR 4 forms come
