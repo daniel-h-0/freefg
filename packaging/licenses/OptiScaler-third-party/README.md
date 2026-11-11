@@ -9,10 +9,10 @@ reserved.
 
 ## Build and provenance
 
-This index covers DLL `5c7dd0f3…`, source `25db192b` (fork tag `bc250-25db192`). The October 29 build's
-dependency records and source changes were checked against the October 25 audit. The compiled third-party folder
-set and static libraries remain the same; the ImGui Vulkan backend has a seven-line change. The changed
-FidelityFX-SDK-v2 submodule is not in the dependency records.
+This index covers DLL `22052eb2…`, source `4d0c0b97` (fork tag `bc250-4d0c0b9`), which merges upstream master of
+11 November 2026. Its dependency records and source changes were checked against the October 29 audit. The compiled
+third-party folders, the submodule pins and the static libraries remain the same. One compiled file is new with its
+own licence: OptiScaler's plugin API header.
 
 The source-tree [PROVENANCE.json](https://github.com/daniel-h-0/freefg/blob/main/packaging/licenses/OptiScaler-third-party/PROVENANCE.json)
 records the builds and each notice's source URL, commit and SHA-256. Licence files are copied verbatim.
@@ -49,6 +49,7 @@ records the builds and each notice's source URL, commit and SHA-256. Licence fil
 | LatencyFleX (header) | `external/latencyflex/latencyflex.h` | Apache-2.0 | `Apache-2.0.txt` | © 2021 Tatsuyuki Ishi |
 | Intel XeSS, XeLL and XeSS Frame Generation SDK headers | `external/xess/inc` | Intel Simplified Software License | `licenses/Intel-XeSS.txt` (the same text as in that submodule) | © 2021-2024 Intel Corporation |
 | NVIDIA NGX (DLSS SDK) headers | `external/nvngx_dlss_sdk` | NVIDIA's DLSS SDK licence (NVIDIA RTX SDKs License, https://github.com/NVIDIA/DLSS) | `NVIDIA-DLSS-SDK.txt` (the text of DLSS SDK 310.7.0; the headers come from an earlier SDK release) | © 2018-2023 NVIDIA Corporation & affiliates |
+| OptiScaler plugin API header | `plugin_sdk/optiscaler_plugin.h` | MIT (OptiScaler's own header for plugin authors) | `OptiScaler-plugin-SDK.txt` | © 2026 OptiScaler contributors |
 
 ## Prebuilt libraries
 

@@ -1,9 +1,9 @@
 {
  "about": "Licence texts of the third-party code compiled or linked into the shipped opti/OptiScaler.dll, copied byte for byte from the files named below (url = the file at its commit). release/package.json ships them as licenses/OptiScaler-third-party/ (component optiscaler-fork) with README.md, the index for players; release/test_release_tools.py checks every sha256 and that package.json ships every file.",
  "dll": {
-  "sha256": "5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617",
-  "source_commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
-  "method": "Rechecked the 29 October build: ninja dependency records cover 230 valid objects and 790 fork-tree input paths. Against the 25 October source, the third-party change is a seven-line addition to the existing ImGui Vulkan backend; FidelityFX-SDK-v2 also changed but has no files in the dependency records. Other third-party folders and the static libraries in the fork tree are unchanged. The link includes Detours via the header default-library directive. The earlier audit, notice-source pins and unchanged licence texts are retained below."
+  "sha256": "22052eb2b4f9b936f9c6ee2bfa161a3dc9cdb6799f801c1999595fc765d579c3",
+  "source_commit": "4d0c0b9798e07332a0a8a86a7dfa5b0388732957",
+  "method": "Rechecked the 11 November build (upstream master 7479cb29 merged): ninja dependency records cover 234 objects and 803 fork-tree input paths. Against the 29 October build, 16 inputs are new and three are gone; all are OptiScaler's own sources but plugin_sdk/optiscaler_plugin.h, the plugin API header that upstream licenses as MIT (OptiScaler-plugin-SDK.txt). OptiScaler/include, OptiScaler/library and the third-party folders under external/ are unchanged, the nine submodule pins are the same commits, and the link line names the same 35 libraries. The earlier audits, notice-source pins and unchanged licence texts are retained below."
  },
  "files": {
   "AMD-Anti-Lag-2-SDK.txt": {
@@ -324,6 +324,17 @@
      "ref": "v310.7.0",
      "path": "LICENSE.txt",
      "url": "https://raw.githubusercontent.com/NVIDIA/DLSS/a291cc7d2cc642a51566f3dfd5376f635cd1b284/LICENSE.txt"
+    }
+   ]
+  },
+  "OptiScaler-plugin-SDK.txt": {
+   "sha256": "9ba36829061f458fe5c16e61f4b96644188030e2f6fd63f0eb11ef51c85f771b",
+   "sources": [
+    {
+     "repository": "https://github.com/optiscaler/OptiScaler",
+     "commit": "7479cb294cd66d4d02c2a452f6f6294ade6a11ff",
+     "path": "plugin_sdk/LICENSE",
+     "url": "https://raw.githubusercontent.com/optiscaler/OptiScaler/7479cb294cd66d4d02c2a452f6f6294ade6a11ff/plugin_sdk/LICENSE"
     }
    ]
   }
@@ -736,6 +747,21 @@
     "Copyright (c) 2018-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved."
    ],
    "evidence": "the headers carry NVIDIA's proprietary notice (SPDX LicenseRef-NvidiaProprietary); NVIDIA publishes the DLSS SDK, NGX headers included, under the NVIDIA RTX SDKs License. The text is that of DLSS SDK 310.7.0 (NVIDIA/DLSS v310.7.0, the same file the installer downloads with the DLSS helper); the headers in the OptiScaler source come from an earlier SDK release (NGX API 1.5.0)"
+  },
+  {
+   "name": "OptiScaler plugin API header",
+   "version": "",
+   "source": [
+    "plugin_sdk/optiscaler_plugin.h"
+   ],
+   "licence": "MIT (OptiScaler's own header for plugin authors; OptiScaler itself is GPL-3.0)",
+   "files": [
+    "OptiScaler-plugin-SDK.txt"
+   ],
+   "copyright": [
+    "Copyright (c) 2026 OptiScaler contributors"
+   ],
+   "evidence": "the header carries SPDX-License-Identifier: MIT and is in the 11 November build's dependency records (OptiScaler/plugins/PluginApi.cpp includes it); plugin_sdk/LICENSE is unchanged since upstream d94fb15f (7 November 2026)"
   }
  ],
  "not_compiled_in": {
@@ -759,5 +785,10 @@
   "sha256": "b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656",
   "source_commit": "03db4f8692878e65748769ebe583c053cae96360",
   "method": "Rechecked the October 25 build: ninja dependency records cover 228 objects and 784 fork-tree input paths. The third-party folder set and static libraries remain those of the prior audit. Between f971ed14 and 03db4f86, the only changed external dependency is Vulkan-Headers, now 1.4.350 (8864cdc896bbc2a9b6eb36b3218fc9ef57908d77). Its LICENSE.md and Apache-2.0 text are byte-identical to the copies here. Other new build inputs are OptiScaler source files. The earlier audit and original notice-source pins are retained below."
+ },
+ "prior_20261029": {
+  "sha256": "5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617",
+  "source_commit": "25db192b1c1ebf42ae7cd6615bc6288b39121c5b",
+  "method": "Rechecked the 29 October build: ninja dependency records cover 230 valid objects and 790 fork-tree input paths. Against the 25 October source, the third-party change is a seven-line addition to the existing ImGui Vulkan backend; FidelityFX-SDK-v2 also changed but has no files in the dependency records. Other third-party folders and the static libraries in the fork tree are unchanged. The link includes Detours via the header default-library directive. The earlier audit, notice-source pins and unchanged licence texts are retained below."
  }
 }

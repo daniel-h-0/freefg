@@ -284,6 +284,7 @@
     "licenses/OptiScaler-third-party/NVIDIA-NVAPI.txt": "repo:packaging/licenses/OptiScaler-third-party/NVIDIA-NVAPI.txt",
     "licenses/OptiScaler-third-party/NVIDIA-Streamline-1.txt": "repo:packaging/licenses/OptiScaler-third-party/NVIDIA-Streamline-1.txt",
     "licenses/OptiScaler-third-party/NVIDIA-Streamline-2.txt": "repo:packaging/licenses/OptiScaler-third-party/NVIDIA-Streamline-2.txt",
+    "licenses/OptiScaler-third-party/OptiScaler-plugin-SDK.txt": "repo:packaging/licenses/OptiScaler-third-party/OptiScaler-plugin-SDK.txt",
     "licenses/OptiScaler-third-party/simpleini.txt": "repo:packaging/licenses/OptiScaler-third-party/simpleini.txt",
     "licenses/OptiScaler-third-party/spdlog.txt": "repo:packaging/licenses/OptiScaler-third-party/spdlog.txt",
     "licenses/OptiScaler-third-party/unordered_dense.txt": "repo:packaging/licenses/OptiScaler-third-party/unordered_dense.txt",
