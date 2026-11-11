@@ -2059,6 +2059,13 @@ def integration_plan(root,record,pins,files,loader=None):
             # These SDK copies were deliberately removed by the proxy layout; do not put them back.
             if target in ('OptiScaler/libxess_fg.dll','OptiScaler/libxell.dll'):continue
             desired[target]=('integration',Upstream(name,value))
+        # Support files of an earlier pinned nightly that this one no longer has (dependencies.json payload.RetiredFiles):
+        # one this installation placed goes back to what was there before it (nothing, in a fresh setup). The loader and
+        # the upscaler's files are their own components' whatever their names.
+        upscaler=record.get('upscaler') or {}
+        claimed={owner,selected,upscaler.get('target'),upscaler.get('legacy_target'),*(upscaler.get('files') or []),*desired,*retired}
+        retired+=[target for target in dict.fromkeys(map(setup_target,pins['payload'].get('RetiredFiles',[])))
+                  if target not in claimed and items.get(target,{}).get('after') is not None]
     metadata={'opti_owner':selected}
     edits={}
     if 'opti/OptiScaler.ini' in files:
