@@ -55,8 +55,17 @@ def wait_closed(installer,selected,launchers):
         if result.returncode:return False
     return True
 
-# The upscaler choice (install.py --upscaler). HelixSR is a separate project by lonewolf0622: Setup downloads its official
-# release from its GitHub releases when the user asks, and the user builds it once with HelixSR's own setup.
+# The upscaler choice (install.py --upscaler). HelixSR is a separate project by lonewolf0622. A package with its catalog
+# (dependencies.json "hlx") offers HelixSR's four upscalers beside FSR 4: one line about each (setup_model.UPSCALER_ABOUT
+# says the same). The suggested one is listed first and is the default of a new installation once it is ready on this
+# computer; until then the default is FSR 4, which needs no preparation.
+UPSCALER_ABOUT={'fsr4':'AMD FSR 4, BC-250 build: built in, always ready',
+                'hlx-dlss':'DLSS Model E network, built on this computer',
+                'hlx-dlss-k':'DLSS 4 Preset K network: sharper, a little slower; optional long build',
+                'hlx-fsr4':'HelixSR’s fast FSR 4-class upscaler; comes built',
+                'hlx-fsr4-full':'Full FSR 4.1.2 network on HelixSR’s kernels: sharper, slower; comes built'}
+# A package without that catalog: Setup downloads HelixSR's official release from its GitHub releases when the user asks,
+# and the user builds it once with HelixSR's own setup.
 UPSCALER_ROWS=['FSR 4','Default: the BC-250 build of AMD FSR 4, downloaded by checked hash',
                'HelixSR (by lonewolf0622)','NVIDIA’s DLSS network as compute shaders: a separate project by lonewolf0622, under its own licence']
 HELIXSR_ABOUT=('HelixSR is a separate project by lonewolf0622 (github.com/lonewolf0622/HelixSR), under its own licence (the '
@@ -99,29 +108,100 @@ def helixsr_ready(installer):
         dialog('--text-info','--width=1000','--height=520','--filename='+str(note))
     return False
 
+def upscalers(installer):
+    """[(id, name, state, about, ready)] of the upscalers a package with HelixSR's catalog offers: the suggested one first
+    and marked, then FSR 4, then the others (hlx.NAMES' order). state says where each stands on this computer (hlx.find
+    hashes the prepared files): Ready, or what it still needs."""
+    hlx=installer.hlx;spec=hlx.catalog(ROOT);rows=[]
+    for name,label in hlx.NAMES.items():
+        try:hlx.find(ROOT,name);ready=True
+        except (OSError,ValueError):ready=False
+        state='Ready' if ready else 'Not built yet' if hlx.built(spec,name) else 'Not downloaded yet'
+        rows.append((name,label+(' (suggested)' if name==hlx.SUGGESTED else ''),state,UPSCALER_ABOUT.get(name,label),ready))
+    first=[row for row in rows if row[0]==hlx.SUGGESTED]
+    return first+[('fsr4','FSR 4','Ready',UPSCALER_ABOUT['fsr4'],True)]+[row for row in rows if row not in first]
+
+def archive_size(installer):
+    """'about 280 MB': the size of HelixSR's official archive as the package pins it."""
+    return 'about '+str(round(installer.hlx.catalog(ROOT)['archive']['size']/1e7)*10)+' MB'
+
+def prepare_choices(installer,provider):
+    """install.py hlx's options for Prepare Helix, or None when the user goes back: what the build needs is installed;
+    the NVIDIA DLSS DLL it takes is the copy the installer's download cache holds, else a local copy the user chooses
+    (--dlss-input), else their agreement to its download from NVIDIA's repository under NVIDIA's licence
+    (--download-dlss); and the optional Preset K is built when it was chosen or the user asks for it (--preset-k). The
+    last dialog names what is built and the DLSS input it is built from, before anything runs."""
+    hlx=installer.hlx
+    missing=hlx.requirements()
+    if missing:
+        dialog('--error','--width=680','--text=Building HLX DLSS needs '+', '.join(missing)+' on this computer. Install '+
+               ('it' if len(missing)==1 else 'them')+' with your distribution’s package manager, then choose Prepare Helix again.\n'
+               'FSR 4, HLX FSR 4 and HLX FSR 4 Full need none of it.');return None
+    args=[]
+    try:held=hlx.dlss_input(ROOT);source='the copy this installer already holds, '+str(held)
+    except (OSError,ValueError):held=None
+    if held is None:
+        choice=dialog('--list','--width=820','--height=260','--column=NVIDIA DLSS input','--column=Description',
+            'Use a local copy','Choose nvngx_dlss.dll on this computer; Setup checks it by SHA-256',
+            'Download from NVIDIA','I agree to download NVIDIA’s DLSS DLL from NVIDIA’s repository under NVIDIA’s licence',
+            '--text=HLX DLSS is built on this computer from NVIDIA’s DLSS DLL (nvngx_dlss.dll). Setup never uploads it.\n'
+            'NVIDIA’s licence: '+hlx.NVIDIA_LICENSE)
+        if choice=='Use a local copy':
+            dlss=dialog('--file-selection','--title=NVIDIA’s DLSS DLL (nvngx_dlss.dll)')
+            if not dlss:return None
+            try:hlx.dlss_input(ROOT,dlss)
+            except (OSError,ValueError) as error:dialog('--error','--width=680','--text='+str(error));return None
+            args+=['--dlss-input',dlss];source='your local copy, '+dlss
+        elif choice=='Download from NVIDIA':args+=['--download-dlss'];source='downloaded from NVIDIA’s repository under NVIDIA’s licence'
+        else:return None
+    if provider=='hlx-dlss-k':args+=['--preset-k']
+    else:
+        try:hlx.find(ROOT,'hlx-dlss-k')
+        except (OSError,ValueError):
+            # Optional, and off unless the user asks for it: closing the question leaves Preset K out.
+            if dialog('--question','--default-cancel','--width=680','--ok-label=Also build Preset K','--cancel-label=Model E only',
+                      '--text=Also build HLX DLSS Preset K? It is optional: sharper, a little slower, and its build takes many minutes.') is not None:
+                args+=['--preset-k']
+    if dialog('--question','--width=720','--ok-label=Prepare','--cancel-label=Back',
+              '--text=Prepare Helix builds '+('HLX DLSS Model E and Preset K (what is built already is kept)' if '--preset-k' in args else 'HLX DLSS Model E')+
+              ' on this computer, once for every game. No game is changed and the built model files stay on this computer.\n\n'
+              'NVIDIA DLSS input: '+source+'.\n\nThis takes '+('many' if '--preset-k' in args else 'several')+' minutes.') is None:return None
+    return args
+
 def hlx_ready(installer,provider,installed=False):
-    try:installer.hlx.find(ROOT,provider);return []
+    """install.py's extra options ([]: none) once the Helix upscaler chosen is ready on this computer, None when the user
+    goes back or it did not become ready. One that is not ready is made ready first, once for every game: built on this
+    computer (Prepare Helix: HLX DLSS Model E and Preset K), or downloaded with HelixSR's official archive (HLX FSR 4
+    and HLX FSR 4 Full come built in it: install.py hlx --no-build)."""
+    hlx=installer.hlx
+    try:hlx.find(ROOT,provider);return []
     except (OSError,ValueError):pass
-    choice=dialog('--list','--width=720','--height=270','--column=Action','--column=Description',
+    name=hlx.NAMES[provider];built=bool(hlx.built(hlx.catalog(ROOT),provider))
+    choice=dialog('--list','--width=900','--height=290','--column=Action','--column=Description',
         *(['Use game copies','Reuse checked provider files already owned by the selected games'] if installed else []),
-        'Use prepared folder','Select an HLX release already built on this computer',
-        'Prepare HLX','Build DLSS and FSR 4 once from local model inputs; no games are changed',
-        '--text=HLX preparation is shared by every game. Built model files stay on this computer.')
+        'Use prepared folder','Select a HelixSR release folder already prepared on this computer',
+        *(['Prepare Helix','Build '+name+' on this computer from NVIDIA’s DLSS DLL; takes '+
+           ('many' if provider=='hlx-dlss-k' else 'several')+' minutes'] if built else
+          ['Download HelixSR','Download HelixSR’s official archive ('+archive_size(installer)+') from its GitHub releases; '+
+           name+' comes built in it']),
+        '--text='+name+' is not ready on this computer yet. HelixSR’s upscalers are made ready once for every game; no game is '
+        'changed. Built model files stay on this computer.')
     if choice=='Use game copies':return []
     if choice=='Use prepared folder':
         folder=dialog('--file-selection','--directory','--title=Prepared HelixSR release folder')
         if not folder:return None
-        try:installer.hlx.find(ROOT,provider,folder);return ['--helixsr',folder]
+        try:hlx.find(ROOT,provider,folder);return ['--helixsr',folder]
         except (OSError,ValueError) as error:dialog('--error','--text='+str(error));return None
-    if choice=='Prepare HLX':
-        dlss=dialog('--file-selection','--title=NVIDIA nvngx_dlss.dll model input')
-        if not dlss:return None
-        amd=dialog('--file-selection','--title=AMD amdxcffx64.dll model input')
-        if not amd:return None
-        run_and_show(['hlx','--dlss-input',dlss,'--amd-input',amd],'Preparing HLX for all games. This takes several minutes.')
-        try:installer.hlx.find(ROOT,provider);return []
-        except (OSError,ValueError):return None
-    return None
+    if choice=='Prepare Helix':
+        args=prepare_choices(installer,provider)
+        if args is None:return None
+        run_and_show(['hlx',*args],'Preparing Helix for every game. '+('Preset K takes many minutes.' if '--preset-k' in args else
+                                                                      'This takes several minutes.'))
+    elif choice=='Download HelixSR':
+        run_and_show(['hlx','--no-build'],'Downloading HelixSR’s official archive from its GitHub releases.')
+    else:return None
+    try:hlx.find(ROOT,provider);return []
+    except (OSError,ValueError):return None
 
 
 def select_library(installer,selected):
@@ -144,17 +224,22 @@ def select_library(installer,selected):
 
 
 def choose_upscaler(installer,text,installed=False):
-    """install.py arguments for the upscaler the user picks, or None (cancelled, or HelixSR not ready yet)."""
-    modern=hasattr(installer,'hlx') and bool(installer.hlx.catalog(ROOT))
-    rows=(['FSR 4','AMD FSR 4 BC-250 build','HLX DLSS','Helix DLSS network, prepared locally',
-           'HLX FSR 4','Helix FSR 4 provider, prepared locally'] if modern else UPSCALER_ROWS)
-    choice=dialog('--list','--width=900','--height=300','--column=Upscaler','--column=About',*rows,'--text='+text)
+    """install.py arguments for the upscaler the user picks, or None (cancelled, or the one picked is not ready yet). A new
+    installation (installed False) starts on the suggested upscaler when it is ready on this computer, else on FSR 4:
+    never on one that has to be prepared first."""
+    if hasattr(installer,'hlx') and bool(installer.hlx.catalog(ROOT)):
+        rows=upscalers(installer)
+        default=None if installed else next((row[0] for row in rows if row[0]==installer.hlx.SUGGESTED and row[4]),'fsr4')
+        choice=dialog('--list','--radiolist','--width=1100','--height=360','--hide-column=2','--print-column=2',
+            '--column=Use','--column=ID','--column=Upscaler','--column=On this computer','--column=About',
+            *[value for row in rows for value in ('TRUE' if row[0]==default else 'FALSE',*row[:4])],'--text='+text)
+        if not choice:return None
+        if choice=='fsr4':return ['--upscaler','fsr4']
+        extra=hlx_ready(installer,choice,installed)
+        return ['--upscaler',choice,*extra] if extra is not None else None
+    choice=dialog('--list','--width=900','--height=300','--column=Upscaler','--column=About',*UPSCALER_ROWS,'--text='+text)
     if not choice:return None
     if choice=='FSR 4':return ['--upscaler','fsr4']
-    if modern:
-        provider={'HLX DLSS':'hlx-dlss','HLX FSR 4':'hlx-fsr4'}[choice]
-        extra=hlx_ready(installer,provider,installed)
-        return ['--upscaler',provider,*extra] if extra is not None else None
     return ['--upscaler','helixsr'] if helixsr_ready(installer) else None
 
 
@@ -288,7 +373,7 @@ def install_choices(installer,games,risk=False):
     source={'OptiFG':'upscaler','DLSS FG':'dlssg','FSR 3.1 FG':'fsrfg','FSR 3.0 FG':'fsrfg30'}
     if not route:return None
     extra=['--route','auto','--fg-input','auto'] if route.startswith('Automatic') else ['--route','native'] if route=='Native XeSS FG' else ['--route','opti','--fg-input',source[route]]
-    upscaler=choose_upscaler(installer,'Choose the upscaler for these games. Frame generation is XeFG with either. Upscaler switches it later.\n'+HELIXSR_ABOUT)
+    upscaler=choose_upscaler(installer,'Choose the upscaler for these games. Frame generation is XeFG with each of them. Upscaler switches it later.\n'+HELIXSR_ABOUT)
     if not upscaler:return None
     extra+=upscaler
     # An explicit input changes the verdicts (the user's choice wins; refusals that rest on detection alone become
@@ -349,7 +434,7 @@ def main():
             'Install','Install '+NAME+' into selected games',
             # A 2×-only package (no 3×/4×, no generated-frame scaling) has nothing for Settings to change.
             *(['Settings','Choose '+'/'.join(FACTORS)+(' and generated-frame resolution' if SCALING else ' frame generation')] if MFG and (len(FACTORS)>1 or SCALING) else []),
-            'Upscaler','Choose AMD FSR 4, HLX DLSS or HLX FSR 4 for selected games',
+            'Upscaler','Choose FSR 4 or one of HelixSR’s upscalers (HLX DLSS, HLX FSR 4) for selected games',
             'Update all','Update '+NAME+' in every installed game to this package, keeping settings (shows the plan first)',
             'Update upscalers','Update each selected compatible upscaler across the library, keeping FreeFG and provider selection',
             'Library','Select enrolled games; view versions, last-session logs and recovery'
