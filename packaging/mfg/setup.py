@@ -69,7 +69,7 @@ UPSCALER_ABOUT={'fsr4':'AMD FSR 4, BC-250 build: built in, always ready',
 UPSCALER_ROWS=['FSR 4','Default: the BC-250 build of AMD FSR 4, downloaded by checked hash',
                'HelixSR (by lonewolf0622)','NVIDIA’s DLSS network as compute shaders: a separate project by lonewolf0622, under its own licence']
 HELIXSR_ABOUT=('HelixSR is a separate project by lonewolf0622 (github.com/lonewolf0622/HelixSR), under its own licence (the '
-               'HelixSR Freeware License). It runs NVIDIA’s DLSS network as compute shaders. This package ships none of it.')
+               'HelixSR Freeware License). Its upscalers run DLSS and FSR 4 networks as compute shaders. This package ships none of it.')
 
 def run_and_show(args,text):
     """Run install.py with args under a progress window, then show what it printed."""
