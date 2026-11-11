@@ -135,6 +135,16 @@ class HlxUpdates(UpdateFixture):
         self.assertEqual((self.game/m.STATE/'runtime-logs/hlx_fsr4.log').read_bytes(),b'own runtime: family M')
         self.assertOriginal()
 
+    def test_two_providers_with_one_log_name_each_keep_their_log_on_restore(self):
+        # Model E and Preset K both write helixsr.log beside their DLL.
+        self.install_old();self.select('hlx-dlss');self.select('hlx-dlss-k')
+        for provider in ('hlx-dlss','hlx-dlss-k'):
+            (self.game/'OptiScaler/custom'/provider/'dlss/helixsr.log').write_bytes(provider.encode())
+        self.run_quiet(m.restore,self.exe)
+        for provider in ('hlx-dlss','hlx-dlss-k'):
+            self.assertEqual((self.game/m.STATE/'runtime-logs'/(provider+'.helixsr.log')).read_bytes(),provider.encode())
+        self.assertOriginal()
+
     def test_unowned_provider_logs_are_not_overwritten(self):
         self.install_old();path=self.game/'OptiScaler/custom/hlx-fsr4/ffx/HLX_FSR.log';path.parent.mkdir(parents=True);path.write_bytes(b'original log')
         before=self.snapshot();self.assertEqual(self.select('hlx-fsr4')[0],'blocked');self.assertEqual(self.snapshot(),before)

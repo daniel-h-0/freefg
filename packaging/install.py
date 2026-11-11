@@ -1595,10 +1595,15 @@ def restore(exe):
     provider=record.get('upscaler') or {}
     if provider.get('name')=='helixsr':put_back_helixsr_log(root,state,provider,notes)
     elif provider.get('legacy_helixsr'):put_back_helixsr_log(root,state,provider['legacy_helixsr'],notes)
+    # Two providers can write a log of the same name (HLX DLSS Model E and Preset K: helixsr.log): each is kept under
+    # its provider's folder name.
+    shared=[Path(relative).name for relative in provider_logs]
     for relative in provider_logs:
         log=log_path(root,relative)
         if log is not None and log.is_file():
-            write(state/'runtime-logs'/Path(relative).name,log.read_bytes());log.unlink()
+            name=Path(relative).name
+            if shared.count(name)>1:name=Path(relative).parts[-3]+'.'+name
+            write(state/'runtime-logs'/name,log.read_bytes());log.unlink()
     logs=[name for name in PROXY_LOGS if record.get('addon_entry')==PROXY_ENTRY and (root/name).is_file() and not (root/name).is_symlink()
           and not (displaced is not None and name in displaced and not (held/name).is_file())]
     if logs:
