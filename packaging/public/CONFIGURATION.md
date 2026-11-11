@@ -6,26 +6,52 @@ settings persistence.
 
 ## Upscalers
 
-AMD FSR 4 is the default. **Change…** beside **Upscaler** on the game page also offers **HLX DLSS** and **HLX FSR 4**, from the separate
-[HelixSR 3.1.0](https://github.com/lonewolf0622/HelixSR) project. FreeFG keeps AMD FSR 4 available separately and
-uses FreeFG/XeFG for frame generation.
+Each game has one upscaler; frame generation is always FreeFG/XeFG. **Change…** beside **Upscaler** on the game page
+switches it.
 
-For HLX, open **Upscalers…** in the menu and select a prepared HelixSR 3.1.0 folder or choose **Prepare HLX**. Preparation verifies the official archive
-and shader compilers, then runs its build-only entry point locally with networking disabled. It needs Wine,
-bubblewrap, Python numpy, and these local model inputs: NVIDIA DLSS **310.7.0** and `amdxcffx64.dll` **2.4.0.4370**
-from AMD Software **26.10.1**. Prepare once for all games; neither model input nor built model data is distributed by
-FreeFG. [Preparation, downloads and terms](PRIVACY.md#helixsr-optional).
+| Upscaler | `--upscaler` | What it is | Before first use |
+| --- | --- | --- | --- |
+| **HLX DLSS Model E** (suggested) | `hlx-dlss` | the DLSS Model E network as compute shaders | built once on this computer |
+| HLX DLSS Preset K | `hlx-dlss-k` | the DLSS 4 Preset K network: sharper than Model E, a little slower | an optional second build, many minutes |
+| HLX FSR 4 | `hlx-fsr4` | HelixSR's fast FSR 4-class upscaler | HelixSR's download |
+| HLX FSR 4 Full | `hlx-fsr4-full` | the full FSR 4.1.2 network on HelixSR's kernels: sharper and slower than HLX FSR 4 | HelixSR's download |
+| AMD FSR 4 | `fsr4` | AMD FSR 4, BC-250 build | nothing |
+
+The four HLX upscalers are those of the separate [HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR) project, by
+lonewolf0622. A new installation takes the suggested one when it is prepared on this computer and AMD FSR 4 otherwise
+(`--upscaler auto`, the default); AMD FSR 4 stays installed beside any HLX upscaler.
+
+**Upscalers…** in the menu prepares them once for every game:
+
+- **Download** fetches and checks HelixSR's official archive (about 280 MB). HLX FSR 4 and HLX FSR 4 Full come built
+  in it and need nothing else.
+- **Prepare Helix** also builds HLX DLSS Model E, from NVIDIA's DLSS **310.7.0** DLL, locally and with networking
+  disabled. It needs Wine, bubblewrap and Python numpy. It takes a copy of that DLL already on this computer (one you
+  select, or the one FreeFG downloaded earlier as its DLSS input helper); without one it asks before downloading the
+  DLL from NVIDIA's repository. Preset K is a switch in the same dialog.
+
+Neither the model input nor built model data is distributed by FreeFG.
+[Preparation, downloads and terms](PRIVACY.md#helixsr-optional).
 
 ```sh
-python3 install.py hlx --dlss-input /path/to/nvngx_dlss.dll --amd-input /path/to/amdxcffx64.dll
+python3 install.py hlx                           # download HelixSR and build Model E from a local DLSS DLL
+python3 install.py hlx --dlss-input /path/to/nvngx_dlss.dll
+python3 install.py hlx --download-dlss           # agree to the download of NVIDIA's DLL when none is local
+python3 install.py hlx --preset-k                # also build Preset K
+python3 install.py hlx --no-build                # only the download: HLX FSR 4 and HLX FSR 4 Full
 python3 install.py configure GAME.exe --upscaler hlx-dlss
-python3 install.py configure GAME.exe --upscaler hlx-fsr4
 python3 install.py configure GAME.exe --upscaler fsr4
 ```
 
-Use `--helixsr /path/to/HelixSR-3.1.0` for a prepared folder elsewhere. Its complete provider files must match the
-pinned build. `--upscaler helixsr` is an alias for HLX DLSS. A compatible update can advance legacy HelixSR 2.0.0
-when the new provider is prepared. A current installation can reuse its own checked provider files without the cache.
+Preset K and HLX FSR 4 Full each read a `DeepReuse` setting (`exact`, `1:2` or `1:4`) from their own file in the game:
+`OptiScaler/custom/hlx-dlss-k/dlss/helixsr.ini` and `OptiScaler/custom/hlx-fsr4-full/ffx/hlx_fsr4.ini`. FreeFG
+installs HelixSR's files with its default, `exact`, and keeps your edits across updates and switches. HelixSR's
+release notes list the known issues of the faster settings.
+
+Use `--helixsr /path/to/HelixSR-3.3.0` for a prepared folder elsewhere. Its complete provider files must match the
+pinned build. `--upscaler helixsr` is an alias for HLX DLSS Model E. A compatible update advances an earlier HLX or
+HelixSR 2.0.0 installation when the new provider is prepared, and leaves it as it is until then. A current
+installation can reuse its own checked provider files without the cache.
 A provider switch creates a rollback generation; **Rollback** undoes the latest switch or update.
 
 ## Generated-frame scaling

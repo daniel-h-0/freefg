@@ -54,6 +54,10 @@ DLSS_HELPER='nvngx_dlss.dll'
 # project by lonewolf0622 that the user's own HelixSR setup built on this computer (helixsr.py). Frame generation is XeFG
 # either way.
 UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC12)','helixsr':helixsr.LABEL,**hlx.NAMES}
+# A Helix provider's entry DLL in a game (the end of its path) and the log it writes beside it.
+HLX_LOGS=[('custom/hlx-dlss/dlss/helixsr.dll','helixsr.log'),('custom/hlx-dlss-k/dlss/helixsr.dll','helixsr.log'),
+          ('custom/hlx-fsr4/ffx/amd_fidelityfx_upscaler_dx12.dll','HLX_FSR.log'),
+          ('custom/hlx-fsr4-full/ffx/amd_fidelityfx_upscaler_dx12.dll','HLX_FSR.log')]
 # BC-250 builds of the FSR 4 DLL by SHA-256: the one dependencies.json pins (RC12, since 1.1.2) and the one earlier builds
 # installed (RC11), so Status names the build a game has and records of earlier builds stay readable.
 FSR4_BUILDS={'4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79':'RC12',
@@ -1020,7 +1024,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
     used as it is."""
     if route not in ["native","opti"] or fg_input not in ["upscaler","dlssg","fsrfg","fsrfg30"]:raise ValueError("Unknown integration route")
     if dlss_helper not in ['auto','yes','no']:raise ValueError('Unknown DLSS helper choice (auto, yes or no)')
-    if upscaler not in UPSCALERS:raise ValueError('Unknown upscaler (fsr4 or helixsr)')
+    if upscaler not in UPSCALERS:raise ValueError('Unknown upscaler (one of '+', '.join(UPSCALERS)+')')
     if exe.is_symlink() or not exe.is_file() or exe.suffix.lower()!='.exe':raise ValueError('Choose the actual game .exe, not a symlink')
     check_exe(exe)
     root=exe.parent.resolve();idle(root);state=root/STATE
@@ -1191,7 +1195,7 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
             key=tuple(item['key'].split('.',1))
             if parsed.get((key[0].lower(),key[1].lower()),'auto').strip().lower() in ['','auto']:
                 changes.pop(key,None);notes.append('Left '+item['key']+' to OptiScaler’s own setting for this game ('+item['quirk']+').')
-        changes.update(rm.ini_changes(verified,backports,parsed,fg_input,recipe_input,route,'helixsr' if upscaler=='hlx-dlss' else upscaler))
+        changes.update(rm.ini_changes(verified,backports,parsed,fg_input,recipe_input,route,hlx.recipe_name(upscaler)))
         user=rm.prefix_user(exe,recipe[5],launcher_home)
         # Recipe values a previous installation's Restore could not put back keep their true originals.
         earlier=previous_settings(state,record,rm) if archive_state else {}
@@ -1310,7 +1314,10 @@ def install(package,exe,preview=False,route="native",fg_input="upscaler",depende
         if modern_provider['metadata'].get('ini'):
             name=modern_provider['metadata']['ini']
             if safe(root,name).exists():raise ValueError('Provider settings are already occupied: '+name)
-            replacements[name]=helixsr.ini_bytes(previous_helixsr_ini)
+            # Model E's helixsr.ini as the user left it at the last Restore; the other providers start from HelixSR's own.
+            provider_ini=hlx.settings_bytes(upscaler,previous_helixsr_ini if upscaler=='hlx-dlss' else None,modern_provider.get('settings'))
+            if provider_ini is None:modern_provider['metadata'].pop('ini')
+            else:replacements[name]=provider_ini
         changes.update(modern_provider['ini_changes']);ini_after=patch_ini(ini_after,modern_provider['ini_changes'])
     replacements['OptiScaler.ini']=ini_after
     # The launchers closed now, before any download, and their files as planned: install checks them again just before
@@ -1492,7 +1499,7 @@ def restore(exe):
         target=safe(root,item['path']);current=target.read_bytes() if target.exists() else None
         now=digest(current) if current is not None else None
         if now is not None and now==item['after']:
-            for tail,logname in [('custom/hlx-dlss/dlss/helixsr.dll','helixsr.log'),('custom/hlx-fsr4/ffx/'+DLL,'HLX_FSR.log')]:
+            for tail,logname in HLX_LOGS:
                 if item['path'].endswith(tail):provider_logs.append((Path(item['path']).parent/logname).as_posix())
         if now==item['before']:
             # A switch or interrupted Restore may already have put the original
@@ -1664,7 +1671,7 @@ def switch_upscaler(package,root,record,upscaler,helixsr_dir=None,dependency_dir
     upscaler DLL and HelixSR's helixsr.ini beside it change. Each stays a managed file of the installation, so Restore still
     puts back exactly what was there before installation. The record names the new bytes in a pending update before any
     file changes (as earlier builds' updates did): an interrupted switch is resolved by Restore."""
-    if upscaler not in UPSCALERS:raise ValueError('Unknown upscaler (fsr4 or helixsr)')
+    if upscaler not in UPSCALERS:raise ValueError('Unknown upscaler (one of '+', '.join(UPSCALERS)+')')
     state=root/STATE;files=payload(package);pins=check_pins(json.loads(files['dependencies.json']))
     current=upscaler_target(record,pins);target=current['target'];items={item['path']:item for item in record['files']}
     path=safe(root,target);now=digest(path.read_bytes()) if path.is_file() else None
@@ -1865,7 +1872,7 @@ SETTINGS_FILES=('BC250-XeFG/settings.ini','XeSSMFG/settings.ini')
 # The modules OptiScaler can be loaded as: the one the launcher's DLL override names is the installation's owner module.
 OPTI_PROXIES=[name+'.dll' for name in ['dxgi','winmm','d3d12','wininet','version','winhttp','dbghelp','OptiScaler']]+['OptiScaler.asi']
 COMPONENTS={'addon':'frame generation add-on','runtime':'Intel XeFG runtime','integration':'OptiScaler integration',
-            'fsr4':'FSR 4','helixsr':'HelixSR','hlx-dlss':'HLX DLSS','hlx-fsr4':'HLX FSR 4'}
+            'fsr4':'FSR 4','helixsr':'HelixSR',**hlx.NAMES}
 
 def save_record(state,record):
     write(state/'state.json',(json.dumps(record,indent=2)+'\n').encode())
@@ -2097,6 +2104,27 @@ def fsr4_model_migration(rows,data):
     return changes,own_ini_changes(dict(ini_changes=rows),owned)
 
 
+def suggested_upscaler(package,helixsr_dir=None):
+    """The upscaler an installation gets when none is named: HelixSR's HLX DLSS Model E (hlx.SUGGESTED) when this package
+    offers it and it is prepared on this computer, else FSR 4, which every package installs and nothing has to prepare."""
+    try:
+        if hlx.catalog(package) and (Path(package)/'opti/OptiScaler.dll').is_file():
+            hlx.find(package,hlx.SUGGESTED,helixsr_dir);return hlx.SUGGESTED
+    except (OSError,ValueError):pass
+    return 'fsr4'
+
+
+def chosen_upscaler(package,name=None,helixsr_dir=None):
+    """main()'s --upscaler for an installation: a named one as it is; auto (or none) is suggested_upscaler, said in a line."""
+    if name not in (None,'auto'):return name
+    found=suggested_upscaler(package,helixsr_dir)
+    if found!='fsr4':print('Suggested upscaler, prepared on this computer: '+UPSCALERS[found]+'.')
+    elif hlx.catalog(package):
+        print('No upscaler named: '+UPSCALERS[found]+'. '+hlx.NAMES[hlx.SUGGESTED]+' is suggested once it is prepared '
+              '(Setup’s Upscalers, or install.py hlx).')
+    return found
+
+
 def custom_hlx_supported(files,pins):
     return bool(pins.get('hlx') and files.get('opti/OptiScaler.dll'))
 
@@ -2125,10 +2153,13 @@ def provider_plan(package,root,record,pins,files,prepared=None,selection=None):
         ini=plan['metadata'].get('ini')
         if ini:
             source=safe(root,ini)
-            old=safe(root,current['ini']) if current.get('ini') else None
+            # Model E carries the helixsr.ini of the provider it replaces (legacy HelixSR, or itself in another folder);
+            # the other providers have settings of their own and start from HelixSR's file.
+            old=safe(root,current['ini']) if current.get('ini') and name=='hlx-dlss' and current.get('name') in ('helixsr','hlx-dlss') else None
             value=source.read_bytes() if source.is_file() else old.read_bytes() if old and old.is_file() else None
-            plan['files'][ini]=helixsr.ini_bytes(value)
-            plan['config_paths']=[ini]
+            provider_ini=hlx.settings_bytes(name,value,plan.get('settings'))
+            if provider_ini is None:plan['metadata'].pop('ini')
+            else:plan['files'][ini]=provider_ini;plan['config_paths']=[ini]
         return plan
     selected=dict(record,upscaler=dict(name=name,target=legacy)) if selection or current.get('name') in hlx.NAMES else record
     plan=upscaler_updates.plan(package,selected,pins,files,prepared,safe(root,legacy))
@@ -2211,7 +2242,7 @@ def wiki_settings_plan(package, exe):
     ids = recipes.identity(exe, record.get('launchers', []))
     verified, _, _, _ = recipes.match(data, ids)
     provider = (record.get('upscaler') or {}).get('name', 'fsr4')
-    upscaler = 'helixsr' if provider in ('hlx-dlss', 'helixsr') else 'fsr4'
+    upscaler = 'helixsr' if hlx.recipe_name(provider) == 'helixsr' else 'fsr4'
     fg_input = 'native-xefg' if record.get('route') == 'native' else parsed.get(('framegen', 'fginput'), record.get('fg_input', 'upscaler'))
     ctx = dict(compat.DEFAULT_CONTEXT, fg_input=fg_input, upscaler=upscaler,
                fg_output=parsed.get(('framegen', 'fgoutput'), 'xefg'),
@@ -2220,7 +2251,7 @@ def wiki_settings_plan(package, exe):
     if ctx['fg_input'] == 'auto': ctx['fg_input'] = record.get('fg_input', 'upscaler')
     if ctx['fg_output'] == 'auto': ctx['fg_output'] = 'xefg'
     protected = dict((verified or {}).get('ini') or {})
-    protected.update((verified or {}).get('upscaler_ini', {}).get('helixsr' if provider == 'hlx-dlss' else provider, {}))
+    protected.update((verified or {}).get('upscaler_ini', {}).get(hlx.recipe_name(provider), {}))
     required = {str(item.get('when', {}).get('required_file')) for row in data.get('wiki', []) for item in row.get('ini', []) if item.get('when', {}).get('required_file')}
     ctx['files'] = sorted(name for name in required if safe(root, name).is_file())
     if record.get('route') == 'native':ctx['fg_output'] = 'xefg'
@@ -2408,7 +2439,7 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
                 return stop('blocked','Provider log already exists outside this installation: '+log)
             out['config_paths'].update(provider.get('config_paths',[]))
             changes=dict(provider.get('ini_changes') or {})
-            recipe_name='helixsr' if provider['metadata']['name']=='hlx-dlss' else provider['metadata']['name']
+            recipe_name=hlx.recipe_name(provider['metadata']['name'])
             changes.update(upscaler_recipe_changes(package,Path(record['game']),record,recipe_name))
             if changes:
                 data=edits.get('OptiScaler.ini',safe(root,'OptiScaler.ini').read_bytes())
@@ -2454,7 +2485,7 @@ def update_plan(package,root,record,component='all',helixsr_dir=None,loader=None
             continue
         if now!=item['after']:
             # The add-on and its runtime only work as one set; the upscaler DLL is another component, left as it is.
-            if component in ('fsr4','helixsr','hlx-dlss','hlx-fsr4'):
+            if component in ('fsr4','helixsr',*hlx.NAMES):
                 return stop('blocked','Selected provider changed since installation: '+path+'; reconcile before updating')
             else:conflicts.append(path)
             continue
@@ -3313,15 +3344,19 @@ def helixsr_command(package,folder=None,download=None):
     on this computer, it downloads the official release the package pins from HelixSR's GitHub releases into the download
     cache (the user asked for it by running this command, or by choosing HelixSR in Setup). It never runs HelixSR's setup:
     it prints the command that does, which asks before downloading NVIDIA's DLSS DLL and builds the network."""
-    if hlx.catalog(package):
-        ready=True
+    spec=hlx.catalog(package)
+    if spec:
+        # Ready: the suggested upscaler and those that come built. Preset K is optional (a long build of its own).
+        ready=True;found=False
         for provider in hlx.NAMES:
             try:
-                spec,location,_=hlx.find(package,provider,folder)
-                print(hlx.NAMES[provider]+' '+spec['version']+' ready: '+str(location))
-            except (OSError,ValueError) as error:ready=False;print(str(error))
-        if ready and folder:hlx.remember(package,folder)
-        if not ready:print('Use Prepare HLX with Setup’s upscalers, or install.py hlx --dlss-input FILE --amd-input FILE.')
+                _,location,_=hlx.find(package,provider,folder)
+                print(hlx.NAMES[provider]+' '+spec['version']+' ready: '+str(location));found=True
+            except (OSError,ValueError) as error:
+                if provider=='hlx-dlss-k':print(hlx.NAMES[provider]+' is optional and not built: install.py hlx --preset-k builds it.')
+                else:ready=False;print(str(error))
+        if found and folder:hlx.remember(package,folder)
+        if not ready:print('Use Prepare Helix with Setup’s upscalers, or install.py hlx (see install.py hlx --help).')
         return 0 if ready else 1
     found=helixsr.find(package,explicit=folder)
     # Nothing usable on this computer: no release, or only one this installer does not know (another version, or a
@@ -3358,15 +3393,22 @@ def main():
                              'OptiScaler’s DLSS inputs set to true, yes = also otherwise (a DLSS upscaler input on OptiFG; keeps '
                              'OptiScaler’s NVIDIA GPU spoofing on), no = never; never where OptiScaler finds the game’s own copy, '
                              'never over a game file')
-    parser.add_argument('--upscaler',choices=list(UPSCALERS),
-                        help='install: the upscaler (default fsr4); configure: switch an installed game. helixsr = HelixSR, a separate '
-                             'project by lonewolf0622 that its own setup builds on this computer (see install.py helixsr)')
+    parser.add_argument('--upscaler',choices=['auto',*UPSCALERS],
+                        help='install: the upscaler (default auto: the suggested HLX DLSS Model E when it is prepared on this '
+                             'computer, else fsr4); configure: switch an installed game. The hlx-* upscalers are HelixSR’s, a '
+                             'separate project by lonewolf0622 (install.py hlx prepares them; helixsr is an alias of hlx-dlss)')
     parser.add_argument('--helixsr',type=Path,metavar='FOLDER',help='a HelixSR release folder (the one with helixsr-setup.sh); '
                         'default: the one found on this computer')
     parser.add_argument('--refresh-recipe',action='store_true',help='plan/update: apply the latest gameplay-qualified integration and launcher recipe; game settings remain manual')
     parser.add_argument('--loader',choices=OPTI_PROXIES,help='plan/update: migrate the OptiScaler loader and its launcher override')
-    parser.add_argument('--dlss-input',type=Path,help='hlx: local NVIDIA DLSS model input')
-    parser.add_argument('--amd-input',type=Path,help='hlx: local AMD model input')
+    parser.add_argument('--dlss-input',type=Path,help='hlx: a local copy of NVIDIA’s DLSS DLL that HLX DLSS is built from (default: '
+                        'the copy in this installer’s download cache, when an earlier installation fetched it)')
+    parser.add_argument('--download-dlss',action='store_true',help='hlx: agree to download NVIDIA’s DLSS DLL from NVIDIA’s repository, '
+                        'under NVIDIA’s licence, when no local copy is given or cached')
+    parser.add_argument('--preset-k',action='store_true',help='hlx: also build HLX DLSS Preset K (optional; many minutes)')
+    parser.add_argument('--no-build',action='store_true',help='hlx: only download and check the official archive (HLX FSR 4 and '
+                        'HLX FSR 4 Full, which come built); build nothing')
+    parser.add_argument('--amd-input',type=Path,help=argparse.SUPPRESS)
     parser.add_argument('--component',choices=['all','core','upscaler'],default='all',
                         help='plan/update: update the whole compatible set, only FreeFG/Intel, or only the selected upscaler; never switches providers')
     parser.add_argument('--accept',action='append',default=[],metavar='CODE[=EXE]',
@@ -3403,8 +3445,15 @@ def main():
     if args.refresh_recipe and args.command not in ('plan','update'):parser.error('--refresh-recipe applies to plan and update')
     if args.loader and args.command not in ('plan','update'):parser.error('--loader applies to plan and update')
     if args.expect_plan and args.command!='update':parser.error('--expect-plan applies to update')
+    if any([args.dlss_input,args.download_dlss,args.preset_k,args.no_build,args.amd_input]) and args.command!='hlx':
+        parser.error('--dlss-input, --download-dlss, --preset-k and --no-build apply to hlx')
     if args.command=='hlx':
-        try:hlx.prepare(Path(__file__).resolve().parent,args.dlss_input,args.amd_input,report=say);return EXIT_OK
+        # HelixSR 3.2 and later ship HLX FSR 4 built: an AMD input of an earlier command line is not needed any more.
+        if args.amd_input:print('--amd-input is not needed any more: HLX FSR 4 comes built in HelixSR’s archive.')
+        try:
+            hlx.prepare(Path(__file__).resolve().parent,args.dlss_input,report=say,preset_k=args.preset_k,build=not args.no_build,
+                        fetch_dlss=args.download_dlss)
+            return EXIT_OK
         except (OSError,ValueError,subprocess.SubprocessError) as error:
             print(str(error),file=sys.stderr);return EXIT_REFUSED if isinstance(error,hlx.Busy) else EXIT_FAILED
     if args.component!='all' and args.command not in ('plan','update'):parser.error('--component applies to plan and update')
@@ -3477,7 +3526,9 @@ def main():
             elif args.command=='wiki-plan':print(json.dumps(wiki_settings_plan(Path(__file__).resolve().parent,exe.absolute()),indent=2))
             elif args.command=='wiki-apply':apply_wiki_settings(exe.absolute(),args.wiki_setting,args.wiki_confirm,expected=args.wiki_plan_digest)
             elif args.command=='configure':configure(exe.absolute(),args.factor,args.resolution,args.percent,args.limit,args.downscale,args.upscale,
-                                                     upscaler=args.upscaler,helixsr_dir=args.helixsr.absolute() if args.helixsr else None)
+                                                     upscaler=chosen_upscaler(Path(__file__).resolve().parent,'auto',args.helixsr.absolute() if args.helixsr else None)
+                                                              if args.upscaler=='auto' else args.upscaler,
+                                                     helixsr_dir=args.helixsr.absolute() if args.helixsr else None)
             elif args.command=='check':check(Path(__file__).resolve().parent,exe.absolute(),accepted_for(args.accept,exe),args.report)
             else:
                 route,fg_input=args.route,args.fg_input
@@ -3513,7 +3564,8 @@ def main():
                         found=compat_verdict(Path(__file__).resolve().parent,exe.absolute(),None,None,None,accepted,risk)
                         verdict=found[0] if found else None
                 install(Path(__file__).resolve().parent,exe.absolute(),args.command=='preview',route,fg_input,dlss_helper=args.dlss_helper,
-                        upscaler=args.upscaler or 'fsr4',helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted,verdict=verdict,
+                        upscaler=chosen_upscaler(Path(__file__).resolve().parent,args.upscaler,args.helixsr.absolute() if args.helixsr else None),
+                        helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted,verdict=verdict,
                         accept_risk=risk)
         except GameRunningError as error:
             print(str(error),file=sys.stderr);refused=True;outcomes.append((exe,'running'));result='running'

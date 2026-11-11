@@ -6,6 +6,11 @@ retains earlier release notes.
 
 ## Unreleased
 
+- HelixSR 3.3.0: its four upscalers are choices of their own, HLX DLSS Model E (the suggested one, used by a new
+  installation once it is prepared), HLX DLSS Preset K, HLX FSR 4 and HLX FSR 4 Full. The two HLX FSR 4 forms come
+  built in HelixSR's download; HLX DLSS is built on this computer from NVIDIA's DLSS DLL alone (no AMD driver file
+  any more), from a local copy or, when you agree, a download from NVIDIA's repository. An installed HLX 3.1.0
+  upscaler stays as it is until 3.3.0 is prepared.
 - A recipe refresh within the installed release keeps its own rollback generation, so it no longer replaces the way back
   to the release before the last update. Rollback undoes the refresh first, then the update; Setup and `status` name
   each. A 1.3.0 refresh already recorded reads as a change within its release.

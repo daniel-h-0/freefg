@@ -3,6 +3,7 @@
 import json
 import shutil
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 from test_game_install import set_package_file
 from test_update import UpdateFixture, Crash, m
@@ -12,11 +13,19 @@ class HlxUpdates(UpdateFixture):
     def setUp(self):
         super().setUp()
         self.hlx_release=self.root/'HLX';self.hlx_release.mkdir()
-        self.contents={'DLSS.dll':b'qualified DLSS model','FSR.dll':b'qualified FSR model','AMD.dll':b'qualified AMD companion'}
+        self.contents={'DLSS.dll':b'qualified DLSS model','K.dll':b'qualified Preset K code','K.pak':b'Preset K kernels','K.bin':b'Preset K weights',
+                       'K.ini':b'[Network]\r\nModel = K\r\nDeepReuse = Exact\r\n','FSR.dll':b'qualified FSR model','AMD.dll':b'qualified AMD companion',
+                       'FULL.dll':b'qualified full FSR model','FULL.ini':b'[HLX]\r\nDeepReuse = exact\r\n'}
         for name,data in self.contents.items():(self.hlx_release/name).write_bytes(data)
-        self.spec={'format':1,'version':'3.1.0','folder':'HLX','archive':{'sha256':m.digest(b'archive')},'providers':{
-            'hlx-dlss':{'api':'dlss','entry':'helixsr.dll','files':{'helixsr.dll':{'source':'DLSS.dll','sha256':m.digest(self.contents['DLSS.dll'])}}},
-            'hlx-fsr4':{'api':'ffx','entry':m.DLL,'files':{m.DLL:{'source':'FSR.dll','sha256':m.digest(self.contents['FSR.dll'])},'amd_fidelityfx_upscaler_dx12.amd.dll':{'source':'AMD.dll','sha256':m.digest(self.contents['AMD.dll'])}}}}}
+        pin=lambda name:{'source':name,'sha256':m.digest(self.contents[name])}
+        self.spec={'format':2,'version':'3.3.0','folder':'HLX','archive':{'sha256':m.digest(b'archive')},'model_inputs':{'dlss':m.digest(b'dlss input')},
+                   'compilers':{},'suggested':'hlx-dlss','providers':{
+            'hlx-dlss':{'api':'dlss','entry':'helixsr.dll','build':'network','log':'helixsr.log','settings':{'name':'helixsr.ini'},'files':{'helixsr.dll':pin('DLSS.dll')}},
+            'hlx-dlss-k':{'api':'dlss','entry':'helixsr.dll','build':'preset-k','log':'helixsr.log','settings':dict(pin('K.ini'),name='helixsr.ini'),
+                          'files':{'helixsr.dll':pin('K.dll'),'helixsr_modelk_kernels.pak':pin('K.pak'),'helixsr_modelk_weights.bin':pin('K.bin')}},
+            'hlx-fsr4':{'api':'ffx','entry':m.DLL,'log':'HLX_FSR.log','files':{m.DLL:pin('FSR.dll'),'amd_fidelityfx_upscaler_dx12.amd.dll':pin('AMD.dll')}},
+            'hlx-fsr4-full':{'api':'ffx','entry':m.DLL,'log':'HLX_FSR.log','settings':dict(pin('FULL.ini'),name='hlx_fsr4.ini'),
+                             'files':{m.DLL:pin('FULL.dll'),'amd_fidelityfx_upscaler_dx12.amd.dll':pin('AMD.dll')}}}}
         pins=json.loads((self.new/'dependencies.json').read_text());pins['hlx']=self.spec
         set_package_file(self.new,'dependencies.json',json.dumps(pins).encode())
         set_package_file(self.new,'opti/OptiScaler.dll',b'new HLX integration')
@@ -139,6 +148,65 @@ class HlxUpdates(UpdateFixture):
         with patch.object(m,'write',side_effect=crash):
             with self.assertRaises(Crash):self.select(loader='winmm.dll')
         self.run_quiet(m.restore,self.exe);self.assertOriginal()
+
+    def test_preset_k_and_fsr4_full_bring_their_own_files_and_settings(self):
+        # Preset K: its DLL, kernels and weights and HelixSR's helixsr.ini (Model = K) with Helix's own frame generation
+        # off; HLX FSR 4 Full: its DLL, AMD's companion and hlx_fsr4.ini as HelixSR ships it. Rollback and Restore exact.
+        self.install_old();before=self.snapshot()
+        self.assertEqual(self.select('hlx-dlss-k')[0],'update')
+        base=self.game/'OptiScaler/custom/hlx-dlss-k/dlss'
+        self.assertEqual({p.name:p.read_bytes() for p in base.iterdir() if p.suffix!='.ini'},
+                         {'helixsr.dll':self.contents['K.dll'],'helixsr_modelk_kernels.pak':self.contents['K.pak'],'helixsr_modelk_weights.bin':self.contents['K.bin']})
+        ini=m.read_ini((base/'helixsr.ini').read_bytes())
+        self.assertEqual((ini[('network','model')],ini[('dlssframegeneration','enabled')]),('K','false'))
+        record=self.record()['upscaler'];self.assertEqual((record['name'],record['version'],Path(record['log']).name),('hlx-dlss-k','3.3.0','helixsr.log'))
+        self.assertEqual(m.read_ini((self.game/'OptiScaler.ini').read_bytes())[('upscalers','dx12upscaler')],'hlx-dlss-k')
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),before)
+        self.assertEqual(self.select('hlx-fsr4-full')[0],'update')
+        base=self.game/'OptiScaler/custom/hlx-fsr4-full/ffx'
+        self.assertEqual({p.name:p.read_bytes() for p in base.iterdir()},{m.DLL:self.contents['FULL.dll'],
+                         'amd_fidelityfx_upscaler_dx12.amd.dll':self.contents['AMD.dll'],'hlx_fsr4.ini':self.contents['FULL.ini']})
+        self.run_quiet(m.restore,self.exe);self.assertOriginal()
+
+    def test_a_providers_edited_settings_survive_switches_and_stay_its_own(self):
+        # Preset K's helixsr.ini is not Model E's: a switch between them carries neither file into the other folder, and
+        # an edit (DeepReuse) is there again when the provider is selected again.
+        self.install_old();self.select('hlx-dlss-k')
+        k=self.game/'OptiScaler/custom/hlx-dlss-k/dlss/helixsr.ini';k.write_bytes(k.read_bytes().replace(b'Exact',b'1:2'))
+        self.run_quiet(m.configure,self.exe,upscaler='hlx-dlss',package=self.new,helixsr_dir=self.hlx_release)
+        e=m.read_ini((self.game/'OptiScaler/custom/hlx-dlss/dlss/helixsr.ini').read_bytes())
+        self.assertNotIn(('network','model'),e);self.assertEqual(e[('dlssframegeneration','enabled')],'false')
+        full=self.game/'OptiScaler/custom/hlx-fsr4-full/ffx/hlx_fsr4.ini'
+        self.run_quiet(m.configure,self.exe,upscaler='hlx-fsr4-full',package=self.new,helixsr_dir=self.hlx_release)
+        full.write_bytes(full.read_bytes().replace(b'exact',b'1:4'))
+        for name in ('hlx-dlss-k','hlx-fsr4-full'):
+            self.run_quiet(m.configure,self.exe,upscaler=name,package=self.new,helixsr_dir=self.hlx_release)
+        self.assertEqual(m.read_ini(k.read_bytes())[('network','deepreuse')],'1:2')
+        self.assertEqual(m.read_ini(full.read_bytes())[('hlx','deepreuse')],'1:4')
+        m.restore(self.exe);self.assertOriginal()
+
+    def test_every_provider_installs_fresh_and_names_its_recipe_family(self):
+        for name,family in (('hlx-dlss','helixsr'),('hlx-dlss-k','helixsr'),('hlx-fsr4','hlx-fsr4'),('hlx-fsr4-full','hlx-fsr4')):
+            with self.subTest(provider=name):
+                self.assertEqual(m.hlx.recipe_name(name),family)
+                self.run_quiet(m.install,self.new,self.exe,route='opti',upscaler=name,helixsr_dir=self.hlx_release)
+                record=self.record()['upscaler'];self.assertEqual(record['name'],name)
+                self.assertTrue((self.game/record['target']).is_file())
+                _,out=self.run_quiet(m.status,self.exe);self.assertIn('Upscaler: '+m.hlx.NAMES[name]+' 3.3.0',out)
+                m.restore(self.exe);self.assertOriginal()
+        self.assertEqual(m.hlx.recipe_name('fsr4'),'fsr4')
+
+    def test_the_suggested_upscaler_is_model_e_once_it_is_prepared(self):
+        # No upscaler named: HLX DLSS Model E when it is prepared on this computer, FSR 4 otherwise; a named one is kept.
+        for name in (None,'auto'):
+            self.assertEqual(self.run_quiet(m.chosen_upscaler,self.new,name,self.hlx_release),
+                             ('hlx-dlss','Suggested upscaler, prepared on this computer: HLX DLSS Model E.\n'))
+        (self.hlx_release/'DLSS.dll').unlink()
+        found,out=self.run_quiet(m.chosen_upscaler,self.new,None,self.hlx_release)
+        self.assertEqual(found,'fsr4');self.assertIn('HLX DLSS Model E is suggested once it is prepared',out)
+        self.assertEqual(self.run_quiet(m.chosen_upscaler,self.new,'hlx-fsr4',self.hlx_release),('hlx-fsr4',''))
+        # A package without the Helix catalog suggests nothing else and says nothing.
+        self.assertEqual(self.run_quiet(m.chosen_upscaler,self.package,None),('fsr4',''))
 
     def test_rollback_preserves_later_setting_ownership(self):
         self.install_old();self.select();m.configure(self.exe,factor=2)

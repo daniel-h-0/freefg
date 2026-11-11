@@ -11,8 +11,10 @@ the reported conflict before reinstalling.
 
 A successful launch does not establish upscaler operation or frame generation. Check the current session's logs:
 
-- HLX DLSS must report `network running` in its `helixsr.log`. `NOT RUNNING` or a red-frame placeholder indicates failure.
-- HLX FSR 4 must report `own runtime active` in `HLX_FSR.log`; selecting the provider does not rule out AMD fallback.
+- HLX DLSS (Model E or Preset K) must report `network running` in the `helixsr.log` beside its DLL. `NOT RUNNING` or a
+  red-frame placeholder indicates failure.
+- HLX FSR 4 and HLX FSR 4 Full must report `own runtime active` in the `HLX_FSR.log` beside their DLL; selecting the
+  provider does not rule out AMD fallback.
 - `MFG_STATUS XeFG generates` in `BC250-MFG.log` reports generated frames from the SDK. Initialization alone is not enough.
 
 <a id="cyberpunk-25-with-helixsr-stops-at-the-first-rendered-frames"></a>
@@ -63,7 +65,7 @@ its [issues page](https://github.com/lonewolf0622/HelixSR/issues) with its `heli
 | `version.dll is occupied` or `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, occupies those files; restore it with its own installer first. |
 | Setup opens Zenity dialogs instead of its window, or its window misbehaves | The window needs PyGObject, GTK 4 and libadwaita 1.5 or newer (`python-gobject gtk4 libadwaita` on Arch-based systems); started from a terminal, Setup prints what is missing. `FREEFG_SETUP_UI=zenity ./Start-freefg.sh` chooses the dialogs. |
 | System Check: `Pacing layer` WARN | The Vulkan loader cannot load FreeFG's layer: the system's glibc is older than the layer needs (2.34), or the line names the loader's reason. Presents are not paced and the layer's wave sizes are not applied; frame generation still runs. |
-| Setup does not find HLX | Prepare HelixSR 3.1.0 once, select a matching prepared folder with `--helixsr`, or reuse a checked game-local provider. See [upscalers](CONFIGURATION.md#upscalers). |
+| Setup does not find HLX | Download or prepare HelixSR 3.3.0 once (**Upscalers…**), select a matching prepared folder with `--helixsr`, or reuse a checked game-local provider. See [upscalers](CONFIGURATION.md#upscalers). |
 
 ## Shader-cache behavior
 

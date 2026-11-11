@@ -277,10 +277,13 @@ XeLL latency support and borderless mode for OptiScaler routes, and resets `Inte
 
 ### HelixSR
 
-HelixSR 3.1.0, by lonewolf0622, provides distinct HLX DLSS (NGX) and HLX FSR 4 (FFX) upscalers.
-FreeFG places them under `OptiScaler/custom/hlx-dlss/dlss/` and `OptiScaler/custom/hlx-fsr4/ffx/`, and selects their
-custom folder names in `Upscalers.Dx12Upscaler`. The FFX provider keeps its checked AMD companion beside it.
-`helixsr.ini` disables Helix’s own frame generation; its FG files are not copied. Legacy HelixSR 2.0.0 used the
+HelixSR 3.3.0, by lonewolf0622, provides four upscalers: HLX DLSS Model E and Preset K (NGX runtimes) and HLX FSR 4
+and HLX FSR 4 Full (FFX). FreeFG places each in a custom provider folder of its own, `OptiScaler/custom/hlx-dlss/dlss/`,
+`hlx-dlss-k/dlss/`, `hlx-fsr4/ffx/` and `hlx-fsr4-full/ffx/`, and selects the folder name in
+`Upscalers.Dx12Upscaler`. Both FFX providers keep their checked AMD companion beside them. Preset K and HLX FSR 4
+Full bring HelixSR's own settings file; an edited one is kept. An NGX provider's `helixsr.ini` keeps Helix’s own frame
+generation off; no Helix FG files are copied. The recipe tables name upscaler rules per family: both HLX DLSS networks
+take the `helixsr` rules, both HLX FSR 4 forms the `hlx-fsr4` rules. Legacy HelixSR 2.0.0 used the
 main FidelityFX DLL slot; migration puts AMD FSR 4 in that slot. The previous Helix bytes remain in the rollback
 generation, and the original backup remains available to Restore. Previously installed custom providers can be
 selected again from their hash-checked game-local copies even after the preparation cache is removed.
@@ -306,11 +309,11 @@ binaries can require attention. [Installation and removal](INSTALLATION.md#updat
 
 In-place updates (`install.py update`, Setup's **Update All Games**) operate on a coherent FreeFG/Intel set and the
 selected compatible upscaler. `upscaler_updates.py` provides read-only adapters for pinned FidelityFX DLLs and the
-legacy HelixSR FidelityFX/network format. `hlx.py` validates complete prepared model files and describes separate
-custom NGX and FFX provider layouts. HLX DLSS retains its `helixsr.dll` filename to avoid the NGX file-redirection
+legacy HelixSR FidelityFX/network format. `hlx.py` validates complete provider files (built or as shipped) and
+describes the custom NGX and FFX provider layouts. HLX DLSS retains its `helixsr.dll` filename to avoid the NGX file-redirection
 hook; renaming it `nvngx.dll` prevents it from reading its embedded network on the tested integration. Adapters propose content and metadata; the shared transaction engine owns
 all writes and recovery. Unknown provider formats are deferred. Core-only and upscaler-only updates use the same
-engine. HLX preparation runs upstream’s build-only entry point in a bubblewrap sandbox ([SECURITY.md](SECURITY.md#the-installer)):
+engine. Helix preparation runs upstream’s build-only entry point in a bubblewrap sandbox ([SECURITY.md](SECURITY.md#the-installer)):
 no network, the host read-only, the home folder and session sockets hidden, only its staging directory writable. The
 qualified preparation replaces the shared cache atomically;
 games retain independent copies. No model-bearing output enters release artifacts.

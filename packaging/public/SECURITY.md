@@ -22,7 +22,7 @@ The installer runs as your user, without root. It edits selected game files, lau
 
 Downloads use pinned HTTPS URLs and SHA-256 hashes; sizes are checked when pinned. Pinned dependency members are extracted by expected name and
 checked individually. The optional HelixSR download is verified as a complete archive; its extraction is restricted to
-regular files and directories beneath its release folder, with an extraction-size limit. Prepare HLX runs the
+regular files and directories beneath its release folder, with an extraction-size limit. Prepare Helix runs the
 pinned archive’s build-only Python entry point under bubblewrap: in namespaces and a session of its own (no network,
 no other processes, no terminal input), with an empty environment but for its build settings and the host read-only.
 Your home folder, /tmp, the session’s runtime folder (D-Bus, PipeWire, Wayland and agent sockets) and the system bus

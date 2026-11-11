@@ -34,7 +34,7 @@ verified before use. The table mirrors `dependencies.json`; automated checks det
 Fallback sources provide identical pinned Intel files. Cold-cache totals are about 107 MB for a fresh setup or
 74 MB with supported OptiScaler already installed, plus 59 MB if the DLSS helper is needed. The legacy 2.0.0
 command downloads a 137 MB archive, unpacked beneath `helixsr/` in the cache; its downloaded ZIP is then removed.
-HLX 3.1.0 preparation downloads a separate archive and compilers, as described below.
+HelixSR 3.3.0 is a separate download, as described below.
 
 ### What a download reveals
 
@@ -44,13 +44,22 @@ identifier is sent. GitHub's privacy terms govern those requests.
 
 ## HelixSR (optional)
 
-[HelixSR 3.1.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project. On request,
-FreeFG downloads its complete official archive and Microsoft's shader compilers by pinned hash. The NVIDIA DLSS
-and AMD driver model inputs are local files selected by the user; this preparation route does not download them.
+[HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project. On request (Setup's
+**Upscalers…**, or `install.py hlx`), FreeFG downloads by pinned hash:
 
-Prepare HLX runs the archive's unchanged build-only Python entry point with `--no-fg`. Bubblewrap mounts the host
+| File | When | Source | SHA-256 | Bytes |
+| --- | --- | --- | --- | --- |
+| HelixSR 3.3.0, its complete official release archive | Download or Prepare Helix, when it is not cached | https://github.com/lonewolf0622/HelixSR/releases/download/v3.3.0/HelixSR-3.3.0.zip | `4d87481061db0f499112041b38da5aebfc86e7f9ca3c7b1894258f20452d9045` | 279,494,747 |
+| Microsoft's DirectX Shader Compiler 1.9.2607 | a build of HLX DLSS, when it is not cached | https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip | `a1dfb116ba3eeae6a1582291b53a8e7bf65ad760676bd3194685c8f7367cd241` | 41,625,275 |
+| NVIDIA's DLSS 310.7.0 DLL, the pinned file listed above | a build of HLX DLSS, only when no local copy is given or cached and you agreed to the download | as above | as above | 58,977,904 |
+
+HelixSR's author can replace the archive of a release in place; FreeFG then refuses the changed file until a FreeFG
+release pins it.
+
+Prepare Helix runs the archive's unchanged build-only Python entry point with `--no-fg`. Bubblewrap mounts the host
 read-only, makes only the preparation directory writable and disables networking for the build. It uses existing
-Wine and Python/numpy; it does not install system packages or run Helix's game installer.
+Wine and Python/numpy; it does not install system packages or run Helix's game installer. The two HLX FSR 4
+upscalers come built in the archive and need no build, model input or build tool.
 
 The archive-specific preparation cache is under `~/.cache/bc250-xefg-testers/hlx/` unless `XDG_CACHE_HOME` selects
 another cache root. A remembered prepared-folder path is local to that archive identity. FreeFG copies the checked

@@ -2,7 +2,7 @@
 
 FreeFG accelerates Intel XeSS Frame Generation (XeFG) on the **AMD BC-250** in DirectX 12 games under Proton. It
 uses its own shaders with Intel's unmodified runtime and paces output for gamescope and VRR. OptiScaler supplies
-AMD FSR 4, HLX DLSS or HLX FSR 4 upscaling.
+AMD FSR 4 or HelixSR (HLX DLSS, HLX FSR 4) upscaling.
 
 The default is **2×**: one generated frame for each game-rendered frame. Generated frames improve smoothness, not
 the game's simulation rate. Optional generated-frame scaling can reduce cost, and a separate MFG Unlocker can enable
@@ -66,8 +66,9 @@ per-game, so a blocked game does not prevent other selected games from updating.
 
 ## Configuration
 
-Each game’s page controls generated-frame size and filters. **Change…** beside **Upscaler** selects AMD FSR 4, HLX DLSS or HLX FSR 4;
-HLX needs a one-time local preparation. MFG Unlocker is separate and is not shipped with FreeFG.
+Each game’s page controls generated-frame size and filters. **Change…** beside **Upscaler** selects AMD FSR 4 or one of
+HelixSR's four upscalers; HLX DLSS Model E is the suggested one and needs a one-time local preparation
+([upscalers](CONFIGURATION.md#upscalers)). MFG Unlocker is separate and is not shipped with FreeFG.
 **Wiki settings** reviews additional INI suggestions, their sources and conditions before applying selected values.
 [Configuration guide](CONFIGURATION.md) · [Troubleshooting](TROUBLESHOOTING.md).
 

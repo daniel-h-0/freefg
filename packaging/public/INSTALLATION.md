@@ -63,7 +63,7 @@ the Proton prefix stay pending: set them in the game. For integrators, the relea
 python3 install.py doctor                 # host checks
 python3 install.py check GAME.exe        # offline verdict
 python3 install.py preview GAME.exe      # preview; may download dependencies
-python3 install.py install GAME.exe       # automatic input, AMD FSR 4
+python3 install.py install GAME.exe       # automatic input and upscaler
 python3 install.py status GAME.exe       # installed files and last session
 python3 install.py library               # discovered and registered installations
 python3 install.py plan GAME.exe         # preview an update
@@ -73,7 +73,8 @@ python3 install.py restore GAME.exe      # restore the original installation
 ```
 
 `install` accepts `--fg-input dlssg|upscaler|fsrfg|fsrfg30`, `--route native`,
-`--upscaler fsr4|hlx-dlss|hlx-fsr4` and `--dlss-helper auto|no|yes`. Use `--help` for the full interface.
+`--upscaler auto|fsr4|hlx-dlss|hlx-dlss-k|hlx-fsr4|hlx-fsr4-full` and `--dlss-helper auto|no|yes`. Use `--help` for
+the full interface.
 [Preparing and changing upscalers](CONFIGURATION.md#upscalers).
 
 ## Updates and recovery

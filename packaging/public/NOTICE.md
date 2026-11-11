@@ -66,7 +66,7 @@ are recognised separately and undergo the remaining checks. This is a content ch
 | OptiScaler 10.0.0-pre1 nightly of 2026-10-25, support files | `OptiScaler.ini`, `OptiScaler/…` (FidelityFX, XeSS and DirectX 12 Agility SDK DLLs, `dlssg_to_fsr3_amd_is_better.dll`, a fetcher script), `OptiScaler/Licenses/` | the OptiScaler project, [OptiScaler-nightly](https://github.com/optiscaler/OptiScaler-nightly) | each file under its publisher's terms, as OptiScaler distributes it; the licences it ships are installed in `OptiScaler/Licenses/` | The nightly's own `OptiScaler.dll` is replaced by the modified build above. |
 | OptiPatcher 0.41 | `OptiScaler/plugins/OptiPatcher.asi` | the OptiScaler project, [OptiPatcher](https://github.com/optiscaler/OptiPatcher) | its project's terms | Unmodified. |
 | NVIDIA DLSS Super Resolution 310.7.0 | `nvngx_dlss.dll`, `OptiScaler/Licenses/NVIDIA-DLSS-LICENSE.txt` | NVIDIA Corporation, [NVIDIA/DLSS](https://github.com/NVIDIA/DLSS) commit `a291cc7d` | NVIDIA RTX SDKs License (placed beside it) | Unmodified. See [NVIDIA's terms](#nvidias-terms). |
-| HelixSR 3.1.0 (optional HLX DLSS / HLX FSR 4 upscalers) | checked, locally built DLLs under `OptiScaler/custom/hlx-dlss/` or `OptiScaler/custom/hlx-fsr4/`, and `helixsr.ini` written by FreeFG | lonewolf0622, [lonewolf0622/HelixSR](https://github.com/lonewolf0622/HelixSR) release `v3.1.0`: the complete official archive, unpacked unchanged into the download cache | HelixSR Freeware License (`LICENSE` in that archive) | See [HelixSR](#helixsr). |
+| HelixSR 3.3.0 (optional HLX DLSS Model E / Preset K and HLX FSR 4 / FSR 4 Full upscalers) | checked DLLs and their data under `OptiScaler/custom/hlx-dlss/`, `hlx-dlss-k/`, `hlx-fsr4/` or `hlx-fsr4-full/` (the HLX DLSS ones built locally), with HelixSR's settings files; `helixsr.ini` written by FreeFG for Model E | lonewolf0622, [lonewolf0622/HelixSR](https://github.com/lonewolf0622/HelixSR) release `v3.3.0`: the complete official archive, unpacked unchanged into the download cache | HelixSR Freeware License (`LICENSE` in that archive); the `.amd.dll` beside both HLX FSR 4 forms is AMD's FSR SDK 2.4.0 upscaler (MIT), as that archive ships it | See [HelixSR](#helixsr). |
 
 ## OptiScaler source
 
@@ -107,7 +107,8 @@ Intel's name is used here only to identify its software, not to endorse or promo
 
 NVIDIA's licence says that the DLSS SDK is "licensed for you to develop applications only for their use in systems with
 NVIDIA GPUs". The BC-250 has an AMD GPU. On it, OptiScaler handles a game's DLSS calls itself and needs `nvngx_dlss.dll`
-as a presence-only helper for some DLSS inputs. HLX DLSS separately uses a locally prepared network derived from NVIDIA's DLL; see [HelixSR](#helixsr).
+as a presence-only helper for some DLSS inputs. HLX DLSS separately uses a locally prepared network derived from
+NVIDIA's DLL; see [HelixSR](#helixsr).
 
 When the installer places the file:
 
@@ -125,18 +126,22 @@ and without a recipe has not been measured.
 
 ## HelixSR
 
-[HelixSR 3.1.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project distributed under the
-HelixSR Freeware License. Its upscaler source is not published. It runs DLSS-derived or FSR 4-derived upscaling through locally prepared compute shaders.
+[HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project distributed under the
+HelixSR Freeware License. Its upscaler source is not published. It runs DLSS-derived or FSR 4-derived upscaling as
+compute shaders: HLX DLSS Model E and Preset K are prepared on the user's computer; HLX FSR 4 and HLX FSR 4 Full come
+built in its archive, from AMD's FSR SDK 2.4.0 (MIT).
 
 Its licence permits free use and redistribution of the complete, unmodified official release without charge. It
 prohibits modification and reverse engineering. Network files built from NVIDIA's DLSS DLL remain NVIDIA's and must
 not be shared. The licence permits configuration through `helixsr.ini`.
 
 FreeFG ships no HelixSR files or locally built model data. On request it downloads and verifies the complete official
-archive and shader compilers. Prepare HLX runs its unchanged build-only Python entry point in an isolated writable
-staging directory with networking disabled, using the user's local model inputs. It does not run Helix's game
-installer or fetch NVIDIA/AMD model files. FreeFG verifies complete prepared hashes, copies the selected provider
-into the user's games and disables Helix's own frame generation. Restore removes the owned copies.
+archive and a shader compiler. Prepare Helix runs its unchanged build-only Python entry point in an isolated writable
+staging directory with networking disabled. The model input is NVIDIA's DLSS DLL as a local file: one the user
+selects, or the copy FreeFG's download cache already holds; FreeFG downloads it from NVIDIA's repository for this
+purpose only when the user agrees to that (`install.py hlx --download-dlss`, or the switch in Setup). It does not run
+Helix's game installer. FreeFG verifies complete prepared hashes, copies the selected provider into the user's games
+and keeps Helix's own frame generation off. Restore removes the owned copies.
 
 HelixSR obtains NVIDIA's DLL under [NVIDIA's terms](#nvidias-terms), which refer to NVIDIA-GPU systems. This project
 has no permission from NVIDIA to extend those terms. Consult the licences and HelixSR's documentation when deciding
