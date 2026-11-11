@@ -165,7 +165,34 @@
      "tools/bc250-build.py"
     ],
     "build": "tools/bc250-build.py --jobs 8: clang-cl/lld-link/llvm-rc 23.1.4, ninja 1.13.2, MSVC 14.44.35207, SDK 10.0.26100.0",
-    "source_in_work": "OptiScaler"
+    "source_in_work": "OptiScaler",
+    "archive": {
+     "name": "OptiScaler-bc250-4d0c0b9-source.tar.xz",
+     "sha256": "2f84a0d30fc67ba38e75e53b48da99ecda5ce02c92d18aebdf5c5fe0573b37d4",
+     "bytes": 347073040,
+     "tar_sha256": "c7e979cfe2861465c57153721b5295b5df79cc3be27e79032d2cdd674cd933c0",
+     "tar_bytes": 979886080,
+     "members": 7273,
+     "files": 6513,
+     "files_sha256": "950f6c7c4dccd2a70f15cf86086a98746944acbf3fdd45018b8e60c7d509932d",
+     "tag": "bc250-4d0c0b9",
+     "tag_commit": "13e9ddabf3804db37de617ce1d667c1ac9a8910e",
+     "commit": "4d0c0b9798e07332a0a8a86a7dfa5b0388732957",
+     "bundled": [
+      "external/FidelityFX-SDK",
+      "external/FidelityFX-SDK-v2",
+      "external/magic_enum",
+      "external/nvapi",
+      "external/simpleini",
+      "external/spdlog",
+      "external/unordered_dense",
+      "external/vulkan"
+     ],
+     "pointer_only": [
+      "external/xess"
+     ],
+     "made_by": "release/fork_source_archive.py"
+    }
    }
   }
  },
