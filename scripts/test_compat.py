@@ -133,6 +133,21 @@ class ConditionTests(unittest.TestCase):
                          {'Hotfix.AuxiliaryDxgiFactoryModules': 'advice', 'BC250.RequireArgument': 'advice'})
         self.assertEqual(plan['automatic'], {})
 
+    def test_keys_new_in_the_november_optiscaler_follow_their_families(self):
+        # The fork's 11 November build defines five upstream keys more, which the wiki planner then counts as supported.
+        # The ray-reconstruction upscaler is an upscaler choice, crash dumps are logging, the Vulkan present mode is
+        # V-Sync policy: advice only. HudlessFlip is an OptiFG game fix beside ResourceFlipOffset: an explicit prefill.
+        expect = {'Upscalers.RRUpscaler': 'installer', 'Upscalers.RRAllowRegularUpscalers': 'installer', 'Log.CreateDumps': 'never',
+                  'V-Sync.VulkanPresentMode': 'policy', 'OptiFG.HudlessFlip': None, 'OptiFG.ResourceFlipOffset': None}
+        for key, cls in expect.items():
+            self.assertEqual(c.key_rule(key, 'true')[0], cls, key)
+        wiki = dict(title='Hero', match=dict(title=['hero'], steam=['4242']), pages=[],
+                    ini=[dict(key=key, value='true') for key in expect], promoted=[dict(key='Upscalers.RRAllowRegularUpscalers', value='true')])
+        plan = c.wiki_plan(data([], [], [wiki]), ids(), supported_keys=list(expect))
+        self.assertEqual({row['key']: row['action'] for row in plan['rows']},
+                         {key: 'prefill' if cls is None else 'advice' for key, cls in expect.items()})
+        self.assertEqual(plan['automatic'], {})
+
     def test_wiki_values_are_single_line_printable_text(self):
         # Anything an INI reader would split, strip or misread is refused before a plan exists.
         for value in ('4\u2028[Libraries]\u2028XeFGPath=x', '4\x85', '4\x0b', '4\x1e', '4\t', ' 4', '4 ', '4\x7f', '4\u200b', '4\r', '4\n', '4\0'):

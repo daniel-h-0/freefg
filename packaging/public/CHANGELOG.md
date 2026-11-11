@@ -14,6 +14,10 @@ retains earlier release notes.
 - A recipe refresh within the installed release keeps its own rollback generation, so it no longer replaces the way back
   to the release before the last update. Rollback undoes the refresh first, then the update; Setup and `status` name
   each. A 1.3.0 refresh already recorded reads as a change within its release.
+- OptiScaler moves to the fork's build `4d0c0b9` on upstream master of 11 November 2026, with the 11 November nightly's
+  support files (AMD's FSR SDK 2.4.0). A fresh setup gets the SDK's Vulkan loader, upscaler and frame-generation DLLs
+  in place of `amd_fidelityfx_vk.dll`; an update of a fresh setup replaces its support files and removes that one.
+  OptiScaler's built-in game fixes are read from this build.
 
 ## 1.3.0 – 2026-10-31
 

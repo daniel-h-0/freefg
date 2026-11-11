@@ -46,7 +46,7 @@ release is taken down.
   titles, tested versions, inputs, settings and their stated conditions, launch options, proxy names, the compatibility
   list's verdict, and links to the pages. No page text is copied. Setup labels these lines "OptiScaler wiki (community
   reports)" and links the page. Credit belongs to the wiki's contributors and to the game reporters named on its pages;
-- the snapshot of OptiScaler's built-in game fixes from fork `03db4f86` and upstream `08e13adf`.
+- the snapshot of OptiScaler's built-in game fixes from fork `4d0c0b97` and upstream `7479cb29`.
 
 ### The shader profile
 
@@ -64,23 +64,24 @@ are recognised separately and undergo the remaining checks. This is a content ch
 | --- | --- | --- | --- | --- |
 | Intel XeSS Frame Generation runtime 1.3.1.78 and XeLL 1.3.2.10 | `bc250_xefg_original.dll`, `libxell.dll` | Intel Corporation, [intel/xess](https://github.com/intel/xess) commit `de0fb9c1`, or the same bytes from the fallback sources in [PRIVACY.md](packaging/public/PRIVACY.md) | Intel Simplified Software License, October 2022 (`licenses/Intel-XeSS.txt`); third-party notices in `licenses/Intel-third-party-programs.txt` | Unmodified and Intel-signed. See [Intel's terms](#intels-terms). |
 | FSR 4 upscaler DLL, BC-250 build RC12 (INT8) | `OptiScaler/amd_fidelityfx_upscaler_dx12.dll` | built by the [bc250-fsr4-fork](https://github.com/daniel-h-0/bc250-fsr4-fork) project from AMD FidelityFX SDK v2.3.0 (commit `60f4ea81`), release `v4.0.0-rc12` | AMD's FidelityFX SDK notice lists `amd_fidelityfx_upscaler_dx12.dll` under its MIT terms (`licenses/fsr4/AMD-SDK-LICENSE.md`). The fork's new tooling is MIT (`licenses/fsr4/LICENSE.new-code`). The shader assembly was validated with Microsoft's DXC (`licenses/fsr4/LICENSE-LLVM.txt`, `LICENSE-MS.txt`). | Provenance in `licenses/fsr4/PROVENANCE.md` and `V4-THIRD-PARTY.md`. Credit for the original BC-250 FSR 4 work belongs to [dmorazasanchez/bc250-fsr4](https://github.com/dmorazasanchez/bc250-fsr4) and its contributors. |
-| OptiScaler 10.0.0-pre1 nightly of 2026-10-25, support files | `OptiScaler.ini`, `OptiScaler/…` (FidelityFX, XeSS and DirectX 12 Agility SDK DLLs, `dlssg_to_fsr3_amd_is_better.dll`, a fetcher script), `OptiScaler/Licenses/` | the OptiScaler project, [OptiScaler-nightly](https://github.com/optiscaler/OptiScaler-nightly) | each file under its publisher's terms, as OptiScaler distributes it; the licences it ships are installed in `OptiScaler/Licenses/` | The nightly's own `OptiScaler.dll` is replaced by the modified build above. |
+| OptiScaler 10.0.0-pre1 nightly of 2026-11-11, support files | `OptiScaler.ini`, `OptiScaler/…` (FidelityFX from AMD's FSR SDK 2.4.0, XeSS and DirectX 12 Agility SDK DLLs, `dlssg_to_fsr3_amd_is_better.dll`, a fetcher script), `OptiScaler/Licenses/` | the OptiScaler project, [OptiScaler-nightly](https://github.com/optiscaler/OptiScaler-nightly) | each file under its publisher's terms, as OptiScaler distributes it; the licences it ships are installed in `OptiScaler/Licenses/` | The nightly's own `OptiScaler.dll` is replaced by the modified build above. |
 | OptiPatcher 0.41 | `OptiScaler/plugins/OptiPatcher.asi` | the OptiScaler project, [OptiPatcher](https://github.com/optiscaler/OptiPatcher) | its project's terms | Unmodified. |
 | NVIDIA DLSS Super Resolution 310.7.0 | `nvngx_dlss.dll`, `OptiScaler/Licenses/NVIDIA-DLSS-LICENSE.txt` | NVIDIA Corporation, [NVIDIA/DLSS](https://github.com/NVIDIA/DLSS) commit `a291cc7d` | NVIDIA RTX SDKs License (placed beside it) | Unmodified. See [NVIDIA's terms](#nvidias-terms). |
 | HelixSR 3.1.0 (optional HLX DLSS / HLX FSR 4 upscalers) | checked, locally built DLLs under `OptiScaler/custom/hlx-dlss/` or `OptiScaler/custom/hlx-fsr4/`, and `helixsr.ini` written by FreeFG | lonewolf0622, [lonewolf0622/HelixSR](https://github.com/lonewolf0622/HelixSR) release `v3.1.0`: the complete official archive, unpacked unchanged into the download cache | HelixSR Freeware License (`LICENSE` in that archive) | See [HelixSR](#helixsr). |
 
 ## OptiScaler source
 
-The bundled GPL-3.0 DLL is built from fork commit `25db192b1c1ebf42ae7cd6615bc6288b39121c5b`, incorporating
-upstream `e7e3872d410f704479d94d318d68d163b6b58947` (29 October 2026). Its SHA-256 is
-`5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617`.
+The bundled GPL-3.0 DLL is built from fork commit `4d0c0b9798e07332a0a8a86a7dfa5b0388732957`, incorporating
+upstream `7479cb294cd66d4d02c2a452f6f6294ade6a11ff` (11 November 2026). Its SHA-256 is
+`22052eb2b4f9b936f9c6ee2bfa161a3dc9cdb6799f801c1999595fc765d579c3`.
 
-The [fork release `bc250-25db192`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-25db192) provides the
-DLL and matching recursive source archive. `SOURCE.md` in the FreeFG archive identifies the source companion and
-build route. Available submodules are bundled; Intel's XeSS SDK is a separately fetched, pinned input.
+The [fork release `bc250-4d0c0b9`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-4d0c0b9) provides the
+DLL and matching recursive source archive. `SOURCE.md` identifies the source companion and build route. Available submodules are bundled; Intel's XeSS SDK is a separately fetched, pinned input.
 
 The fork retains loader-first Streamline locking, automatic menu saving, Linux cross-build support, independent
-XeSS/XeFG/XeLL paths and adaptive 3×/4× game-frame starts. It is not an official OptiScaler release.
+XeSS/XeFG/XeLL paths and adaptive 3×/4× game-frame starts. It also isolates Social Club auxiliary swapchains
+(configurable auxiliary DXGI-factory modules), keeps minimized game windows eligible for frame generation and can stay
+a plain proxy without a required launch argument. It is not an official OptiScaler release.
 
 Third-party licence texts and the component index are in `licenses/OptiScaler-third-party/`.
 Required FreeType credit: Portions of this software are copyright © 2024 The FreeType Project (www.freetype.org).

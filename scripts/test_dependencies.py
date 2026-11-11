@@ -454,20 +454,42 @@ class ShippedPinsTests(unittest.TestCase):
             self.assertNotEqual(d.source(self.pins, name)[0], 'opti', name)
 
     def test_fresh_setup_uses_the_qualified_nightly_and_separate_dlss_helper(self):
-        # October 25's support files match the earlier pins; its proxy/INI and accepted upgrade hashes are refreshed.
-        # The DLSS helper and its licence are their own group, not part of every fresh setup.
+        # The 11 November nightly: AMD's FSR SDK 2.4.0 files, its own proxy and INI; the earlier nightly's proxy joins the
+        # accepted existing setups. The DLSS helper and its licence are their own group, not part of every fresh setup.
         merged = dict(self.pins['payload'], Files=dict(self.pins['payload']['Files'], **self.pins['dlss']['Files']))
         compatible=list(merged['CompatibleProxyHashes'])
         compatible.remove('5e570dff6299866c508b60634d0dcfc5a53975840888f2aa5e69ba31c3819da6')
         compatible.remove('b3602882c7e194af523e50861a222d63c0c56b013cff4bfb5b187ca4f6666656')
         merged['CompatibleProxyHashes']=compatible
-        self.assertEqual(sha(json.dumps(merged, sort_keys=True).encode()), '50d352246f393ed9dfa24fb66f5edc3c46008c14c259e5ed64736f5200c76e8a')
+        self.assertEqual(sha(json.dumps(merged, sort_keys=True).encode()), '5cb212409296c5b89dbf0802eb70588d972ec7b7cd6ba44a60847769808357f6')
         self.assertNotIn('nvngx_dlss.dll', self.pins['payload']['Files'])
         self.assertEqual(sorted(self.pins['dlss']['Files']), ['Licenses/NVIDIA-DLSS-LICENSE.txt', 'nvngx_dlss.dll'])
         for key in ('dlss', 'dlss_license'):
             self.assertRegex(self.pins['inputs'][key]['url'], r'^https://raw\.githubusercontent\.com/NVIDIA/DLSS/[0-9a-f]{40}/')
         self.assertEqual(d.DEFAULT_GROUPS, ('payload', 'runtime'))
         self.assertEqual({k for k, v in self.pins.items() if isinstance(v, dict) and 'Files' in v}, {'payload', 'runtime', 'dlss'})
+
+    def test_support_files_of_the_earlier_nightly_are_pinned_or_retired(self):
+        # What a fresh setup of 1.3.0 and before placed (the nightlies of 29 September and 25 October). An in-place update
+        # replaces the files still pinned and removes the retired ones (install.py integration_plan): FSR SDK 2.4.0 has a
+        # Vulkan loader, upscaler and frame-generation DLL in place of amd_fidelityfx_vk.dll.
+        earlier = {'Licenses/DirectX_LICENSE.txt', 'Licenses/FidelityFX_v2_LICENSE.md', 'Licenses/XeSS_LICENSE.txt', 'OptiScaler.dll',
+                   'OptiScaler.ini', 'OptiScaler/D3D12_OptiScaler/D3D12Core.dll', 'OptiScaler/Streamlined_fetcher_windows.bat',
+                   'OptiScaler/amd_fidelityfx_framegeneration_dx12.dll', 'OptiScaler/amd_fidelityfx_loader_dx12.dll',
+                   'OptiScaler/amd_fidelityfx_upscaler_dx12.dll', 'OptiScaler/amd_fidelityfx_vk.dll',
+                   'OptiScaler/dlssg_to_fsr3_amd_is_better.dll', 'OptiScaler/libxell.dll', 'OptiScaler/libxess.dll',
+                   'OptiScaler/libxess_dx11.dll', 'OptiScaler/libxess_fg.dll', 'OptiScaler/plugins/OptiPatcher.asi'}
+        payload = self.pins['payload']
+        files, retired = set(payload['Files']), payload['RetiredFiles']
+        self.assertEqual(retired, ['OptiScaler/amd_fidelityfx_vk.dll'])
+        self.assertEqual(earlier - files, set(retired))
+        self.assertEqual(sorted(files - earlier), ['OptiScaler/amd_fidelityfx_framegeneration_vk.dll', 'OptiScaler/amd_fidelityfx_loader_vk.dll',
+                                                   'OptiScaler/amd_fidelityfx_upscaler_vk.dll'])
+        self.assertEqual(payload['ProxyHash'], payload['Files']['OptiScaler.dll'])
+        # The 25 October nightly's own OptiScaler.dll: a game set up with it is still an existing setup this build installs over.
+        self.assertIn('8f0a08109aac4d753b58fe788521993d53cbfdc8f1bee0e0ffbb8d38dbe56cae', payload['CompatibleProxyHashes'])
+        self.assertNotIn(payload['ProxyHash'], payload['CompatibleProxyHashes'])
+        self.assertIn('nightly-20261111', self.pins['inputs']['opti']['url'])
 
     def test_installer_and_dependencies_py_agree(self):
         self.assertEqual(d.FORMAT, fixtures.m.DEPENDENCIES_FORMAT)
