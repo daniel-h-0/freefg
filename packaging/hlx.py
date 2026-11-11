@@ -82,8 +82,11 @@ def check(folder, spec, provider):
             raise ValueError(how + ': missing ' + str(path))
         data = path.read_bytes()
         if sha(data) != item['sha256']:
-            raise ValueError(NAMES[provider] + ' file is not the qualified build: ' + str(path) +
-                             '. Run Prepare Helix or select its prepared release folder.')
+            # A provider built on this computer has its unbuilt file in HelixSR's download: say so first.
+            raise ValueError(NAMES[provider] + (' is not built yet, or its file' if built(spec, provider) else ' file') +
+                             ' is not the qualified build: ' + str(path) +
+                             '. Run Prepare Helix (install.py hlx' + (' --preset-k' if provider in OPTIONAL else '') +
+                             ') or select its prepared release folder.')
         result[relative] = data
     return result
 
