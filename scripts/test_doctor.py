@@ -199,6 +199,7 @@ def fake_hlx(ready):
     module.NAMES = {'hlx-dlss': 'HLX DLSS Model E', 'hlx-dlss-k': 'HLX DLSS Preset K', 'hlx-fsr4': 'HLX FSR 4',
                     'hlx-fsr4-full': 'HLX FSR 4 Full'}
     module.SUGGESTED = 'hlx-dlss'
+    module.OPTIONAL = ('hlx-dlss-k',)
     spec = {'format': 2, 'version': '3.3.0', 'archive': {'size': 279494747},
             'providers': {'hlx-dlss': {'build': 'network'}, 'hlx-dlss-k': {'build': 'preset-k'}, 'hlx-fsr4': {}, 'hlx-fsr4-full': {}}}
     module.catalog = lambda package: spec

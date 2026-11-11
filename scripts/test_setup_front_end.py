@@ -422,6 +422,7 @@ class SetupFrontEnd(unittest.TestCase):
             NAMES = {'hlx-dlss': 'HLX DLSS Model E', 'hlx-dlss-k': 'HLX DLSS Preset K', 'hlx-fsr4': 'HLX FSR 4',
                      'hlx-fsr4-full': 'HLX FSR 4 Full'}
             SUGGESTED = 'hlx-dlss'
+            OPTIONAL = ('hlx-dlss-k',)
             NVIDIA_LICENSE = 'https://github.com/NVIDIA/DLSS/blob/main/LICENSE.txt'
             @staticmethod
             def catalog(root):

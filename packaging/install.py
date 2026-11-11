@@ -3353,7 +3353,7 @@ def helixsr_command(package,folder=None,download=None):
                 _,location,_=hlx.find(package,provider,folder)
                 print(hlx.NAMES[provider]+' '+spec['version']+' ready: '+str(location));found=True
             except (OSError,ValueError) as error:
-                if provider=='hlx-dlss-k':print(hlx.NAMES[provider]+' is optional and not built: install.py hlx --preset-k builds it.')
+                if provider in hlx.OPTIONAL:print(hlx.NAMES[provider]+' is optional and not built: install.py hlx --preset-k builds it.')
                 else:ready=False;print(str(error))
         if found and folder:hlx.remember(package,folder)
         if not ready:print('Use Prepare Helix with Setup’s upscalers, or install.py hlx (see install.py hlx --help).')

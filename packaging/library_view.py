@@ -16,7 +16,8 @@ def rows(installer):
                 record=json.loads(installer.safe(exe.parent,installer.STATE+'/state.json').read_text())
                 row['title']=(record.get('recipe') or {}).get('title') or exe.stem
                 provider=record.get('upscaler') or {}
-                row['provider']=provider.get('name','Unknown')+(' '+provider['version'] if provider.get('version') else '')
+                row['provider']=getattr(installer,'COMPONENTS',{}).get(provider.get('name'),provider.get('name','Unknown'))+\
+                    (' '+provider['version'] if provider.get('version') else '')
                 row['files']='Check with Status'
                 if record.get('pending_update'):
                     row['recovery']='Interrupted update';row['files']='Recovery needed'

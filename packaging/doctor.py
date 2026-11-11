@@ -224,10 +224,6 @@ def layer_row(package=None, glibc=None, load=layer_load):
     return ('OK', 'Pacing layer', 'loads on this system' + (f' ({versions})' if versions else ''))
 
 
-# Helix upscalers nothing asks for (a long build of their own): one that is not built is never a problem.
-HLX_OPTIONAL = ('hlx-dlss-k',)
-
-
 def hlx_row(folder):
     """(level, item, text) for HelixSR's optional upscalers in a package with their catalog (hlx.py): which are ready on
     this computer, the suggested one marked, and what each of the others needs once. HLX DLSS Model E is prepared (built
@@ -243,7 +239,7 @@ def hlx_row(folder):
             hlx.find(folder, provider)
             ready.append(label)
         except (OSError, ValueError):
-            (optional if provider in HLX_OPTIONAL else build if hlx.built(spec, provider) else download).append(label)
+            (optional if provider in hlx.OPTIONAL else build if hlx.built(spec, provider) else download).append(label)
     credit = 'optional upscalers of HelixSR ' + str(spec['version']) + ', a separate project by lonewolf0622 under its own licence'
     parts = [('ready: ' + ', '.join(ready) if ready else 'none is ready on this computer') + ' (' + credit + ').']
     if build:

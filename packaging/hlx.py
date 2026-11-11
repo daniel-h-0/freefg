@@ -24,6 +24,8 @@ SUGGESTED = 'hlx-dlss'
 # A recipe's upscaler rules are written per family: both HLX DLSS networks take HelixSR's, both HLX FSR 4 forms theirs.
 RECIPE = {'hlx-dlss': 'helixsr', 'hlx-dlss-k': 'helixsr', 'hlx-fsr4': 'hlx-fsr4', 'hlx-fsr4-full': 'hlx-fsr4'}
 FORMAT = 2
+# Upscalers nothing asks for: a long build of their own, never a problem when they are not there.
+OPTIONAL = ('hlx-dlss-k',)
 NVIDIA_LICENSE = 'https://github.com/NVIDIA/DLSS/blob/main/LICENSE.txt'
 
 
@@ -74,7 +76,10 @@ def check(folder, spec, provider):
     for relative, item in spec['providers'][provider]['files'].items():
         path = member(folder, item['source'])
         if not path.is_file():
-            raise ValueError('Prepare Helix ' + spec['version'] + ' once (' + NAMES[provider] + '): missing ' + str(path))
+            how = ('Prepare Helix ' + spec['version'] + ' once (' + NAMES[provider] + '; install.py hlx' +
+                   (' --preset-k' if provider in OPTIONAL else '') + ')' if built(spec, provider) else
+                   'Download HelixSR ' + spec['version'] + ' once (' + NAMES[provider] + ' comes built in it; install.py hlx --no-build)')
+            raise ValueError(how + ': missing ' + str(path))
         data = path.read_bytes()
         if sha(data) != item['sha256']:
             raise ValueError(NAMES[provider] + ' file is not the qualified build: ' + str(path) +
@@ -250,9 +255,11 @@ def dlss_input(package, explicit=None, fetch=False, download=None):
     with fetch (the user agreed to the download), the pinned file from NVIDIA's own repository."""
     spec = catalog(package)
     wanted = spec['model_inputs']['dlss']
+    named = 'NVIDIA’s DLSS ' + spec['model_inputs']['dlss_version'] + ' DLL' if spec['model_inputs'].get('dlss_version') \
+        else 'NVIDIA’s DLSS DLL'
     if explicit:
         if not Path(explicit).is_file() or sha(Path(explicit).read_bytes()) != wanted:
-            raise ValueError('Select NVIDIA’s DLSS DLL with SHA-256 ' + wanted + ' as the local DLSS input.')
+            raise ValueError('Select ' + named + ' (nvngx_dlss.dll with SHA-256 ' + wanted + ') as the local DLSS input.')
         return Path(explicit).resolve()
     import dependencies
     pins = json.loads((Path(package) / 'dependencies.json').read_text())
@@ -264,7 +271,7 @@ def dlss_input(package, explicit=None, fetch=False, download=None):
         if fetch:
             Path(dependencies.cache_dir()).mkdir(parents=True, exist_ok=True)
             return Path((download or dependencies.download)(pin, Path(dependencies.cache_dir())))
-    raise ValueError('HLX DLSS is built on this computer from NVIDIA’s DLSS DLL (SHA-256 ' + wanted + '). Give a local copy '
+    raise ValueError('HLX DLSS is built on this computer from ' + named + ' (SHA-256 ' + wanted + '). Give a local copy '
                      '(install.py hlx --dlss-input FILE), or agree to its download from NVIDIA’s repository under '
                      'NVIDIA’s licence (install.py hlx --download-dlss; ' + NVIDIA_LICENSE + ').')
 

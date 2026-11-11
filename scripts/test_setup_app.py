@@ -25,6 +25,7 @@ def fake_hlx(ready=(), version='3.3.0', size=279494747):
     class HLX:
         NAMES = dict(m.hlx.NAMES)
         SUGGESTED = m.hlx.SUGGESTED
+        OPTIONAL = m.hlx.OPTIONAL
         NVIDIA_LICENSE = m.hlx.NVIDIA_LICENSE
         @staticmethod
         def catalog(root):
@@ -216,7 +217,7 @@ class Words(unittest.TestCase):
     def test_upscaler_names_and_lines_cover_the_installers(self):
         self.assertEqual({name: model.UPSCALER_LABELS[name] for name in m.hlx.NAMES}, m.hlx.NAMES)
         self.assertEqual(set(model.UPSCALER_ABOUT), {'fsr4', *m.hlx.NAMES})
-        self.assertLessEqual(set(model.OPTIONAL), set(m.hlx.NAMES))
+        self.assertLessEqual(set(m.hlx.OPTIONAL), set(m.hlx.NAMES))
         for name, about in model.UPSCALER_ABOUT.items():
             self.assertFalse(about.endswith('.') or '!' in about, name)
         self.assertEqual(model.provider_label({'upscaler': {'name': 'hlx-dlss-k', 'version': '3.3.0'}}), 'HLX DLSS Preset K 3.3.0')

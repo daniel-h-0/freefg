@@ -801,9 +801,6 @@ UPSCALER_ABOUT = {'fsr4': 'AMD FSR 4, BC-250 build: built in, always ready',
                   'hlx-dlss-k': 'DLSS 4 Preset K network: sharper, a little slower; optional long build',
                   'hlx-fsr4': 'HelixSR’s fast FSR 4-class upscaler; comes built',
                   'hlx-fsr4-full': 'Full FSR 4.1.2 network on HelixSR’s kernels: sharper, slower; comes built'}
-# Helix upscalers nothing asks for: a long build of their own, never a problem when they are not there.
-OPTIONAL = ('hlx-dlss-k',)
-
 
 @dataclass
 class Provider:
@@ -811,7 +808,7 @@ class Provider:
     HelixSR before HLX, 'missing', 'unknown' or 'unbuilt' (helixsr.find). get: how a Helix upscaler becomes ready:
     'build' (Prepare…: built on this computer from NVIDIA's DLSS DLL, install.py hlx) or 'download' (Download…: it comes
     built in HelixSR's official archive, install.py hlx --no-build); None for the others. suggested: the one a new
-    installation starts with when it is ready; optional: OPTIONAL."""
+    installation starts with when it is ready; optional: hlx.OPTIONAL."""
     id: str
     label: str
     about: str
@@ -853,7 +850,7 @@ def providers(ctx):
         hlx, found = installer.hlx, []
         for name, label in hlx.NAMES.items():
             common = dict(get='build' if hlx.built(catalog, name) else 'download', suggested=name == hlx.SUGGESTED,
-                          optional=name in OPTIONAL)
+                          optional=name in hlx.OPTIONAL)
             try:
                 spec, folder, _ = hlx.find(ctx.root, name)
                 found.append(Provider(name, label, UPSCALER_ABOUT.get(name, label), 'ready',
@@ -924,7 +921,7 @@ def download_words(ctx):
 def dlss_input(ctx, chosen=None):
     """The NVIDIA DLSS DLL that HLX DLSS is built from, as Prepare Helix would take it: dict(path: the local copy
     (chosen, else the one this installer's download cache already holds), None when there is none; error: why chosen
-    is not it; sha256: the pinned file's; size: its download ('59 MB'); license: NVIDIA's licence for it). Hashes the
+    is not it; sha256: the pinned file's; version: its DLSS version ('310.7.0'); size: its download ('59 MB'); license: NVIDIA's licence for it). Hashes the
     file (hlx.dlss_input): call it off the window's thread. Downloads nothing."""
     hlx, catalog = ctx.installer.hlx, hlx_catalog(ctx) or {}
     wanted = (catalog.get('model_inputs') or {}).get('dlss')
@@ -935,6 +932,7 @@ def dlss_input(ctx, chosen=None):
         pass
     pin = next((item for item in pins.values() if isinstance(item, dict) and item.get('sha256') == wanted), {})
     out = dict(path=None, error=None, sha256=wanted, size=megabytes(pin.get('size')),
+               version=(catalog.get('model_inputs') or {}).get('dlss_version') or '',
                license=getattr(hlx, 'NVIDIA_LICENSE', ''))
     try:
         out['path'] = str(hlx.dlss_input(ctx.root, chosen))

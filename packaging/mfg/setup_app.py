@@ -1733,9 +1733,11 @@ class PrepareDialog(Adw.Dialog):
             self.files.add(self.held_row)
         else:
             size, digest = found.get('size'), found.get('sha256')
+            named = 'NVIDIA’s DLSS ' + found['version'] + ' DLL' if found.get('version') else 'NVIDIA’s DLSS DLL'
             if digest:
-                self.local_row.set_subtitle('nvngx_dlss.dll with SHA-256 ' + str(digest)[:16] + '… · not chosen')
-            self.agree_row.set_subtitle('I agree to download NVIDIA’s DLSS DLL' + (' (' + size + ')' if size else '') +
+                self.local_row.set_subtitle('nvngx_dlss.dll' + (' of DLSS ' + found['version'] if found.get('version') else '') +
+                                            ' with SHA-256 ' + str(digest)[:16] + '… · not chosen')
+            self.agree_row.set_subtitle('I agree to download ' + named + (' (' + size + ')' if size else '') +
                                         ' from NVIDIA’s repository under NVIDIA’s licence' +
                                         (': ' + found['license'] if found.get('license') else '') + '.')
             self.local_row.set_visible(True)

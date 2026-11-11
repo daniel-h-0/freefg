@@ -205,7 +205,8 @@
    "size": 279494747
   },
   "model_inputs": {
-   "dlss": "be6e434a94ca32499515eb62ca0e6c274526055d568d0426e4c652dcdfb6ee6e"
+   "dlss": "be6e434a94ca32499515eb62ca0e6c274526055d568d0426e4c652dcdfb6ee6e",
+   "dlss_version": "310.7.0"
   },
   "compilers": {
    "dxc2607": {
