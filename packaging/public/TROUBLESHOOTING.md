@@ -13,8 +13,9 @@ A successful launch does not establish upscaler operation or frame generation. C
 
 - HLX DLSS (Model E or Preset K) must report `network running` in the `helixsr.log` beside its DLL. `NOT RUNNING` or a
   red-frame placeholder indicates failure.
-- HLX FSR 4 and HLX FSR 4 Full must report `own runtime active` in the `HLX_FSR.log` beside their DLL; selecting the
-  provider does not rule out AMD fallback.
+- HLX FSR 4 must report `own runtime active` in the `HLX_FSR.log` beside its DLL. HLX FSR 4 Full writes
+  `hlx_fsr4.log` there: an `own runtime:` line, then `frame` lines while it upscales. Selecting the provider does not
+  rule out AMD fallback.
 - `MFG_STATUS XeFG generates` in `BC250-MFG.log` reports generated frames from the SDK. Initialization alone is not enough.
 
 <a id="cyberpunk-25-with-helixsr-stops-at-the-first-rendered-frames"></a>

@@ -88,7 +88,7 @@ def spec_for(files):
                                'helixsr_modelk_weights.bin':pin('HelixSR/k/helixsr_modelk_weights.bin',b'weights:'+MODEL)}},
         'hlx-fsr4':{'api':'ffx','entry':'fsr.dll','log':'HLX_FSR.log','files':{'fsr.dll':pin('HLX-FSR4/fsr.dll',ARCHIVE['HLX-FSR4/fsr.dll']),
                     'amd.dll':pin('helixsr-scaler/OptiScaler/amd.dll',ARCHIVE['helixsr-scaler/OptiScaler/amd.dll'])}},
-        'hlx-fsr4-full':{'api':'ffx','entry':'full.dll','log':'HLX_FSR.log',
+        'hlx-fsr4-full':{'api':'ffx','entry':'full.dll','log':'hlx_fsr4.log',
                          'settings':dict(pin('helixsr-scaler/OptiScaler/custom/HLX FSR 4 Full/ffx/hlx_fsr4.ini',ARCHIVE['helixsr-scaler/OptiScaler/custom/HLX FSR 4 Full/ffx/hlx_fsr4.ini']),name='hlx_fsr4.ini'),
                          'files':{'full.dll':pin('helixsr-scaler/OptiScaler/custom/HLX FSR 4 Full/ffx/full.dll',ARCHIVE['helixsr-scaler/OptiScaler/custom/HLX FSR 4 Full/ffx/full.dll'])}}}}
 

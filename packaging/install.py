@@ -57,7 +57,7 @@ UPSCALERS={'fsr4':'FSR 4 (BC-250 build RC12)','helixsr':helixsr.LABEL,**hlx.NAME
 # A Helix provider's entry DLL in a game (the end of its path) and the log it writes beside it.
 HLX_LOGS=[('custom/hlx-dlss/dlss/helixsr.dll','helixsr.log'),('custom/hlx-dlss-k/dlss/helixsr.dll','helixsr.log'),
           ('custom/hlx-fsr4/ffx/amd_fidelityfx_upscaler_dx12.dll','HLX_FSR.log'),
-          ('custom/hlx-fsr4-full/ffx/amd_fidelityfx_upscaler_dx12.dll','HLX_FSR.log')]
+          ('custom/hlx-fsr4-full/ffx/amd_fidelityfx_upscaler_dx12.dll','hlx_fsr4.log')]
 # BC-250 builds of the FSR 4 DLL by SHA-256: the one dependencies.json pins (RC12, since 1.1.2) and the one earlier builds
 # installed (RC11), so Status names the build a game has and records of earlier builds stay readable.
 FSR4_BUILDS={'4b0df27761d7ced52c30dcbd1641c55bdcf4d2ae10d59f7e5b4b2f895b6bba79':'RC12',

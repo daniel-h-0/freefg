@@ -24,7 +24,7 @@ class HlxUpdates(UpdateFixture):
             'hlx-dlss-k':{'api':'dlss','entry':'helixsr.dll','build':'preset-k','log':'helixsr.log','settings':dict(pin('K.ini'),name='helixsr.ini'),
                           'files':{'helixsr.dll':pin('K.dll'),'helixsr_modelk_kernels.pak':pin('K.pak'),'helixsr_modelk_weights.bin':pin('K.bin')}},
             'hlx-fsr4':{'api':'ffx','entry':m.DLL,'log':'HLX_FSR.log','files':{m.DLL:pin('FSR.dll'),'amd_fidelityfx_upscaler_dx12.amd.dll':pin('AMD.dll')}},
-            'hlx-fsr4-full':{'api':'ffx','entry':m.DLL,'log':'HLX_FSR.log','settings':dict(pin('FULL.ini'),name='hlx_fsr4.ini'),
+            'hlx-fsr4-full':{'api':'ffx','entry':m.DLL,'log':'hlx_fsr4.log','settings':dict(pin('FULL.ini'),name='hlx_fsr4.ini'),
                              'files':{m.DLL:pin('FULL.dll'),'amd_fidelityfx_upscaler_dx12.amd.dll':pin('AMD.dll')}}}}
         pins=json.loads((self.new/'dependencies.json').read_text());pins['hlx']=self.spec
         set_package_file(self.new,'dependencies.json',json.dumps(pins).encode())
@@ -123,6 +123,16 @@ class HlxUpdates(UpdateFixture):
         self.run_quiet(m.restore,self.exe)
         self.assertFalse(log.exists());self.assertFalse(log.parent.exists())
         self.assertEqual((self.game/m.STATE/'runtime-logs/HLX_FSR.log').read_bytes(),b'own runtime active')
+        self.assertOriginal()
+
+    def test_full_provider_log_has_its_own_name_and_is_kept_on_restore(self):
+        # HLX FSR 4 Full writes hlx_fsr4.log, not HLX FSR 4's HLX_FSR.log.
+        self.install_old();self.select('hlx-fsr4-full')
+        self.assertEqual(self.record()['upscaler']['log'],'OptiScaler/custom/hlx-fsr4-full/ffx/hlx_fsr4.log')
+        log=self.game/self.record()['upscaler']['log'];log.write_bytes(b'own runtime: family M')
+        self.run_quiet(m.restore,self.exe)
+        self.assertFalse(log.parent.exists())
+        self.assertEqual((self.game/m.STATE/'runtime-logs/hlx_fsr4.log').read_bytes(),b'own runtime: family M')
         self.assertOriginal()
 
     def test_unowned_provider_logs_are_not_overwritten(self):

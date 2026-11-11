@@ -282,7 +282,7 @@
    "hlx-fsr4-full": {
     "api": "ffx",
     "entry": "amd_fidelityfx_upscaler_dx12.dll",
-    "log": "HLX_FSR.log",
+    "log": "hlx_fsr4.log",
     "settings": {
      "name": "hlx_fsr4.ini",
      "source": "helixsr-scaler/OptiScaler/custom/HLX FSR 4 Full/ffx/hlx_fsr4.ini",
