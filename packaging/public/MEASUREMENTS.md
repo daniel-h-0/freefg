@@ -49,7 +49,7 @@ HelixSR's author replaced the 3.3.0 archive on 12 November, with the four upscal
 the four HLX game starts below were run again with the replaced archive. The TV checks and the captures used the
 archive of 11 November.
 
-- **Tests.** @TESTS@ installer tests pass without skips, @GTK@ of them in a real GTK window. The release-tool suite
+- **Tests.** 757 installer tests pass without skips, 29 of them in a real GTK window. The release-tool suite
   passes, with three public-tree exclusions.
 - **Update rehearsals.** With the release package, copies of the maintainers' 18 installed games pass Update from
   1.3.0 with the move to HLX DLSS Model E 3.3.0, exact Rollback, a second Update and Restore. Eight transitions from
