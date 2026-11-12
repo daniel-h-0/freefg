@@ -1,37 +1,37 @@
 # Configuration
 
-Close the game before changing settings, then restart it. Settings affect generated frames; they do not raise the
-game's simulation rate. The game page reports the installed route and last recorded session, not visual quality or
-settings persistence.
+Close the game before you change a setting. The change applies when the game starts again. A game's page shows the
+installed input and the last recorded session. It does not show visual quality or whether settings persisted.
 
 ## Upscalers
 
-Each game has one upscaler; frame generation is always FreeFG/XeFG. **Change…** beside **Upscaler** on the game page
-switches it.
+Each game uses one upscaler. Frame generation is XeFG with each of them.
 
 | Upscaler | `--upscaler` | What it is | Before first use |
 | --- | --- | --- | --- |
-| **HLX DLSS Model E** (suggested) | `hlx-dlss` | the DLSS Model E network as compute shaders | built once on this computer |
-| HLX DLSS Preset K | `hlx-dlss-k` | the DLSS 4 Preset K network: sharper than Model E, a little slower | an optional second build, many minutes |
-| HLX FSR 4 | `hlx-fsr4` | HelixSR's fast FSR 4-class upscaler | HelixSR's download |
-| HLX FSR 4 Full | `hlx-fsr4-full` | the full FSR 4.1.2 network on HelixSR's kernels: sharper and slower than HLX FSR 4 | HelixSR's download |
-| AMD FSR 4 | `fsr4` | AMD FSR 4, BC-250 build | nothing |
+| **HLX DLSS Model E** (suggested) | `hlx-dlss` | The DLSS Model E network as compute shaders. | Built once on your computer. |
+| **HLX DLSS Preset K** | `hlx-dlss-k` | The DLSS 4 Preset K network. Sharper than Model E and a little slower. | An optional second build that takes many minutes. |
+| **HLX FSR 4** | `hlx-fsr4` | HelixSR's fast FSR 4-class upscaler. | HelixSR's download. |
+| **HLX FSR 4 Full** | `hlx-fsr4-full` | The full FSR 4.1.2 network on HelixSR's kernels. Sharper and slower than HLX FSR 4. | HelixSR's download. |
+| **FSR 4** | `fsr4` | AMD FSR 4, BC-250 build. | Nothing. |
 
-The four HLX upscalers are those of the separate [HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR) project, by
-lonewolf0622. A new installation takes the suggested one when it is prepared on this computer and AMD FSR 4 otherwise
-(`--upscaler auto`, the default); AMD FSR 4 stays installed beside any HLX upscaler.
+The four HLX upscalers belong to [HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR), a separate project by
+lonewolf0622. A new installation takes HLX DLSS Model E when it is prepared on your computer and AMD FSR 4 otherwise
+(`--upscaler auto`, the default). AMD FSR 4 stays installed beside an HLX upscaler.
 
-**Upscalers…** in the menu prepares them once for every game:
+### Preparation
 
-- **Download** fetches and checks HelixSR's official archive (about 280 MB). HLX FSR 4 and HLX FSR 4 Full come built
-  in it and need nothing else.
-- **Prepare Helix** also builds HLX DLSS Model E, from NVIDIA's DLSS **310.7.0** DLL, locally and with networking
-  disabled. It needs Wine, bubblewrap and Python numpy. It takes a copy of that DLL already on this computer (one you
-  select, or the one FreeFG downloaded earlier as its DLSS input helper); without one it asks before downloading the
-  DLL from NVIDIA's repository. Preset K is a switch in the same dialog.
+**Upscalers…** in the menu makes the HLX upscalers ready once, for every game.
 
-Neither the model input nor built model data is distributed by FreeFG.
-[Preparation, downloads and terms](PRIVACY.md#helixsr-optional).
+| Button | Result |
+| --- | --- |
+| **Download…** | Fetches and checks HelixSR's official archive (about 280 MB). HLX FSR 4 and HLX FSR 4 Full come built in it. |
+| **Prepare…** | Also builds HLX DLSS Model E from NVIDIA's DLSS 310.7.0 DLL. The build runs on your computer with networking disabled and needs Wine, bubblewrap and Python numpy. **Also build HLX DLSS Preset K** in that dialog adds Preset K. |
+| **Choose…** | Takes a HelixSR 3.3.0 release folder that is already prepared (`--helixsr /path/to/HelixSR-3.3.0`). An upscaler's files must all match the pinned build. |
+
+The build takes NVIDIA's DLL from your computer: a copy you select, or the one FreeFG downloaded earlier as its DLSS
+input helper. Without a copy, Setup asks before it downloads the DLL from NVIDIA's repository. FreeFG distributes
+neither the DLL nor built model data. [Downloads and terms](PRIVACY.md#helixsr-optional).
 
 ```sh
 python3 install.py hlx                           # download HelixSR and build Model E from a local DLSS DLL
@@ -39,37 +39,56 @@ python3 install.py hlx --dlss-input /path/to/nvngx_dlss.dll
 python3 install.py hlx --download-dlss           # agree to the download of NVIDIA's DLL when none is local
 python3 install.py hlx --preset-k                # also build Preset K
 python3 install.py hlx --no-build                # only the download: HLX FSR 4 and HLX FSR 4 Full
+```
+
+### Switching
+
+On the game's page, choose **Change…** beside **Upscaler**, pick an upscaler and choose **Switch**. **Roll Back…**
+undoes the latest switch or update.
+
+```sh
 python3 install.py configure GAME.exe --upscaler hlx-dlss
 python3 install.py configure GAME.exe --upscaler fsr4
 ```
 
-Preset K and HLX FSR 4 Full each read a `DeepReuse` setting (`exact`, `1:2` or `1:4`) from their own file in the game:
-`OptiScaler/custom/hlx-dlss-k/dlss/helixsr.ini` and `OptiScaler/custom/hlx-fsr4-full/ffx/hlx_fsr4.ini`. FreeFG
-installs HelixSR's files with its default, `exact`, and keeps your edits across updates and switches. HelixSR's
-release notes list the known issues of the faster settings.
+- `--upscaler helixsr` is an alias of `hlx-dlss`.
+- An update moves an earlier HLX or HelixSR 2.0.0 installation to 3.3.0 once that upscaler is prepared. Until then
+  the installation stays as it is.
+- A game that already holds an upscaler's current files can use them without the preparation cache.
 
-Use `--helixsr /path/to/HelixSR-3.3.0` for a prepared folder elsewhere. Its complete provider files must match the
-pinned build. `--upscaler helixsr` is an alias for HLX DLSS Model E. A compatible update advances an earlier HLX or
-HelixSR 2.0.0 installation when the new provider is prepared, and leaves it as it is until then. A current
-installation can reuse its own checked provider files without the cache.
-A provider switch creates a rollback generation; **Rollback** undoes the latest switch or update.
+### DeepReuse
+
+HLX DLSS Preset K and HLX FSR 4 Full each read a `DeepReuse` setting (`exact`, `1:2` or `1:4`) from a file of their
+own in the game folder:
+
+| Upscaler | File |
+| --- | --- |
+| HLX DLSS Preset K | `OptiScaler/custom/hlx-dlss-k/dlss/helixsr.ini` |
+| HLX FSR 4 Full | `OptiScaler/custom/hlx-fsr4-full/ffx/hlx_fsr4.ini` |
+
+FreeFG installs HelixSR's files with HelixSR's default, `exact`, and keeps your edits across updates and switches.
+HelixSR's release notes list the known issues of the faster settings.
 
 ## Generated-frame scaling
 
-On the game page, choose **Generated-frame size** and then **Apply**:
+On the game's page, choose a **Generated-frame size** and then **Apply**.
 
 | Choice | Result |
 | --- | --- |
-| Match output | Generate at full output size (default). |
-| Scale | 50–100% of output width and height; 75% of 2560×1440 is 1920×1080. |
-| 720p / 1080p / 1440p / 2160p limit | Fit inside the selected 16:9 bounding box, preserving aspect ratio without enlarging. |
+| **Match output** | Generate at full output size (default). |
+| **Scale** | 50–100% of the output's width and height. 75% of 2560×1440 is 1920×1080. |
+| **720p limit**, **1080p limit**, **1440p limit**, **2160p limit** | Fit inside that 16:9 bounding box. The aspect ratio is kept and nothing is enlarged. |
 
 Reduced dimensions round down to even pixels, with a minimum of one. Match output, 100% and an output already within
-the limit preserve odd dimensions. Real frames, game resolution, depth and motion-vector inputs stay unchanged.
+the limit keep odd dimensions. Real frames, the game's resolution and the depth and motion-vector inputs stay
+unchanged.
 
-**Downscale filter** offers Bilinear and Area; **Upscale filter** offers Bilinear, Bicubic, Lanczos2 and FSR 1 EASU without RCAS.
-Bilinear is the default for both. These filters are separate from the game's upscaler and change generated-frame
-detail, including in Exact mode.
+| Filter | Choices |
+| --- | --- |
+| **Downscale filter** | **Bilinear** (default), **Area** |
+| **Upscale filter** | **Bilinear** (default), **Bicubic**, **Lanczos2**, **FSR1 (EASU)**, which is FSR 1's EASU pass without RCAS |
+
+The filters are separate from the game's upscaler. They change the detail of generated frames, also in Exact mode.
 
 ```sh
 python3 install.py configure GAME.exe --percent 75 --downscale area --upscale fsr1
@@ -77,53 +96,58 @@ python3 install.py configure GAME.exe --limit 1080
 python3 install.py configure GAME.exe --resolution output
 ```
 
-OptiScaler also exposes the choices under **Frame Generation → XeFG scaling**. Status reports actual dimensions from
-the last session. An unsupported observed layout keeps full output. At 3×/4×, scaling requires MFG Unlocker's
-`XeFGModel=default`. [Mechanism and evidence](ARCHITECTURE.md#generated-frame-scaling).
+OptiScaler's menu has the same choices under **Frame Generation → XeFG scaling**. Status reports the actual dimensions
+of the last session. A layout that FreeFG does not support keeps full output. At 3× and 4×, scaling requires MFG
+Unlocker's `XeFGModel=default`. [Mechanism and evidence](ARCHITECTURE.md#generated-frame-scaling).
 
 ## 3× and 4× with MFG Unlocker
 
-[MFG Unlocker](https://github.com/dashdogy/MFG-Unlocker) is a separate tool that lifts Intel's non-Intel frame-count
-limit; FreeFG does not ship or install it. Version 1.6.0 was tested. For full FreeFG acceleration and scaling with it,
-use an **OptiScaler FG input** and **`XeFGModel=default`**; a game's native XeSS FG context is not accelerated while
-the unlocker hooks Intel's runtime.
+[MFG Unlocker](https://github.com/dashdogy/MFG-Unlocker) is a separate tool that lifts Intel's frame-count limit on
+non-Intel GPUs. FreeFG does not ship or install it. Version 1.6.0 was tested.
+
+For full acceleration and scaling beside it, use an **OptiScaler input** and **`XeFGModel=default`**. While the
+unlocker hooks Intel's runtime, a game's native XeSS FG context is not accelerated.
 
 1. Install FreeFG with an OptiScaler input, verify 2×, then close the game.
 2. Download `MFGUnlocker-v1.6.0.zip` and verify its `SHA256SUMS.txt`.
 3. Rename `MFGUnlocker.dll` to `MFGUnlocker.asi` and put it in `OptiScaler/plugins/` beside the rendering `.exe`.
-4. In `OptiScaler.ini`, set `[Plugins] LoadAsiPlugins=true` and `[XeFG] XeFGModel=default`. Fresh setups set these;
-   existing explicit choices are preserved.
-5. Select 3× or 4× in **Insert → Frame Generation**. OptiScaler's cap counts output frames, so 120 output FPS at 4×
-   corresponds to about 30 game-rendered FPS.
+4. In `OptiScaler.ini`, set `[Plugins] LoadAsiPlugins=true` and `[XeFG] XeFGModel=default`. A fresh setup has both
+   already, and Setup keeps a value you set yourself.
+5. In the game, press Insert and select 3× or 4× under **Frame Generation**. OptiScaler's cap counts output frames:
+   120 output FPS at 4× is about 30 game-rendered FPS.
 
-With the unlocker's own model, only seven of 13 programs were replaced in the tested route; `default` retained all 13.
-To remove it, delete its `.asi` and `RTXMFG-*` files, saving `RTXMFG-Universal.json` if wanted, and return to 2×.
-Leave `LoadAsiPlugins` enabled for OptiPatcher. Restore does not remove third-party files it did not install.
-[Mechanism](ARCHITECTURE.md#another-mod-on-intels-runtime) · [Measurements](MEASUREMENTS.md).
+With the unlocker's own model, FreeFG replaced only seven of 13 programs in the tested route. `default` kept all 13.
+
+To remove it, delete its `.asi` and its `RTXMFG-*` files and return to 2×. Save `RTXMFG-Universal.json` first if you
+want it. Leave `LoadAsiPlugins` enabled for OptiPatcher. Restore does not remove third-party files that FreeFG did
+not install. [Mechanism](ARCHITECTURE.md#another-mod-on-intels-runtime) · [Measurements](MEASUREMENTS.md).
 
 ## Wiki settings
 
-In Setup's library window, open an installed game's page and choose **Review…** beside **Wiki settings**. This reads the bundled OptiScaler wiki
-catalogue and the game's current INI. Nothing is selected or written automatically by this review.
+The OptiScaler wiki suggests OptiScaler settings for some games. You review them before any is written.
 
-The review shows wiki requirements and runtime caveats first. Each suggestion includes its value, current value,
-source page, pinned wiki revision, reported test context and conditions. Select the changes you want. A
-suggestion based on a title-only match or an unknown condition also requires you to confirm the displayed facts.
-Settings already handled by a recipe or runtime fix, unsupported keys and known-inapplicable settings cannot be
-selected. Already-set values need no change.
+1. On an installed game's page, choose **Review…** beside **Wiki settings**. Setup reads the bundled OptiScaler wiki
+   catalogue and the game's current INI.
+2. Read the wiki's requirements and caveats, which come first. Then select the settings you want. Each shows its
+   value, the current value, its source page, the pinned wiki revision, the reported test context and its conditions.
+3. Where a suggestion rests on a title-only match or an unknown condition, confirm the displayed facts.
+4. Choose **Apply Selected**. The button shows the number of settings you selected.
 
-**Apply Selected** checks that the plan and current values still match, then writes only the selected OptiScaler INI
-keys through the existing transaction. The installed release and runtime stay in place. **Roll Back** undoes the last
-applied selection; Restore retains its normal handling of original values and later edits. Wiki suggestions are
-community evidence, not per-game qualification on your hardware.
+Setup checks that the plan and the current values still match, then writes only the selected `OptiScaler.ini` keys.
+The installed release and runtime stay in place. **Roll Back…** undoes the last applied selection. Restore handles
+original values and later edits as usual.
 
-In the Zenity fallback, **Wiki settings** lists the same suggestions as a checklist for one selected game and asks you
-to confirm their conditions. The command line supports this review too:
+You cannot select a setting that a recipe or runtime fix already handles, an unsupported key or a setting known not
+to apply. A value that is already set needs no change. Wiki suggestions are community reports. They are not tested
+per game on your hardware.
+
+In the Zenity dialogs, **Wiki settings** lists the same suggestions as a checklist for one selected game and asks you
+to confirm their conditions. On the command line:
 
 ```sh
 python3 install.py wiki-plan GAME.exe
 python3 install.py wiki-apply GAME.exe --wiki-plan-digest DIGEST --wiki-setting ROW_ID
 ```
 
-Use the digest and row IDs from the current JSON plan. Add `--wiki-confirm ROW_ID` only for a selected row whose
-identity/conditions you have checked. A stale plan is refused; review it again instead of reusing old IDs blindly.
+Take the digest and the row IDs from the current JSON plan. Add `--wiki-confirm ROW_ID` only for a selected row whose
+identity and conditions you have checked. A stale plan is refused: review it again.
