@@ -6,7 +6,7 @@ choice (setup_app.py draws it; setup.py starts it).
 It reads, in this process and without changing anything, what the installer records in each game folder (state.json in
 the installation's state folder), the library index and launcher discovery (install.library_inventory), the last
 session's logs (compat.last_run), update plans (install.update_plan), compatibility verdicts (install.compat_verdict)
-and HLX preparation (hlx.find). Every change is an install.py command in its own process, exactly as on the command
+and Helix preparation (hlx.find). Every change is an install.py command in its own process, exactly as on the command
 line: the transactions, locks, refusals and messages stay the installer's. Nothing here needs GTK, so its tests run
 anywhere.
 """
@@ -66,8 +66,9 @@ class Context:
     """The package Setup runs from and its installer. root: the package folder (install.py beside setup.py); name: the
     product name; manifest: its manifest.json; installer: the install.py module, or None when it does not load
     (load_error says why); factors: the frame-generation factors the package offers ('2×', ...); scaling: whether it
-    has generated-frame scaling; helix_about: the HelixSR credit Setup shows wherever HLX is chosen; blockers: Setup's
-    running-game and launcher check (setup.blockers); home: the user's home for launcher lookups (tests)."""
+    has generated-frame scaling; helix_about: the HelixSR credit Setup shows wherever its upscalers are chosen;
+    blockers: Setup's running-game and launcher check (setup.blockers); home: the user's home for launcher lookups
+    (tests)."""
 
     def __init__(self, root, name, manifest, installer=None, load_error=None, factors=('2×',), scaling=False,
                  helix_about='', blockers=None, home=None):
@@ -362,12 +363,16 @@ def badge(game, ctx):
             'newer': ('Newer build', 'dim'), 'pinned': ('Pinned', 'dim')}.get(current)
 
 
+# The upscalers by the name an installation records (the HLX ones as hlx.NAMES has them).
+UPSCALER_LABELS = {'fsr4': 'FSR 4', 'helixsr': 'HelixSR', 'hlx-dlss': 'HLX DLSS Model E', 'hlx-dlss-k': 'HLX DLSS Preset K',
+                   'hlx-fsr4': 'HLX FSR 4', 'hlx-fsr4-full': 'HLX FSR 4 Full'}
+
+
 def provider_label(record):
-    """The upscaler of an installation: 'FSR 4', 'HLX DLSS 3.1.0', 'HelixSR 2.0.0'."""
+    """The upscaler of an installation: 'FSR 4', 'HLX DLSS Model E 3.3.0', 'HelixSR 2.0.0'."""
     upscaler = (record or {}).get('upscaler') or {}
     name = upscaler.get('name') or 'fsr4'
-    labels = {'fsr4': 'FSR 4', 'helixsr': 'HelixSR', 'hlx-dlss': 'HLX DLSS', 'hlx-fsr4': 'HLX FSR 4'}
-    label = labels.get(name, name)
+    label = UPSCALER_LABELS.get(name, name)
     return label + (' ' + str(upscaler['version']) if upscaler.get('version') and name != 'fsr4' else '')
 
 
@@ -790,10 +795,20 @@ def update_args(exe, component='all', refresh=False, expect=None):
 
 
 # ----------------------------------------------------------------------------------------------- upscalers
+# One line about each upscaler (setup.py's Zenity lists say the same).
+UPSCALER_ABOUT = {'fsr4': 'AMD FSR 4, BC-250 build: built in, always ready',
+                  'hlx-dlss': 'DLSS Model E network, built on this computer',
+                  'hlx-dlss-k': 'DLSS 4 Preset K network: sharper, a little slower; optional long build',
+                  'hlx-fsr4': 'HelixSR’s fast FSR 4-class upscaler; comes built',
+                  'hlx-fsr4-full': 'Full FSR 4.1.2 network on HelixSR’s kernels: sharper, slower; comes built'}
+
 @dataclass
 class Provider:
-    """An upscaler Setup offers. state: 'ready'; 'unprepared' (HLX not prepared on this computer); for HelixSR before
-    HLX, 'missing', 'unknown' or 'unbuilt' (helixsr.find)."""
+    """An upscaler Setup offers. state: 'ready'; 'unprepared' (a Helix upscaler that is not ready on this computer); for
+    HelixSR before HLX, 'missing', 'unknown' or 'unbuilt' (helixsr.find). get: how a Helix upscaler becomes ready:
+    'build' (Prepare…: built on this computer from NVIDIA's DLSS DLL, install.py hlx) or 'download' (Download…: it comes
+    built in HelixSR's official archive, install.py hlx --no-build); None for the others. suggested: the one a new
+    installation starts with when it is ready; optional: hlx.OPTIONAL."""
     id: str
     label: str
     about: str
@@ -801,6 +816,9 @@ class Provider:
     detail: str = ''
     version: str = None
     folder: str = None
+    get: str = None
+    suggested: bool = False
+    optional: bool = False
 
     @property
     def ready(self):
@@ -819,25 +837,28 @@ def hlx_catalog(ctx):
 
 def built_in_provider():
     """FSR 4, which every package installs and nothing has to prepare."""
-    return Provider('fsr4', 'FSR 4', 'AMD FSR 4, BC-250 build. The default; downloaded by checked hash.', detail='Built in')
+    return Provider('fsr4', UPSCALER_LABELS['fsr4'], UPSCALER_ABOUT['fsr4'], detail='Built in')
 
 
 def providers(ctx):
-    """The upscalers this package installs, each with whether it is ready on this computer. HLX preparation is checked
-    by hashing the prepared files (hlx.find): call it off the window's thread."""
+    """The upscalers this package installs, each with whether it is ready on this computer: the suggested Helix upscaler
+    first, then FSR 4, then the other Helix upscalers as hlx.NAMES orders them. Helix preparation is checked by hashing
+    the prepared files (hlx.find): call it off the window's thread."""
     installer = ctx.installer
-    out = [built_in_provider()]
-    if hlx_catalog(ctx):
-        about = {'hlx-dlss': 'Helix DLSS network, prepared on this computer',
-                 'hlx-fsr4': 'Helix FSR 4 provider, prepared on this computer'}
-        for name, label in installer.hlx.NAMES.items():
+    catalog = hlx_catalog(ctx)
+    if catalog:
+        hlx, found = installer.hlx, []
+        for name, label in hlx.NAMES.items():
+            common = dict(get='build' if hlx.built(catalog, name) else 'download', suggested=name == hlx.SUGGESTED,
+                          optional=name in hlx.OPTIONAL)
             try:
-                spec, folder, _ = installer.hlx.find(ctx.root, name)
-                out.append(Provider(name, label, about.get(name, label), 'ready', 'Ready: ' + label + ' ' + spec['version'],
-                                    spec['version'], str(folder)))
+                spec, folder, _ = hlx.find(ctx.root, name)
+                found.append(Provider(name, label, UPSCALER_ABOUT.get(name, label), 'ready',
+                                      'Ready: ' + label + ' ' + spec['version'], spec['version'], str(folder), **common))
             except (OSError, ValueError) as error:
-                out.append(Provider(name, label, about.get(name, label), 'unprepared', str(error)))
-        return out
+                found.append(Provider(name, label, UPSCALER_ABOUT.get(name, label), 'unprepared', str(error), **common))
+        return [*[p for p in found if p.suggested], built_in_provider(), *[p for p in found if not p.suggested]]
+    out = [built_in_provider()]
     helixsr = getattr(installer, 'helixsr', None)
     if helixsr is not None:
         try:
@@ -851,8 +872,97 @@ def providers(ctx):
     return out
 
 
+def default_provider(found):
+    """The upscaler a new installation starts with: the suggested one when it is ready on this computer, else FSR 4.
+    Never one that has to be prepared first (install.suggested_upscaler chooses the same for --upscaler auto)."""
+    return next((p.id for p in found or [] if p.suggested and p.ready), 'fsr4')
+
+
+def provider_state(provider):
+    """A provider's readiness in two or three words: 'Ready', or what it still needs."""
+    if provider.ready:
+        return 'Ready'
+    return {'build': 'Not built yet', 'download': 'Not downloaded yet'}.get(provider.get, 'Not prepared yet')
+
+
+def provider_line(provider):
+    """A provider's row under its name where an upscaler is chosen: what it is and, until it is ready, what it needs."""
+    return provider.about if provider.ready else provider.about + ' · ' + provider_state(provider).lower()
+
+
+def provider_action(provider):
+    """(button label, how) for a provider that is not ready: Prepare… builds it on this computer ('build'), Download…
+    fetches HelixSR's official archive it comes built in ('download'); for HelixSR before HLX, Prepare… opens Upscalers
+    (None). None for one that is ready."""
+    if provider.ready:
+        return None
+    return ('_Download…', 'download') if provider.get == 'download' else ('_Prepare…', provider.get)
+
+
+def megabytes(size, step=1):
+    """'59 MB' for a size in bytes, rounded to step megabytes; '' without a size."""
+    return str(round(size / (step * 1e6)) * step) + ' MB' if isinstance(size, (int, float)) and size > 0 else ''
+
+
+def hlx_archive_size(ctx):
+    """'about 280 MB': the size of HelixSR's official archive as this package pins it ('' when it pins none)."""
+    size = megabytes(((hlx_catalog(ctx) or {}).get('archive') or {}).get('size'), 10)
+    return 'about ' + size if size else ''
+
+
+def download_words(ctx):
+    """What Download… does, for its confirmation: one sentence both front ends' wording follows."""
+    size = hlx_archive_size(ctx)
+    return ('Setup downloads HelixSR’s official archive' + (' (' + size + ')' if size else '') + ' from its GitHub releases, '
+            'complete and unmodified, checks it by SHA-256 and unpacks it. HLX FSR 4 and HLX FSR 4 Full come built in it: '
+            'nothing is built and no game is changed.')
+
+
+def dlss_input(ctx, chosen=None):
+    """The NVIDIA DLSS DLL that HLX DLSS is built from, as Prepare Helix would take it: dict(path: the local copy
+    (chosen, else the one this installer's download cache already holds), None when there is none; error: why chosen
+    is not it; sha256: the pinned file's; version: its DLSS version ('310.7.0'); size: its download ('59 MB'); license: NVIDIA's licence for it). Hashes the
+    file (hlx.dlss_input): call it off the window's thread. Downloads nothing."""
+    hlx, catalog = ctx.installer.hlx, hlx_catalog(ctx) or {}
+    wanted = (catalog.get('model_inputs') or {}).get('dlss')
+    pins = {}
+    try:
+        pins = json.loads((ctx.root / 'dependencies.json').read_text()).get('inputs') or {}
+    except (OSError, ValueError, AttributeError):
+        pass
+    pin = next((item for item in pins.values() if isinstance(item, dict) and item.get('sha256') == wanted), {})
+    out = dict(path=None, error=None, sha256=wanted, size=megabytes(pin.get('size')),
+               version=(catalog.get('model_inputs') or {}).get('dlss_version') or '',
+               license=getattr(hlx, 'NVIDIA_LICENSE', ''))
+    try:
+        out['path'] = str(hlx.dlss_input(ctx.root, chosen))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        # Without a chosen file this only says that the installer holds no copy (or builds no HLX DLSS).
+        out['error'] = str(error) if chosen else None
+    return out
+
+
+def prepare_args(dlss=None, download=False, preset_k=False):
+    """install.py hlx's arguments for Prepare Helix. dlss: a local copy of NVIDIA's DLSS DLL the user chose (None: the
+    copy the installer's download cache holds); download: the user agreed to its download from NVIDIA's repository
+    under NVIDIA's licence (only without a local copy); preset_k: also build the optional Preset K."""
+    return ['hlx', *(['--dlss-input', str(dlss)] if dlss else ['--download-dlss'] if download else []),
+            *(['--preset-k'] if preset_k else [])]
+
+
+# HelixSR's official archive alone: HLX FSR 4 and HLX FSR 4 Full come built in it (nothing is built).
+DOWNLOAD_ARGS = ['hlx', '--no-build']
+
+
+def prepare_todo(found, preset_k=False):
+    """The ids of the Helix upscalers Prepare Helix would build now: HLX DLSS Model E and, with preset_k, the optional
+    ones, where they are not built already (hlx.prepare keeps what an earlier preparation built)."""
+    return [p.id for p in found or [] if p.get == 'build' and not p.ready and (preset_k or not p.optional)]
+
+
 def game_providers(ctx, game, prepared):
-    """Reuse only qualified HLX files owned by this installation when its shared preparation cache is gone."""
+    """Reuse only qualified Helix files owned by this installation when its shared preparation cache is gone: any
+    provider of the catalog (its api folder and files), as hlx.layout places it in a game."""
     result = list(prepared)
     catalog = hlx_catalog(ctx)
     if not catalog or not game.installed:
@@ -920,17 +1030,29 @@ def wiki_settings_args(game, plan, selected, confirmed):
             *[part for token in confirmed for part in ('--wiki-confirm', token)]]
 
 
-def hlx_requirements(which=None, run=subprocess.run):
-    """[(what, present, how to get it)] that Prepare HLX needs besides the two model inputs (hlx.prepare)."""
-    import shutil
-    which = which or shutil.which
+# What building HLX DLSS needs on this computer (hlx.requirements' names): how Setup names it, and how to get it.
+HLX_NEEDS = {'wine': ('Wine', 'Install Wine with your distribution’s package manager.'),
+             'bwrap': ('bubblewrap', 'Install bubblewrap (bwrap).'),
+             'Python numpy': ('Python numpy', 'Install numpy for ' + sys.executable + ' (python-numpy).')}
+# hlx.requirements in a process of its own: it imports numpy, which Setup's own process never loads.
+REQUIREMENTS = ('import json,sys\nsys.path.insert(0,sys.argv[1])\nimport hlx\n'
+                'print(json.dumps(hlx.requirements()))')
+
+
+def hlx_requirements(ctx, run=subprocess.run):
+    """[(what, present, how to get it)] that Prepare Helix needs to build HLX DLSS besides NVIDIA's DLSS DLL: what
+    hlx.requirements names as missing (asked in a process of its own), and what it does not. The two Helix upscalers
+    that come built need none of it."""
+    out = run([sys.executable, '-c', REQUIREMENTS, str(ctx.root)], capture_output=True, text=True, timeout=60)
     try:
-        numpy = run([sys.executable, '-c', 'import numpy'], capture_output=True, timeout=60).returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        numpy = False
-    return [('Wine', bool(which('wine')), 'Install Wine with your distribution’s package manager.'),
-            ('bubblewrap', bool(which('bwrap')), 'Install bubblewrap (bwrap).'),
-            ('Python numpy', numpy, 'Install numpy for ' + sys.executable + ' (python-numpy).')]
+        missing = json.loads((out.stdout or '').strip().splitlines()[-1])
+        if not isinstance(missing, list):
+            raise ValueError
+    except (ValueError, IndexError) as error:
+        raise ValueError('The check did not run. Run python3 install.py hlx to see what the build needs.') from error
+    rows = [(what, name not in missing, how) for name, (what, how) in HLX_NEEDS.items()]
+    return rows + [(str(name), False, 'Install it with your distribution’s package manager.')
+                   for name in missing if name not in HLX_NEEDS]
 
 
 # ----------------------------------------------------------------------------------------------- system check
@@ -972,7 +1094,7 @@ def next_steps(lines):
 # The installer's lines that say what a change did (install, update, rollback, restore, configure), for its outcome.
 SUMMARY = ('Frame-generation input:', 'Kept your settings', 'Launch option added:', 'Launch option not added:', 'Upscaler:',
            'DLSS helper:', 'Game setting applied:', 'Game setting already set:', 'vkd3d-proton', 'Provider selection saved',
-           'Rolled back', 'Original files', 'Settings saved', 'HLX ')
+           'Rolled back', 'Original files', 'Settings saved', 'HLX ', 'Helix ')
 
 
 def summary_lines(lines):

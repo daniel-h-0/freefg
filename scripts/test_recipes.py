@@ -280,9 +280,15 @@ class BuildTests(unittest.TestCase):
         # The October 25 build includes the previous BeamNG backport.
         self.assertEqual(self.data['backports'], {})
         self.assertEqual(sorted(self.data['leave_auto']), ['dcs.exe', 'endfield.exe', 'granblue_fantasy_relink.exe'])
-        # Q2 answered: the shipped build itself keeps CONTROL Resonant's FG swap chain unpreserved (a runtime quirk).
+        # Upstream dropped CONTROL Resonant's PreserveSwapChain=false default on 31 October (2e8032de): the shipped build
+        # leaves the key to OptiScaler's own default. The builds up to ba0dedb4 had that quirk and are not compatible.
         control = self.data['quirk_keys']['controlresonant.exe']
-        self.assertEqual([v for k, v in control.items() if 'PreserveSwapChain' in k], ['false'])
+        self.assertEqual(sorted(control), ['Hotfix.SimulateWaitableObject', 'Spoofing.Dxgi'])
+        # New upstream quirk key of 11 November (9e9a7190), defined by the shipped build's OptiScaler.ini.
+        self.assertEqual(self.data['quirk_keys']['hogwartslegacy.exe'], {'Upscalers.RRAllowRegularUpscalers': 'true'})
+        pinned = self.data['sources']['optiscaler_pinned']
+        self.assertEqual(self.data['sources']['optiscaler_compatible_commits'], [pinned])
+        self.assertIn('Upscalers.rrallowregularupscalers', self.data['optiscaler_builds'][pinned]['keys'])
 
     def test_store_ids_unlock_all_six_existing_promotions(self):
         count = 0
@@ -446,7 +452,7 @@ class BuildTests(unittest.TestCase):
                 self.b.add_build('abc', 'b' * 64, ini, folder)
 
     def test_a_quirk_refresh_derives_the_tables(self):
-        pinned_commit = '03db4f8692878e65748769ebe583c053cae96360'
+        pinned_commit = json.loads((self.ROOT/'research/recipes/optiscaler.json').read_text())['pinned']
         level = {'set:Spoofing.Dxgi=false': [dict(ini='Spoofing.Dxgi', value='false', respects_user=True, condition=None)],
                  'set:fakenvapi.UseFakenvapi=false': [dict(ini='fakenvapi.UseFakenvapi', value='false', respects_user=True, condition=None)],
                  'set:Hotfix.ColorResourceBarrier=4': [dict(ini='Hotfix.ColorResourceBarrier', value='4', respects_user=True, condition=None)]}

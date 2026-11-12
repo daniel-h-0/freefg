@@ -305,6 +305,7 @@ packaging/licenses/OptiScaler-third-party/NVIDIA-DLSS-SDK.txt
 packaging/licenses/OptiScaler-third-party/NVIDIA-NVAPI.txt
 packaging/licenses/OptiScaler-third-party/NVIDIA-Streamline-1.txt
 packaging/licenses/OptiScaler-third-party/NVIDIA-Streamline-2.txt
+packaging/licenses/OptiScaler-third-party/OptiScaler-plugin-SDK.txt
 packaging/licenses/OptiScaler-third-party/simpleini.txt
 packaging/licenses/OptiScaler-third-party/spdlog.txt
 packaging/licenses/OptiScaler-third-party/unordered_dense.txt
@@ -474,6 +475,7 @@ scripts/test_library_view.py
 scripts/test_recipe_migrations.py
 scripts/test_hlx_preparation.py
 
+docs/INTEGRATION.md
 docs/WIKI-SETTINGS-API.md
 research/recipes/utilization-review-20261030.json
 

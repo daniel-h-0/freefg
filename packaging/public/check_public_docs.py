@@ -5,7 +5,8 @@
 Errors (exit status 1):
   - a host-specific path (a home directory, a removable-media mount, the host's administration repository);
   - the old internal product name, or with --name a candidate name that carries Intel's Xe mark;
-  - PRIVACY.md's download table differs from packaging/dependencies.json "inputs" (URL, SHA-256 or size);
+  - PRIVACY.md's download tables differ from packaging/dependencies.json "inputs" and the "hlx" archive and compilers
+    (URL, SHA-256 or size);
   - BUILDING.md lacks a fetch group or commit of release/inputs.lock.json, or a released output's reference hash;
   - MEASUREMENTS.md lacks the released or the measured binaries' reference hashes;
   - a relative link to a missing document or to a heading that does not exist;
@@ -120,7 +121,12 @@ def main():
             warnings.append(f'--name {args.name!r}: contains "xe" inside a word; check that it does not read as Xe')
 
     # PRIVACY.md download table against the installer's pins.
-    pins = json.loads((REPO / 'packaging/dependencies.json').read_text())['inputs']
+    dependencies = json.loads((REPO / 'packaging/dependencies.json').read_text())
+    pins = dict(dependencies['inputs'])
+    helix = dependencies.get('hlx') or {}
+    if helix:
+        pins['hlx archive'] = helix['archive']
+        pins.update({'hlx ' + name: item for name, item in (helix.get('compilers') or {}).items()})
     privacy = texts.get('PRIVACY.md', '')
     rows = [line for line in privacy.splitlines() if line.startswith('|') and 'https://' in line]
     listed = {url for line in rows for url in re.findall(r'https://[^\s|)]+', line)}

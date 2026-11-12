@@ -1,122 +1,229 @@
 # Measurements
 
-All measurements are from one AMD BC-250. Headless output FPS includes generated frames; it does not measure TV
-presentation or input latency. Results from different games, versions, upscalers and settings are separate datasets.
+## Scope
 
-The detailed [measurement record at the 1.1.6 release](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md)
-retains the older tables, individual runs, methods and exclusions summarized below. Figure data and scripts are in
-[`docs/data`](https://github.com/daniel-h-0/freefg/tree/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data).
+All measurements are from one AMD BC-250. Each result describes the named build, configuration and hardware. Results
+from different games, versions, upscalers and settings are separate datasets. Small samples and excluded runs are
+recorded with each campaign.
+
+Headless output FPS includes generated frames. It does not measure TV presentation or input latency.
+
+Public source reproduces the binaries and CPU checks. The SDK scenes and benchmark harnesses are separate research
+tooling.
+
+The detailed
+[measurement record at the 1.1.6 release](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md)
+keeps the older tables, individual runs, methods and exclusions that this page summarizes. Figure data and scripts are
+in [`docs/data`](https://github.com/daniel-h-0/freefg/tree/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data).
+
+## Builds
+
+| Component | Build | SHA-256 |
+| --- | --- | --- |
+| FreeFG proxy | 1.3.0: functional checks and one short same-day native-route comparison ([Checks of 1.3.0](#checks-of-130)) | `6489938d63e7059d1b669681881cc11e93072bec921844868926386131b03ca8` |
+| Pacing layer | 1.3.0: functional checks ([Checks of 1.3.0](#checks-of-130)) | `1f691dfd018f7d3d062704b9639e5ed7bfbcfe1e71d92c2299e08153b9f666b6` |
+| FreeFG proxy | 1.1.5–1.2.0 | `5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f` |
+| Pacing layer | 1.1.3–1.2.0 | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
+| FreeFG proxy | 0.9.0 (2×) | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
+| Earlier pacing layer | 0.9.0–1.1.2 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
+
+[Earlier build identities and full table](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#builds).
+
+## Test system
+
+| Campaign | System |
+| --- | --- |
+| 26 October chart ([Cyberpunk 2.5 with HelixSR](#cyberpunk-25-with-helixsr)) | CachyOS, a BC-250 at up to 1850 MHz, kernel `7.3.0-2.326-cachyos-bc250`, Mesa/RADV `3:26.2.5-1.331`, GE-Proton11-11 and gamescope 3.16.30 |
+| 1.1.5 scaling comparison | Kernel 7.3.0-4.341 and Mesa 26.2.5-1.346 |
+
+[Other campaign configurations](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#test-system).
+
+## Checks of the 1.4.0 candidate
+
+The proxy, the pacing layer and the 93 shader-profile files retain 1.3.0 bytes. The bundled OptiScaler is `4d0c0b9`
+(DLL `22052eb2b4f9b936f9c6ee2bfa161a3dc9cdb6799f801c1999595fc765d579c3`) with the support files of upstream's nightly
+of 11 November 2026. HelixSR is 3.3.0. These checks add no performance measurement to the charts below.
+
+- **Tests.** 729 installer tests pass without skips. The release-tool suite passes, with three public-tree exclusions.
+- **Update rehearsals.** On throwaway game folders with the released 1.3.0 package: Update, a second Update, exact
+  Rollback, Update again and Restore pass on a fresh OptiFG setup, a fresh DLSS FG setup and an existing OptiScaler
+  setup; four direct installs with Restore pass. These ran before the last installer changes, which touch only the
+  HelixSR parts.
+- **Helix preparation.** `install.py hlx --preset-k` downloaded HelixSR 3.3.0 and built HLX DLSS Model E and Preset K
+  in 47 minutes on the BC-250, twice with byte-identical results. `install.py hlx --no-build` prepared the two HLX
+  FSR 4 upscalers from the download alone.
+- **Game starts.** Headless Cyberpunk 2.31 benchmark on a research copy: 1440p, GE-Proton11-11, DLSS Quality and DLSS
+  FG as inputs, installed and switched by this build's installer. One start per row, so the frame rates are not a
+  comparison. Every start completed with this build's shaders on 13 of 13 programs and no GPU faults; the maximum
+  sampled temperature was 82 °C.
+
+  | Upscaler | Factor | Presents per game frame | Displayed FPS |
+  | --- | --- | --- | --- |
+  | HLX DLSS Model E | 2× | 2.00 | 105.6 |
+  | HLX DLSS Preset K | 2× | 2.00 | 93.0 |
+  | HLX FSR 4 | 2× | 2.00 | 105.2 |
+  | HLX FSR 4 Full | 2× | 2.00 | 96.0 |
+  | AMD FSR 4 RC12 | 2× | 2.00 | 88.6 |
+  | HLX DLSS Model E, MFG Unlocker 1.7.0 | 3× | 3.00 | 104.8 |
+
+- **Restore.** After installing, switching through all five upscalers and one Rollback, Restore returned every
+  original file byte for byte.
+- **OptiScaler.** The seven swapchain probe cases of the GTA Social Club reproduction give the same stages and markers
+  as 1.3.0's DLL.
+- **Steam library games on a TV.** LG G5 at 3840×2160 and 120 Hz with HDR output and VRR, the candidate installed
+  over the library copies by its own update and removed again afterwards. The SDK reported the set frame count and
+  this build's shaders ran on 13 of 13 programs in every start; no GPU faults, 83 °C at most.
+
+  | Game | Upscaler | Factor | Where |
+  | --- | --- | --- | --- |
+  | Echo Point Nova (OptiFG) | HLX DLSS 3.1.0 kept | 2× | main menu |
+  | Echo Point Nova | HLX DLSS Model E 3.3.0 | 2×, 3×, 4× with MFG Unlocker 1.7.0 | main menu |
+  | CONTROL Resonant (DLSS FG, HDR) | HLX DLSS Model E 3.3.0 | 3×, 2×, 4× with MFG Unlocker 1.7.0 | start screens |
+  | CONTROL Resonant | HLX DLSS Model E 3.3.0 | 3× | gameplay from a save, standing, about 50 s |
+  | CONTROL Resonant | each of the five upscalers | 2× | the same gameplay scene |
+
+  The TV reported PQ and followed VRR in CONTROL's gameplay (80.6 Hz at the readback). Upstream's removal of
+  CONTROL's `FGPreserveSwapChain=false` fix showed no effect.
+- **Captures.** CONTROL's standing scene at 3840×2160 from a 2560×1440 render gives a clean picture with each of the
+  five upscalers, with small differences between them. With generated-frame scaling off, eight captures of that scene
+  are equally sharp, so generated frames carry the detail of real ones there; with a 1080p limit the generated frames
+  are visibly softer at this output size. Twenty-five Cyberpunk benchmark captures, five per upscaler, are all
+  coherent frames.
+
+Not checked: the panel itself (the display results are the TV's signal readback and gamescope screenshots), an
+existing setup that keeps its 25 October FidelityFX files, GTA V Enhanced, long sessions, generated-frame quality in
+motion, image quality at 3× and 4×, any perceptual score.
 
 ## Checks of 1.3.0
 
-The 93 shader-profile files retain 1.2.0 bytes. The proxy (`6489938d…`) and the pacing layer (`1f691dfd…`) change,
-and the bundled OptiScaler is `ba0dedb` (DLL `e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b`).
-These checks add no performance measurement to the charts below.
+The 93 shader-profile files retain 1.2.0 bytes. The proxy (`6489938d…`) and the pacing layer (`1f691dfd…`) change. The
+bundled OptiScaler is `ba0dedb` (DLL `e82bb9908ba81cdc9fc909f8e2d4eefa3481f6e73a3371b13ced986f2742a87b`). These checks
+add no performance measurement to the charts below.
 
-- 678 installer tests pass without skips, 19 of them in a real GTK window. The release-tool suite passes, with three
-  public-tree exclusions.
-- Copies of the 18 installed games of the maintainers' library pass Update, exact Rollback, repeat Update and
-  Restore, once with Restore by this build and once by released 1.2.0. 48 transitions from 1.1.3.1, 1.1.4, 1.1.5,
-  1.1.6, 1.2.0-preview and 1.2.0 pass on both routes, with two upscalers each.
-- Short Steam starts on GE-Proton11-11: Echo Point Nova (OptiFG) at 2×, and at 3× and 4× with MFG Unlocker 1.6.0
-  (`FAST_COEXIST`, 13 of 13 programs, 3 and 4 presents per game frame); CONTROL Resonant (DLSS FG input) at 2×;
-  GTA V Enhanced Story Mode at 2× with Social Club, with `RequireArgument` unset and set to `-nobattleye`. A D3D12
-  probe whose swapchain is created while its window is minimized keeps XeFG with the new OptiScaler. Maximum sampled
-  temperature 83 °C, no GPU faults.
-- Native route (the game's own XeSS FG), Cyberpunk 2.31 benchmark on a research copy at 1440p with AMD FSR 4
-  Performance: the game calls the proxy, 13 programs are replaced, and XeFG shows 2.0 presents per benchmark frame.
-  Short same-day starts gave 104.21 ± 0.56 FPS (n = 3) against 1.2.0's 104.44 (n = 2), with the same pacing. This is
-  a functional check, not a timed comparison.
+- **Tests.** 678 installer tests pass without skips, 19 of them in a real GTK window. The release-tool suite passes,
+  with three public-tree exclusions.
+- **Update rehearsals.** Copies of the 18 installed games of the maintainers' library pass Update, exact Rollback,
+  repeat Update and Restore, once with Restore by this build and once by released 1.2.0. 48 transitions from 1.1.3.1,
+  1.1.4, 1.1.5, 1.1.6, 1.2.0-preview and 1.2.0 pass on both routes, with two upscalers each.
+- **Game starts.** Short Steam starts on GE-Proton11-11. Maximum sampled temperature 83 °C, no GPU faults.
+  - Echo Point Nova (OptiFG) at 2×, and at 3× and 4× with MFG Unlocker 1.6.0 (`FAST_COEXIST`, 13 of 13 programs, 3 and 4
+    presents per game frame).
+  - CONTROL Resonant (DLSS FG input) at 2×.
+  - GTA V Enhanced Story Mode at 2× with Social Club, with `RequireArgument` unset and set to `-nobattleye`.
+  - A D3D12 probe whose swapchain is created while its window is minimized keeps XeFG with the new OptiScaler.
+- **Native route.** The game's own XeSS FG in the Cyberpunk 2.31 benchmark, on a research copy at 1440p with AMD FSR 4
+  Performance. The game calls the proxy, 13 programs are replaced, and XeFG shows 2.0 presents per benchmark frame.
+  Short same-day starts gave 104.21 ± 0.56 FPS (n = 3) against 1.2.0's 104.44 (n = 2), with the same pacing. This is a
+  functional check, not a timed comparison.
 
-This is short functional qualification, not all-game, long-play, Online, HDR, latency, pacing or image-equivalence
+This is short functional qualification. It is not all-game, long-play, Online, HDR, latency, pacing or image-equivalence
 qualification. GTA without `-nobattleye` and native XeSS FG in Cyberpunk 2.5 were not tested.
 
 ## Checks of 1.2.0
 
-All 97 FreeFG runtime/profile payload files retain 1.1.6 bytes. The bundled OptiScaler changes to `273e8d4`
-(DLL `044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87`) for Social Club swapchain isolation.
-These checks do not add new performance measurements to the charts below.
+All 97 FreeFG runtime/profile payload files retain 1.1.6 bytes. The bundled OptiScaler changes to `273e8d4` (DLL
+`044cac6be344a6619e02af9cb0930eed4165ec606dc74486a1d28a573242ec87`) for Social Club swapchain isolation. These checks
+add no performance measurement to the charts below.
 
-- 558 installer tests pass without skips, including nine real GTK tests. The release-tool suite has 121 passing
-  tests and three existing public-tree exclusions. Both packaged GTK and Zenity launchers open and exit normally.
-- Fifteen installed-game copies pass Update, exact Rollback, repeat Update and released-1.1.6 Restore. Twenty
-  historical transitions cover 1.1.3.1, 1.1.4, 1.1.5, 1.1.6 and 1.2.0-preview, on native/OptiScaler routes with two
-  providers per release. Preview-to-final ordering and final-to-preview downgrade refusal have regression tests.
-- GTA V Enhanced 1.0.1158.16 reproduced the public-runtime null-read crash and the factory-wrapping loading stall.
-  The fix passed two short Story Mode starts at 1440p with AMD FSR 4 RC12 and sustained 2×; the final-build restart
-  retained FG-on and kept generation active while Social Club opened and closed. Maximum sampled temperature was
+- **Tests.** 558 installer tests pass without skips, including nine real GTK tests. The release-tool suite has 121
+  passing tests and three existing public-tree exclusions. Both packaged launchers, GTK and Zenity, open and exit
+  normally.
+- **Update rehearsals.** Fifteen installed-game copies pass Update, exact Rollback, repeat Update and released-1.1.6
+  Restore. Twenty historical transitions cover 1.1.3.1, 1.1.4, 1.1.5, 1.1.6 and 1.2.0-preview, on native and OptiScaler
+  routes with two providers per release. Preview-to-final ordering and final-to-preview downgrade refusal have
+  regression tests.
+- **GTA V Enhanced 1.0.1158.16.** It reproduced the public-runtime null-read crash and the factory-wrapping loading
+  stall. The fix passed two short Story Mode starts at 1440p with AMD FSR 4 RC12 and sustained 2×. The final-build
+  restart retained FG-on and kept generation active while Social Club opened and closed. Maximum sampled temperature was
   84 °C, with no GPU faults. Seven D3D12 main/auxiliary-swapchain probes and 26 geometry/marker checks pass.
   [Reproduction and exact scope](https://github.com/daniel-h-0/freefg/blob/main/research/recipes/verified/gta-v-enhanced.md).
-- Normal Steam starts in CONTROL Resonant (DLSS FG input) and Echo Point Nova (OptiFG input), both using HLX DLSS,
-  confirm 2× with the new DLL. Final monitored starts reached 66 °C and 72 °C, with no GPU faults or HLX placeholder.
-  Their original DLLs and INIs were restored after testing. A first CONTROL start lacked temperature telemetry;
-  an Echo guard timeout occurred before launch. Neither replaces the final monitored checks.
-- The real GTA installation also passes a separate copy Update/Rollback/Restore rehearsal; all 115 owned files
-  match its final local installation record. Its recipe retains the Story Mode argument for both Steam accounts.
+- **GTA installation.** The real GTA installation also passes a separate copy Update/Rollback/Restore rehearsal. All 115
+  owned files match its final local installation record. Its recipe retains the Story Mode argument for both Steam
+  accounts.
+- **CONTROL Resonant and Echo Point Nova.** Normal Steam starts in CONTROL Resonant (DLSS FG input) and Echo Point Nova
+  (OptiFG input), both using HLX DLSS, confirm 2× with the new DLL. Final monitored starts reached 66 °C and 72 °C, with
+  no GPU faults or HLX placeholder. Their original DLLs and INIs were restored after testing. A first CONTROL start
+  lacked temperature telemetry, and an Echo guard timeout occurred before launch. Neither replaces the final monitored
+  checks.
 
-All game starts use plain GE-Proton11-11. This is short functional qualification, not all-game, long-play,
-Online, HDR, higher-factor, latency, pacing or image-equivalence qualification. The earlier failed GTA candidates
-remain failure evidence. Other game-specific limitations recorded for 1.1.6 below remain unchanged.
+All game starts use plain GE-Proton11-11. This is short functional qualification. It is not all-game, long-play, Online,
+HDR, higher-factor, latency, pacing or image-equivalence qualification. The earlier failed GTA candidates remain failure
+evidence. Other game-specific limitations recorded for 1.1.6 below remain unchanged.
 
 ## Checks of 1.1.6
 
 FreeFG's 97 runtime/profile payload files match 1.1.5. The integration uses OptiScaler fork `25db192b` (DLL
-`5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617`) with HLX DLSS and HLX FSR 4 from the pinned
-HelixSR 3.1.0 archive.
+`5c7dd0f333e97f7e547a2f1873794e1ec9f59757623576cdedd6f9117577d617`) with HLX DLSS and HLX FSR 4 from the pinned HelixSR
+3.1.0 archive.
 
-- 514 installer tests passed. The release-tool suite ran 124 tests, including three exclusions for private or
+- **Tests.** 514 installer tests passed. The release-tool suite ran 124 tests, including three exclusions for private or
   obsolete builds absent from the public tree. Library rendering and selection passed on an isolated X server.
-- Sixteen installed-game copies passed Update, exact Rollback, repeat Update and 1.1.5 Restore. Twelve release
-  transitions covered 1.1.3.1, 1.1.4 and 1.1.5 on both integration routes with legacy HelixSR and AMD FSR 4.
-- Eleven Cyberpunk 2.5 functional starts confirmed each HLX provider and generated presents: 2× SDR/HDR at 1440p,
-  3× SDR at 4K with 1440p generation, and 4× HDR at 1440p. Higher factors used MFG Unlocker 1.6.0. The maximum
-  sampled temperature was 85 °C.
+- **Update rehearsals.** Sixteen installed-game copies passed Update, exact Rollback, repeat Update and 1.1.5 Restore.
+  Twelve release transitions covered 1.1.3.1, 1.1.4 and 1.1.5 on both integration routes with legacy HelixSR and AMD FSR
+  4.
+- **Cyberpunk 2.5.** Eleven functional starts confirmed each HLX provider and generated presents: 2× SDR/HDR at 1440p,
+  3× SDR at 4K with 1440p generation, and 4× HDR at 1440p. Higher factors used MFG Unlocker 1.6.0. The maximum sampled
+  temperature was 85 °C.
 
-Of 14 attempted starts, one early filename prototype produced a placeholder, one HLX FSR 4 HDR start faulted with
-the default reactive mask, and one yielded to a separate preparation process. The filename was corrected. The scoped
-mask-off recipe passed repeated HDR checks; the fault's cause and mask-on image equivalence are unresolved. These
-checks do not establish all-game behavior, image quality, live-resize behavior, latency or new TV pacing.
+The other three of the 14 attempted starts:
+
+| Start | Outcome |
+| --- | --- |
+| Early filename prototype | Produced a placeholder. The filename was corrected. |
+| HLX FSR 4 HDR with the default reactive mask | Faulted. The scoped mask-off recipe passed repeated HDR checks. The fault's cause and mask-on image equivalence are unresolved. |
+| One further start | Yielded to a separate preparation process. |
+
+These checks do not establish all-game behavior, image quality, live-resize behavior, latency or new TV pacing.
 
 ## Scaling overhead in 1.1.5
 
-28 October 2026. Cyberpunk 2.5, High/RT-off, SDR, HelixSR 2.0.0 Performance (1080p → 4K), 2×, generated at 1440p
-with Area/FSR 1. Each build had one warm-up and four scored starts in balanced neighboring pairs; none was excluded.
+28 October 2026. Cyberpunk 2.5, High/RT-off, SDR, HelixSR 2.0.0 Performance (1080p → 4K), 2×, generated at 1440p with
+Area/FSR 1. Each build had one warm-up and four scored starts in balanced neighboring pairs. None was excluded.
 
 | Build | Mean output FPS | 95% interval | Scored output FPS |
 | --- | ---: | --- | --- |
 | 1.1.4 | 75.934 | 75.724–76.143 | 75.766, 76.060, 75.893, 76.014 |
 | 1.1.5 | 77.087 | 76.792–77.383 | 77.108, 76.887, 77.330, 77.025 |
 
-Output increased **1.52%**; mean paired saving was **0.394 ms per generated frame** (95% interval 0.240–0.548 ms).
+Output increased **1.52%**. The mean paired saving was **0.394 ms per generated frame** (95% interval 0.240–0.548 ms).
 The calculation uses game-frame times and Student-t intervals across four pairs. It is headless throughput with pacing
 off, not a GPU-duration or latency measurement.
 
 All 13 Cyberpunk functional starts and 43 SDK starts passed. The SDK suite covered SDR/HDR, geometry and filter
-variants, factor changes and resizing; 165 images matched 1.1.4 captures made with the same fixtures. Two attempted
-Echo starts were cancelled at a Steam Cloud synchronization failure before startup. This campaign did not qualify
-fresh Echo runtime, image quality or TV pacing.
+variants, factor changes and resizing. 165 images matched 1.1.4 captures made with the same fixtures. Two attempted Echo
+starts were cancelled at a Steam Cloud synchronization failure before startup. This campaign did not qualify fresh Echo
+runtime, image quality or TV pacing.
 
 ## Generated-frame scaling in 1.1.4
 
-27 October 2026. At 1440p output, Cyberpunk 2.5 with HelixSR Quality and 2× averaged 107.93 FPS at full generated
-resolution and 110.50 FPS at 75% per axis (Area/FSR 1), a **2.38%** gain. Each condition had a warm-up and two
-scored headless starts. Scaling changes generated pixels even in Exact mode.
+27 October 2026. Cyberpunk 2.5 at 1440p output with HelixSR Quality and 2×. Each condition had a warm-up and two scored
+headless starts.
 
-Nine Cyberpunk functional starts passed. Echo passed a 2× menu start; its 3× run was interrupted by Steam account
-use elsewhere, and 4× was not started. The SDK covered higher factors separately. These are limited integration
-checks, not full-game or image-quality qualification.
+| Generated resolution | Average FPS |
+| --- | ---: |
+| Full | 107.93 |
+| 75% per axis (Area/FSR 1) | 110.50 |
 
-### Scaling bounds and acceleration
+The gain is **2.38%**. Scaling changes generated pixels even in Exact mode.
 
-Geometry tests covered 181,920 output/scale pairs. The 25 bounded convolution forms passed 150 poisoned-background
-comparisons; 20 filter checks covered alpha and floating-point extremes. Thirty-one SDK checks covered tiny, odd,
-portrait, ultrawide, 4K and 16,383-pixel-wide inputs, factor changes and resolution cycles. Twenty-five native Exact
-images matched Intel controls. Unsupported observed layouts retain full output.
+Nine Cyberpunk functional starts passed. Echo passed a 2× menu start. Its 3× run was interrupted by Steam account use
+elsewhere, and 4× was not started. The SDK covered higher factors separately. These are limited integration checks, not
+full-game or image-quality qualification.
+
+### Scaling checks
+
+- Geometry tests covered 181,920 output/scale pairs.
+- The 25 bounded convolution forms passed 150 poisoned-background comparisons.
+- 20 filter checks covered alpha and floating-point extremes.
+- Thirty-one SDK checks covered tiny, odd, portrait, ultrawide, 4K and 16,383-pixel-wide inputs, factor changes and
+  resolution cycles.
+- Twenty-five native Exact images matched Intel controls.
+- Unsupported observed layouts retain full output.
 
 ## Cyberpunk 2.5 with HelixSR
 
-26 October 2026. FreeFG 1.1.3.1, Cyberpunk 2.5, High/RT-off, HelixSR 2.0.0 Quality (1706×960 → 2560×1440),
-reactive mask off. The 3×/4× conditions use separately supplied MFG Unlocker 1.6.0 with `XeFGModel=default`.
+26 October 2026. FreeFG 1.1.3.1, Cyberpunk 2.5, High/RT-off, HelixSR 2.0.0 Quality (1706×960 → 2560×1440), reactive mask
+off. The 3×/4× conditions use separately supplied MFG Unlocker 1.6.0 with `XeFGModel=default`.
 
 ![Output and game FPS for Intel and FreeFG at 2×, 3× and 4×, SDR and HDR10.](https://raw.githubusercontent.com/daniel-h-0/freefg/5de9a40317ff07511c69c006bad22b36d3250f03/docs/assets/cyberpunk-helixsr-fps.svg)
 
@@ -137,11 +244,16 @@ reactive mask off. The 3×/4× conditions use separately supplied MFG Unlocker 1
 | HDR10 | Intel XeFG 4× | 23.84 | 95.36 | 95.29–95.43 | 9.33 |
 | HDR10 | FreeFG 4× | 36.53 | 146.12 | 145.83–146.41 | 4.47 |
 
-Against Intel at the same factor, output FPS increased **25.5% / 40.2% / 54.2%** in SDR and
-**25.4% / 41.3% / 53.2%** in HDR10 at 2× / 3× / 4×. The `(unofficial)` chart labels mark the separate unlocker
-needed for higher factors on this GPU. All 14 warm-ups and 56 scored starts passed; each condition has four scored
-runs. Intervals are Student-t 95% intervals across run means. One interrupted preparation pilot was repeated before
-the series; no scored run was excluded.
+Output FPS increase against Intel at the same factor:
+
+| Range | 2× | 3× | 4× |
+| --- | ---: | ---: | ---: |
+| SDR | **25.5%** | **40.2%** | **54.2%** |
+| HDR10 | **25.4%** | **41.3%** | **53.2%** |
+
+The `(unofficial)` chart labels mark the separate unlocker needed for higher factors on this GPU. All 14 warm-ups and 56
+scored starts passed. Each condition has four scored runs. Intervals are Student-t 95% intervals across run means. One
+interrupted preparation pilot was repeated before the series. No scored run was excluded.
 
 ### Derived frame cost
 
@@ -151,31 +263,33 @@ For factor `m`, no-FG game FPS `G₀` and FG game FPS `Gₘ`:
 added ms per generated frame = (1000 / Gₘ − 1000 / G₀) / (m − 1)
 ```
 
-This estimates added frame time from throughput, including interactions with game work. It is not isolated GPU time
-or input latency. The table uses unrounded means; its intervals describe output FPS, not the derived cost.
+This estimates added frame time from throughput, including interactions with game work. It is not isolated GPU time or
+input latency. The table uses unrounded means. Its intervals describe output FPS, not the derived cost.
 
 ### Method
 
-Each condition used the same game, OptiScaler, upscaler and reactive-mask setting. Intel controls disabled FreeFG
-shader replacements and wave overrides; no-FG controls disabled generation. Headless gamescope ran at 240 Hz with
-pacing and frame caps off. Tests used GE-Proton11-11 and the BC-250 Mesa/RADV build. The mask-off workaround changes
-an upscaler input, so mask-on visual equivalence is not established.
+Each condition used the same game, OptiScaler, upscaler and reactive-mask setting. Intel controls disabled FreeFG shader
+replacements and wave overrides. No-FG controls disabled generation. Headless gamescope ran at 240 Hz with pacing and
+frame caps off. Tests used GE-Proton11-11 and the BC-250 Mesa/RADV build. The mask-off workaround changes an upscaler
+input, so mask-on visual equivalence is not established.
 
 [Data and driver settings](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data/cyberpunk-helixsr/data.json) ·
 [Figure script](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data/cyberpunk-helixsr/plot.py) ·
 [Compact chart](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/docs/assets/cyberpunk-helixsr-fps-narrow.svg).
-The 25 October 2× series is a [separate dataset](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data/cyberpunk-helixsr/2x-2026-10-25.json).
+The 25 October 2× series is a
+[separate dataset](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/docs/data/cyberpunk-helixsr/2x-2026-10-25.json).
 
 ## Checks of 1.1.3.1
 
-A wave-table bisection associated a wave32 selection with early GPU faults. The hotfix selects wave64 for that
-shader without changing its bytes; the underlying cause remains unresolved. Nine SDK comparisons produced 144 images
-identical to 1.1.3. Echo menu starts passed at 2×/3×/4×. [Detailed checks](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-1131).
+A wave-table bisection associated a wave32 selection with early GPU faults. The hotfix selects wave64 for that shader
+without changing its bytes. The underlying cause remains unresolved. Nine SDK comparisons produced 144 images identical
+to 1.1.3. Echo menu starts passed at 2×/3×/4×.
+[Detailed checks](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-1131).
 
 ## Checks of 1.1.3
 
 25 October 2026. CONTROL Resonant, physical 1440p120 HDR/VRR TV, GE-Proton11-11 and gamescope 3.16.30. Each timing
-sample lasted 25–45 seconds; long intervals exceed 1.5× the sample median.
+sample lasted 25–45 seconds. Long intervals exceed 1.5× the sample median.
 
 | Check | Before | Candidate |
 | --- | --- | --- |
@@ -185,50 +299,28 @@ sample lasted 25–45 seconds; long intervals exceed 1.5× the sample median.
 | 4× long flips | 69 in 33 s | 0 in 38 s |
 | 2× long flips | 0 in 28 s | 0 in 33 s |
 
-Camera motion and injected stalls still produced long intervals. End-to-end latency and library-wide pacing were
-not measured. [Method and remaining stalls](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-113).
-
-## Scope
-
-Results describe the named build, configuration and hardware. Small samples and excluded runs are recorded with
-each campaign. Public source reproduces the binaries and CPU checks; SDK scenes and benchmark harnesses are separate
-research tooling.
-
-## Builds
-
-| Component | Build | SHA-256 |
-| --- | --- | --- |
-| FreeFG proxy | 1.3.0: functional checks and one short same-day native-route comparison ([Checks of 1.3.0](#checks-of-130)) | `6489938d63e7059d1b669681881cc11e93072bec921844868926386131b03ca8` |
-| Pacing layer | 1.3.0: functional checks ([Checks of 1.3.0](#checks-of-130)) | `1f691dfd018f7d3d062704b9639e5ed7bfbcfe1e71d92c2299e08153b9f666b6` |
-| FreeFG proxy | 1.1.5–1.2.0 | `5665410389ec719d8d4f04a66231c77b61bfd19f08929a7a470fa5a383652b1f` |
-| Pacing layer | 1.1.3–1.2.0 | `5de86d968c8adbfb42cf3d56bd020a0ba82e92ca31e9dcf4e319cbc479963687` |
-| FreeFG proxy | 0.9.0 (2×) | `3bb43859ccff3a98786dd3c931e430523dbd05676f8d721515973ea73f935410` |
-| Earlier pacing layer | 0.9.0–1.1.2 | `d5f9800d0f52903f16b5a71af42599d89640bc41fc0bfc4dad66248f30ac3271` |
-
-[Earlier build identities and full table](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#builds).
-
-## Test system
-
-The October 26 chart used CachyOS, a BC-250 at up to 1850 MHz, kernel `7.3.0-2.326-cachyos-bc250`, Mesa/RADV
-`3:26.2.5-1.331`, GE-Proton11-11 and gamescope 3.16.30. The 1.1.5 scaling comparison used kernel 7.3.0-4.341 and
-Mesa 26.2.5-1.346. [Other campaign configurations](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#test-system).
+Camera motion and injected stalls still produced long intervals. End-to-end latency and library-wide pacing were not
+measured.
+[Method and remaining stalls](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-113).
 
 ## Checks of 1.1.2
 
-In 20 synthetic configurations, **704 of 704** generated images in Exact mode matched Intel's. The default FP16
-forms differed in **0.12–16.2% of pixels** across 19 configurations; the quality gate did not pass overall. Neither
-result establishes perceptual equivalence in games. Constructed rounding-sensitive inputs also exposed F4Q-family
-differences. [Test details and coverage](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-112).
-
-## Checks of 1.1.0
-
-In 20 synthetic configurations, 704 images matched Intel with F4Q on and off. [Qualification and limitations](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-110).
+In 20 synthetic configurations, **704 of 704** generated images in Exact mode matched Intel's. The default FP16 forms
+differed in **0.12–16.2% of pixels** across 19 configurations. The quality gate did not pass overall. Neither result
+establishes perceptual equivalence in games. Constructed rounding-sensitive inputs also exposed F4Q-family differences.
+[Test details and coverage](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-112).
 
 ## Shader caches
 
-Setup normally uses a private vkd3d cache and disables shader-module identifiers so the layer can see shader code
-and apply wave choices. Explicit user cache paths are preserved; path-length limits can prevent the private cache
-and wave override from taking effect. [Cache checks](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#shader-caches).
+Setup normally uses a private vkd3d cache and disables shader-module identifiers, so the layer can see shader code and
+apply wave choices. [Wave sizes](ARCHITECTURE.md#wave-sizes) describes the mechanism and its limits: explicit user cache
+paths and path-length limits.
+[Cache checks](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#shader-caches).
+
+## Checks of 1.1.0
+
+In 20 synthetic configurations, 704 images matched Intel with F4Q on and off.
+[Qualification and limitations](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#checks-of-110).
 
 ## Checks of 1.0.0
 
@@ -238,19 +330,16 @@ and wave override from taking effect. [Cache checks](https://github.com/daniel-h
 
 The original record keeps the full conditions, sample counts and exclusions for:
 
-<a id="100-against-090-at-2-same-day"></a>
-<a id="3-and-4-with-mfg-unlocker"></a>
-<a id="earlier-series-100-both-models"></a>
-<a id="start-up-exits-at-3"></a>
-<a id="generated-images-bit-identical"></a>
-<a id="frame-rate-cyberpunk-2077"></a>
-<a id="4k"></a>
-<a id="on-a-tv-with-vrr"></a>
-
 - [1.0.0 against 0.9.0 at 2×](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#100-against-090-at-2-same-day).
-- [Higher factors with MFG Unlocker](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#3-and-4-with-mfg-unlocker), including both models and three historical startup exits.
-- [0.9.0 generated images](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#generated-images-bit-identical), with direct Intel and reference-only comparisons.
-- [Earlier 1440p](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#frame-rate-cyberpunk-2077), [4K](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#4k) and [TV/VRR](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#on-a-tv-with-vrr) checks.
+- [Higher factors with MFG Unlocker](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#3-and-4-with-mfg-unlocker),
+  including both models and three historical startup exits.
+- [0.9.0 generated images](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#generated-images-bit-identical),
+  with direct Intel and reference-only comparisons.
+- [Earlier 1440p](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#frame-rate-cyberpunk-2077),
+  [4K](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#4k)
+  and
+  [TV/VRR](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#on-a-tv-with-vrr)
+  checks.
 
 ## GPU time per generated frame
 

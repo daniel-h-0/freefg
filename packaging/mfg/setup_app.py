@@ -258,6 +258,35 @@ def copy_button(window, text, what):
                   icon_name='edit-copy-symbolic', tooltip='Copy ' + what[:1].lower() + what[1:])
 
 
+def provider_row(window, provider, subtitle=None, current=False, ready_badge=True, action=True):
+    """An upscaler's row wherever one is chosen or listed: its name and one line about it, the Suggested badge, then
+    Current, Ready (ready_badge), or the button that makes it ready (action; window.provider_button: Prepare… or
+    Download…)."""
+    row = plain(Adw.ActionRow(), provider.label, subtitle or model.provider_line(provider))
+    if provider.suggested:
+        row.add_suffix(badge('Suggested', 'accent'))
+    if current:
+        row.add_suffix(badge('Current', 'accent'))
+    elif provider.ready:
+        if ready_badge:
+            row.add_suffix(badge('Ready', 'success'))
+    elif action:
+        row.add_suffix(window.provider_button(provider))
+    return row
+
+
+def radio(row, first, active, chosen):
+    """A radio button before a row, in first's group (None: it starts one); chosen() when the player selects it."""
+    check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
+    if first is not None:
+        check.set_group(first)
+    check.set_active(active)
+    check.connect('toggled', lambda c: c.get_active() and chosen())
+    row.add_prefix(check)
+    row.set_activatable_widget(check)
+    return check
+
+
 # ------------------------------------------------------------------------------------------------- manual launch settings
 # A manual event's action (or keep: the game's page) as the heading and the sentence above the settings.
 LAUNCH_HEADINGS = {
@@ -440,7 +469,7 @@ class Reader:
 
 @dataclass
 class Step:
-    """One install.py command of an operation, for one game (game None: Setup-wide, as HLX preparation)."""
+    """One install.py command of an operation, for one game (game None: Setup-wide, as Helix preparation)."""
     title: str
     args: list
     game: object = None
@@ -814,6 +843,8 @@ class InstallDialog(Adw.Dialog):
         self.connect('closed', lambda *_: setattr(self, 'cancelled', True))
         self.verdict, self.checking, self.generation = None, True, 0
         self.providers = window.providers
+        # The upscaler: the suggested one where it is ready, else FSR 4, until the player chooses one.
+        self.chosen_provider, self.provider_picked = model.default_provider(self.providers), False
         self.accepted = {}
         view = Adw.ToolbarView()
         header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
@@ -860,7 +891,8 @@ class InstallDialog(Adw.Dialog):
         self.input_row.connect('notify::selected', lambda *_: self.input_changed())
         inputs.add(self.input_row)
         page.add(inputs)
-        self.provider_group = group('Upscaler', 'You can switch it later on the game’s page.')
+        self.provider_group = group('Upscaler', 'You can switch it later on the game’s page. An upscaler that is not ready '
+                                                'yet is prepared once for every game.')
         self.provider_rows = {}
         self.credit = text_label(self.ctx.helix_about, ['dim-label', 'caption'], wrap=True)
         self.credit.set_margin_top(10)
@@ -966,27 +998,18 @@ class InstallDialog(Adw.Dialog):
         for row in self.provider_rows.values():
             self.provider_group.remove(row)
         self.provider_rows = {}
-        chosen = getattr(self, 'chosen_provider', 'fsr4')
+        found = self.providers or [model.built_in_provider()]
+        # A choice of the player's stays while it is offered; without one the default follows what is ready now.
+        if not self.provider_picked or self.chosen_provider not in [p.id for p in found]:
+            self.chosen_provider, self.provider_picked = model.default_provider(found), False
         first = None
-        for provider in self.providers or [model.Provider('fsr4', 'FSR 4', 'AMD FSR 4, BC-250 build', detail='Built in')]:
-            row = plain(Adw.ActionRow(), provider.label, provider.about if provider.ready else provider.about + ' · not prepared yet')
-            check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
-            if first is None:
-                first = check
-            else:
-                check.set_group(first)
-            check.set_active(provider.id == chosen)
-            check.connect('toggled', lambda c, pid=provider.id: c.get_active() and self.choose_provider(pid))
-            row.add_prefix(check)
-            row.set_activatable_widget(check)
-            if not provider.ready:
-                row.add_suffix(button('_Prepare…', self.window.show_upscalers, 'flat'))
-            elif provider.id != 'fsr4':
-                row.add_suffix(badge('Ready', 'success'))
+        for provider in found:
+            row = provider_row(self.window, provider, ready_badge=provider.id != 'fsr4')
+            check = radio(row, first, provider.id == self.chosen_provider, lambda pid=provider.id: self.choose_provider(pid))
+            first = first or check
             self.provider_group.add(row)
             self.provider_rows[provider.id] = row
-        self.credit.set_visible(bool(self.ctx.helix_about) and any(p.id != 'fsr4' for p in self.providers or []))
-        self.chosen_provider = chosen if chosen in self.provider_rows else 'fsr4'
+        self.credit.set_visible(bool(self.ctx.helix_about) and any(p.id != 'fsr4' for p in found))
 
     def providers_changed(self, providers):
         self.providers = providers
@@ -994,7 +1017,7 @@ class InstallDialog(Adw.Dialog):
         self.update_state()
 
     def choose_provider(self, provider):
-        self.chosen_provider = provider
+        self.chosen_provider, self.provider_picked = provider, True
         self.update_state()
 
     def blocked(self):
@@ -1012,7 +1035,9 @@ class InstallDialog(Adw.Dialog):
             return 'Accept each item under “Needs your OK” to install, or cancel.'
         provider = next((p for p in self.providers or [] if p.id == self.chosen_provider), None)
         if provider is not None and not provider.ready:
-            return provider.label + ' is not prepared on this computer yet: choose Prepare… or another upscaler.'
+            # Never the default (model.default_provider): the player chose an upscaler that is not ready yet.
+            return (provider.label + ' is ' + model.provider_state(provider).lower() + ': choose ' +
+                    model.provider_action(provider)[0].replace('_', '') + ' on its row, or another upscaler.')
         return None
 
     @property
@@ -1091,7 +1116,7 @@ class UpscalerDialog(Adw.Dialog):
     """Switch an installed game to another upscaler (install.py configure --upscaler)."""
 
     def __init__(self, window, game):
-        super().__init__(title='Upscaler', content_width=560, content_height=460)
+        super().__init__(title='Upscaler', content_width=600, content_height=600)
         self.window, self.game = window, game
         current = ((game.record or {}).get('upscaler') or {}).get('name') or 'fsr4'
         self.current = current
@@ -1131,20 +1156,9 @@ class UpscalerDialog(Adw.Dialog):
             self.group.add(waiting)
             self.rows.append(waiting)
         for provider in self.providers or []:
-            row = plain(Adw.ActionRow(), provider.label, provider.about if provider.ready else provider.detail)
-            check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
-            if first is None:
-                first = check
-            else:
-                check.set_group(first)
-            check.set_active(provider.id == self.chosen)
-            check.connect('toggled', lambda c, pid=provider.id: c.get_active() and self.choose(pid))
-            row.add_prefix(check)
-            row.set_activatable_widget(check)
-            if provider.id == self.current:
-                row.add_suffix(badge('Current', 'accent'))
-            elif not provider.ready:
-                row.add_suffix(button('_Prepare…', self.window.show_upscalers, 'flat'))
+            row = provider_row(self.window, provider, current=provider.id == self.current, ready_badge=False)
+            check = radio(row, first, provider.id == self.chosen, lambda pid=provider.id: self.choose(pid))
+            first = first or check
             self.group.add(row)
             self.rows.append(row)
         self.update_state()
@@ -1170,7 +1184,7 @@ class UpscalerDialog(Adw.Dialog):
         self.update_state()
 
     def update_state(self):
-        # An upscaler that is not prepared yet cannot be switched to: its row offers Prepare… instead.
+        # An upscaler that is not ready yet cannot be switched to: its row offers Prepare… or Download… instead.
         provider = next((p for p in self.providers or [] if p.id == self.chosen), None)
         self.switch_button.set_sensitive(self.chosen != self.current and provider is not None and provider.ready)
 
@@ -1506,13 +1520,14 @@ class WikiSettingsDialog(Adw.Dialog):
             next_steps=['Start the game to check the result. Roll Back undoes this change.']))
 
 
-# ------------------------------------------------------------------------------------------------- upscalers and HLX
+# ------------------------------------------------------------------------------------------------- upscalers and Helix
 class UpscalersDialog(Adw.Dialog):
-    """The upscalers this package installs and whether each is ready on this computer; HLX is prepared here once for
-    every game (or found in a folder prepared before)."""
+    """The upscalers this package installs and whether each is ready on this computer. HelixSR's are made ready here once
+    for every game: Prepare… builds HLX DLSS, Download… fetches the archive the two HLX FSR 4 forms come built in, or a
+    folder prepared before is chosen."""
 
     def __init__(self, window):
-        super().__init__(title='Upscalers', content_width=620, content_height=640)
+        super().__init__(title='Upscalers', content_width=640, content_height=700)
         self.window = window
         view = Adw.ToolbarView()
         view.add_top_bar(Adw.HeaderBar())
@@ -1534,27 +1549,44 @@ class UpscalersDialog(Adw.Dialog):
         if self.page is not None:
             self.stack.remove(self.page)
         page = self.page = Adw.PreferencesPage()
-        listing = group('Upscalers', 'Frame generation is XeFG with each of them. Each game’s page switches its upscaler.')
+        listing = group('Upscalers', 'Frame generation is XeFG with each of them. A new installation starts with the '
+                                     'suggested upscaler where it is ready, else with FSR 4. Each game’s page switches its '
+                                     'upscaler.')
         for provider in providers:
-            row = action_row(provider.label, provider.detail if not provider.ready or provider.id == 'fsr4' else
-                             provider.detail + (' · ' + provider.folder if provider.folder else ''),
-                             'object-select-symbolic' if provider.ready else 'dialog-warning-symbolic',
-                             'success' if provider.ready else 'warning')
-            row.add_suffix(badge('Ready', 'success') if provider.ready else badge('Not prepared', 'warning'))
+            # What it is, then where it stands: the prepared release, or the installer's reason it is not ready (FSR 4's
+            # line says it all).
+            status = '' if provider.id == 'fsr4' else provider.detail if not provider.ready else \
+                provider.detail + (' · ' + provider.folder if provider.folder else '')
+            row = provider_row(self.window, provider, '\n'.join(filter(None, (provider.about, status))),
+                               action=bool(provider.get))
+            row.add_prefix(icon('object-select-symbolic' if provider.ready else LEVEL_ICONS['dim'],
+                                'success' if provider.ready else 'dim'))
+            if not provider.ready and not provider.get:
+                # HelixSR before HLX: its own group below says how it is downloaded and built.
+                row.add_suffix(badge('Not prepared', 'warning'))
             listing.add(row)
         page.add(listing)
         if model.hlx_catalog(self.window.ctx):
-            hlx = group('HLX', 'Prepared once for every game. Built model files stay on this computer.')
-            prepare = action_row('Prepare HLX', 'Build HLX DLSS and HLX FSR 4 from your local NVIDIA and AMD model '
-                                 'inputs. Takes several minutes; no game is changed.')
-            prepare.add_suffix(button('_Prepare…', lambda: PrepareDialog(self.window).present(self.window), 'suggested-action'
-                                      if not all(p.ready for p in providers) else 'flat'))
-            hlx.add(prepare)
+            helix = group('Helix', 'HelixSR’s upscalers are made ready once for every game; no game is changed. Built '
+                                   'model files stay on this computer.')
+            if model.prepare_todo(providers, preset_k=True):
+                prepare = action_row('Prepare Helix', 'Build HLX DLSS Model E, and Preset K if you choose it, on this computer '
+                                     'from NVIDIA’s DLSS DLL. Takes several minutes.')
+                prepare.add_suffix(button('_Prepare…', self.window.prepare_helix, 'suggested-action'
+                                          if model.prepare_todo(providers) else 'flat'))
+                helix.add(prepare)
+            if any(p.get == 'download' and not p.ready for p in providers):
+                size = model.hlx_archive_size(self.window.ctx)
+                download = action_row('Download HelixSR’s archive', 'HLX FSR 4 and HLX FSR 4 Full come built in HelixSR’s '
+                                      'official archive' + (' (' + size + ')' if size else '') + ' on its GitHub releases. '
+                                      'Nothing is built.')
+                download.add_suffix(button('_Download…', self.window.download_helix, 'flat'))
+                helix.add(download)
             folder = action_row('Use a prepared folder', 'Choose an official HelixSR release folder already prepared on '
                                 'this computer.')
             folder.add_suffix(button('_Choose…', self.choose_folder, 'flat'))
-            hlx.add(folder)
-            page.add(hlx)
+            helix.add(folder)
+            page.add(helix)
         elif any(p.id == 'helixsr' for p in providers):
             helix = next(p for p in providers if p.id == 'helixsr')
             legacy = group('HelixSR')
@@ -1585,9 +1617,9 @@ class UpscalersDialog(Adw.Dialog):
             except GLib.Error:
                 return
             if folder is not None and folder.get_path():
-                self.window.run('Checking Prepared Folder', [Step('HLX', ['helixsr', '--helixsr', folder.get_path()])],
-                                working='Checking the prepared folder', success='HLX is ready for every game',
-                                on_finished=lambda _: self.window.check_providers())
+                self.window.run('Checking Prepared Folder', [Step('Helix', ['helixsr', '--helixsr', folder.get_path()])],
+                                working='Checking the prepared folder', success='Helix is ready for every game',
+                                on_finished=self.window.helix_changed)
         dialog.select_folder(self.window, None, chosen)
 
     def download_helixsr(self):
@@ -1611,50 +1643,127 @@ class UpscalersDialog(Adw.Dialog):
 
 
 class PrepareDialog(Adw.Dialog):
-    """Prepare HLX: the two local model inputs and what the build needs, then install.py hlx."""
+    """Prepare Helix: build HLX DLSS Model E, and the optional Preset K when asked, on this computer (install.py hlx).
+    It shows the NVIDIA DLSS DLL the build takes: the copy the installer's download cache already holds, else a local
+    copy the player chooses, or their agreement to its download from NVIDIA's repository under NVIDIA's licence; and
+    what the build needs. preset_k: opened from Preset K's row, with its switch on."""
 
-    def __init__(self, window):
-        super().__init__(title='Prepare HLX', content_width=600, content_height=600)
-        self.window = window
-        self.inputs = {'dlss': None, 'amd': None}
+    def __init__(self, window, preset_k=False):
+        super().__init__(title='Prepare Helix', content_width=620, content_height=700)
+        self.window, self.ctx = window, window.ctx
+        self.providers = window.providers
+        # The DLSS input: held (the installer's own copy, None: none, 'checking': not looked for yet), chosen (a local
+        # copy the player chose, once its hash is checked), and the read that checks the file chosen last.
+        self.held, self.chosen, self.generation = 'checking', None, 0
+        self.missing = None  # what the build needs and is not installed; None until checked
         view = Adw.ToolbarView()
         header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
         header.pack_start(button('_Cancel', self.close))
         self.prepare_button = button('_Prepare', self.prepare, 'suggested-action')
         self.prepare_button.set_sensitive(False)
         header.pack_end(self.prepare_button)
+        header.set_title_widget(Adw.WindowTitle(title='Prepare Helix', subtitle='Once for every game'))
         view.add_top_bar(header)
         page = Adw.PreferencesPage()
-        files = group('Model inputs', 'Your own local copies, identified in dependencies.json. Setup checks them by '
-                                      'SHA-256 and never uploads them.')
-        self.rows = {}
-        for key, title, name in (('dlss', 'NVIDIA DLSS model input', 'nvngx_dlss.dll'),
-                                 ('amd', 'AMD model input', 'amdxcffx64.dll')):
-            row = action_row(title, name + ' · not chosen')
-            row.add_suffix(button('_Choose…', lambda k=key, n=name: self.choose(k, n), 'flat'))
-            files.add(row)
-            self.rows[key] = (row, name)
-        page.add(files)
-        self.needs = group('Needed for the build', 'Preparation downloads the complete official archive and Microsoft’s '
-                                                   'shader compilers, checks their hashes, and builds with networking off.')
-        self.needs_rows = []
+        built = group('What is built', 'HLX DLSS is built on this computer. The built model files stay on this computer; no '
+                                       'game is changed.')
+        self.model_row = action_row('HLX DLSS Model E', model.UPSCALER_ABOUT['hlx-dlss'])
+        built.add(self.model_row)
+        self.preset_row = plain(Adw.SwitchRow(), 'Also build HLX DLSS Preset K',
+                                'Optional. Sharper, a little slower; its build takes many minutes.')
+        self.preset_row.set_active(preset_k)
+        self.preset_row.connect('notify::active', lambda *_: self.update_state())
+        built.add(self.preset_row)
+        page.add(built)
+        self.files = group('NVIDIA DLSS input', 'HLX DLSS is built from NVIDIA’s DLSS DLL (nvngx_dlss.dll). Setup checks it '
+                                                'by SHA-256 and never uploads it.')
+        self.held_row = action_row('Looking for a copy on this computer…')
+        self.held_row.add_suffix(spinner())
+        self.files.add(self.held_row)
+        self.local_row = action_row('Use a local copy', 'nvngx_dlss.dll · not chosen')
+        self.local_row.add_suffix(button('_Choose…', self.choose, 'flat'))
+        self.local_row.set_visible(False)
+        self.files.add(self.local_row)
+        # The player's agreement to the download: off until they turn it on, and only asked without a local copy.
+        self.agree_row = plain(Adw.SwitchRow(), 'Download it from NVIDIA')
+        self.agree_row.connect('notify::active', lambda *_: self.update_state())
+        self.agree_row.set_visible(False)
+        self.files.add(self.agree_row)
+        page.add(self.files)
+        size = model.hlx_archive_size(self.ctx)
+        self.needs = group('Needed for the build', 'Preparation takes HelixSR’s official archive' +
+                           (' (' + size + ', downloaded once)' if size else '') + ' and Microsoft’s shader compiler from '
+                           'their GitHub releases, checks their hashes, and builds with networking off.')
         page.add(self.needs)
+        self.hint = bar_text(classes=['dim-label'])
+        hint_box = Gtk.Box(margin_top=8, margin_bottom=10, margin_start=16, margin_end=16)
+        hint_box.append(self.hint)
+        view.add_bottom_bar(hint_box)
         view.set_content(page)
         self.set_child(view)
-        window.reader.call(model.hlx_requirements, None, window.reader.run, done=self.requirements, probe=True,
-                           failed=lambda error: self.needs.add(action_row('Setup could not check what the build needs',
-                                                                          str(error), 'dialog-error-symbolic', 'error')))
+        window.providers_listeners.append(self.providers_changed)
+        self.connect('closed', lambda *_: window.providers_listeners.remove(self.providers_changed))
+        self.closed = False
+        self.connect('closed', lambda *_: setattr(self, 'closed', True))
+        window.reader.call(model.dlss_input, self.ctx, done=self.found_input, failed=lambda error: self.found_input({}))
+        window.reader.call(model.hlx_requirements, self.ctx, window.reader.run, done=self.requirements, probe=True,
+                           failed=self.requirements_failed)
+        self.providers_changed(self.providers)
 
-    def requirements(self, found):
-        self.missing = [what for what, present, _ in found if not present]
-        for what, present, how in found:
-            row = action_row(what, 'Installed' if present else how, 'object-select-symbolic' if present else 'dialog-error-symbolic',
-                             'success' if present else 'error')
-            self.needs.add(row)
+    def providers_changed(self, providers):
+        self.providers = providers
+        ready = {p.id for p in providers or [] if p.ready}
+        self.model_row.set_subtitle(model.UPSCALER_ABOUT['hlx-dlss'] + (' · built already' if 'hlx-dlss' in ready else ''))
+        if 'hlx-dlss-k' in ready:
+            # Built already: nothing to choose.
+            self.preset_row.set_active(False)
+            self.preset_row.set_sensitive(False)
+            self.preset_row.set_subtitle('Built already.')
         self.update_state()
 
-    def choose(self, key, name):
-        dialog = Gtk.FileDialog(title=name)
+    def found_input(self, found):
+        """model.dlss_input's answer for the installer's own copy: shown when there is one; else the two ways to it."""
+        if self.closed:
+            return
+        self.held = found.get('path')
+        self.files.remove(self.held_row)
+        if self.held:
+            self.held_row = action_row('Found on this computer', self.held, 'object-select-symbolic', 'success')
+            self.held_row.add_css_class('mono-value')
+            self.files.add(self.held_row)
+        else:
+            size, digest = found.get('size'), found.get('sha256')
+            named = 'NVIDIA’s DLSS ' + found['version'] + ' DLL' if found.get('version') else 'NVIDIA’s DLSS DLL'
+            if digest:
+                self.local_row.set_subtitle('nvngx_dlss.dll' + (' of DLSS ' + found['version'] if found.get('version') else '') +
+                                            ' with SHA-256 ' + str(digest)[:16] + '… · not chosen')
+            self.agree_row.set_subtitle('I agree to download ' + named + (' (' + size + ')' if size else '') +
+                                        ' from NVIDIA’s repository under NVIDIA’s licence' +
+                                        (': ' + found['license'] if found.get('license') else '') + '.')
+            self.local_row.set_visible(True)
+            self.agree_row.set_visible(True)
+        self.update_state()
+
+    def requirements(self, found):
+        if self.closed:
+            return
+        self.missing = [what for what, present, _ in found if not present]
+        for what, present, how in found:
+            self.needs.add(action_row(what, 'Installed' if present else how,
+                                      'object-select-symbolic' if present else 'dialog-error-symbolic',
+                                      'success' if present else 'error'))
+        self.update_state()
+
+    def requirements_failed(self, error):
+        """The check did not run: said here, and left to install.py hlx, which checks again before it does anything."""
+        if self.closed:
+            return
+        self.missing = []
+        self.needs.add(action_row('Setup could not check what the build needs', str(error), 'dialog-error-symbolic', 'error'))
+        self.update_state()
+
+    def choose(self):
+        dialog = Gtk.FileDialog(title='NVIDIA’s DLSS DLL (nvngx_dlss.dll)')
 
         def chosen(dialog, result):
             try:
@@ -1662,21 +1771,74 @@ class PrepareDialog(Adw.Dialog):
             except GLib.Error:
                 return
             if file is not None and file.get_path():
-                self.inputs[key] = file.get_path()
-                row, label = self.rows[key]
-                row.set_subtitle(file.get_path())
-                self.update_state()
+                self.check_file(file.get_path())
         dialog.open(self.window, None, chosen)
 
+    def check_file(self, path):
+        """Hash the file the player chose off the window's thread: only NVIDIA's pinned DLL is taken."""
+        self.generation += 1
+        generation = self.generation
+        self.chosen = None
+        self.local_row.set_subtitle(path + ' · checking…')
+        self.update_state()
+        self.window.reader.call(model.dlss_input, self.ctx, path,
+                                done=lambda found: self.file_checked(generation, path, found),
+                                failed=lambda error: self.file_checked(generation, path, dict(error=str(error))))
+
+    def file_checked(self, generation, path, found):
+        if self.closed or generation != self.generation:
+            return
+        self.chosen = found.get('path')
+        self.local_row.set_subtitle(self.chosen or (path + ' · ' + (found.get('error') or 'not NVIDIA’s pinned DLSS DLL')))
+        self.update_state()
+
+    def blocked(self):
+        """Why Prepare cannot run yet, None when it can."""
+        preset_k = self.preset_row.get_active()
+        if self.providers is not None and not model.prepare_todo(self.providers, preset_k):
+            return ('HLX DLSS Model E is built already. Turn on Preset K to build it too.'
+                    if self.preset_row.get_sensitive() else 'HLX DLSS Model E and Preset K are built already.')
+        if self.held == 'checking':
+            return 'Looking for NVIDIA’s DLSS DLL on this computer…'
+        if self.missing is None:
+            return 'Checking what the build needs…'
+        if self.missing:
+            return 'Install what the build needs first: ' + ', '.join(self.missing) + '.'
+        if not (self.held or self.chosen or self.agree_row.get_active()):
+            return 'Choose a local copy of NVIDIA’s DLSS DLL, or agree to its download from NVIDIA.'
+        return None
+
     def update_state(self):
-        self.prepare_button.set_sensitive(all(self.inputs.values()) and not getattr(self, 'missing', ['?']))
+        reason = self.blocked()
+        self.prepare_button.set_sensitive(reason is None)
+        # With a local copy nothing is downloaded from NVIDIA: the agreement is not asked for.
+        self.agree_row.set_sensitive(not self.chosen)
+        self.hint.set_text(reason or self.plan())
+
+    def plan(self):
+        """What Prepare builds now, in a sentence: what an earlier preparation built is kept, not built again."""
+        preset_k = self.preset_row.get_active()
+        todo = model.prepare_todo(self.providers, preset_k) if self.providers is not None else \
+            ['hlx-dlss', *(['hlx-dlss-k'] if preset_k else [])]
+        return ('Setup builds ' + model.joined(model.UPSCALER_LABELS[name] for name in todo) + '. ' +
+                ('Preset K takes many minutes.' if 'hlx-dlss-k' in todo else 'This takes several minutes.'))
+
+    def args(self):
+        """install.py hlx's arguments for what is chosen: the installer's own copy needs none; a local copy is named; the
+        download only with the player's agreement."""
+        return model.prepare_args(None if self.held else self.chosen,
+                                  download=not self.held and not self.chosen and self.agree_row.get_active(),
+                                  preset_k=self.preset_row.get_active())
 
     def prepare(self):
-        window, inputs = self.window, dict(self.inputs)
+        if self.blocked() is not None:
+            return
+        window, args, preset_k = self.window, self.args(), self.preset_row.get_active()
         self.close()
-        window.run('Preparing HLX', [Step('HLX', ['hlx', '--dlss-input', inputs['dlss'], '--amd-input', inputs['amd']])],
-                   working='Preparing HLX for every game. This takes several minutes.',
-                   success='HLX is prepared for every game', on_finished=lambda _: window.check_providers())
+        window.run('Preparing Helix', [Step('Helix', args)],
+                   working='Preparing Helix for every game. ' + ('Preset K takes many minutes.' if preset_k else
+                                                                 'This takes several minutes.'),
+                   success='Helix is prepared for every game', on_finished=window.helix_changed)
 
 
 # ------------------------------------------------------------------------------------------------- system check
@@ -2430,6 +2592,48 @@ class Window(Adw.ApplicationWindow):
 
     def show_upscalers(self):
         UpscalersDialog(self).present(self)
+
+    def provider_button(self, provider):
+        """The button on the row of an upscaler that is not ready: Prepare… builds it on this computer, Download… fetches
+        HelixSR's archive it comes built in; for HelixSR before HLX, Prepare… opens Upscalers (model.provider_action)."""
+        label, how = model.provider_action(provider)
+
+        def act():
+            if how == 'build':
+                self.prepare_helix(provider.optional)
+            elif how == 'download':
+                self.download_helix()
+            else:
+                self.show_upscalers()
+        return button(label, act, 'flat')
+
+    def prepare_helix(self, preset_k=False):
+        PrepareDialog(self, preset_k).present(self)
+
+    def helix_changed(self, *_):
+        """After Prepare…, Download… or a prepared folder: the upscalers are checked again, so every open dialog follows,
+        and so is the system check, whose Helix row says which of them are ready."""
+        self.check_providers()
+        self.check_system()
+
+    def download_helix(self):
+        """HLX FSR 4 and HLX FSR 4 Full come built in HelixSR's official archive: asked first, then install.py hlx
+        --no-build downloads, checks and unpacks it. Nothing is built; what was built before is kept."""
+        alert = Adw.AlertDialog(heading='Download HelixSR?', body=(self.ctx.helix_about + '\n\n' if self.ctx.helix_about
+                                                                   else '') + model.download_words(self.ctx))
+        alert.add_response('cancel', '_Cancel')
+        alert.add_response('download', '_Download')
+        alert.set_response_appearance('download', Adw.ResponseAppearance.SUGGESTED)
+        alert.set_default_response('cancel')
+        alert.set_close_response('cancel')
+
+        def answered(_alert, response):
+            if response == 'download':
+                self.run('Downloading HelixSR', [Step('Helix', list(model.DOWNLOAD_ARGS))],
+                         working='Downloading HelixSR’s official archive from its GitHub releases',
+                         success='HLX FSR 4 and HLX FSR 4 Full are ready for every game', on_finished=self.helix_changed)
+        alert.connect('response', answered)
+        alert.present(self)
 
     def show_system(self):
         SystemDialog(self).present(self)

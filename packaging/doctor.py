@@ -224,22 +224,53 @@ def layer_row(package=None, glibc=None, load=layer_load):
     return ('OK', 'Pacing layer', 'loads on this system' + (f' ({versions})' if versions else ''))
 
 
+def hlx_row(folder):
+    """(level, item, text) for HelixSR's optional upscalers in a package with their catalog (hlx.py): which are ready on
+    this computer, the suggested one marked, and what each of the others needs once. HLX DLSS Model E is prepared (built
+    on this computer from NVIDIA's DLSS DLL), HLX FSR 4 and HLX FSR 4 Full are downloaded (they come built in HelixSR's
+    official archive), and Preset K is optional. INFO while one of the first three is not ready, never WARN: FSR 4 needs
+    none of them. Hashes the prepared files; downloads nothing."""
+    import hlx
+    spec = hlx.catalog(folder)
+    ready, build, download, optional = [], [], [], []
+    for provider, name in hlx.NAMES.items():
+        label = name + (' (suggested)' if provider == hlx.SUGGESTED else '')
+        try:
+            hlx.find(folder, provider)
+            ready.append(label)
+        except (OSError, ValueError):
+            (optional if provider in hlx.OPTIONAL else build if hlx.built(spec, provider) else download).append(label)
+    credit = 'optional upscalers of HelixSR ' + str(spec['version']) + ', a separate project by lonewolf0622 under its own licence'
+    parts = [('ready: ' + ', '.join(ready) if ready else 'none is ready on this computer') + ' (' + credit + ').']
+    if build:
+        parts.append('Prepare ' + ' and '.join(build) + ' once: Prepare in Setup\'s Upscalers, or install.py hlx (built on this '
+                     'computer from NVIDIA\'s DLSS DLL)' + ('; until then a new installation takes FSR 4.' if
+                                                           any('(suggested)' in label for label in build) else '.'))
+    if download:
+        size = spec['archive'].get('size')
+        parts.append('Download ' + ' and '.join(download) + ' once: Download in Setup\'s Upscalers, or install.py hlx --no-build '
+                     '(' + ('it comes' if len(download) == 1 else 'they come') + ' built in HelixSR\'s official archive' +
+                     (', about ' + str(round(size / 1e7) * 10) + ' MB' if size else '') + ').')
+    if optional:
+        parts.append(' and '.join(optional) + ' is optional and not built: Prepare in Setup\'s Upscalers, or install.py hlx '
+                     '--preset-k (a long build).')
+    return ('OK' if not build and not download else 'INFO', 'Helix', ' '.join(parts))
+
+
 def helixsr_row(home, package=None):
-    """(level, item, text) for the optional HelixSR upscaler (helixsr.py): where it is and whether HelixSR's own setup has
-    built it on this computer. None when the package pins no HelixSR. Downloads nothing."""
+    """(level, item, text) for HelixSR's optional upscalers. A package with their catalog (dependencies.json "hlx"):
+    hlx_row. One that pins HelixSR alone (helixsr.py): where it is and whether HelixSR's own setup has built it on this
+    computer. None when the package pins no HelixSR. Downloads nothing."""
     folder = Path(package or Path(__file__).resolve().parent)
     try:
-        pinned=json.loads((folder/'dependencies.json').read_text())
-        if pinned.get('hlx'):
-            import hlx
-            ready=[];missing=[]
-            for provider in hlx.NAMES:
-                try:hlx.find(folder,provider);ready.append(hlx.NAMES[provider])
-                except (OSError,ValueError):missing.append(hlx.NAMES[provider])
-            text=('Prepared: '+', '.join(ready)+'. ' if ready else '')
-            if missing:text+='Prepare '+', '.join(missing)+' once with Prepare HLX in Setup, or import a prepared HelixSR release.'
-            return ('OK' if not missing else 'INFO','HLX',text)
-    except (OSError,ValueError):pass
+        modern = bool(json.loads((folder/'dependencies.json').read_text()).get('hlx'))
+    except (OSError, ValueError, AttributeError):
+        modern = False
+    if modern:
+        try:
+            return hlx_row(folder)
+        except Exception as error:  # noqa: BLE001 - a check never stops the others
+            return ('INFO', 'Helix', 'cannot check: ' + str(error))
     try:
         import importlib.util
         spec = importlib.util.spec_from_file_location('bc250_helixsr_doctor', Path(__file__).resolve().parent/'helixsr.py')

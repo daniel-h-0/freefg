@@ -2,8 +2,9 @@
 """System check (packaging/doctor.py): a BC-250 gets its GPU-specific checks; any other GPU gets one GPU line naming it
 and the experimental BC250_XEFG_ANY_GPU=1 opt-in, and none of the BC-250-only checks (Vulkan compute queue, memory, clock).
 The texts follow the package's manifest: the enabler-free proxy build promises neither pacing nor Scale/Limit there."""
-import importlib.util, json, tempfile, unittest
+import importlib.util, json, sys, tempfile, types, unittest
 from pathlib import Path
+from unittest.mock import patch
 
 DOCTOR = Path(__file__).resolve().parents[1] / 'packaging/doctor.py'
 
@@ -190,6 +191,119 @@ class Doctor(unittest.TestCase):
         self.assertTrue(reason)
         self.assertIn('Pacing layer', {item for _level, item, _text in self.doctor.checks(home=self.drm / 'home', drm=self.drm,
                                                                                             package=package)})
+
+
+def fake_hlx(ready):
+    """An hlx module for the Helix row: HelixSR's four upscalers, those in ready prepared on this computer."""
+    module = types.ModuleType('hlx')
+    module.NAMES = {'hlx-dlss': 'HLX DLSS Model E', 'hlx-dlss-k': 'HLX DLSS Preset K', 'hlx-fsr4': 'HLX FSR 4',
+                    'hlx-fsr4-full': 'HLX FSR 4 Full'}
+    module.SUGGESTED = 'hlx-dlss'
+    module.OPTIONAL = ('hlx-dlss-k',)
+    spec = {'format': 2, 'version': '3.3.0', 'archive': {'size': 279494747},
+            'providers': {'hlx-dlss': {'build': 'network'}, 'hlx-dlss-k': {'build': 'preset-k'}, 'hlx-fsr4': {}, 'hlx-fsr4-full': {}}}
+    module.catalog = lambda package: spec
+    module.built = lambda spec, provider: spec['providers'][provider].get('build')
+
+    def find(package, provider, explicit=None):
+        if provider not in ready:
+            raise ValueError('Prepare Helix 3.3.0 once (' + module.NAMES[provider] + '): missing /cache/x')
+        return spec, Path('/cache/HelixSR-3.3.0'), {}
+    module.find = find
+    return module
+
+
+class HelixRow(unittest.TestCase):
+    """The system check's row for HelixSR's four upscalers: which are ready, the suggested one, and what the rest need."""
+    ALL = ['hlx-dlss', 'hlx-dlss-k', 'hlx-fsr4', 'hlx-fsr4-full']
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('bc250_doctor_helix', DOCTOR)
+        self.doctor = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.doctor)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.package = Path(self.tmp.name)
+        (self.package / 'dependencies.json').write_text(json.dumps({'hlx': {'format': 2}}))
+
+    def row(self, ready):
+        with patch.dict(sys.modules, {'hlx': fake_hlx(ready)}):
+            return self.doctor.helixsr_row(self.package / 'home', self.package)
+
+    def test_everything_ready(self):
+        level, item, text = self.row(self.ALL)
+        self.assertEqual((level, item), ('OK', 'Helix'))
+        self.assertTrue(text.startswith('ready: HLX DLSS Model E (suggested), HLX DLSS Preset K, HLX FSR 4, HLX FSR 4 Full (optional'))
+        self.assertIn('HelixSR 3.3.0, a separate project by lonewolf0622', text)
+        for word in ('Prepare', 'Download', 'not built'):
+            self.assertNotIn(word, text)
+
+    def test_preset_k_is_optional(self):
+        # Not built is not a problem: the row stays OK and says how to build it.
+        level, _, text = self.row(['hlx-dlss', 'hlx-fsr4', 'hlx-fsr4-full'])
+        self.assertEqual(level, 'OK')
+        self.assertIn('HLX DLSS Preset K is optional and not built', text)
+        self.assertIn('install.py hlx --preset-k', text)
+        self.assertNotIn('Prepare HLX DLSS', text)
+        self.assertNotIn('Download HLX', text)
+
+    def test_the_suggested_upscaler_is_prepared_once(self):
+        level, _, text = self.row(['hlx-fsr4', 'hlx-fsr4-full'])
+        self.assertEqual(level, 'INFO')  # never a warning: FSR 4 needs none of it
+        self.assertTrue(text.startswith('ready: HLX FSR 4, HLX FSR 4 Full ('))
+        self.assertIn('Prepare HLX DLSS Model E (suggested) once', text)
+        self.assertIn('install.py hlx (built on this computer from NVIDIA\'s DLSS DLL); until then a new installation takes FSR 4.', text)
+        self.assertIn('HLX DLSS Preset K is optional', text)
+        self.assertNotIn('Download HLX', text)
+
+    def test_the_two_that_come_built_are_downloaded_once(self):
+        level, _, text = self.row(['hlx-dlss'])
+        self.assertEqual(level, 'INFO')
+        self.assertIn('Download HLX FSR 4 and HLX FSR 4 Full once', text)
+        self.assertIn('install.py hlx --no-build (they come built in HelixSR\'s official archive, about 280 MB)', text)
+        self.assertNotIn('Prepare HLX DLSS Model E', text)
+        level, _, text = self.row(['hlx-dlss', 'hlx-fsr4'])
+        self.assertEqual(level, 'INFO')
+        self.assertIn('Download HLX FSR 4 Full once', text)
+        self.assertIn('(it comes built in HelixSR\'s official archive', text)
+
+    def test_nothing_prepared(self):
+        level, item, text = self.row([])
+        self.assertEqual((level, item), ('INFO', 'Helix'))
+        self.assertTrue(text.startswith('none is ready on this computer ('))
+        for words in ('Prepare HLX DLSS Model E (suggested) once', 'Download HLX FSR 4 and HLX FSR 4 Full once',
+                      'HLX DLSS Preset K is optional and not built'):
+            self.assertIn(words, text)
+        self.assertTrue(text.isascii())  # the check prints to any terminal
+
+    def test_the_row_is_part_of_the_check_and_never_a_warning(self):
+        with patch.dict(sys.modules, {'hlx': fake_hlx([])}):
+            rows = {item: level for level, item, _ in self.doctor.checks(home=self.package / 'home', drm=self.package / 'drm',
+                                                                          package=self.package)}
+        self.assertEqual(rows['Helix'], 'INFO')
+        self.assertNotIn('HelixSR', rows)
+
+    def test_a_catalog_this_installer_cannot_read_is_said_and_stops_nothing(self):
+        broken = fake_hlx([])
+        broken.catalog = lambda package: (_ for _ in ()).throw(ValueError('Unsupported HLX catalog; use its matching installer'))
+        with patch.dict(sys.modules, {'hlx': broken}):
+            self.assertEqual(self.doctor.helixsr_row(self.package / 'home', self.package),
+                             ('INFO', 'Helix', 'cannot check: Unsupported HLX catalog; use its matching installer'))
+            rows = [item for _, item, _ in self.doctor.checks(home=self.package / 'home', drm=self.package / 'drm', package=self.package)]
+        self.assertIn('Helix', rows)
+        self.assertIn('Setup tools', rows)
+
+    def test_this_package_with_nothing_prepared(self):
+        # The real catalog and hlx.py, on an empty cache: every upscaler named once, by what it needs.
+        import os
+        packaging = DOCTOR.parent
+        with patch.dict(os.environ, {'XDG_CACHE_HOME': self.tmp.name, 'HOME': self.tmp.name}), \
+                patch.object(sys, 'path', [str(packaging), *sys.path]), patch.dict(sys.modules):
+            sys.modules.pop('hlx', None)
+            level, item, text = self.doctor.helixsr_row(self.package / 'home', packaging)
+        self.assertEqual((level, item), ('INFO', 'Helix'))
+        for name in ('HLX DLSS Model E (suggested)', 'HLX DLSS Preset K', 'HLX FSR 4 and HLX FSR 4 Full'):
+            self.assertEqual(text.count(name), 1, name)
 
 
 if __name__ == '__main__':

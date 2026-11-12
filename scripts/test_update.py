@@ -214,6 +214,49 @@ class UpdateTests(UpdateFixture):
         self.assertEqual(status,'update');self.assertEqual((self.game/'OptiScaler/plugins/OptiPatcher.asi').read_bytes(),b'patcher 2')
         self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),before)
 
+    def nightly_renames(self,old,new):
+        """The installed release's nightly has the support file old; the newer release's has new instead and lists old
+        as retired (dependencies.json payload.RetiredFiles)."""
+        for package,name,data in ((self.package,old,b'FFX Vulkan'),(self.new,new,b'FFX Vulkan loader')):
+            m.write(self.deps/name,data)
+            pins=json.loads((package/'dependencies.json').read_text());pins['payload']['Files'][name]=m.digest(data)
+            if package is self.new:pins['payload']['RetiredFiles']=[old]
+            set_package_file(package,'dependencies.json',json.dumps(pins).encode())
+
+    def test_fresh_support_files_follow_a_nightly_that_renames_them(self):
+        # A newer pinned nightly drops a support file and brings others (FSR SDK 2.4.0: amd_fidelityfx_vk.dll gives way to
+        # a loader, an upscaler and a frame-generation DLL). The update places the new one and removes the one this
+        # installation placed; rollback returns both byte for byte; Restore leaves neither.
+        old,new='OptiScaler/amd_fidelityfx_vk.dll','OptiScaler/amd_fidelityfx_loader_vk.dll';self.nightly_renames(old,new)
+        deps=self.fresh();(self.game/'OptiScaler').rmdir()
+        m.install(self.package,self.exe,route='opti',dependency_dir=deps);before=self.snapshot()
+        self.assertEqual(before[old],b'FFX Vulkan');self.assertNotIn(new,before)
+        # Changed since installation, the file is the user's to settle: nothing is removed.
+        (self.game/old).write_bytes(b'another build');changed=self.snapshot()
+        status,out=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'blocked');self.assertIn('Changed since installation',out);self.assertIn(old,out)
+        self.assertEqual(self.snapshot(),changed);(self.game/old).write_bytes(b'FFX Vulkan')
+        status,out=self.run_quiet(m.update,self.exe,self.new)
+        self.assertEqual(status,'update');self.assertIn('  OptiScaler integration: 1 new, 1 no longer used files\n',out)
+        after=self.snapshot();self.assertNotIn(old,after);self.assertEqual(after[new],b'FFX Vulkan loader')
+        rows={item['path']:(item['before'],item['after']) for item in self.record()['files']}
+        self.assertEqual((rows[old],rows[new]),((None,None),(None,m.digest(b'FFX Vulkan loader'))))
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'current')
+        self.run_quiet(m.rollback,self.exe);self.assertEqual(self.snapshot(),before)
+        self.run_quiet(m.update,self.exe,self.new);m.restore(self.exe)
+        for name in (old,new,'dxgi.dll','OptiScaler.ini','OptiScaler'):self.assertFalse((self.game/name).exists(),name)
+
+    def test_an_existing_optiscaler_setup_keeps_the_support_file_a_nightly_dropped(self):
+        # The game's own OptiScaler setup: its support files were never this installation's, also one a newer nightly
+        # no longer has.
+        old,new='OptiScaler/amd_fidelityfx_vk.dll','OptiScaler/amd_fidelityfx_loader_vk.dll';self.nightly_renames(old,new)
+        self.original[old]=b'the setup\'s own';m.write(self.game/old,self.original[old])
+        m.install(self.package,self.exe,route='opti')
+        self.assertEqual(self.run_quiet(m.update,self.exe,self.new)[0],'update')
+        self.assertEqual((self.game/old).read_bytes(),self.original[old]);self.assertFalse((self.game/new).exists())
+        self.assertNotIn(old,[item['path'] for item in self.record()['files']])
+        m.restore(self.exe);self.assertOriginal()
+
     def test_a_file_the_release_no_longer_has_goes_back(self):
         newer=self.newer({**CHANGES,'payload/BC250-XeFG/shaders/winograd.required':None},folder='package-retire')
         m.install(self.package,self.exe,route='opti');before=self.snapshot()

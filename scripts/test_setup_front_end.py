@@ -321,7 +321,7 @@ class SetupFrontEnd(unittest.TestCase):
         nothing may open a network connection. self.shown: the texts the text-info dialogs showed."""
         from unittest import mock
         import socket
-        answers = iter(answers); calls = []; runs = []; self.shown = []
+        answers = iter(answers); calls = []; runs = self.runs = []; self.shown = []
         def run(args, **kw):
             if args[0] == sys.executable:
                 runs.append(args); return mock.Mock(returncode=0)
@@ -412,6 +412,196 @@ class SetupFrontEnd(unittest.TestCase):
         calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'), (0, 'FSR 4'), (0, ''), (1, '')],
                                     self.helix_installer('missing'))
         self.assertEqual(len(runs), 1); self.assertIn('configure', runs[0]); self.assertEqual(runs[0][-2:], ['--upscaler', 'fsr4'])
+
+    def hlx_installer(self, ready=(), becomes_ready=True, missing=(), held=None, pinned=None):
+        """A fake installer of a package with HelixSR's four upscalers: those in ready are prepared; install.py hlx (any
+        run of it) makes the rest ready when becomes_ready; missing: what the build needs and is not installed; held: the
+        NVIDIA DLSS DLL the download cache holds; pinned: the only local copy hlx.dlss_input takes."""
+        state = dict(ready=set(ready)); test = self
+        class HLX:
+            NAMES = {'hlx-dlss': 'HLX DLSS Model E', 'hlx-dlss-k': 'HLX DLSS Preset K', 'hlx-fsr4': 'HLX FSR 4',
+                     'hlx-fsr4-full': 'HLX FSR 4 Full'}
+            SUGGESTED = 'hlx-dlss'
+            OPTIONAL = ('hlx-dlss-k',)
+            NVIDIA_LICENSE = 'https://github.com/NVIDIA/DLSS/blob/main/LICENSE.txt'
+            @staticmethod
+            def catalog(root):
+                return {'format': 2, 'version': '3.3.0', 'archive': {'size': 279494747},
+                        'providers': {'hlx-dlss': {'build': 'network'}, 'hlx-dlss-k': {'build': 'preset-k'}, 'hlx-fsr4': {},
+                                      'hlx-fsr4-full': {}}}
+            @staticmethod
+            def built(spec, provider):
+                return spec['providers'][provider].get('build')
+            @staticmethod
+            def find(root, provider, explicit=None):
+                # What install.py hlx prepared since the last look (the scripted runs are recorded, not executed).
+                for run in test.hlx_runs():
+                    if becomes_ready:
+                        state['ready'] |= {'hlx-fsr4', 'hlx-fsr4-full'} | ({'hlx-dlss'} if '--no-build' not in run else set()) | \
+                            ({'hlx-dlss-k'} if '--preset-k' in run else set())
+                if provider not in state['ready'] and explicit != '/prepared':
+                    raise ValueError('Prepare Helix 3.3.0 once (' + HLX.NAMES[provider] + '): missing /cache/x')
+                return {}, Path('/cache'), {}
+            @staticmethod
+            def requirements():
+                return list(missing)
+            @staticmethod
+            def dlss_input(root, explicit=None, fetch=False):
+                if explicit:
+                    if explicit != pinned:
+                        raise ValueError('Select NVIDIA’s DLSS DLL with SHA-256 be6e as the local DLSS input.')
+                    return Path(explicit)
+                if held:
+                    return Path(held)
+                raise ValueError('HLX DLSS is built on this computer from NVIDIA’s DLSS DLL')
+        class Installer:
+            hlx = HLX
+            def idle(self, root):
+                pass
+            def detect_input(self, exe):
+                return ('opti', 'upscaler', 'OptiFG')
+        return Installer()
+
+    def hlx_runs(self):
+        return [r for r in getattr(self, 'runs', []) if 'hlx' in r]
+
+    def upscaler_list(self, calls):
+        """The upscaler list as zenity was asked to show it: [(preselected, id, name, state, about)]."""
+        args = next(c for c in calls if '--column=Upscaler' in c)
+        self.assertIn('--radiolist', args); self.assertIn('--print-column=2', args); self.assertIn('--hide-column=2', args)
+        values = args[args.index('--column=About') + 1:-1]
+        return [tuple(values[i:i + 5]) for i in range(0, len(values), 5)]
+
+    def test_five_upscalers_with_the_suggested_one_first(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        # Nothing prepared: FSR 4 is the default of a new installation, and the list says what each of the others needs.
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'fsr4'), (0, ''), (0, ''), (1, '')], self.hlx_installer())
+        rows = self.upscaler_list(calls)
+        self.assertEqual([row[:4] for row in rows],
+                         [('FALSE', 'hlx-dlss', 'HLX DLSS Model E (suggested)', 'Not built yet'), ('TRUE', 'fsr4', 'FSR 4', 'Ready'),
+                          ('FALSE', 'hlx-dlss-k', 'HLX DLSS Preset K', 'Not built yet'),
+                          ('FALSE', 'hlx-fsr4', 'HLX FSR 4', 'Not downloaded yet'),
+                          ('FALSE', 'hlx-fsr4-full', 'HLX FSR 4 Full', 'Not downloaded yet')])
+        self.assertEqual(runs[0][-6:], ['--route', 'opti', '--fg-input', 'upscaler', '--upscaler', 'fsr4'])
+        text = next(a for c in calls if '--column=Upscaler' in c for a in c if a.startswith('--text='))
+        self.assertIn('separate project by lonewolf0622', text)
+        # One line about each, the same as Setup's window shows (setup_model.UPSCALER_ABOUT).
+        spec = importlib.util.spec_from_file_location('setup_model_words', REPO / 'packaging/mfg/setup_model.py')
+        model = importlib.util.module_from_spec(spec); spec.loader.exec_module(model)
+        self.assertEqual(self.setup.UPSCALER_ABOUT, model.UPSCALER_ABOUT)
+        self.assertEqual({row[1]: row[4] for row in rows}, model.UPSCALER_ABOUT)
+        # The suggested upscaler prepared: it is the default, and installing with it needs nothing more.
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'hlx-dlss'), (0, ''), (0, ''), (1, '')], self.hlx_installer(['hlx-dlss']))
+        self.assertEqual([row[:2] for row in self.upscaler_list(calls) if row[0] == 'TRUE'], [('TRUE', 'hlx-dlss')])
+        self.assertEqual(self.upscaler_list(calls)[0][3], 'Ready')
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0][-6:], ['--route', 'opti', '--fg-input', 'upscaler', '--upscaler', 'hlx-dlss'])
+        # Another Helix upscaler that happens to be ready is never the default; a switch of installed games has none.
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'), (0, 'hlx-fsr4-full'),
+                                     (0, ''), (1, '')], self.hlx_installer(['hlx-fsr4', 'hlx-fsr4-full']))
+        self.assertEqual([row for row in self.upscaler_list(calls) if row[0] == 'TRUE'], [])
+        self.assertEqual(len(runs), 1); self.assertIn('configure', runs[0])
+        self.assertEqual(runs[0][-2:], ['--upscaler', 'hlx-fsr4-full'])
+
+    def test_an_upscaler_that_comes_built_is_downloaded_on_request(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        # HLX FSR 4 chosen and not downloaded: Download HelixSR runs install.py hlx --no-build (its output shown), then
+        # the installation goes on with it. No model input is asked for and nothing is built.
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'hlx-fsr4'), (0, 'Download HelixSR'), (0, ''), (0, ''), (0, ''), (1, '')],
+                                    self.hlx_installer())
+        self.assertEqual([r[3:] for r in runs[:1]], [['hlx', '--no-build']])
+        self.assertEqual(runs[1][-6:], ['--route', 'opti', '--fg-input', 'upscaler', '--upscaler', 'hlx-fsr4'])
+        offer = next(c for c in calls if 'Download HelixSR' in c)
+        self.assertNotIn('Prepare Helix', offer)
+        self.assertTrue(any('HelixSR’s official archive (about 280 MB) from its GitHub releases' in a for a in offer))
+        self.assertFalse(any('--column=NVIDIA DLSS input' in c or '--question' in c and any('Preset K' in a for a in c)
+                             for c in calls))
+        # Back at that list: nothing runs. A download that did not make it ready: nothing is installed.
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'hlx-fsr4-full'), (1, ''), (1, '')], self.hlx_installer())
+        self.assertEqual(runs, [])
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'hlx-fsr4-full'), (0, 'Download HelixSR'), (0, ''), (1, '')],
+                                    self.hlx_installer(becomes_ready=False))
+        self.assertEqual([r[3:] for r in runs], [['hlx', '--no-build']])
+
+    def test_prepare_helix_takes_the_dlss_input_three_ways(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        start = [(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'), (0, 'hlx-dlss'), (0, 'Prepare Helix')]
+        # The go-ahead for the build, then the preparation's output, the switch's output and the menu closed.
+        done = [(0, ''), (0, ''), (0, ''), (1, '')]
+        confirmation = lambda calls: next(a for c in calls if '--ok-label=Prepare' in c for a in c if a.startswith('--text='))
+        # The copy the download cache already holds: no question about the input, Preset K off unless asked for.
+        calls, runs = self.scripted([*start, (1, ''), *done], self.hlx_installer(held='/cache/nvngx_dlss.dll'))
+        self.assertEqual([r[3:] for r in runs[:1]], [['hlx']])
+        self.assertEqual(runs[1][-2:], ['--upscaler', 'hlx-dlss'])
+        question = next(c for c in calls if '--ok-label=Also build Preset K' in c)
+        self.assertIn('--default-cancel', question)
+        self.assertTrue(any('Preset K' in a and 'optional' in a and 'many minutes' in a for a in question))
+        self.assertFalse(any('--column=NVIDIA DLSS input' in c for c in calls))
+        # Before anything runs: what is built, from which DLSS input, and that the built files stay here.
+        self.assertIn('builds HLX DLSS Model E on this computer', confirmation(calls))
+        self.assertIn('NVIDIA DLSS input: the copy this installer already holds, /cache/nvngx_dlss.dll.', confirmation(calls))
+        self.assertIn('the built model files stay on this computer', confirmation(calls))
+        self.assertIn('several minutes', confirmation(calls))
+        # No copy: the download from NVIDIA is the user's explicit choice, under NVIDIA's licence.
+        calls, runs = self.scripted([*start, (0, 'Download from NVIDIA'), (0, ''), *done], self.hlx_installer())
+        self.assertEqual([r[3:] for r in runs[:1]], [['hlx', '--download-dlss', '--preset-k']])
+        asked = next(c for c in calls if '--column=NVIDIA DLSS input' in c)
+        self.assertTrue(any('I agree to download NVIDIA’s DLSS DLL from NVIDIA’s repository under NVIDIA’s licence' in a for a in asked))
+        self.assertTrue(any('github.com/NVIDIA/DLSS/blob/main/LICENSE.txt' in a for a in asked))
+        self.assertIn('HLX DLSS Model E and Preset K', confirmation(calls))
+        self.assertIn('NVIDIA DLSS input: downloaded from NVIDIA’s repository under NVIDIA’s licence.', confirmation(calls))
+        self.assertIn('many minutes', confirmation(calls))
+        # A local copy: named to install.py after its hash is checked; another file is refused before anything runs.
+        calls, runs = self.scripted([*start, (0, 'Use a local copy'), (0, '/in/nvngx_dlss.dll'), (1, ''), *done],
+                                    self.hlx_installer(pinned='/in/nvngx_dlss.dll'))
+        self.assertEqual([r[3:] for r in runs[:1]], [['hlx', '--dlss-input', '/in/nvngx_dlss.dll']])
+        self.assertIn('NVIDIA DLSS input: your local copy, /in/nvngx_dlss.dll.', confirmation(calls))
+        # Back at the go-ahead: nothing is built and nothing is switched.
+        calls, runs = self.scripted([*start, (1, ''), (1, ''), (1, '')], self.hlx_installer(held='/cache/nvngx_dlss.dll'))
+        self.assertEqual(runs, [])
+        calls, runs = self.scripted([*start, (0, 'Use a local copy'), (0, '/in/other.dll'), (0, ''), (1, '')],
+                                    self.hlx_installer(pinned='/in/nvngx_dlss.dll'))
+        self.assertEqual(runs, [])
+        self.assertTrue(any('--error' in c and any('SHA-256' in a for a in c) for c in calls))
+        # Neither chosen: back to the menu, nothing runs. No AMD input is ever asked for.
+        calls, runs = self.scripted([*start, (1, ''), (1, '')], self.hlx_installer())
+        self.assertEqual(runs, [])
+        self.assertFalse(any('amdxcffx' in a or 'AMD model' in a for c in calls for a in c))
+        self.assertEqual([a for c in calls if '--file-selection' in c for a in c if a.startswith('--title=') and 'FreeFG' not in a], [])
+
+    def test_preset_k_is_built_when_it_is_the_upscaler_chosen(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'), (0, 'hlx-dlss-k'),
+                                     (0, 'Prepare Helix'), (0, ''), (0, ''), (0, ''), (1, '')],
+                                    self.hlx_installer(['hlx-dlss'], held='/cache/nvngx_dlss.dll'))
+        self.assertEqual([r[3:] for r in runs[:1]], [['hlx', '--preset-k']])
+        self.assertEqual(runs[1][-2:], ['--upscaler', 'hlx-dlss-k'])
+        self.assertFalse(any('--ok-label=Also build Preset K' in c for c in calls))  # chosen already: not asked again
+        self.assertTrue(any('--ok-label=Prepare' in c and any('what is built already is kept' in a for a in c) for c in calls))
+        offer = next(c for c in calls if 'Prepare Helix' in c)
+        self.assertTrue(any('many minutes' in a for a in offer))
+        self.assertIn('Use game copies', offer)  # installed games may hold checked copies of their own
+
+    def test_prepare_helix_names_what_the_build_needs(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Install'), (0, 'OptiFG'),
+                                     (0, 'hlx-dlss'), (0, 'Prepare Helix'), (0, ''), (1, '')],
+                                    self.hlx_installer(missing=['wine', 'Python numpy']))
+        self.assertEqual(runs, [])
+        error = next(c for c in calls if '--error' in c)
+        self.assertTrue(any('needs wine, Python numpy' in a and 'HLX FSR 4 Full need none of it' in a for a in error))
+
+    def test_a_prepared_folder_serves_any_helix_upscaler(self):
+        game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
+        calls, runs = self.scripted([(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'), (0, 'hlx-fsr4-full'),
+                                     (0, 'Use prepared folder'), (0, '/prepared'), (0, ''), (1, '')], self.hlx_installer())
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0][-4:], ['--upscaler', 'hlx-fsr4-full', '--helixsr', '/prepared'])
 
     def library_installer(self, games):
         class Installer:
