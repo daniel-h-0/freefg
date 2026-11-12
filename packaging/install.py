@@ -2137,6 +2137,24 @@ def chosen_upscaler(package,name=None,helixsr_dir=None):
     return found
 
 
+def prepare_named_upscaler(package,name,dlss=None,download=True):
+    """install and configure with a HelixSR upscaler named: when it is not ready on this computer, prepare it first
+    (hlx.prepare: HelixSR's archive, and for the two HLX DLSS forms NVIDIA's DLSS DLL and the build), saying so. Does
+    nothing for FSR 4, for auto, for a package without the catalog and for an upscaler that is ready. True when it
+    prepared something."""
+    if name=='helixsr':name=hlx.SUGGESTED
+    spec=hlx.catalog(package) if name in hlx.NAMES else None
+    if not spec or not (Path(package)/'opti/OptiScaler.dll').is_file():return False
+    try:hlx.find(package,name);return False
+    except (OSError,ValueError):pass
+    build=bool(hlx.built(spec,name))
+    say(hlx.NAMES[name]+' is not ready on this computer yet. Preparing it first: '+
+        ('HelixSR’s archive is downloaded and the upscaler is built here, which takes '+('many' if name in hlx.OPTIONAL else 'several')+' minutes.'
+         if build else 'HelixSR’s archive is downloaded and checked; nothing is built.'))
+    hlx.prepare(package,dlss,report=say,preset_k=name in hlx.OPTIONAL,build=build,fetch_dlss=download)
+    return True
+
+
 def custom_hlx_supported(files,pins):
     return bool(pins.get('hlx') and files.get('opti/OptiScaler.dll'))
 
@@ -3413,10 +3431,13 @@ def main():
                         'default: the one found on this computer')
     parser.add_argument('--refresh-recipe',action='store_true',help='plan/update: apply the latest gameplay-qualified integration and launcher recipe; game settings remain manual')
     parser.add_argument('--loader',choices=OPTI_PROXIES,help='plan/update: migrate the OptiScaler loader and its launcher override')
-    parser.add_argument('--dlss-input',type=Path,help='hlx: a local copy of NVIDIA’s DLSS DLL that HLX DLSS is built from (default: '
-                        'the copy in this installer’s download cache, when an earlier installation fetched it)')
-    parser.add_argument('--download-dlss',action='store_true',help='hlx: agree to download NVIDIA’s DLSS DLL from NVIDIA’s repository, '
-                        'under NVIDIA’s licence, when no local copy is given or cached')
+    parser.add_argument('--dlss-input',type=Path,help='hlx, install, configure: a local copy of NVIDIA’s DLSS DLL that HLX DLSS is built '
+                        'from (default: the copy in this installer’s download cache, else a download from NVIDIA’s repository)')
+    parser.add_argument('--download-dlss',action='store_true',help=argparse.SUPPRESS)  # the default since 1.4.0
+    parser.add_argument('--no-download-dlss',action='store_true',help='hlx, install, configure: never download NVIDIA’s DLSS DLL; '
+                        'use --dlss-input or the cached copy')
+    parser.add_argument('--no-prepare',action='store_true',help='install, configure: do not prepare a named HelixSR upscaler first; '
+                        'refuse when it is not ready')
     parser.add_argument('--preset-k',action='store_true',help='hlx: also build HLX DLSS Preset K (optional; many minutes)')
     parser.add_argument('--no-build',action='store_true',help='hlx: only download and check the official archive (HLX FSR 4 and '
                         'HLX FSR 4 Full, which come built); build nothing')
@@ -3457,18 +3478,26 @@ def main():
     if args.refresh_recipe and args.command not in ('plan','update'):parser.error('--refresh-recipe applies to plan and update')
     if args.loader and args.command not in ('plan','update'):parser.error('--loader applies to plan and update')
     if args.expect_plan and args.command!='update':parser.error('--expect-plan applies to update')
-    if any([args.dlss_input,args.download_dlss,args.preset_k,args.no_build,args.amd_input]) and args.command!='hlx':
-        parser.error('--dlss-input, --download-dlss, --preset-k and --no-build apply to hlx')
+    if any([args.preset_k,args.no_build,args.amd_input,args.download_dlss]) and args.command!='hlx':
+        parser.error('--preset-k and --no-build apply to hlx')
+    if any([args.dlss_input,args.no_download_dlss]) and args.command not in ('hlx','install','configure'):
+        parser.error('--dlss-input and --no-download-dlss apply to hlx, install and configure')
+    if args.no_prepare and args.command not in ('install','configure'):parser.error('--no-prepare applies to install and configure')
     if args.command=='hlx':
         # HelixSR 3.2 and later ship HLX FSR 4 built: an AMD input of an earlier command line is not needed any more.
         if args.amd_input:print('--amd-input is not needed any more: HLX FSR 4 comes built in HelixSR’s archive.')
         try:
             hlx.prepare(Path(__file__).resolve().parent,args.dlss_input,report=say,preset_k=args.preset_k,build=not args.no_build,
-                        fetch_dlss=args.download_dlss)
+                        fetch_dlss=not args.no_download_dlss)
             return EXIT_OK
         except (OSError,ValueError,subprocess.SubprocessError) as error:
             print(str(error),file=sys.stderr);return EXIT_REFUSED if isinstance(error,hlx.Busy) else EXIT_FAILED
     if args.component!='all' and args.command not in ('plan','update'):parser.error('--component applies to plan and update')
+    if args.command in ('install','configure') and not args.no_prepare and not args.helixsr:
+        # A HelixSR upscaler named on the command line (Setup always names one) is made ready first.
+        try:prepare_named_upscaler(Path(__file__).resolve().parent,args.upscaler,args.dlss_input,not args.no_download_dlss)
+        except (OSError,ValueError,subprocess.SubprocessError) as error:
+            print(str(error),file=sys.stderr);return EXIT_REFUSED if isinstance(error,hlx.Busy) else EXIT_FAILED
     if args.command in ('plan','update') and any(getattr(args,key) is not None for key in ('upscaler','factor','resolution','percent','limit','downscale','upscale')):
         parser.error('Update preserves settings and provider selection; use configure for those changes')
     risk_values=args.accept_anticheat_risk

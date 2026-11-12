@@ -174,13 +174,13 @@ class DlssInput(unittest.TestCase):
 
     def test_given_cached_and_agreed_download(self):
         download=Mock(side_effect=lambda pin,cache:(Path(cache)/pin['file']).write_bytes(MODEL) and Path(cache)/pin['file'])
-        with self.assertRaisesRegex(ValueError,'--download-dlss'):hlx.dlss_input(self.root,download=download)
+        with self.assertRaisesRegex(ValueError,'--no-download-dlss'):hlx.dlss_input(self.root,download=download)
         download.assert_not_called()
         self.assertEqual(hlx.dlss_input(self.root,fetch=True,download=download),self.cache/'nvngx_dlss.dll');download.assert_called_once()
         # The copy in the cache now serves without a download or an agreement; a changed copy does not.
         self.assertEqual(hlx.dlss_input(self.root,download=download),self.cache/'nvngx_dlss.dll');download.assert_called_once()
         (self.cache/'nvngx_dlss.dll').write_bytes(b'changed')
-        with self.assertRaisesRegex(ValueError,'--download-dlss'):hlx.dlss_input(self.root,download=download)
+        with self.assertRaisesRegex(ValueError,'--no-download-dlss'):hlx.dlss_input(self.root,download=download)
         given=self.root/'mine.dll';given.write_bytes(MODEL);self.assertEqual(hlx.dlss_input(self.root,given),given.resolve())
         with self.assertRaisesRegex(ValueError,'Select NVIDIA'):hlx.dlss_input(self.root,self.cache/'nvngx_dlss.dll')
 
@@ -250,6 +250,44 @@ class SandboxTests(unittest.TestCase):
             self.assertEqual((seen['secret'],seen['model'],seen['network'],seen['runtime'],seen['input_writable']),(False,'model',False,[],False))
             self.assertNotIn('SSH_AUTH_SOCK',seen['env']);self.assertNotIn('DBUS_SESSION_BUS_ADDRESS',seen['env'])
             self.assertEqual((staging/'written').read_text(),'x');self.assertEqual(model.read_bytes(),b'model')
+
+
+class OnDemand(unittest.TestCase):
+    """install and configure with a HelixSR upscaler named prepare it first when it is not ready (install.py
+    prepare_named_upscaler): the archive alone for the two that come built, the build for the two HLX DLSS forms."""
+    def setUp(self):
+        import install
+        self.m=install
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.package=Path(self.tmp.name)
+        (self.package/'opti').mkdir();(self.package/'opti/OptiScaler.dll').write_bytes(b'opti')
+        self.spec=spec_for({})
+        for target,value in (('catalog',Mock(return_value=self.spec)),('prepare',Mock()),('find',Mock(side_effect=ValueError('not prepared')))):
+            context=patch.object(hlx,target,value);context.start();self.addCleanup(context.stop)
+        context=patch.object(install,'say',Mock());self.say=context.start();self.addCleanup(context.stop)
+
+    def test_nothing_to_prepare(self):
+        for name in (None,'auto','fsr4'):self.assertFalse(self.m.prepare_named_upscaler(self.package,name))
+        hlx.find.side_effect=None;hlx.find.return_value=(self.spec,self.package,{})
+        self.assertFalse(self.m.prepare_named_upscaler(self.package,'hlx-dlss'))
+        hlx.catalog.return_value=None;hlx.find.side_effect=ValueError('x')
+        self.assertFalse(self.m.prepare_named_upscaler(self.package,'hlx-dlss'))
+        hlx.prepare.assert_not_called();self.say.assert_not_called()
+
+    def test_what_each_upscaler_prepares(self):
+        for name,build,preset_k in (('hlx-dlss',True,False),('helixsr',True,False),('hlx-dlss-k',True,True),('hlx-fsr4',False,False),('hlx-fsr4-full',False,False)):
+            hlx.prepare.reset_mock();self.say.reset_mock()
+            self.assertTrue(self.m.prepare_named_upscaler(self.package,name))
+            hlx.prepare.assert_called_once_with(self.package,None,report=self.m.say,preset_k=preset_k,build=build,fetch_dlss=True)
+            said=self.say.call_args[0][0]
+            self.assertIn('Preparing it first',said);self.assertEqual('built here' in said,build);self.assertEqual('many minutes' in said,preset_k)
+
+    def test_a_local_copy_and_no_download(self):
+        self.m.prepare_named_upscaler(self.package,'hlx-dlss',Path('/x/nvngx_dlss.dll'),False)
+        hlx.prepare.assert_called_once_with(self.package,Path('/x/nvngx_dlss.dll'),report=self.m.say,preset_k=False,build=True,fetch_dlss=False)
+
+    def test_a_package_without_optiscaler_prepares_nothing(self):
+        (self.package/'opti/OptiScaler.dll').unlink()
+        self.assertFalse(self.m.prepare_named_upscaler(self.package,'hlx-dlss'));hlx.prepare.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

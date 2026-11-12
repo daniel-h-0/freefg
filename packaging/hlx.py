@@ -254,8 +254,8 @@ def requirements(which=shutil.which):
 
 def dlss_input(package, explicit=None, fetch=False, download=None):
     """NVIDIA's DLSS DLL that HLX DLSS is built from, as a local file with the pinned SHA-256: the file given, else the
-    copy this installer's download cache already holds (the DLSS input helper of an earlier installation), else, only
-    with fetch (the user agreed to the download), the pinned file from NVIDIA's own repository."""
+    copy this installer's download cache already holds (the DLSS input helper of an earlier installation), else, with
+    fetch, the pinned file from NVIDIA's own repository."""
     spec = catalog(package)
     wanted = spec['model_inputs']['dlss']
     named = 'NVIDIA’s DLSS ' + spec['model_inputs']['dlss_version'] + ' DLL' if spec['model_inputs'].get('dlss_version') \
@@ -275,8 +275,8 @@ def dlss_input(package, explicit=None, fetch=False, download=None):
             Path(dependencies.cache_dir()).mkdir(parents=True, exist_ok=True)
             return Path((download or dependencies.download)(pin, Path(dependencies.cache_dir())))
     raise ValueError('HLX DLSS is built on this computer from ' + named + ' (SHA-256 ' + wanted + '). Give a local copy '
-                     '(install.py hlx --dlss-input FILE), or agree to its download from NVIDIA’s repository under '
-                     'NVIDIA’s licence (install.py hlx --download-dlss; ' + NVIDIA_LICENSE + ').')
+                     '(--dlss-input FILE), or leave out --no-download-dlss so that it is downloaded from NVIDIA’s '
+                     'repository under NVIDIA’s licence (' + NVIDIA_LICENSE + ').')
 
 
 def _reuse(spec, release, previous, provider):
@@ -322,6 +322,10 @@ def prepare(package, dlss=None, wine='wine', download=None, report=print, preset
     if todo:
         missing = requirements()
         if missing:raise ValueError('Building HLX DLSS requires ' + ', '.join(missing))
+        if fetch_dlss and not dlss:
+            try:dlss_input(package)
+            except ValueError:
+                report('Downloading NVIDIA’s DLSS DLL from NVIDIA’s repository, under NVIDIA’s licence: ' + NVIDIA_LICENSE)
         dlss = dlss_input(package, dlss, fetch_dlss, download)
     # Rebuild into a fresh folder; interrupted output never replaces the last qualified preparation.
     descriptor=os.open(work/'.prepare.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
