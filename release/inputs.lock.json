@@ -138,11 +138,11 @@
    }
   },
   "optiscaler-fork": {
-   "description": "OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll with its OptiScaler.ini: OptiScaler with this project's commits, from the fork's release bc250-4d0c0b9. Its source is the commit below with the submodules that commit pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which ran it. release/fetch.py downloads both files by pinned hash; the source companion reads the fork's git checkout from XEMFG_OPTISCALER_SOURCE (or XEMFG_WORK/<source_in_work>).",
+   "description": "OptiScaler fork build (GPL-3.0), shipped as opti/OptiScaler.dll with its OptiScaler.ini: OptiScaler with this project's commits, from the fork's release bc250-4d0c0b9-r1 (the build of release bc250-4d0c0b9 with a corrected FORK.md). Its source is the commit below with the submodules that commit pins; the tag commit adds only FORK.md, which documents the build, and tools/bc250-build.py, which ran it. release/fetch.py downloads both files by pinned hash; the source companion reads the fork's git checkout from XEMFG_OPTISCALER_SOURCE (or XEMFG_WORK/<source_in_work>).",
    "repository": "https://github.com/daniel-h-0/OptiScaler",
-   "commit": "13e9ddabf3804db37de617ce1d667c1ac9a8910e",
-   "release": "release bc250-4d0c0b9 (OptiScaler.dll, OptiScaler.ini and the recursive source archive OptiScaler-bc250-4d0c0b9-source.tar.xz)",
-   "url": "https://github.com/daniel-h-0/OptiScaler/releases/download/bc250-4d0c0b9/{path}",
+   "commit": "9db0c1a29f0e94dd5cf70dbcb3b5de9e0bcae8e5",
+   "release": "release bc250-4d0c0b9-r1 (OptiScaler.dll, OptiScaler.ini and the recursive source archive OptiScaler-bc250-4d0c0b9-r1-source.tar.xz)",
+   "url": "https://github.com/daniel-h-0/OptiScaler/releases/download/bc250-4d0c0b9-r1/{path}",
    "files": {
     "OptiScaler.dll": {
      "sha256": "22052eb2b4f9b936f9c6ee2bfa161a3dc9cdb6799f801c1999595fc765d579c3"
@@ -158,8 +158,8 @@
     "upstream_base": "7479cb294cd66d4d02c2a452f6f6294ade6a11ff",
     "fixed_upstream": "f6db41dfa7bacb16ac50bd1e5787fdb44362da47",
     "tree": "46b05fbb62d92373c13194d6567251a908069b2c",
-    "tag": "bc250-4d0c0b9",
-    "tag_commit": "13e9ddabf3804db37de617ce1d667c1ac9a8910e",
+    "tag": "bc250-4d0c0b9-r1",
+    "tag_commit": "9db0c1a29f0e94dd5cf70dbcb3b5de9e0bcae8e5",
     "build_route": [
      "FORK.md",
      "tools/bc250-build.py"
@@ -167,16 +167,16 @@
     "build": "tools/bc250-build.py --jobs 8: clang-cl/lld-link/llvm-rc 23.1.4, ninja 1.13.2, MSVC 14.44.35207, SDK 10.0.26100.0",
     "source_in_work": "OptiScaler",
     "archive": {
-     "name": "OptiScaler-bc250-4d0c0b9-source.tar.xz",
-     "sha256": "2f84a0d30fc67ba38e75e53b48da99ecda5ce02c92d18aebdf5c5fe0573b37d4",
-     "bytes": 347073040,
-     "tar_sha256": "c7e979cfe2861465c57153721b5295b5df79cc3be27e79032d2cdd674cd933c0",
-     "tar_bytes": 979886080,
+     "name": "OptiScaler-bc250-4d0c0b9-r1-source.tar.xz",
+     "sha256": "8be6686f9ab1c9b00506158706946d71e41e247df7fc11292814b835105245fc",
+     "bytes": 347074176,
+     "tar_sha256": "80202ccd8d03b76afa930fc03c9ff53669ce46e248e4bc56637ec16824dacfe4",
+     "tar_bytes": 980080640,
      "members": 7273,
      "files": 6513,
-     "files_sha256": "950f6c7c4dccd2a70f15cf86086a98746944acbf3fdd45018b8e60c7d509932d",
-     "tag": "bc250-4d0c0b9",
-     "tag_commit": "13e9ddabf3804db37de617ce1d667c1ac9a8910e",
+     "files_sha256": "ca56024e134afd34e8295bbbd0e249a9e5b1d1af2f2f5c0a3fe32870add657c7",
+     "tag": "bc250-4d0c0b9-r1",
+     "tag_commit": "9db0c1a29f0e94dd5cf70dbcb3b5de9e0bcae8e5",
      "commit": "4d0c0b9798e07332a0a8a86a7dfa5b0388732957",
      "bundled": [
       "external/FidelityFX-SDK",

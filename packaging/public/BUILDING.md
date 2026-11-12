@@ -57,7 +57,7 @@ does not execute downloaded files. With `--offline`, the build tools use cached 
 | `intel-xess` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `inc/xess_fg/*.h`, `inc/xell/*.h`, `LICENSE.txt`, `third-party-programs.txt` | API types for the proxy; licence texts for the package |
 | `intel-xess-runtime` | `intel/xess` | `de0fb9c1c510661c571164e1418ceca8101dab69` | `bin/libxess_fg.dll` | The proxy's export table, and the size and hash that the proxy checks before loading the runtime. Never copied into an output. |
 | `optiscaler-license` | `optiscaler/OptiScaler` | `92337ebfbf07d533eabe3731fd8de1bb19437aea` | `LICENSE` | The package's `licenses/OptiScaler.txt` |
-| `optiscaler-fork` | `daniel-h-0/OptiScaler`, release `bc250-4d0c0b9` | `13e9ddabf3804db37de617ce1d667c1ac9a8910e` (tag) | `OptiScaler.dll`, `OptiScaler.ini` | The package's `opti/`. The fork has its [own build](#outside-this-tree). |
+| `optiscaler-fork` | `daniel-h-0/OptiScaler`, release `bc250-4d0c0b9-r1` | `9db0c1a29f0e94dd5cf70dbcb3b5de9e0bcae8e5` (tag) | `OptiScaler.dll`, `OptiScaler.ini` | The package's `opti/`. The fork has its [own build](#outside-this-tree). |
 | `fsr4-notices` | `daniel-h-0/bc250-fsr4-fork` | `b2ab949477b4d2745babae146393db5537d87fcb` | `dll/notices/*` | The package's `licenses/fsr4/` |
 | `minhook` | `TsudaKageyu/minhook` | `c3fcafdc10146beb5919319d0683e44e3c30d537` | sources, `LICENSE.txt` | Nothing in FreeFG. Fetched because `fetch.py` without arguments fetches every group. |
 
@@ -164,10 +164,10 @@ git config --system --add safe.directory <path-in-the-container>
 | DLL SHA-256 | `22052eb2b4f9b936f9c6ee2bfa161a3dc9cdb6799f801c1999595fc765d579c3` |
 | Source commit | `4d0c0b9798e07332a0a8a86a7dfa5b0388732957` |
 | Upstream base | `7479cb294cd66d4d02c2a452f6f6294ade6a11ff` |
-| Release tag commit | `13e9ddabf3804db37de617ce1d667c1ac9a8910e`. It adds only the `FORK.md` record of that build. |
+| Release tag commit | `9db0c1a29f0e94dd5cf70dbcb3b5de9e0bcae8e5`. It adds only the `FORK.md` record of that build. |
 
 `release/fetch.py` downloads this DLL and its matching `OptiScaler.ini` from the
-[fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-4d0c0b9), which also has the recursive source
+[fork release](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-4d0c0b9-r1), which also has the recursive source
 archive. The fork's `FORK.md` and `tools/bc250-build.py` describe the separate build. The source companion and the
 locked recursive source archive identify the complete corresponding source.
 
