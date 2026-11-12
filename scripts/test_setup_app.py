@@ -307,7 +307,7 @@ class Words(unittest.TestCase):
             self.assertIn("'" + option + "'", source)
         used = ' '.join(model.prepare_args('/in/x', True) + model.DOWNLOAD_ARGS)
         self.assertNotIn('--download-dlss', used); self.assertNotIn('--amd-input', used)
-        for name in ('setup_model.py', 'setup_app.py'):
+        for name in ('setup_model.py', 'setup_app.py', 'setup.py'):
             self.assertNotIn("'--download-dlss'", (REPO / 'packaging/mfg' / name).read_text(), name)
         ctx = lambda ready: context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(ready)))
         nothing, model_e, both = (model.providers(ctx(ready), needs()) for ready in ([], ['hlx-dlss'], ['hlx-dlss', 'hlx-dlss-k']))
