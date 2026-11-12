@@ -127,6 +127,14 @@ class PrepareFlow(unittest.TestCase):
         self.assertEqual(self.ready(),['hlx-fsr4','hlx-fsr4-full']);self.assertEqual(self.runs,[])
         self.assertIn('HLX FSR 4, HLX FSR 4 Full',self.lines[-1]);self.assertNotIn('Model E',self.lines[-1])
 
+    def test_a_replaced_upstream_archive_is_named_as_such(self):
+        def download(pin,work):raise ValueError('Download size mismatch: HelixSR-3.3.0.zip')
+        with self.assertRaisesRegex(ValueError,'replaced the 3.3.0 archive.*newer FreeFG release.*AMD FSR 4'):
+            hlx.prepare(self.root,download=download,report=self.lines.append,build=False)
+        self.assertEqual(self.ready(),[]);self.assertEqual([p.name for p in self.work.iterdir() if p.name.startswith('.prepare-')],[])
+        def offline(pin,work):raise ValueError('Cannot download HelixSR-3.3.0.zip')
+        with self.assertRaisesRegex(ValueError,'^Cannot download'):hlx.prepare(self.root,download=offline,report=self.lines.append,build=False)
+
     def test_model_e_is_built_from_the_local_input_without_the_optional_preset_k(self):
         self.prepare(dlss=self.model)
         self.assertEqual(self.ready(),['hlx-dlss','hlx-fsr4','hlx-fsr4-full'])

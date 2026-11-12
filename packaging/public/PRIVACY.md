@@ -48,7 +48,7 @@ GitHub's privacy terms govern those requests.
 
 | File | When | Source | SHA-256 | Bytes |
 | --- | --- | --- | --- | --- |
-| HelixSR 3.3.0, its complete official release archive | Download or Prepare Helix, when it is not cached | https://github.com/lonewolf0622/HelixSR/releases/download/v3.3.0/HelixSR-3.3.0.zip | `4d87481061db0f499112041b38da5aebfc86e7f9ca3c7b1894258f20452d9045` | 279,494,747 |
+| HelixSR 3.3.0, its complete official release archive | Download or Prepare Helix, when it is not cached | https://github.com/lonewolf0622/HelixSR/releases/download/v3.3.0/HelixSR-3.3.0.zip | `7d6c0a4adeb5237004fc6fbe211d39705d62d49f23c51cc8f4ea987281d0a56b` | 279,492,763 |
 | Microsoft's DirectX Shader Compiler 1.9.2607 | a build of HLX DLSS, when it is not cached | https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip | `a1dfb116ba3eeae6a1582291b53a8e7bf65ad760676bd3194685c8f7367cd241` | 41,625,275 |
 | NVIDIA's DLSS 310.7.0 DLL, the pinned file listed above | a build of HLX DLSS, only when no local copy is given or cached and you agreed to the download | as above | as above | 58,977,904 |
 

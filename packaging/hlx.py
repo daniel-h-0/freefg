@@ -335,7 +335,13 @@ def prepare(package, dlss=None, wine='wine', download=None, report=print, preset
     staging=None
     try:
         staging = Path(tempfile.mkdtemp(prefix='.prepare-', dir=work))
-        archive = Path(download(spec['archive'], work))
+        try:archive = Path(download(spec['archive'], work))
+        except ValueError as error:
+            # HelixSR's author can replace a release's archive under the same name; this release pins one file.
+            if 'mismatch' not in str(error):raise
+            raise ValueError('HelixSR’s download is not the file this FreeFG release was checked with (' + str(error) + '). Its author may '
+                             'have replaced the ' + spec['version'] + ' archive since. FreeFG installs only the build it checked: look for '
+                             'a newer FreeFG release, and use AMD FSR 4 until then.') from error
         unpack(archive, staging, spec['folder'])
         release = staging / spec['folder']
         for name in sorted(have):
