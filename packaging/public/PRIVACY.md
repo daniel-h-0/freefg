@@ -1,19 +1,18 @@
 # Privacy
 
-FreeFG has no telemetry, account, automatic update check or crash uploader. Its installer makes external requests
-for pinned downloads. Runtime components use local logs, shared memory and the game's X display; optional helpers
-also use local interfaces described below.
+FreeFG has no telemetry, account, update check or crash uploader. The installer uses the network only to download
+the pinned files listed here. In the game, FreeFG writes local logs, shares one memory page between its two parts and
+connects to the game's X display. The two optional extras use local interfaces, described below.
 
-## What the installer downloads
+## Downloads
 
-Downloads come from public GitHub locations and are verified by SHA-256 and, when pinned, size. Pinned dependency members are
-extracted by name and checked individually. The optional HelixSR download is instead verified as a complete archive
-and safely extracted as described in [SECURITY.md](SECURITY.md#the-installer). Preview downloads the dependencies it
-needs for the proposed installation. The installer does not execute downloaded setup scripts; installed DLLs run later
-in the game.
+Every download comes from a public GitHub location and is checked by SHA-256 and, where pinned, by size. Files inside
+an archive are extracted by name and checked one by one. HelixSR's archive is checked as a whole and unpacked as
+[Security](SECURITY.md#the-installer) describes. Preview downloads what the proposed installation needs. Apart from
+HelixSR's build (below), the installer runs nothing it downloads; the installed DLLs run later, in the game.
 
-Files are cached under `$XDG_CACHE_HOME/bc250-xefg-testers` (normally `~/.cache/bc250-xefg-testers`). Reused files are
-verified before use. The table mirrors `dependencies.json`; automated checks detect URL/hash/size drift.
+Downloads are cached under `$XDG_CACHE_HOME/bc250-xefg-testers` (normally `~/.cache/bc250-xefg-testers`) and checked
+again before each use. The table mirrors `dependencies.json`; the documentation check fails when they differ.
 
 | What | When | URL | SHA-256 | Size (bytes) |
 | --- | --- | --- | --- | --- |
@@ -31,16 +30,16 @@ verified before use. The table mirrors `dependencies.json`; automated checks det
 | NVIDIA's licence for that DLL | with the DLL | https://raw.githubusercontent.com/NVIDIA/DLSS/a291cc7d2cc642a51566f3dfd5376f635cd1b284/LICENSE.txt | `21b5daec892b12bea692e66bc8fe45cf5902ccaf3a7b831e78050d8859881c37` | 27,176 |
 | HelixSR 2.0.0, its complete official release archive (a separate project by lonewolf0622, under its own licence) | only if the legacy `install.py helixsr` command requests 2.0.0 and it is not cached | https://github.com/lonewolf0622/HelixSR/releases/download/v2.0.0/HelixSR-2.0.0.zip | `0d60686eddbb0abd680b27d12a088344b212464ebf0a2dc18d10387e1c817f52` | 136,997,025 |
 
-Fallback sources provide identical pinned Intel files. Cold-cache totals are about 107 MB for a fresh setup or
-74 MB with supported OptiScaler already installed, plus 59 MB if the DLSS helper is needed. The legacy 2.0.0
-command downloads a 137 MB archive, unpacked beneath `helixsr/` in the cache; its downloaded ZIP is then removed.
-HelixSR 3.3.0 is a separate download, as described below.
+The fallback sources hold the same pinned Intel files. With an empty cache, a fresh setup downloads about 123 MB and
+a game that already has a supported OptiScaler about 74 MB, plus 59 MB if the DLSS helper is needed. The legacy
+2.0.0 command downloads a 137 MB archive, unpacks it beneath `helixsr/` in the cache and removes the ZIP.
+HelixSR 3.3.0 is a separate download, described below.
 
-### What a download reveals
+### Request data
 
-GitHub and its download hosts receive the requesting IP address, time and requested file. Requests use the fixed
-legacy User-Agent `freefg-installer/1`; no game list, system report, account credential or unique device/user
-identifier is sent. GitHub's privacy terms govern those requests.
+GitHub and its download hosts receive the requesting IP address, the time and the requested file. Requests carry the
+fixed User-Agent `freefg-installer/1`. No game list, system report, credential or device or user identifier is sent.
+GitHub's privacy terms govern those requests.
 
 ## HelixSR (optional)
 
@@ -53,21 +52,21 @@ identifier is sent. GitHub's privacy terms govern those requests.
 | Microsoft's DirectX Shader Compiler 1.9.2607 | a build of HLX DLSS, when it is not cached | https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip | `a1dfb116ba3eeae6a1582291b53a8e7bf65ad760676bd3194685c8f7367cd241` | 41,625,275 |
 | NVIDIA's DLSS 310.7.0 DLL, the pinned file listed above | a build of HLX DLSS, only when no local copy is given or cached and you agreed to the download | as above | as above | 58,977,904 |
 
-HelixSR's author can replace the archive of a release in place; FreeFG then refuses the changed file until a FreeFG
-release pins it.
+If HelixSR's author replaces a release's archive in place, FreeFG refuses the changed file until a FreeFG release
+pins it.
 
-Prepare Helix runs the archive's unchanged build-only Python entry point with `--no-fg`. Bubblewrap mounts the host
-read-only, makes only the preparation directory writable and disables networking for the build. It uses existing
-Wine and Python/numpy; it does not install system packages or run Helix's game installer. The two HLX FSR 4
-upscalers come built in the archive and need no build, model input or build tool.
+Prepare Helix runs the archive's own build script, unchanged, with `--no-fg`. Bubblewrap mounts the host read-only,
+makes only the preparation folder writable and gives the build no network. The build uses the Wine and Python with
+numpy already on the computer. It installs no system package and does not run HelixSR's game installer. HLX FSR 4
+and HLX FSR 4 Full come built in the archive and need no build, model input or build tool.
 
-The archive-specific preparation cache is under `~/.cache/bc250-xefg-testers/hlx/` unless `XDG_CACHE_HOME` selects
-another cache root. A remembered prepared-folder path is local to that archive identity. FreeFG copies the checked
-model-bearing DLLs into each selected game's custom-provider folder. These files remain on the user's computer;
-no built model data is uploaded or included in a FreeFG release. Provider logs remain beside the installed DLLs.
-Legacy HelixSR 2.0.0 records retain their original-file and log recovery information. [Notices](NOTICE.md#helixsr).
+The prepared files are kept per archive under `~/.cache/bc250-xefg-testers/hlx/` (or the cache root `XDG_CACHE_HOME`
+names), together with the path of a prepared folder you selected. FreeFG copies the checked DLLs and model data into
+each game's OptiScaler custom folder. Built model data stays on your computer: it is not uploaded and no FreeFG
+release contains it. Each upscaler's log stays beside its DLL. Records of the earlier HelixSR 2.0.0 keep what Restore
+needs for its files and log. [Notices](NOTICE.md#helixsr).
 
-## What the installer reads and writes on your computer
+## Local files
 
 | Location | Use |
 | --- | --- |
@@ -77,30 +76,28 @@ Legacy HelixSR 2.0.0 records retain their original-file and log recovery informa
 | Download cache | Store verified payloads, extracted HelixSR and its remembered location. |
 | Library index | Store local executable paths, installation IDs and package names at `$XDG_DATA_HOME/freefg/library.json` (default `~/.local/share/freefg/library.json`). `FREEFG_LIBRARY` may select an absolute alternative. It is optional and rebuildable; Restore removes its entry. |
 
-Discovery reads Steam library lists, app manifests, `appinfo.vdf`, Proton selections, launch options and local account
-`localconfig.vdf`/`shortcuts.vdf`; Heroic library/configuration caches; and Lutris game configuration. Native and Flatpak
-locations are recognised, though Flatpak launcher operation is not qualified. Update All Games and `plan --all` read every
-Steam, Heroic and Lutris launch entry's environment and the optional index to find installations. Plan is read-only;
-an update can write owned launcher fields when its plan includes a migration. Install, Update and Register refresh index entries. No index is uploaded.
+What each action reads:
 
-Check reads executable/DLL headers, imports and relevant function-name strings; filenames; launcher metadata;
-GE-Proton's per-game fix; game settings/logs indicating the graphics API; and FreeFG logs for recorded
-installations. It does not run game files, modify the game or contact external services.
+| Action | Reads | Writes |
+| --- | --- | --- |
+| Finding games | Steam library lists, app manifests, `appinfo.vdf`, Proton selections, launch options and each local account's `localconfig.vdf` and `shortcuts.vdf`; Heroic's library and configuration caches; Lutris game configuration. Native and Flatpak locations (Flatpak launchers are untested) | nothing |
+| **Update All Games…**, `plan --all` | the environment of every Steam, Heroic and Lutris launch entry, and the optional index | Plan writes nothing. An update writes FreeFG's own launcher fields when its plan includes a migration |
+| Check | headers, imports and function-name strings of the game's executables and DLLs; file names; launcher metadata; GE-Proton's fix for the game; game settings and logs that show the graphics API; FreeFG's logs of a recorded installation | nothing. It runs no game file and contacts no service |
+| **System Check** | PCI IDs, kernel and Proton versions, Vulkan queues, GPU memory and clocks, gamescope's capabilities; it also tries Steam's local DevTools port | nothing |
 
-**System Check** reads PCI IDs, kernel/Proton versions, Vulkan queues, GPU memory/clocks and gamescope capabilities.
-It also tests Steam's local DevTools port. It does not change system configuration.
+Install, Update and Register refresh the index entry of their game. The index is never uploaded.
 
-`check --report` prepares text for you to submit; it does not upload it. The report includes versions, game/store ID,
-configuration, verdict and a log summary. It replaces known home/user/library paths, including Wine forms, and shows
-the executable basename. Review it before sharing; raw logs are not redacted automatically.
+`check --report` prepares a text for you to send; it uploads nothing. The report has versions, the game's store ID,
+configuration, the verdict and a log summary. Known home, user and library paths are replaced, also in their Wine
+forms, and the executable is named without its folder. Read it before you share it: raw logs are not redacted.
 
-## What runs in the game
+## In the game
 
 `BC250-MFG.log` and `BC250-XeFG-fast.log` sit beside the executable. They can contain executable paths, GPU IDs, timing
 and shader hashes. HelixSR adds its own log. Status and Check read these locally; nothing uploads them.
 
-The pacing layer writes to standard error, shares a generation-signal page with the proxy under
-`/dev/shm/bc250-xefg-pace-…`, and connects to the game's X display for compositor wake-ups.
+The pacing layer writes to standard error, shares one page with the proxy under `/dev/shm/bc250-xefg-pace-…` (the
+signal that frames are being generated) and connects to the game's X display to wake the compositor.
 [Local interfaces and permissions](SECURITY.md#the-pacing-layer).
 
 ## Extras
@@ -113,6 +110,6 @@ The pacing layer writes to standard error, shares a generation-signal page with 
 
 ## Building from source
 
-Build tools fetch pinned API headers, runtime identity/export inputs, licence texts and toolchains. The release fetcher
-uses User-Agent `freefg-release-fetch`. [BUILDING.md](BUILDING.md) lists sources and checks; these build-time
-requests are separate from installation and gameplay.
+A build from source fetches pinned API headers, the inputs that identify Intel's runtime and its exports, licence
+texts and toolchains, with the User-Agent `freefg-release-fetch`. [Building](BUILDING.md) lists the sources and
+checks. Installing and playing make none of these requests.

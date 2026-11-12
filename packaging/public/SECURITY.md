@@ -2,46 +2,47 @@
 
 ## Reporting a vulnerability
 
-Use GitHub's private [Report a vulnerability](https://github.com/daniel-h-0/freefg/security/advisories/new) form rather
-than a public issue. Describe the affected component, impact and reproduction steps. Maintainers aim to respond
-within a week, release fixes when ready and credit reporters unless they prefer otherwise. Only the latest release
-is supported.
+Use GitHub's private [Report a vulnerability](https://github.com/daniel-h-0/freefg/security/advisories/new) form, not
+a public issue. Name the affected component, the impact and the steps to reproduce it. Maintainers aim to answer
+within a week, release a fix when it is ready and credit the reporter unless asked not to. Only the latest release is
+supported.
 
-## Concerns from rights holders
+## Rights holders
 
-Rights holders can use the same private form, a [public issue](https://github.com/daniel-h-0/freefg/issues), or GitHub's
-[DMCA process](https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy). Maintainers will
-respond and take a release down on a credible request.
+Rights holders can use the same private form, a [public issue](https://github.com/daniel-h-0/freefg/issues) or GitHub's
+[DMCA process](https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy). Maintainers
+answer and take a release down on a credible request.
 
-## What runs on your computer
+## Components
 
 ### The installer
 
-The installer runs as your user, without root. It edits selected game files, launcher entries and recipe settings;
-[PRIVACY.md](PRIVACY.md) lists its reads, writes and downloads.
+The installer runs as your user, without root. It edits the selected game's files, its launcher entry and the game
+settings a recipe names. [Privacy](PRIVACY.md) lists what it reads, writes and downloads.
 
-Downloads use pinned HTTPS URLs and SHA-256 hashes; sizes are checked when pinned. Pinned dependency members are extracted by expected name and
-checked individually. The optional HelixSR download is verified as a complete archive; its extraction is restricted to
-regular files and directories beneath its release folder, with an extraction-size limit. Prepare Helix runs the
-pinned archive’s build-only Python entry point under bubblewrap: in namespaces and a session of its own (no network,
-no other processes, no terminal input), with an empty environment but for its build settings and the host read-only.
-Your home folder, /tmp, the session’s runtime folder (D-Bus, PipeWire, Wayland and agent sockets) and the system bus
-are hidden from it, except the files the build reads. Only its staging directory is writable. It uses local model
-inputs and checked shader compilers, never the upstream game installer or package-manager setup. Game DLLs execute
-when the game runs.
+- Downloads use pinned HTTPS URLs and SHA-256 hashes, and sizes where pinned. Files inside an archive are extracted
+  by their expected name and checked one by one.
+- HelixSR's archive is checked as a whole. Only regular files and folders beneath its release folder are unpacked,
+  up to a size limit.
+- Prepare Helix runs the pinned archive’s build script under bubblewrap, in namespaces and a session of its own: no
+  network, no other processes, no terminal input, and an empty environment apart from its build settings. The host
+  is read-only. Your home folder, `/tmp`, the session’s runtime folder (D-Bus, PipeWire, Wayland and agent sockets)
+  and the system bus are hidden, except for the files the build reads. Only its staging folder is writable. Its
+  inputs are the pinned DLSS DLL and a checked shader compiler. HelixSR's game installer and package setup never run.
+- The installed DLLs run when the game runs.
 
 ### The proxy
 
-`libxess_fg.dll` runs in the game under Proton. It verifies Intel's runtime size/FNV-1a identity and loads it by absolute
-path. FNV-1a detects accidental replacement; it is not a cryptographic trust check. Installation uses SHA-256, and a
-user who can write the game folder can replace its DLLs. The proxy imports only `kernel32.dll` and `ucrtbase.dll` and
-has no network client.
+`libxess_fg.dll` runs in the game under Proton. It checks Intel's runtime by size and FNV-1a and loads it by absolute
+path. That check catches an accidental replacement and is no cryptographic guarantee; installation checks SHA-256.
+Anyone who can write the game folder can replace its DLLs. The proxy imports only `kernel32.dll` and `ucrtbase.dll`
+and has no network client.
 
 ### The pacing layer
 
-The native Vulkan layer runs in the game process. It creates a `0600` shared-memory page in `/dev/shm` for the proxy's
-generation signal, removes it on normal exit and cleans stale pages on later starts. It also connects to the game's
-X display to wake gamescope.
+The native Vulkan layer runs in the game process. It creates one shared-memory page in `/dev/shm` with mode `0600`,
+which the proxy uses to signal that frames are being generated. The layer removes the page on a normal exit and
+clears stale pages at later starts. It also connects to the game's X display to wake gamescope.
 
 ### The gamescope capability extra
 
@@ -54,18 +55,18 @@ can strip loader variables such as `LD_PRELOAD` from nested gamescope launches; 
 `extras/steam-screensaver-in-game` runs as your user. It reads game-running state and changes screensaver timeouts
 through Steam's local DevTools endpoint, `127.0.0.1:8080`.
 
-That endpoint is unauthenticated. Any local program or user able to reach it can control Steam. Decky commonly enables
-it; the helper's README describes manual setup. Enable it only where you trust local programs. The helper restores
-your timeout after the game exits or on removal when Steam is reachable. If removal cannot restore it, the helper
-and saved value remain in place for a retry.
+That endpoint has no authentication: any local program or user that can reach it can control Steam. Decky usually
+enables it, and the helper's README describes the manual setup. Enable it only where you trust the local programs.
+The helper restores your timeout when the game exits, and on removal if Steam is reachable. If removal cannot restore
+it, the helper and the saved value stay in place for another try.
 
 ## Supply chain
 
-- Release archives have SHA-256 sidecars, source/build records and a qualification receipt. Their source is represented
-  by the corresponding release tag; documentation-only main-branch changes can be newer than an archive.
-- Proxy, layer and shader builds can be reproduced with the pinned tools ([BUILDING.md](BUILDING.md)).
-- Installer inputs are pinned in `dependencies.json`. Runtime signature/identity and download hashes serve different
-  purposes; a matching pin identifies a file, not its behavior.
-- The bundled OptiScaler has a pinned public source/build route ([NOTICE.md](NOTICE.md#optiscaler-source)).
-- CI pins actions and its container image, compares runtime hashes, and uploads reports rather than binaries.
-  A separate informational job uses current packages.
+- Release archives come with SHA-256 files, source and build records and a qualification receipt. Their source is
+  the release tag. Main can be ahead of an archive by documentation-only commits.
+- The proxy, the layer and the shaders rebuild to the same bytes with the pinned tools ([Building](BUILDING.md)).
+- The installer's inputs are pinned in `dependencies.json`. A matching pin identifies a file. It says nothing about
+  what the file does.
+- The bundled OptiScaler has a pinned public source and build route ([Notices](NOTICE.md#optiscaler-source)).
+- CI pins its actions and container image, compares the built hashes with the pinned ones and uploads reports, no
+  binaries. A second, informational job builds with current packages.

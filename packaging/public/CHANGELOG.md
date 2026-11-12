@@ -1,23 +1,28 @@
 # Changelog
 
-Release summaries are below; [measurements](MEASUREMENTS.md) describe their specific test conditions. The
-[detailed changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md)
-retains earlier release notes.
+One summary per release. [Measurements](MEASUREMENTS.md) has each release's checks and their conditions. Releases up
+to 1.1.6 have longer notes in the
+[changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md).
 
 ## 1.4.0 candidate
 
-- HelixSR 3.3.0: its four upscalers are choices of their own, HLX DLSS Model E (the suggested one, used by a new
-  installation once it is prepared), HLX DLSS Preset K, HLX FSR 4 and HLX FSR 4 Full. The two HLX FSR 4 forms come
-  built in HelixSR's download; HLX DLSS is built on this computer from NVIDIA's DLSS DLL alone (no AMD driver file
-  any more), from a local copy or, when you agree, a download from NVIDIA's repository. An installed HLX 3.1.0
-  upscaler stays as it is until 3.3.0 is prepared.
-- A recipe refresh within the installed release keeps its own rollback generation, so it no longer replaces the way back
-  to the release before the last update. Rollback undoes the refresh first, then the update; Setup and `status` name
-  each. A 1.3.0 refresh already recorded reads as a change within its release.
-- OptiScaler moves to the fork's build `4d0c0b9` on upstream master of 11 November 2026, with the 11 November nightly's
-  support files (AMD's FSR SDK 2.4.0). A fresh setup gets the SDK's Vulkan loader, upscaler and frame-generation DLLs
-  in place of `amd_fidelityfx_vk.dll`; an update of a fresh setup replaces its support files and removes that one.
-  OptiScaler's built-in game fixes are read from this build.
+- **HelixSR 3.3.0.** Its four upscalers are separate choices beside AMD FSR 4: HLX DLSS Model E, HLX DLSS Preset K,
+  HLX FSR 4 and HLX FSR 4 Full. A game switches between them, and Rollback returns to the one before.
+  - HLX DLSS Model E is the suggested upscaler. A new installation takes it when it is prepared on the computer and
+    AMD FSR 4 otherwise (`--upscaler auto`, the default).
+  - HLX DLSS is built on the computer from NVIDIA's DLSS 310.7.0 DLL. No AMD driver file is needed any more. The DLL
+    is a local copy or, when you agree, a download from NVIDIA's repository (`--download-dlss`). Preset K is an
+    optional second build.
+  - HLX FSR 4 and HLX FSR 4 Full come built in HelixSR's download (`install.py hlx --no-build`).
+  - An installed HLX 3.1.0 or HelixSR 2.0.0 upscaler stays as it is until 3.3.0 is prepared.
+- **OptiScaler** is the fork's build `4d0c0b9` on upstream master of 11 November 2026, with that day's nightly support
+  files (AMD's FSR SDK 2.4.0). A fresh setup gets the SDK's Vulkan loader, upscaler and frame-generation DLLs in place
+  of `amd_fidelityfx_vk.dll`. An update replaces a fresh setup's support files and removes that one. OptiScaler's
+  built-in game fixes are read from this build.
+- **Rollback after a recipe refresh.** A refresh within the installed release has its own rollback generation, so it
+  no longer replaces the way back to the release before the last update. Rollback undoes the refresh first, then the
+  update. A 1.3.0 refresh already recorded reads as a change within its release.
+- Restore keeps the log of every HLX upscaler a game used.
 
 ## 1.3.0 – 2026-10-31
 

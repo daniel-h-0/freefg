@@ -22,7 +22,7 @@ Cyberpunk 2.5 on one BC-250, FreeFG 1.1.3.1, HelixSR Quality at 1440p, four head
   Zenity dialogs.
 - Internet access for the first installation's [downloads](PRIVACY.md).
 
-**System check** in Setup, or `python3 install.py doctor`, reports what is missing, including the kernel fix that a
+**System Check** in Setup, or `python3 install.py doctor`, reports what is missing, including the kernel fix that a
 driver with a dedicated compute queue needs. A game with anti-cheat is refused unless you accept the
 [risk for that game](COMPATIBILITY.md#anti-cheat).
 

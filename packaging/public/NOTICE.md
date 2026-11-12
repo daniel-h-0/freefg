@@ -1,8 +1,8 @@
 # Notices and licences
 
-FreeFG's code is MIT-licensed. Third-party components retain their own terms. This page distinguishes files
-[shipped in the archive](#shipped-in-the-release-archive) from [installer downloads](#downloaded-by-the-installer-not-shipped).
-[PRIVACY.md](PRIVACY.md) lists download URLs, conditions and hashes.
+FreeFG's code is MIT-licensed. Third-party components keep their own terms. This page lists what the release archive
+[ships](#shipped-files) and what the installer [downloads](#downloaded-files). [Privacy](PRIVACY.md) has the download
+URLs, conditions and hashes.
 
 ## FreeFG's licence
 
@@ -19,10 +19,9 @@ Corporation. Other names are trademarks of their owners. All are used only to id
 
 ## Rights holders
 
-[SECURITY.md](SECURITY.md#concerns-from-rights-holders) describes how rights holders can raise a concern and when the
-release is taken down.
+[Security](SECURITY.md#rights-holders) says how rights holders can raise a concern and when a release is taken down.
 
-## Shipped in the release archive
+## Shipped files
 
 | Component | Files in the archive | Origin | Licence |
 | --- | --- | --- | --- |
@@ -33,7 +32,7 @@ release is taken down.
 | OptiScaler, modified build | `opti/OptiScaler.dll`, `opti/OptiScaler.ini` | the [OptiScaler](https://github.com/optiscaler/OptiScaler) contributors and this project | GNU GPL version 3 (`licenses/OptiScaler.txt`); the code of other projects inside it: `licenses/OptiScaler-third-party/`. See [OptiScaler source](#optiscaler-source). |
 | Licence texts of the downloaded components | `licenses/Intel-XeSS.txt`, `licenses/Intel-third-party-programs.txt`, `licenses/fsr4/` | as named | as named |
 
-[Build inputs](#build-inputs-not-shipped) lists what the binaries are compiled against.
+[Build inputs](#build-inputs) lists what the binaries are compiled against.
 
 ### Per-game recipes
 
@@ -57,7 +56,9 @@ The release passes `release/check_intel_free.py` with no allowance. That check r
 bytecode, unrecognised embedded DXIL, shader model 6.4 and known Intel warp-weight tables. Pinned OptiScaler shaders
 are recognised separately and undergo the remaining checks. This is a content check, not a licence determination.
 
-## Downloaded by the installer, not shipped
+## Downloaded files
+
+The installer downloads these. The release archive does not contain them.
 
 | Component | Placed in the game folder as | Publisher and origin | Licence | Notes |
 | --- | --- | --- | --- | --- |
@@ -145,9 +146,9 @@ and keeps Helix's own frame generation off. Restore removes the owned copies.
 
 HelixSR obtains NVIDIA's DLL under [NVIDIA's terms](#nvidias-terms), which refer to NVIDIA-GPU systems. This project
 has no permission from NVIDIA to extend those terms. Consult the licences and HelixSR's documentation when deciding
-whether to use it. FSR 4 is the default upscaler.
+whether to use it. Without a prepared HelixSR, FreeFG installs AMD FSR 4.
 
-## MFG Unlocker (not shipped)
+## MFG Unlocker
 
 [MFG Unlocker](https://github.com/dashdogy/MFG-Unlocker), by dashdogy, is an optional, separate tool that lifts Intel's
 non-Intel frame-count limit. FreeFG does not ship, download, install or remove it.
@@ -159,7 +160,7 @@ FreeFG contains no MFG Unlocker code and does not read, hook or patch that modul
 runtime and substitutes its own shaders where Intel's programs remain. Setup writes `XeFGModel=default` when unset;
 only MFG Unlocker reads that setting. [Setup and limitations](CONFIGURATION.md#3-and-4-with-mfg-unlocker).
 
-## Build inputs (not shipped)
+## Build inputs
 
 The release binaries are built from this project's source with these inputs. None of them is in the archive.
 [BUILDING.md](BUILDING.md) has the versions and hashes.
