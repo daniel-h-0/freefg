@@ -7,6 +7,7 @@ install.py commands change exactly the games they name (settings, pin and unpin,
 Skipped where PyGObject, GTK 4, libadwaita 1.5 or a display are missing (without DISPLAY the test starts Xvfb). CI
 installs them (release/ci/ci.lock.json extra_packages), so there the window is always exercised."""
 import json, os, shutil, subprocess, sys, time, unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 from test_update import UpdateFixture, OLD, NEW, m
@@ -569,6 +570,81 @@ class SetupWindow(WindowFixture):
             operation.close()
         self.drive(script)
 
+    def test_a_long_operation_shows_its_lines_and_that_it_runs_and_a_preparation_gates_what_follows(self):
+        release = self.root / 'release-the-slow-command'
+        commands = {'fails': "import sys; print('Building HLX DLSS requires wine', file=sys.stderr); sys.exit(1)",
+                    'prepares': "print('Helix 3.3.0 prepared for all enrolled games (HLX DLSS Model E): /cache/HelixSR-3.3.0')",
+                    'updates': "print('Updated to freefg-1.1.5. Launch the game as before.')",
+                    # A download that takes its time: one line at once, the next only when the test lets it go on.
+                    'slow': 'import pathlib, time\nprint("Downloading HelixSR-3.3.0.zip from upstream…", flush=True)\n'
+                            'while not pathlib.Path(' + repr(str(release)) + ').exists():\n    time.sleep(0.02)\n'
+                            'print("Helix 3.3.0 prepared for all enrolled games (HLX DLSS Model E): /cache")'}
+        self.ctx.command = lambda args: [sys.executable, '-u', '-c', commands[args[0]]]
+        Step = setup_app.Step
+
+        def finished(operation):
+            return lambda: operation.done_button.get_visible()
+
+        def script(window):
+            yield lambda: window.loaded
+            # A preparation that does not complete: the updates that need it are not started, and each row says why.
+            window.run('Updating', [Step('Prepare HLX DLSS Model E', ['fails'], gate=True), Step('A', ['updates']),
+                                    Step('B', ['updates'])], working='Preparing', success='2 games updated', output=True)
+            operation = self.dialog(window, setup_app.OperationDialog)
+            self.assertTrue(operation.expander.get_expanded())  # the installer's lines are its progress: in view
+            self.assertEqual(operation.stop_button.get_label(), '_Stop After This Step')
+            yield finished(operation)
+            self.assertEqual(operation.title_label.get_text(), 'None of these completed')
+            found = rows(operation.outcome)
+            self.assertEqual([found[name].get_subtitle() for name in ('Prepare HLX DLSS Model E', 'A', 'B')],
+                             ['Building HLX DLSS requires wine'] + ['Not started: “Prepare HLX DLSS Model E” did not complete'] * 2)
+            self.assertEqual([result.returncode for result in operation.results], [1, None, None])
+            operation.close()
+            yield lambda: window.get_visible_dialog() is None
+            # A preparation that completes: the updates run after it.
+            window.run('Updating', [Step('Prepare HLX DLSS Model E', ['prepares'], gate=True), Step('A', ['updates'])],
+                       working='Preparing', success='A is updated', output=True)
+            operation = self.dialog(window, setup_app.OperationDialog)
+            yield finished(operation)
+            self.assertEqual(operation.title_label.get_text(), 'A is updated')
+            found = rows(operation.outcome)
+            self.assertEqual((found['Prepare HLX DLSS Model E'].get_subtitle(), found['A'].get_subtitle()), ('Done', 'Updated to 1.1.5'))
+            operation.close()
+            yield lambda: window.get_visible_dialog() is None
+            # A step that fails without gating the rest leaves them running, as before; Stop is the player's.
+            window.run('Updating', [Step('A', ['fails']), Step('B', ['updates'])], working='Updating', success='Done')
+            operation = self.dialog(window, setup_app.OperationDialog)
+            self.assertFalse(operation.expander.get_expanded())
+            yield finished(operation)
+            self.assertEqual(operation.title_label.get_text(), '1 of 2 completed')
+            operation.close()
+            yield lambda: window.get_visible_dialog() is None
+            # A command that takes long: its line stands in the dialog as soon as it is printed, the output is open, and
+            # after a quarter of a minute the dialog says how long it has run. Nothing ends it for taking long.
+            window.run('Installing FreeFG', [Step('Game', ['slow'])], working='Preparing HLX DLSS Model E, then installing',
+                       success='Installed', output=True)
+            operation = self.dialog(window, setup_app.OperationDialog)
+            yield lambda: operation.detail_label.get_text() == 'Downloading HelixSR-3.3.0.zip from upstream…'
+            self.assertFalse(operation.done_button.get_visible())
+            log = operation.log.get_buffer()
+            self.assertIn('Downloading HelixSR-3.3.0.zip from upstream…', log.get_text(log.get_start_iter(), log.get_end_iter(), False))
+            self.assertTrue(operation.expander.get_expanded())
+            self.assertFalse(operation.elapsed_label.get_visible())
+            operation.show_elapsed(operation.ELAPSED_AFTER - 1)
+            self.assertFalse(operation.elapsed_label.get_visible())
+            operation.show_elapsed(125)
+            self.assertTrue(operation.elapsed_label.get_visible())
+            self.assertEqual(operation.elapsed_label.get_text(), 'Running for 2 min 05 s')
+            operation.show_elapsed(14 * 60 + 3)
+            self.assertEqual(operation.elapsed_label.get_text(), 'Running for 14 min 03 s')
+            self.assertIsNone(operation.operation.halted)
+            release.touch()
+            yield finished(operation)
+            self.assertEqual(operation.title_label.get_text(), 'Installed')
+            self.assertFalse(operation.elapsed_label.get_visible())
+            operation.close()
+        self.drive(script)
+
     def test_output_arrives_in_batches(self):
         self.ctx.command = lambda args: [sys.executable, '-c', 'for n in range(3000): print("line", n)']
         batches, finished = [], []
@@ -934,17 +1010,19 @@ class SetupWindow(WindowFixture):
 
 class HelixUpscalers(WindowFixture):
     """A package with HelixSR's catalog: the five upscalers wherever one is chosen or listed, the suggested one as the
-    default once it is ready, and the commands Prepare… and Download… run. The preparation state is a fixture
-    (self.ready): no test builds or downloads anything."""
+    default where it is ready or Install can prepare it, what Install, Switch and Update say before they prepare one, and
+    the commands they and Prepare… and Download… run. The preparation state is a fixture (self.ready prepared,
+    self.missing what the build lacks on this computer, self.have the downloads it holds): no test builds or downloads
+    anything, and none asks this computer what it has."""
 
     ORDER = ['hlx-dlss', 'fsr4', 'hlx-dlss-k', 'hlx-fsr4', 'hlx-fsr4-full']
 
     def setUp(self):
         super().setUp()
-        self.ready = set()
+        self.ready, self.missing, self.have = set(), (), ()
         self.catalog = json.loads((REPO / 'packaging/dependencies.json').read_text())['hlx']
         model = setup_app.model
-        for context in (patch.object(model, 'providers', side_effect=lambda ctx: self.providers()),
+        for context in (patch.object(model, 'providers', side_effect=lambda ctx, run=None: self.providers()),
                         patch.object(model, 'hlx_catalog', side_effect=lambda ctx: self.catalog)):
             context.start(); self.addCleanup(context.stop)
 
@@ -958,78 +1036,166 @@ class HelixUpscalers(WindowFixture):
                 return model.Provider(name, label, model.UPSCALER_ABOUT[name], 'ready', 'Ready: ' + label + ' 3.3.0', '3.3.0',
                                       '/cache/HelixSR-3.3.0', get=get, **flags)
             return model.Provider(name, label, model.UPSCALER_ABOUT[name], 'unprepared',
-                                  'Prepare Helix 3.3.0 once (' + label + '): missing /cache/x', get=get, **flags)
+                                  'Prepare Helix 3.3.0 once (' + label + '): missing /cache/x', get=get,
+                                  needs=tuple(self.missing) if get == 'build' else (), have=tuple(self.have), **flags)
         return [one('hlx-dlss', 'build', suggested=True), model.built_in_provider(), one('hlx-dlss-k', 'build', optional=True),
                 one('hlx-fsr4', 'download'), one('hlx-fsr4-full', 'download')]
 
     def now_ready(self, window, *names):
-        """names are ready now, as after Prepare… or Download…: the window checks again and tells its dialogs."""
+        """names are ready now, as after Prepare…, Download… or an Install that prepared one: the window checks again
+        and tells its dialogs."""
         self.ready = set(names)
         window.providers = None
         window.check_providers()
         return lambda: window.providers is not None
 
-    def test_install_offers_five_upscalers_and_starts_on_the_suggested_one_once_it_is_ready(self):
+    @staticmethod
+    def pick(dialog, name):
+        """Choose an upscaler in the Install dialog as the player does: its row's radio button."""
+        next(w for w in descendants(dialog.provider_rows[name]) if isinstance(w, Gtk.CheckButton)).set_active(True)
+
+    def install_dialog(self, window, game):
+        """Install opened for game, with a verdict that lets it run (generator: yield from)."""
+        window.install(game)
+        dialog = self.dialog(window, setup_app.InstallDialog)
+        yield lambda: not dialog.checking
+        dialog.checked(dialog.generation, dict(blocking=[], manual_steps=[], warnings=[], line='Fixture ready'))
+        return dialog
+
+    @staticmethod
+    def installed(window, dialog):
+        """Press Install with the game and its launcher closed: (the step Setup runs, window.run's keywords)."""
+        with patch.object(window.reader, 'call') as reader, patch.object(window, 'run') as run:
+            dialog.install()
+            reader.call_args.kwargs['done']([])
+            return run.call_args.args[1][0], run.call_args.kwargs
+
+    def test_install_starts_on_the_suggested_upscaler_and_says_what_it_prepares_first(self):
         def script(window):
             yield lambda: window.loaded and window.providers is not None
             game = setup_app.model.Game(self.other, title='Fixture game')
-            window.install(game)
-            dialog = self.dialog(window, setup_app.InstallDialog)
-            yield lambda: not dialog.checking
-            dialog.checked(dialog.generation, dict(blocking=[], manual_steps=[], warnings=[], line='Fixture ready'))
+            dialog = yield from self.install_dialog(window, game)
             found = dialog.provider_rows
             self.assertEqual(list(found), self.ORDER)
             self.assertEqual([row.get_title() for row in found.values()],
                              ['HLX DLSS Model E', 'FSR 4', 'HLX DLSS Preset K', 'HLX FSR 4', 'HLX FSR 4 Full'])
+            # Nothing prepared, and nothing the build needs is missing: each Helix row is chosen like one that is ready
+            # (no button to press first), and says where it stands.
             self.assertEqual({name: marks(row) for name, row in found.items()},
-                             {'hlx-dlss': ['Suggested', '_Prepare…'], 'fsr4': [], 'hlx-dlss-k': ['_Prepare…'],
-                              'hlx-fsr4': ['_Download…'], 'hlx-fsr4-full': ['_Download…']})
+                             {'hlx-dlss': ['Suggested'], 'fsr4': [], 'hlx-dlss-k': [], 'hlx-fsr4': [], 'hlx-fsr4-full': []})
             self.assertEqual(found['hlx-dlss'].get_subtitle(), 'DLSS Model E network, built on this computer · not built yet')
             self.assertEqual(found['hlx-fsr4'].get_subtitle(), 'HelixSR’s fast FSR 4-class upscaler; comes built · not downloaded yet')
             self.assertTrue(dialog.credit.get_visible())
-            # Nothing prepared: FSR 4, and nothing about preparation stands in the way of Install.
-            self.assertEqual(dialog.chosen_provider, 'fsr4')
-            self.assertEqual([name for name, row in found.items() if selected(row)], ['fsr4'])
+            # The suggested upscaler is preselected and Install can run: one click.
+            self.assertEqual(dialog.chosen_provider, 'hlx-dlss')
+            self.assertEqual([name for name, row in found.items() if selected(row)], ['hlx-dlss'])
             self.assertIsNone(dialog.blocked())
             self.assertTrue(dialog.install_button.get_sensitive())
-            self.assertEqual(setup_app.model.install_args(game.exe, dialog.choice())[-2:], ['--upscaler', 'fsr4'])
-            # Each button gets its upscaler ready: Prepare… builds (Preset K's with its switch on), Download… fetches.
-            with patch.object(window, 'prepare_helix') as prepare, patch.object(window, 'download_helix') as download:
+            # Before the player presses it, the dialog says what happens first: the downloads and where they come from,
+            # NVIDIA's DLL under NVIDIA's licence with the licence's address, the build here and about how long it takes.
+            self.assertTrue(dialog.prepare_group.get_visible())
+            self.assertEqual(dialog.prepare_row.get_title(), 'Install prepares HLX DLSS Model E first, once for every game')
+            said = dialog.prepare_row.get_subtitle()
+            for words in ('Downloads HelixSR’s official archive (about 280 MB) and Microsoft’s shader compiler (42 MB) from their '
+                          'GitHub releases', 'NVIDIA’s DLSS 310.7.0 DLL from NVIDIA’s repository under NVIDIA’s licence (' +
+                          m.hlx.NVIDIA_LICENSE + ')', 'Builds HLX DLSS Model E on this computer with networking off',
+                          'about 10 to 15 minutes on a BC-250'):
+                self.assertIn(words, said)
+            self.assertTrue(said.endswith('\nKeep the game and its launcher closed until it is done.'))
+            self.assertEqual(dialog.hint.get_text(), 'Setup checks again that the game and its launcher are closed, then installs.')
+            # Install runs the same install.py install, which prepares the upscaler first; the operation says so, shows
+            # the installer's output as it comes, and the upscalers are checked again once it ends.
+            step, how = self.installed(window, dialog)
+            self.assertEqual(step.args, ['install', str(self.other), '--route', 'auto', '--fg-input', 'auto', '--upscaler', 'hlx-dlss'])
+            self.assertEqual(how['working'], 'Preparing HLX DLSS Model E, then installing FreeFG into Fixture game. The build '
+                             'takes about 10 to 15 minutes on a BC-250.')
+            self.assertEqual((how['output'], how['on_finished']), (True, window.helix_changed))
+            yield lambda: window.get_visible_dialog() is None
+            dialog = yield from self.install_dialog(window, game)
+            # One that comes built: HelixSR's archive alone, nothing from NVIDIA, nothing built.
+            self.pick(dialog, 'hlx-fsr4')
+            self.assertEqual(dialog.prepare_row.get_title(), 'Install prepares HLX FSR 4 first, once for every game')
+            self.assertEqual(dialog.prepare_row.get_subtitle(), 'Downloads HelixSR’s official archive (about 280 MB) from its GitHub '
+                             'releases. Each file is checked by SHA-256.\nNothing is built: HLX FSR 4 comes built in the archive.\n'
+                             'Keep the game and its launcher closed until it is done.')
+            self.assertIsNone(dialog.blocked())
+            step, how = self.installed(window, dialog)
+            self.assertEqual(step.args[-2:], ['--upscaler', 'hlx-fsr4'])
+            self.assertEqual(how['working'], 'Preparing HLX FSR 4, then installing FreeFG into Fixture game.')
+            yield lambda: window.get_visible_dialog() is None
+            dialog = yield from self.install_dialog(window, game)
+            # Preset K is built after Model E: about 45 minutes together.
+            self.pick(dialog, 'hlx-dlss-k')
+            self.assertIn('Builds HLX DLSS Model E and HLX DLSS Preset K on this computer', dialog.prepare_row.get_subtitle())
+            self.assertIn('about 45 minutes on a BC-250', dialog.prepare_row.get_subtitle())
+            # FSR 4 needs no preparation: the notice goes, and the hint is the plain one.
+            self.pick(dialog, 'fsr4')
+            self.assertFalse(dialog.prepare_group.get_visible())
+            self.assertEqual(dialog.hint.get_text(), 'Setup checks again that the game and its launcher are closed, then installs.')
+            step, how = self.installed(window, dialog)
+            self.assertEqual(step.args[-2:], ['--upscaler', 'fsr4'])
+            self.assertEqual((how['working'], how['output'], how['on_finished']), ('Installing FreeFG into Fixture game', False, None))
+            yield lambda: window.get_visible_dialog() is None
+            # A copy of NVIDIA's DLL and the archive on this computer already: neither is downloaded, no licence to name.
+            self.have = ('archive', 'dlss')
+            yield self.now_ready(window)
+            dialog = yield from self.install_dialog(window, game)
+            said = dialog.prepare_row.get_subtitle()
+            self.assertIn('Downloads Microsoft’s shader compiler (42 MB) from its GitHub releases.', said)
+            self.assertIn('The build takes the copy of NVIDIA’s DLSS 310.7.0 DLL on this computer.', said)
+            self.assertNotIn('NVIDIA’s licence', said)
+            self.assertNotIn('HelixSR’s official archive', said)
+            # The suggested upscaler got ready (another Setup, the command line): no notice, a plain installation.
+            yield self.now_ready(window, 'hlx-dlss')
+            self.assertEqual(marks(dialog.provider_rows['hlx-dlss']), ['Suggested', 'Ready'])
+            self.assertEqual((dialog.chosen_provider, dialog.prepare_group.get_visible()), ('hlx-dlss', False))
+            step, how = self.installed(window, dialog)
+            self.assertEqual(step.args[-2:], ['--upscaler', 'hlx-dlss'])
+            self.assertEqual((how['working'], how['output'], how['on_finished']), ('Installing FreeFG into Fixture game', False, None))
+            yield lambda: window.get_visible_dialog() is None
+        self.drive(script)
+
+    def test_an_upscaler_whose_build_cannot_run_here_names_what_is_missing_and_is_not_installed(self):
+        self.missing = ('Wine', 'Python numpy')
+
+        def script(window):
+            yield lambda: window.loaded and window.providers is not None
+            game = setup_app.model.Game(self.other, title='Fixture game')
+            dialog = yield from self.install_dialog(window, game)
+            found = dialog.provider_rows
+            # FSR 4 is the default, and nothing about preparation stands in the way of Install. The two that are built
+            # keep the button that leads to what is missing; the two that come built need none of it.
+            self.assertEqual((dialog.chosen_provider, [name for name, row in found.items() if selected(row)]), ('fsr4', ['fsr4']))
+            self.assertEqual({name: marks(row) for name, row in found.items()},
+                             {'hlx-dlss': ['Suggested', '_Prepare…'], 'fsr4': [], 'hlx-dlss-k': ['_Prepare…'], 'hlx-fsr4': [],
+                              'hlx-fsr4-full': []})
+            self.assertEqual(found['hlx-dlss'].get_subtitle(), 'DLSS Model E network, built on this computer · not built yet; its '
+                             'build needs Wine and Python numpy')
+            self.assertIsNone(dialog.blocked())
+            self.assertFalse(dialog.prepare_group.get_visible())
+            with patch.object(window, 'prepare_helix') as prepare:
                 press(found['hlx-dlss'], '_Prepare…')
                 press(found['hlx-dlss-k'], '_Prepare…')
-                press(found['hlx-fsr4-full'], '_Download…')
                 self.assertEqual([call.args for call in prepare.call_args_list], [(False,), (True,)])
-                download.assert_called_once_with()
-            # The suggested upscaler got ready and the player had chosen nothing: it is the default now.
-            yield self.now_ready(window, 'hlx-dlss')
-            found = dialog.provider_rows
-            self.assertEqual(marks(found['hlx-dlss']), ['Suggested', 'Ready'])
-            self.assertEqual((dialog.chosen_provider, [name for name, row in found.items() if selected(row)]), ('hlx-dlss', ['hlx-dlss']))
+            # Chosen all the same, it cannot be installed, and the dialog says why.
+            self.pick(dialog, 'hlx-dlss')
+            self.assertEqual(dialog.blocked(), 'HLX DLSS Model E cannot be built on this computer yet: its build needs Wine and '
+                             'Python numpy, from your distribution’s packages. Until then, choose another upscaler.')
+            self.assertFalse(dialog.install_button.get_sensitive() or dialog.prepare_group.get_visible())
+            dialog.install()  # nothing runs while it is blocked
+            self.assertIs(window.get_visible_dialog(), dialog)
+            # One that comes built is prepared by Install here too.
+            self.pick(dialog, 'hlx-fsr4-full')
             self.assertIsNone(dialog.blocked())
-            # An upscaler that is not ready can be chosen, and says how it gets ready; the choice survives a new check.
-            next(w for w in descendants(found['hlx-fsr4']) if isinstance(w, Gtk.CheckButton)).set_active(True)
-            self.assertEqual(dialog.chosen_provider, 'hlx-fsr4')
-            self.assertEqual(dialog.blocked(), 'HLX FSR 4 is not downloaded yet: choose Download… on its row, or another upscaler.')
-            self.assertFalse(dialog.install_button.get_sensitive())
-            yield self.now_ready(window, 'hlx-dlss', 'hlx-fsr4', 'hlx-fsr4-full')
-            self.assertEqual(dialog.chosen_provider, 'hlx-fsr4')
-            self.assertIsNone(dialog.blocked())
-            self.assertEqual(marks(dialog.provider_rows['hlx-fsr4']), ['Ready'])
+            self.assertEqual(dialog.prepare_row.get_title(), 'Install prepares HLX FSR 4 Full first, once for every game')
+            # What the build needs got installed: the player's choice stands, and Install prepares it.
+            self.pick(dialog, 'hlx-dlss')
+            self.missing = ()
+            yield self.now_ready(window)
+            self.assertEqual((dialog.chosen_provider, dialog.blocked()), ('hlx-dlss', None))
+            self.assertEqual(marks(dialog.provider_rows['hlx-dlss']), ['Suggested'])
+            self.assertTrue(dialog.install_button.get_sensitive() and dialog.prepare_group.get_visible())
             dialog.close()
-            yield lambda: window.get_visible_dialog() is None
-            # A new installation now starts on the suggested upscaler and installs with it.
-            window.install(game)
-            dialog = self.dialog(window, setup_app.InstallDialog)
-            yield lambda: not dialog.checking
-            dialog.checked(dialog.generation, dict(blocking=[], manual_steps=[], warnings=[], line='Fixture ready'))
-            self.assertEqual(dialog.chosen_provider, 'hlx-dlss')
-            with patch.object(window.reader, 'call') as reader, patch.object(window, 'run') as run:
-                dialog.install()
-                reader.call_args.kwargs['done']([])
-                step = run.call_args.args[1][0]
-                self.assertEqual(step.args[:2], ['install', str(self.other)])
-                self.assertEqual(step.args[-2:], ['--upscaler', 'hlx-dlss'])
-            yield lambda: window.get_visible_dialog() is None
         self.drive(script)
 
     def test_install_opened_before_the_upscalers_are_checked_takes_the_default_when_they_arrive(self):
@@ -1102,24 +1268,211 @@ class HelixUpscalers(WindowFixture):
             yield lambda: window.loaded and window.providers is not None
             yield self.now_ready(window, 'hlx-fsr4', 'hlx-fsr4-full')
             game = window.game_by_key(str(self.exe))
-            window.change_upscaler(game)
-            dialog = self.dialog(window, setup_app.UpscalerDialog)
-            yield lambda: dialog.providers is not None
+
+            def switch_dialog():
+                window.change_upscaler(game)
+                dialog = self.dialog(window, setup_app.UpscalerDialog)
+                yield lambda: dialog.providers is not None
+                return dialog
+
+            def switched(dialog):
+                """Press Switch with the game closed: (the step Setup runs, window.run's keywords)."""
+                with patch.object(window, 'request') as request, patch.object(window, 'run') as run:
+                    dialog.switch()
+                    request.call_args.args[2]()
+                    return run.call_args.args[1][0], run.call_args.kwargs
+            dialog = yield from switch_dialog()
             found = {row.get_title(): row for row in dialog.rows}
             self.assertEqual(list(found), ['HLX DLSS Model E', 'FSR 4', 'HLX DLSS Preset K', 'HLX FSR 4', 'HLX FSR 4 Full'])
-            self.assertEqual([marks(row) for row in found.values()], [['Suggested', '_Prepare…'], ['Current'], ['_Prepare…'], [], []])
-            self.assertFalse(dialog.switch_button.get_sensitive())
-            # One that is not ready cannot be switched to; one that is switches with install.py configure.
-            dialog.choose('hlx-dlss')
-            self.assertFalse(dialog.switch_button.get_sensitive())
+            # One that is not ready and can be made ready here is chosen like the others: no button to press first.
+            self.assertEqual([marks(row) for row in found.values()], [['Suggested'], ['Current'], [], [], []])
+            self.assertFalse(dialog.switch_button.get_sensitive() or dialog.prepare_group.get_visible())
+            # One that is ready switches with install.py configure, and nothing is prepared.
             dialog.choose('hlx-fsr4-full')
             self.assertTrue(dialog.switch_button.get_sensitive())
-            with patch.object(window, 'request') as request, patch.object(window, 'run') as run:
-                dialog.switch()
-                request.call_args.args[2]()
-                self.assertEqual(run.call_args.args[1][0].args, ['configure', str(self.exe), '--upscaler', 'hlx-fsr4-full'])
+            self.assertFalse(dialog.prepare_group.get_visible())
+            step, how = switched(dialog)
+            self.assertEqual(step.args, ['configure', str(self.exe), '--upscaler', 'hlx-fsr4-full'])
+            self.assertEqual((how['working'], how['output'], how['on_finished']),
+                             (f'Switching {game.title} to HLX FSR 4 Full', False, None))
             yield lambda: window.get_visible_dialog() is None
+            # One that is not ready: Switch works, the dialog says what it does first, and the same install.py configure
+            # prepares it.
+            dialog = yield from switch_dialog()
+            dialog.choose('hlx-dlss')
+            self.assertTrue(dialog.switch_button.get_sensitive() and dialog.prepare_group.get_visible())
+            self.assertEqual(dialog.prepare_row.get_title(), 'Switch prepares HLX DLSS Model E first, once for every game')
+            said = dialog.prepare_row.get_subtitle()
+            for words in ('NVIDIA’s DLSS 310.7.0 DLL from NVIDIA’s repository under NVIDIA’s licence (' + m.hlx.NVIDIA_LICENSE + ')',
+                          'Builds HLX DLSS Model E on this computer', 'about 10 to 15 minutes on a BC-250',
+                          'Keep the game closed until it is done.'):
+                self.assertIn(words, said)
+            dialog.choose('fsr4')  # the current one: nothing to switch, nothing to say
+            self.assertFalse(dialog.switch_button.get_sensitive() or dialog.prepare_group.get_visible())
+            dialog.choose('hlx-dlss')
+            step, how = switched(dialog)
+            self.assertEqual(step.args, ['configure', str(self.exe), '--upscaler', 'hlx-dlss'])
+            self.assertEqual(how['working'], f'Preparing HLX DLSS Model E, then switching {game.title} to it. The build takes '
+                             'about 10 to 15 minutes on a BC-250.')
+            self.assertEqual((how['output'], how['on_finished']), (True, window.helix_changed))
+            yield lambda: window.get_visible_dialog() is None
+            # Ready only through the game's own checked copies: switched to as they are, nothing is prepared.
+            local = lambda ctx, game, found: [replace(p, state='ready', local=True, detail='Checked files in this game')
+                                              if p.id == 'hlx-dlss-k' else p for p in found]
+            with patch.object(setup_app.model, 'game_providers', side_effect=local):
+                dialog = yield from switch_dialog()
+                dialog.choose('hlx-dlss-k')
+                self.assertTrue(dialog.switch_button.get_sensitive())
+                self.assertFalse(dialog.prepare_group.get_visible())
+                step, how = switched(dialog)
+                self.assertEqual(step.args, ['configure', str(self.exe), '--upscaler', 'hlx-dlss-k', '--no-prepare'])
+                self.assertEqual((how['output'], how['on_finished']), (False, None))
+                yield lambda: window.get_visible_dialog() is None
+            # Where the build lacks something: the row keeps Prepare…, which names it, and cannot be switched to.
+            self.missing = ('Wine',)
+            yield self.now_ready(window, 'hlx-fsr4', 'hlx-fsr4-full')
+            dialog = yield from switch_dialog()
+            self.assertEqual([marks(row) for row in dialog.rows], [['Suggested', '_Prepare…'], ['Current'], ['_Prepare…'], [], []])
+            self.assertEqual(dialog.rows[0].get_subtitle(), 'DLSS Model E network, built on this computer · not built yet; its build '
+                             'needs Wine')
+            dialog.choose('hlx-dlss')
+            self.assertFalse(dialog.switch_button.get_sensitive() or dialog.prepare_group.get_visible())
+            dialog.switch()  # nothing runs
+            self.assertIs(window.get_visible_dialog(), dialog)
+            dialog.close()
         self.drive(script)
+
+    def test_an_update_offers_to_prepare_a_deferred_upscaler_first(self):
+        model = setup_app.model
+        games = {name: model.Game(Path('/games') / name / (name + '.exe'), title=name, record=dict(status='installed'))
+                 for name in 'ABCD'}
+        plans = {}
+
+        def planned(ctx, game, component='all', refresh=False):
+            status, prepare = plans[game.title]
+            return model.PlanItem(game.exe, game.title, status, 'The installer’s reason.', OLD, NEW, digest=game.title.lower() * 64,
+                                  prepare=prepare)
+
+        def review(window, *names):
+            window.update_all([games[name] for name in names])
+            dialog = self.dialog(window, setup_app.UpdateDialog)
+            yield lambda: dialog.planned
+            return dialog
+
+        def updated(window, dialog):
+            """Press the dialog's button: ([(title, arguments, gates the rest)] of the steps, window.run's keywords)."""
+            with patch.object(window, 'run') as run:
+                dialog.update()
+                return [(step.title, step.args, step.gate) for step in run.call_args.args[1]], run.call_args.kwargs
+
+        def script(window):
+            yield lambda: window.loaded and window.providers is not None
+            digest = lambda name: ['--expect-plan', name.lower() * 64]
+            # A: the release changes and its upscaler waits for HelixSR's preparation. B: nothing but that upscaler to
+            # update. C: FSR 4, nothing waits. D: up to date.
+            plans.update(A=('update', 'hlx-dlss'), B=('deferred', 'hlx-dlss'), C=('update', None), D=('current', None))
+            dialog = yield from review(window, 'A', 'B', 'C', 'D')
+            first = groups(dialog.page)['Before updating']
+            self.assertIn('2 games use an upscaler that this release’s HelixSR makes ready once on this computer',
+                          first.get_description())
+            # Preparing first is offered and on: the default. It says what is downloaded, what is built and for how long.
+            self.assertEqual(dialog.prepare_switch.get_title(), 'Prepare HLX DLSS Model E first')
+            self.assertTrue(dialog.prepare_switch.get_active())
+            said = dialog.prepare_switch.get_subtitle()
+            for words in ('HelixSR’s official archive (about 280 MB)', 'NVIDIA’s DLSS 310.7.0 DLL from NVIDIA’s repository under '
+                          'NVIDIA’s licence (' + m.hlx.NVIDIA_LICENSE + ')', 'about 10 to 15 minutes on a BC-250'):
+                self.assertIn(words, said)
+            self.assertTrue(any(isinstance(found, Gtk.Label) and 'lonewolf0622' in found.get_label() for found in descendants(first)))
+            self.assertEqual(rows(dialog.page)['A'].get_subtitle(), '1.1.4 → 1.1.5 · HLX DLSS Model E is not prepared yet')
+            self.assertEqual(rows(dialog.page)['B'].get_subtitle(), 'Nothing to update until HLX DLSS Model E is prepared on this computer')
+            self.assertEqual(dialog.update_button.get_label(), '_Prepare and Update 3 Games')
+            # One click: install.py hlx first, which the updates need; then the games. Those whose upscaler it prepares
+            # plan again when they run (the plan shown defers it); the others run the plan shown.
+            steps, how = updated(window, dialog)
+            self.assertEqual(steps, [('Prepare HLX DLSS Model E', ['hlx'], True),
+                                     ('A', ['update', str(games['A'].exe)], False), ('B', ['update', str(games['B'].exe)], False),
+                                     ('C', ['update', str(games['C'].exe), *digest('C')], False)])
+            self.assertEqual(how['working'], 'Preparing HLX DLSS Model E, then updating 3 games. The build takes about 10 to 15 '
+                             'minutes on a BC-250.')
+            self.assertEqual((how['success'], how['output'], how['on_finished']), ('3 games updated', True, window.helix_changed))
+            yield lambda: window.get_visible_dialog() is None
+            # Declined: as before. The upscaler is deferred, the rest is updated, each game runs the plan shown.
+            dialog = yield from review(window, 'A', 'B', 'C', 'D')
+            dialog.prepare_switch.set_active(False)
+            self.assertEqual(dialog.update_button.get_label(), '_Update 2 Games')
+            steps, how = updated(window, dialog)
+            self.assertEqual(steps, [('A', ['update', str(games['A'].exe), *digest('A')], False),
+                                     ('C', ['update', str(games['C'].exe), *digest('C')], False)])
+            self.assertEqual(how, dict(working='Updating 2 games', success='2 games updated'))
+            yield lambda: window.get_visible_dialog() is None
+            # Only the upscaler waits, in one game: without the preparation there is nothing to update.
+            dialog = yield from review(window, 'B')
+            self.assertEqual(dialog.update_button.get_label(), '_Prepare and Update 1 Game')
+            self.assertIn('1 game uses an upscaler', groups(dialog.page)['Before updating'].get_description())
+            dialog.prepare_switch.set_active(False)
+            self.assertEqual((dialog.update_button.get_label(), dialog.update_button.get_sensitive()), ('Nothing to Update', False))
+            dialog.prepare_switch.set_active(True)
+            steps, how = updated(window, dialog)
+            self.assertEqual(steps, [('Prepare HLX DLSS Model E', ['hlx'], True), ('B', ['update', str(games['B'].exe)], False)])
+            self.assertEqual((how['working'], how['success']), ('Preparing HLX DLSS Model E, then updating B. The build takes about '
+                                                                '10 to 15 minutes on a BC-250.', 'B is updated'))
+            yield lambda: window.get_visible_dialog() is None
+            # Only upscalers that come built are deferred: the archive alone. A Preset K installation among them: its build.
+            plans.update(A=('update', 'hlx-fsr4'), B=('deferred', 'hlx-fsr4-full'))
+            dialog = yield from review(window, 'A', 'B')
+            self.assertEqual(dialog.prepare_switch.get_title(), 'Prepare HLX FSR 4 and HLX FSR 4 Full first')
+            self.assertIn('Nothing is built: HLX FSR 4 and HLX FSR 4 Full come built in the archive.', dialog.prepare_switch.get_subtitle())
+            steps, how = updated(window, dialog)
+            self.assertEqual(steps[0], ('Prepare HLX FSR 4 and HLX FSR 4 Full', ['hlx', '--no-build'], True))
+            self.assertEqual(how['working'], 'Preparing HLX FSR 4 and HLX FSR 4 Full, then updating 2 games.')
+            yield lambda: window.get_visible_dialog() is None
+            plans.update(A=('update', 'hlx-dlss-k'), B=('deferred', 'hlx-fsr4'))
+            dialog = yield from review(window, 'A', 'B')
+            steps, how = updated(window, dialog)
+            self.assertEqual(steps[0], ('Prepare HLX DLSS Preset K and HLX FSR 4', ['hlx', '--preset-k'], True))
+            self.assertIn('The build takes about 45 minutes on a BC-250.', how['working'])
+            yield lambda: window.get_visible_dialog() is None
+            # Where the build lacks something, nothing is offered for what is built: the plan stands as the installer
+            # wrote it. What comes built is still offered.
+            self.missing = ('Wine',)
+            yield self.now_ready(window)
+            plans.update(A=('update', 'hlx-dlss'), B=('deferred', 'hlx-dlss'))
+            dialog = yield from review(window, 'A', 'B', 'C')
+            self.assertNotIn('Before updating', groups(dialog.page))
+            self.assertEqual(dialog.update_button.get_label(), '_Update 2 Games')
+            steps, how = updated(window, dialog)
+            self.assertEqual([step[0] for step in steps], ['A', 'C'])
+            yield lambda: window.get_visible_dialog() is None
+            plans.update(B=('deferred', 'hlx-fsr4'))
+            dialog = yield from review(window, 'A', 'B')
+            self.assertEqual(dialog.prepare_switch.get_title(), 'Prepare HLX FSR 4 first')
+            self.assertEqual(updated(window, dialog)[0], [('Prepare HLX FSR 4', ['hlx', '--no-build'], True),
+                                                          ('A', ['update', str(games['A'].exe), *digest('A')], False),
+                                                          ('B', ['update', str(games['B'].exe)], False)])
+            yield lambda: window.get_visible_dialog() is None
+            # A review opened before the upscalers are checked offers it once they are; one that got ready meanwhile
+            # (another Setup) is not offered, and nothing deferred means no offer at all.
+            self.missing = ()
+            window.providers = None
+            plans.update(A=('update', 'hlx-dlss'), B=('current', None))
+            dialog = yield from review(window, 'A', 'B')
+            self.assertNotIn('Before updating', groups(dialog.page))
+            window.check_providers()
+            yield lambda: window.providers is not None
+            self.assertIn('Before updating', groups(dialog.page))
+            self.assertEqual(dialog.update_button.get_label(), '_Prepare and Update 1 Game')
+            yield self.now_ready(window, 'hlx-dlss')
+            self.assertNotIn('Before updating', groups(dialog.page))
+            self.assertEqual(dialog.update_button.get_label(), '_Update 1 Game')
+            dialog.close()
+            yield lambda: window.get_visible_dialog() is None
+            plans.update(A=('update', None), B=('deferred', None))
+            dialog = yield from review(window, 'A', 'B')
+            self.assertNotIn('Before updating', groups(dialog.page))
+            self.assertEqual(updated(window, dialog)[0], [('A', ['update', str(games['A'].exe), *digest('A')], False)])
+            yield lambda: window.get_visible_dialog() is None
+        with patch.object(model, 'plan_game', side_effect=planned):
+            self.drive(script)
 
     def prepare_dialog(self, window, held=None, missing=(), pinned='/in/nvngx_dlss.dll', preset_k=False, fail=False):
         """Prepare Helix opened over fixture reads: held (the installer's own DLSS copy), what the build needs and is not
@@ -1151,25 +1504,32 @@ class HelixUpscalers(WindowFixture):
             yield lambda: dialog.held != 'checking' and dialog.missing is not None
             shown = rows(dialog)
             self.assertEqual(shown['Found on this computer'].get_subtitle(), '/cache/bc250-xefg-testers/nvngx_dlss.dll')
-            self.assertFalse(dialog.local_row.get_visible() or dialog.agree_row.get_visible())  # nothing to ask
+            self.assertFalse(dialog.local_row.get_visible() or dialog.download_row.get_visible())  # nothing to download
             self.assertEqual([shown[what].get_subtitle() for what in ('Wine', 'bubblewrap', 'Python numpy')], ['Installed'] * 3)
             self.assertFalse(any('AMD' in title for title in shown))
             # Preset K is optional and off unless asked for.
             self.assertFalse(dialog.preset_row.get_active())
             self.assertIn('Optional', dialog.preset_row.get_subtitle())
-            self.assertIn('many minutes', dialog.preset_row.get_subtitle())
+            self.assertIn('about 35 minutes more on a BC-250', dialog.preset_row.get_subtitle())
             self.assertIsNone(dialog.blocked())
             self.assertTrue(dialog.prepare_button.get_sensitive())
             self.assertEqual(dialog.args(), ['hlx'])
+            self.assertEqual(dialog.hint.get_text(), 'Setup builds HLX DLSS Model E. The build takes about 10 to 15 minutes on a '
+                             'BC-250.')
             dialog.preset_row.set_active(True)
             self.assertEqual(dialog.args(), ['hlx', '--preset-k'])
-            self.assertIn('Preset K takes many minutes', dialog.hint.get_text())
+            self.assertEqual(dialog.hint.get_text(), 'Setup builds HLX DLSS Model E and HLX DLSS Preset K. The build takes about '
+                             '45 minutes on a BC-250.')
             with patch.object(window, 'run') as run:
                 dialog.prepare()
                 self.assertEqual(run.call_args.args[0], 'Preparing Helix')
                 self.assertEqual([(step.title, step.args, step.game) for step in run.call_args.args[1]],
                                  [('Helix', ['hlx', '--preset-k'], None)])
                 self.assertEqual(run.call_args.kwargs['success'], 'Helix is prepared for every game')
+                # The operation says about how long the build takes and shows the installer's lines as they come.
+                self.assertEqual(run.call_args.kwargs['working'], 'Preparing Helix for every game. The build takes about 45 '
+                                 'minutes on a BC-250.')
+                self.assertTrue(run.call_args.kwargs['output'])
                 # Once it ends the upscalers are checked again, so every open dialog follows.
                 self.ready = {'hlx-dlss', 'hlx-dlss-k', 'hlx-fsr4', 'hlx-fsr4-full'}
                 window.providers = None
@@ -1178,41 +1538,50 @@ class HelixUpscalers(WindowFixture):
             self.assertTrue(all(p.ready for p in window.providers))
         self.drive(script)
 
-    def test_prepare_without_a_copy_takes_a_local_file_or_the_players_agreement(self):
+    def test_prepare_without_a_copy_downloads_it_from_nvidia_or_takes_a_local_file(self):
         def script(window):
             yield lambda: window.loaded and window.providers is not None
             dialog = self.prepare_dialog(window)
             yield lambda: dialog.held != 'checking' and dialog.missing is not None
-            self.assertTrue(dialog.local_row.get_visible() and dialog.agree_row.get_visible())
             self.assertNotIn('Found on this computer', rows(dialog))
+            # No agreement to give: the dialog says that Setup downloads the DLL from NVIDIA's repository under NVIDIA's
+            # licence, with the licence's address, and Prepare can run. A local copy stays the option.
+            self.assertFalse(any(isinstance(found, Adw.SwitchRow) and 'NVIDIA' in found.get_title() for found in descendants(dialog)))
+            self.assertTrue(dialog.download_row.get_visible() and dialog.local_row.get_visible())
+            self.assertEqual((dialog.download_row.get_title(), dialog.download_row.get_subtitle()),
+                             ('Downloaded from NVIDIA', 'Setup downloads NVIDIA’s DLSS DLL (59 MB) from NVIDIA’s repository under '
+                              'NVIDIA’s licence: ' + m.hlx.NVIDIA_LICENSE + '.'))
+            self.assertEqual(dialog.local_row.get_title(), 'Use a local copy')
             self.assertEqual(dialog.local_row.get_subtitle(), 'nvngx_dlss.dll with SHA-256 be6e434a94ca3249… · not chosen')
-            # Nothing is downloaded from NVIDIA without the player's switch, which names the licence.
-            self.assertFalse(dialog.agree_row.get_active())
-            self.assertEqual(dialog.agree_row.get_subtitle(), 'I agree to download NVIDIA’s DLSS DLL (59 MB) from NVIDIA’s repository '
-                             'under NVIDIA’s licence: ' + m.hlx.NVIDIA_LICENSE + '.')
-            self.assertEqual(dialog.blocked(), 'Choose a local copy of NVIDIA’s DLSS DLL, or agree to its download from NVIDIA.')
-            self.assertFalse(dialog.prepare_button.get_sensitive())
-            dialog.agree_row.set_active(True)
+            self.assertIsNone(dialog.blocked())
             self.assertTrue(dialog.prepare_button.get_sensitive())
-            self.assertEqual(dialog.args(), ['hlx', '--download-dlss'])
-            dialog.agree_row.set_active(False)
-            # A file that is not the pinned DLL is refused here, before anything runs.
+            self.assertEqual(dialog.args(), ['hlx'])
+            self.assertEqual(dialog.hint.get_text(), 'Setup downloads NVIDIA’s DLSS DLL and builds HLX DLSS Model E. The build '
+                             'takes about 10 to 15 minutes on a BC-250.')
+            dialog.preset_row.set_active(True)
+            self.assertEqual(dialog.args(), ['hlx', '--preset-k'])
+            dialog.preset_row.set_active(False)
+            # A file the player chooses is hashed first; nothing runs meanwhile.
             dialog.check_file('/in/other.dll')
-            self.assertFalse(dialog.prepare_button.get_sensitive())
-            yield lambda: 'SHA-256' in dialog.local_row.get_subtitle()
+            self.assertEqual(dialog.blocked(), 'Checking the file you chose…')
+            self.assertFalse(dialog.prepare_button.get_sensitive() or dialog.download_row.get_visible())
+            yield lambda: not dialog.checking
+            # One that is not the pinned DLL is not taken, and says why: the download stands again.
             self.assertEqual(dialog.local_row.get_subtitle(), '/in/other.dll · Select NVIDIA’s DLSS DLL with SHA-256 be6e.')
-            self.assertFalse(dialog.prepare_button.get_sensitive())
-            # The pinned DLL is named to install.py, and then nothing is downloaded from NVIDIA whatever the switch says.
-            dialog.agree_row.set_active(True)
+            self.assertTrue(dialog.prepare_button.get_sensitive() and dialog.download_row.get_visible())
+            self.assertEqual(dialog.args(), ['hlx'])
+            # The pinned DLL is named to install.py, and then nothing is downloaded from NVIDIA.
             dialog.check_file('/in/nvngx_dlss.dll')
             yield lambda: dialog.chosen is not None
             self.assertEqual(dialog.local_row.get_subtitle(), '/in/nvngx_dlss.dll')
-            self.assertFalse(dialog.agree_row.get_sensitive())
+            self.assertFalse(dialog.download_row.get_visible())
             self.assertEqual(dialog.args(), ['hlx', '--dlss-input', '/in/nvngx_dlss.dll'])
+            self.assertEqual(dialog.hint.get_text(), 'Setup builds HLX DLSS Model E. The build takes about 10 to 15 minutes on a '
+                             'BC-250.')
             with patch.object(window, 'run') as run:
                 dialog.prepare()
                 self.assertEqual(run.call_args.args[1][0].args, ['hlx', '--dlss-input', '/in/nvngx_dlss.dll'])
-                self.assertIn('several minutes', run.call_args.kwargs['working'])
+                self.assertIn('about 10 to 15 minutes', run.call_args.kwargs['working'])
         self.drive(script)
 
     def test_prepare_names_what_the_build_needs_and_what_is_built_already(self):

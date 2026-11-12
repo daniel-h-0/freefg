@@ -261,7 +261,8 @@ def copy_button(window, text, what):
 def provider_row(window, provider, subtitle=None, current=False, ready_badge=True, action=True):
     """An upscaler's row wherever one is chosen or listed: its name and one line about it, the Suggested badge, then
     Current, Ready (ready_badge), or the button that makes it ready (action; window.provider_button: Prepare… or
-    Download…)."""
+    Download…). Where Install or Switch makes it ready itself (Provider.preparable), the dialogs that choose pass no
+    action: the row is chosen like one that is ready."""
     row = plain(Adw.ActionRow(), provider.label, subtitle or model.provider_line(provider))
     if provider.suggested:
         row.add_suffix(badge('Suggested', 'accent'))
@@ -273,6 +274,31 @@ def provider_row(window, provider, subtitle=None, current=False, ready_badge=Tru
     elif action:
         row.add_suffix(window.provider_button(provider))
     return row
+
+
+def prepare_notice(title):
+    """(group, row) that say what an action does first for an upscaler that is not ready yet (model.prepare_heading and
+    prepare_lines): shown only while such an upscaler is chosen (show_prepare_notice)."""
+    notice = group(title)
+    row = action_row('', None, 'dialog-information-symbolic', 'accent')
+    notice.add(row)
+    notice.set_visible(False)
+    return notice, row
+
+
+def show_prepare_notice(notice, row, ctx, providers, names, action, closed):
+    """Fill and show the notice for the upscalers named when the action prepares them first; hide it otherwise. closed:
+    what stays closed until the action is done, its last line. Returns what model.prepare_first says it takes (None:
+    nothing is prepared)."""
+    todo = model.prepare_first(providers, names)
+    notice.set_visible(todo is not None)
+    # The sentences read the package's pins: written again only when the choice or the upscalers' state changed.
+    shown = (action, closed, tuple(names), tuple((p.id, p.state, p.needs, p.have) for p in providers or []))
+    if todo is not None and getattr(notice, 'shown_for', None) != shown:
+        notice.shown_for = shown
+        row.set_title(model.prepare_heading(providers, names, action))
+        row.set_subtitle('\n'.join([*model.prepare_lines(ctx, providers, names), 'Keep ' + closed + ' closed until it is done.']))
+    return todo
 
 
 def radio(row, first, active, chosen):
@@ -469,10 +495,12 @@ class Reader:
 
 @dataclass
 class Step:
-    """One install.py command of an operation, for one game (game None: Setup-wide, as Helix preparation)."""
+    """One install.py command of an operation, for one game (game None: Setup-wide, as Helix preparation). gate: the
+    steps after it need it done, and are not started when it does not complete (a preparation before updates)."""
     title: str
     args: list
     game: object = None
+    gate: bool = False
 
 
 @dataclass
@@ -497,7 +525,9 @@ class Result:
 
 class Operation:
     """install.py commands one after another, each in its own process, their output handed to the window as it comes.
-    stop() lets the command running finish and skips the rest: the installer's transactions are never cut short.
+    stop() lets the command running finish and skips the rest: the installer's transactions are never cut short. A
+    step that gates the rest (Step.gate) and does not complete skips them too (halted: that step). Nothing here ends a
+    command for taking long: a preparation that builds for many minutes runs until the installer is done.
     Callbacks run on the window's thread in the order things happened; output lines arrive in batches (on_lines), so a
     command that prints thousands of lines never floods the window with a callback each."""
 
@@ -505,6 +535,7 @@ class Operation:
         self.ctx, self.steps = ctx, steps
         self.on_lines, self.on_step, self.on_done = on_lines, on_step, on_done
         self.stopping = False
+        self.halted = None
         self.running = False
         self.lock = threading.Lock()
         self.pending, self.scheduled = [], False
@@ -559,6 +590,8 @@ class Operation:
                 result.returncode, result.lines = 1, [('err', 'Setup could not start the installer: ' + str(error))]
                 self._post('line', index, 'err', result.lines[0][1])
                 result.outcome = model.outcome(result.lines)
+                if step.gate and not self.stopping:
+                    self.halted, self.stopping = step, True
                 continue
 
             def pump(stream, name):
@@ -580,6 +613,8 @@ class Operation:
                 for reader in readers:
                     reader.join()
                 result.returncode = process.wait()
+            if step.gate and result.returncode != 0 and not self.stopping:
+                self.halted, self.stopping = step, True
             try:
                 result.outcome = model.command_outcome(self.ctx, step.args if step.game is not None else [],
                                                        result.lines, result.events)
@@ -593,13 +628,21 @@ class Operation:
 class OperationDialog(Adw.Dialog):
     """Runs an operation in view: what it is doing now, how far it got, then what came of it for each game, the
     player's next steps and the installer's full output. Closing waits for the operation (Stop skips what has not
-    started)."""
+    started). The installer's last line stands under the title as it arrives, and after a quarter of a minute so does
+    how long the operation has run: a download or a build of many minutes is seen to be running. output: the installer's
+    output starts open (an operation that prepares an upscaler, whose lines are its progress)."""
 
-    def __init__(self, window, title, steps, working, success, next_steps=(), on_finished=None):
+    # After this many seconds the dialog says how long the operation has run.
+    ELAPSED_AFTER = 15
+
+    def __init__(self, window, title, steps, working, success, next_steps=(), on_finished=None, output=False):
         super().__init__(title=title, content_width=640, content_height=500)
         self.window, self.steps, self.success = window, steps, success
         self.extra_steps, self.on_finished = list(next_steps), on_finished
         self.results = []
+        self.started, self.elapsed_shown = GLib.get_monotonic_time(), None
+        # What Stop skips to: the end of this game, or of this step where it is none (a preparation); None once asked.
+        self.stop_after = 'Game' if steps and steps[0].game is not None else 'Step'
         self.set_can_close(False)
         self.connect('close-attempt', lambda *_: window.toast('Setup finishes the current step first.'))
         view = Adw.ToolbarView()
@@ -615,15 +658,18 @@ class OperationDialog(Adw.Dialog):
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
         self.title_label = text_label(working, ['title-3'], wrap=True)
         self.detail_label = text_label('', ['dim-label'], ellipsize=True)
+        self.elapsed_label = text_label('', ['dim-label', 'caption'])
+        self.elapsed_label.set_visible(False)
         texts.append(self.title_label)
         texts.append(self.detail_label)
+        texts.append(self.elapsed_label)
         top.append(texts)
         content.append(top)
         self.progress = Gtk.ProgressBar(show_text=len(steps) > 1)
         content.append(self.progress)
         self.outcome = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, visible=False)
         content.append(self.outcome)
-        self.expander = Gtk.Expander(label='Installer output', expanded=False)
+        self.expander = Gtk.Expander(label='Installer output', expanded=bool(output))
         self.log, scrolled = log_view()
         self.expander.set_child(scrolled)
         content.append(self.expander)
@@ -632,7 +678,7 @@ class OperationDialog(Adw.Dialog):
         bottom = Gtk.Box(spacing=8, margin_top=10, margin_bottom=10, margin_start=12, margin_end=12)
         bottom.append(button('_Copy Output', self.copy, 'flat', icon_name='edit-copy-symbolic'))
         bottom.append(Gtk.Box(hexpand=True))
-        self.stop_button = button('_Stop After This Game', self.stop)
+        self.stop_button = button('_Stop After This ' + self.stop_after, self.stop)
         self.stop_button.set_visible(len(steps) > 1)
         bottom.append(self.stop_button)
         self.done_button = button('_Done', self.close_done, 'suggested-action')
@@ -651,12 +697,23 @@ class OperationDialog(Adw.Dialog):
     def _pulse(self):
         if len(self.steps) == 1:
             self.progress.pulse()
+        self.show_elapsed((GLib.get_monotonic_time() - self.started) // 1000000)
         return GLib.SOURCE_CONTINUE
+
+    def show_elapsed(self, seconds):
+        """How long the operation has run, once it runs long enough for that to matter (a download, a build)."""
+        if seconds >= self.ELAPSED_AFTER and seconds != self.elapsed_shown:
+            self.elapsed_shown = seconds
+            self.elapsed_label.set_text('Running for ' + model.elapsed_words(seconds))
+            self.elapsed_label.set_visible(True)
 
     def _step(self, index, step):
         if len(self.steps) > 1:
             self.progress.set_fraction(index / len(self.steps))
             self.progress.set_text(f'{index + 1} of {len(self.steps)}: {step.title}')
+            if self.stop_after is not None:
+                self.stop_after = 'Game' if step.game is not None else 'Step'
+                self.stop_button.set_label('_Stop After This ' + self.stop_after)
         append_text(self.log, ('\n' if index else '') + '— ' + step.title + ' —\n')
 
     def _lines(self, index, lines):
@@ -668,7 +725,8 @@ class OperationDialog(Adw.Dialog):
     def stop(self):
         self.operation.stop()
         self.stop_button.set_sensitive(False)
-        self.stop_button.set_label('Stopping after this game…')
+        self.stop_button.set_label('Stopping after this ' + (self.stop_after or 'step').lower() + '…')
+        self.stop_after = None
 
     def copy(self):
         buffer = self.log.get_buffer()
@@ -685,6 +743,7 @@ class OperationDialog(Adw.Dialog):
         self.done_button.set_visible(True)
         self.done_button.grab_focus()
         self.progress.set_visible(False)
+        self.elapsed_label.set_visible(False)
         ran = [r for r in results if r.returncode is not None]
         done = [r for r in ran if r.ok]
         failed = [r for r in ran if not r.ok and not r.refused]
@@ -715,7 +774,10 @@ class OperationDialog(Adw.Dialog):
             listing.add_css_class('boxed-list')
             for result in results:
                 if result.returncode is None:
-                    row = action_row(result.step.title, 'Not started (stopped)', 'action-unavailable-symbolic', 'dim')
+                    halted = self.operation.halted
+                    row = action_row(result.step.title, 'Not started (stopped)' if halted is None else
+                                     'Not started: “' + halted.title + '” did not complete',
+                                     'action-unavailable-symbolic', 'dim')
                 elif result.ok:
                     row = action_row(result.step.title, self.done_line(result), 'object-select-symbolic', 'success')
                 elif result.refused:
@@ -831,8 +893,10 @@ class LaunchDialog(Adw.Dialog):
 # ------------------------------------------------------------------------------------------------- install
 class InstallDialog(Adw.Dialog):
     """Install for one game: its compatibility for the input chosen, the upscaler, the refusals that need the player's
-    explicit yes, the steps they take after, and what Setup changes. risk_sentence: the anti-cheat override, confirmed
-    for this game."""
+    explicit yes, the steps they take after, and what Setup changes. The upscaler starts on the suggested one where it
+    is ready or Install can make it ready on this computer; one that is not ready is prepared by the same install.py
+    install, and the dialog says before what that downloads, what it builds and about how long that takes.
+    risk_sentence: the anti-cheat override, confirmed for this game."""
 
     def __init__(self, window, game, risk_sentence=None):
         super().__init__(title='Install ' + window.ctx.name, content_width=660, content_height=760)
@@ -843,7 +907,8 @@ class InstallDialog(Adw.Dialog):
         self.connect('closed', lambda *_: setattr(self, 'cancelled', True))
         self.verdict, self.checking, self.generation = None, True, 0
         self.providers = window.providers
-        # The upscaler: the suggested one where it is ready, else FSR 4, until the player chooses one.
+        # The upscaler: the suggested one where it is ready or Install can make it ready, else FSR 4, until the player
+        # chooses one.
         self.chosen_provider, self.provider_picked = model.default_provider(self.providers), False
         self.accepted = {}
         view = Adw.ToolbarView()
@@ -891,14 +956,17 @@ class InstallDialog(Adw.Dialog):
         self.input_row.connect('notify::selected', lambda *_: self.input_changed())
         inputs.add(self.input_row)
         page.add(inputs)
-        self.provider_group = group('Upscaler', 'You can switch it later on the game’s page. An upscaler that is not ready '
-                                                'yet is prepared once for every game.')
+        self.provider_group = group('Upscaler', 'You can switch it later on the game’s page. Install prepares an upscaler '
+                                                'that is not ready yet, once for every game.')
         self.provider_rows = {}
         self.credit = text_label(self.ctx.helix_about, ['dim-label', 'caption'], wrap=True)
         self.credit.set_margin_top(10)
         self.credit.set_visible(False)
         self.provider_group.add(self.credit)
         page.add(self.provider_group)
+        # What Install does first for an upscaler that is not ready: its downloads, the build and about how long.
+        self.prepare_group, self.prepare_row = prepare_notice('Before installing')
+        page.add(self.prepare_group)
         self.steps_group = group('After installing', 'Reopen your launcher and play normally. In the game:')
         self.steps_rows = []
         page.add(self.steps_group)
@@ -1004,7 +1072,7 @@ class InstallDialog(Adw.Dialog):
             self.chosen_provider, self.provider_picked = model.default_provider(found), False
         first = None
         for provider in found:
-            row = provider_row(self.window, provider, ready_badge=provider.id != 'fsr4')
+            row = provider_row(self.window, provider, ready_badge=provider.id != 'fsr4', action=not provider.preparable)
             check = radio(row, first, provider.id == self.chosen_provider, lambda pid=provider.id: self.choose_provider(pid))
             first = first or check
             self.provider_group.add(row)
@@ -1033,12 +1101,13 @@ class InstallDialog(Adw.Dialog):
         waiting = [r for r in model.refusals(verdict, 'soft') if not self.accepted.get(r['code'])]
         if waiting:
             return 'Accept each item under “Needs your OK” to install, or cancel.'
-        provider = next((p for p in self.providers or [] if p.id == self.chosen_provider), None)
-        if provider is not None and not provider.ready:
-            # Never the default (model.default_provider): the player chose an upscaler that is not ready yet.
-            return (provider.label + ' is ' + model.provider_state(provider).lower() + ': choose ' +
-                    model.provider_action(provider)[0].replace('_', '') + ' on its row, or another upscaler.')
-        return None
+        # Never the default (model.default_provider): the player chose an upscaler that Install cannot make ready here.
+        return model.cannot_prepare(self.provider) if self.provider is not None else None
+
+    @property
+    def provider(self):
+        """The upscaler chosen, as the last check found it (None before the first check answered: FSR 4)."""
+        return next((p for p in self.providers or [] if p.id == self.chosen_provider), None)
 
     @property
     def manual(self):
@@ -1049,6 +1118,9 @@ class InstallDialog(Adw.Dialog):
     def update_state(self):
         reason, manual = self.blocked(), self.manual
         self.install_button.set_sensitive(reason is None and not self.install_pending)
+        # What Install does first for an upscaler that is not ready; the game (and its launcher) stay closed meanwhile.
+        show_prepare_notice(self.prepare_group, self.prepare_row, self.ctx, self.providers, [self.chosen_provider], 'Install',
+                            'the game' if manual else 'the game and its launcher')
         self.hint.set_text(reason or ('Setup checks again that the game is closed, then installs.' if manual else
                                       'Setup checks again that the game and its launcher are closed, then installs.'))
         self.changes_row.set_title('Files and downloads' if manual else 'Files, launch settings and downloads')
@@ -1103,17 +1175,24 @@ class InstallDialog(Adw.Dialog):
         self.banner.set_revealed(False)
         steps = list((self.verdict or {}).get('manual_steps') or [])
         choice, game, window = self.choice(), self.game, self.window
+        # An upscaler that is not ready: the same install.py install, which prepares it first (and says so as it goes).
+        preparing = model.prepare_first(self.providers, [choice.provider])
+        working = f'Installing {window.ctx.name} into {game.title}'
+        if preparing:
+            working = ' '.join(filter(None, (f'Preparing {self.provider.label}, then installing {window.ctx.name} into '
+                                             f'{game.title}.', model.build_sentence(preparing['build']))))
         self.close()
         window.run(f'Installing {window.ctx.name}', [Step(game.title, model.install_args(game.exe, choice), game)],
-                   working=f'Installing {window.ctx.name} into {game.title}',
-                   success=f'{window.ctx.name} is installed in {game.title}',
+                   working=working, success=f'{window.ctx.name} is installed in {game.title}',
                    # Without a launcher entry to edit (no-launcher accepted), the installer's own step says what to set.
-                   next_steps=steps + ([] if 'no-launcher' in choice.accept else ['Reopen your launcher and play normally.']))
+                   next_steps=steps + ([] if 'no-launcher' in choice.accept else ['Reopen your launcher and play normally.']),
+                   on_finished=window.helix_changed if preparing else None, output=bool(preparing))
 
 
 # ------------------------------------------------------------------------------------------------- upscaler switch
 class UpscalerDialog(Adw.Dialog):
-    """Switch an installed game to another upscaler (install.py configure --upscaler)."""
+    """Switch an installed game to another upscaler (install.py configure --upscaler). One that is not ready and can be
+    made ready here is switched to as well: the installer prepares it first, and the dialog says what that takes."""
 
     def __init__(self, window, game):
         super().__init__(title='Upscaler', content_width=600, content_height=600)
@@ -1134,6 +1213,8 @@ class UpscalerDialog(Adw.Dialog):
         self.group = group(None, 'Frame generation stays XeFG with every upscaler. A switch can be undone with Roll '
                                  'Back. Close the game first.')
         page.add(self.group)
+        self.prepare_group, self.prepare_row = prepare_notice('Before switching')
+        page.add(self.prepare_group)
         if window.ctx.helix_about:
             credit = group()
             credit.add(text_label(window.ctx.helix_about, ['dim-label', 'caption'], wrap=True))
@@ -1156,7 +1237,8 @@ class UpscalerDialog(Adw.Dialog):
             self.group.add(waiting)
             self.rows.append(waiting)
         for provider in self.providers or []:
-            row = provider_row(self.window, provider, current=provider.id == self.current, ready_badge=False)
+            row = provider_row(self.window, provider, current=provider.id == self.current, ready_badge=False,
+                               action=not provider.preparable)
             check = radio(row, first, provider.id == self.chosen, lambda pid=provider.id: self.choose(pid))
             first = first or check
             self.group.add(row)
@@ -1184,30 +1266,48 @@ class UpscalerDialog(Adw.Dialog):
         self.update_state()
 
     def update_state(self):
-        # An upscaler that is not ready yet cannot be switched to: its row offers Prepare… or Download… instead.
+        # An upscaler that is not ready yet is switched to when Switch can make it ready here first (the notice says
+        # what that takes); one whose build cannot run here keeps its row's Prepare…, which names what is missing.
         provider = next((p for p in self.providers or [] if p.id == self.chosen), None)
-        self.switch_button.set_sensitive(self.chosen != self.current and provider is not None and provider.ready)
+        switching = self.chosen != self.current and provider is not None
+        self.switch_button.set_sensitive(switching and (provider.ready or provider.preparable))
+        show_prepare_notice(self.prepare_group, self.prepare_row, self.window.ctx, self.providers,
+                            [self.chosen] if switching else [], 'Switch', 'the game')
 
     def switch(self):
-        provider = next((p for p in self.providers or [] if p.id == self.chosen and p.ready), None)
+        provider = next((p for p in self.providers or [] if p.id == self.chosen and (p.ready or p.preparable)), None)
         if provider is None or self.chosen == self.current:
             return
         game, window = self.game, self.window
+        # Not ready: the same install.py configure, which prepares it first (and says so as it goes).
+        preparing = model.prepare_first(self.providers, [provider.id])
+        working = f'Switching {game.title} to {provider.label}'
+        if preparing:
+            working = ' '.join(filter(None, (f'Preparing {provider.label}, then switching {game.title} to it.',
+                                             model.build_sentence(preparing['build']))))
         self.close()
         window.request([game], False, lambda: window.run(
-            'Switching Upscaler', [Step(game.title, ['configure', str(game.exe), '--upscaler', provider.id], game)],
-            working=f'Switching {game.title} to {provider.label}', success=f'{game.title} now uses {provider.label}'))
+            'Switching Upscaler', [Step(game.title, model.switch_args(game.exe, provider), game)],
+            working=working, success=f'{game.title} now uses {provider.label}',
+            on_finished=window.helix_changed if preparing else None, output=bool(preparing)))
 
 
 # ------------------------------------------------------------------------------------------------- update review
 class UpdateDialog(Adw.Dialog):
     """The update plan for every game, grouped by outcome, before one confirmation: what changes where, which games are
-    up to date, pinned, running or need attention, and why. Update runs only the games that have something to update."""
+    up to date, pinned, running or need attention, and why. Update runs only the games that have something to update.
+    Where a plan defers a Helix upscaler only because this release's HelixSR is not prepared on this computer
+    (PlanItem.prepare) and Setup can make it ready here, the review offers to prepare it first, on by default: then
+    install.py hlx runs before the updates, which plan again and take the upscaler with them. Turned off, the upscaler
+    is deferred as the plan says."""
 
     def __init__(self, window, games, title='Update All Games', refresh=False, scope=True):
         super().__init__(title=title, content_width=700, content_height=720)
         self.window, self.games, self.refresh = window, games, refresh
         self.component, self.items, self.generation = 'all', [], 0
+        # The offer to prepare a deferred Helix upscaler first (model.prepare_first; None: none), and whether the
+        # player keeps it on.
+        self.offer, self.prepare_wanted, self.planned = None, True, False
         view = Adw.ToolbarView()
         header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
         header.pack_start(button('_Cancel', self.close))
@@ -1241,6 +1341,8 @@ class UpdateDialog(Adw.Dialog):
         note_box.append(note)
         view.add_bottom_bar(note_box)
         self.set_child(view)
+        window.providers_listeners.append(self.providers_changed)
+        self.connect('closed', lambda *_: window.providers_listeners.remove(self.providers_changed))
         self.plan()
 
     def set_component(self, component):
@@ -1248,9 +1350,15 @@ class UpdateDialog(Adw.Dialog):
             self.component = component
             self.plan()
 
+    def providers_changed(self, providers):
+        """The upscalers were checked (again): whether the deferred one can be made ready here may have changed."""
+        if self.planned:
+            self.show(self.generation, self.items)
+
     def plan(self):
         self.generation += 1
         generation = self.generation
+        self.planned = False
         self.update_button.set_sensitive(False)
         self.stack.set_visible_child_name('loading')
         self.loading_label.set_text(f'Checking {len(self.games)} game{"s" if len(self.games) != 1 else ""}…')
@@ -1264,7 +1372,7 @@ class UpdateDialog(Adw.Dialog):
     def failed(self, generation, error):
         if generation != self.generation:
             return
-        self.items = []
+        self.items, self.offer = [], None
         if self.page is not None:
             self.stack.remove(self.page)
         self.page = Adw.StatusPage(title='The plan could not be read', description=esc(str(error)),
@@ -1277,11 +1385,30 @@ class UpdateDialog(Adw.Dialog):
     def show(self, generation, items):
         if generation != self.generation:
             return
-        self.items = items
+        self.items, self.planned = items, True
         if self.page is not None:
             self.stack.remove(self.page)
         self.page = Adw.PreferencesPage()
         ctx = self.window.ctx
+        # A Helix upscaler the plan defers because it is not prepared here: prepared first, unless the player declines.
+        waiting = {item.prepare for item in items if item.prepare and item.status in ('update', 'deferred')}
+        self.offer = model.prepare_first(self.window.providers, waiting)
+        if self.offer:
+            names = self.offer['names']
+            count = sum(1 for item in items if item.prepare in names and item.status in ('update', 'deferred'))
+            first = group('Before updating', f'{count} game{"s use" if count != 1 else " uses"} an upscaler that this '
+                          'release’s HelixSR makes ready once on this computer. Turned off, that upscaler is left as it is '
+                          'and the rest is updated.')
+            self.prepare_switch = plain(Adw.SwitchRow(), 'Prepare ' + model.joined(model.UPSCALER_LABELS[n] for n in names) +
+                                        ' first', '\n'.join(model.prepare_lines(ctx, self.window.providers, names)))
+            self.prepare_switch.set_active(self.prepare_wanted)
+            self.prepare_switch.connect('notify::active', lambda row, _p: self.set_prepare(row.get_active()))
+            first.add(self.prepare_switch)
+            if ctx.helix_about:
+                credit = text_label(ctx.helix_about, ['dim-label', 'caption'], wrap=True)
+                credit.set_margin_top(10)
+                first.add(credit)
+            self.page.add(first)
         for key, title, _ in model.UPDATE_GROUPS:
             members = [item for item in items if item.group == key]
             if not members:
@@ -1309,28 +1436,61 @@ class UpdateDialog(Adw.Dialog):
             self.page.add(section)
         self.stack.add_named(self.page, 'review')
         self.stack.set_visible_child_name('review')
-        count = sum(1 for item in items if item.status == 'update')
+        self.update_state()
+
+    def set_prepare(self, on):
+        self.prepare_wanted = on
+        self.update_state()
+
+    @property
+    def preparing(self):
+        """The offer the player keeps on (model.prepare_first's answer), None without one."""
+        return self.offer if self.offer and self.prepare_wanted else None
+
+    def chosen(self):
+        """The games Update runs: those with something to update and, when their upscaler is prepared first, those
+        that had nothing else to update."""
+        ready = set(self.preparing['names']) if self.preparing else set()
+        return [item for item in self.items if item.status == 'update' or (item.status == 'deferred' and item.prepare in ready)]
+
+    def update_state(self):
+        count, first = len(self.chosen()), '_Prepare and ' if self.preparing else '_'
         self.update_button.set_sensitive(count > 0)
         if self.refresh:
-            self.update_button.set_label('_Apply Recipe' if count else 'Nothing to Refresh')
+            self.update_button.set_label(first + 'Apply Recipe' if count else 'Nothing to Refresh')
         else:
-            self.update_button.set_label(f'_Update {count} Game{"s" if count != 1 else ""}' if count else 'Nothing to Update')
+            self.update_button.set_label(f'{first}Update {count} Game{"s" if count != 1 else ""}' if count else
+                                         'Nothing to Update')
 
     def update(self):
         games = {game.key: game for game in self.games}
-        # Each update runs the plan shown here: the installer refuses one that changed since (where it checks).
-        steps = [Step(item.title, model.update_args(item.exe, self.component, self.refresh, item.digest),
-                      games.get(str(item.exe))) for item in self.items if item.status == 'update']
+        preparing = self.preparing
+        ready = set(preparing['names']) if preparing else set()
+        # Each update runs the plan shown here: the installer refuses one that changed since (where it checks). A game
+        # whose upscaler is prepared first plans again when its update runs: its plan then includes the upscaler.
+        steps = [Step(item.title, model.update_args(item.exe, self.component, self.refresh,
+                                                    None if item.prepare in ready else item.digest),
+                      games.get(str(item.exe))) for item in self.chosen()]
         if not steps:
             return
-        window, many = self.window, len(steps) > 1
+        window, count, first, extra = self.window, len(steps), steps[0].title, {}
+        if preparing:
+            labels = model.joined(model.UPSCALER_LABELS[name] for name in preparing['names'])
+            # The updates need the preparation done: when it does not complete, none of them starts.
+            steps.insert(0, Step('Prepare ' + labels, preparing['args'], gate=True))
+            extra = dict(on_finished=window.helix_changed, output=True)
         self.close()
+
+        def working(text):
+            """What the operation does, after the preparation it starts with."""
+            return text if not preparing else ' '.join(filter(None, (
+                f'Preparing {labels}, then {text[0].lower()}{text[1:]}.', model.build_sentence(preparing['build']))))
         if self.refresh:
-            window.run('Refreshing Recipe', steps, working=f'Applying the latest recipe to {steps[0].title}',
-                       success=f'{steps[0].title} has the latest recipe')
+            window.run('Refreshing Recipe', steps, working=working(f'Applying the latest recipe to {first}'),
+                       success=f'{first} has the latest recipe', **extra)
             return
-        window.run('Updating', steps, working=f'Updating {len(steps)} games' if many else f'Updating {steps[0].title}',
-                   success=f'{len(steps)} games updated' if many else f'{steps[0].title} is updated')
+        window.run('Updating', steps, working=working(f'Updating {count} games' if count > 1 else f'Updating {first}'),
+                   success=f'{count} games updated' if count > 1 else f'{first} is updated', **extra)
 
 
 # ------------------------------------------------------------------------------------------------- wiki INI review
@@ -1522,9 +1682,10 @@ class WikiSettingsDialog(Adw.Dialog):
 
 # ------------------------------------------------------------------------------------------------- upscalers and Helix
 class UpscalersDialog(Adw.Dialog):
-    """The upscalers this package installs and whether each is ready on this computer. HelixSR's are made ready here once
-    for every game: Prepare… builds HLX DLSS, Download… fetches the archive the two HLX FSR 4 forms come built in, or a
-    folder prepared before is chosen."""
+    """The upscalers this package installs and whether each is ready on this computer. Install and a game's Change…
+    make HelixSR's ready on first use; here they are made ready ahead of time, once for every game: Prepare… builds
+    HLX DLSS (also from a local copy of NVIDIA's DLL, also Preset K), Download… fetches the archive the two HLX FSR 4
+    forms come built in, or a folder prepared before is chosen."""
 
     def __init__(self, window):
         super().__init__(title='Upscalers', content_width=640, content_height=700)
@@ -1550,8 +1711,8 @@ class UpscalersDialog(Adw.Dialog):
             self.stack.remove(self.page)
         page = self.page = Adw.PreferencesPage()
         listing = group('Upscalers', 'Frame generation is XeFG with each of them. A new installation starts with the '
-                                     'suggested upscaler where it is ready, else with FSR 4. Each game’s page switches its '
-                                     'upscaler.')
+                                     'suggested upscaler, which Install prepares on first use; where its build cannot '
+                                     'run, with FSR 4. Each game’s page switches its upscaler.')
         for provider in providers:
             # What it is, then where it stands: the prepared release, or the installer's reason it is not ready (FSR 4's
             # line says it all).
@@ -1567,11 +1728,13 @@ class UpscalersDialog(Adw.Dialog):
             listing.add(row)
         page.add(listing)
         if model.hlx_catalog(self.window.ctx):
-            helix = group('Helix', 'HelixSR’s upscalers are made ready once for every game; no game is changed. Built '
-                                   'model files stay on this computer.')
+            helix = group('Helix', 'HelixSR’s upscalers are made ready once for every game. Install and a game’s Change… do '
+                                   'that on first use; here it is done ahead of time, and no game is changed. Built model '
+                                   'files stay on this computer.')
             if model.prepare_todo(providers, preset_k=True):
                 prepare = action_row('Prepare Helix', 'Build HLX DLSS Model E, and Preset K if you choose it, on this computer '
-                                     'from NVIDIA’s DLSS DLL. Takes several minutes.')
+                                     'from NVIDIA’s DLSS DLL. Model E takes ' + model.build_time(['hlx-dlss']) + ' on a '
+                                     'BC-250, Preset K ' + model.build_time(['hlx-dlss-k']) + ' more.')
                 prepare.add_suffix(button('_Prepare…', self.window.prepare_helix, 'suggested-action'
                                           if model.prepare_todo(providers) else 'flat'))
                 helix.add(prepare)
@@ -1645,16 +1808,18 @@ class UpscalersDialog(Adw.Dialog):
 class PrepareDialog(Adw.Dialog):
     """Prepare Helix: build HLX DLSS Model E, and the optional Preset K when asked, on this computer (install.py hlx).
     It shows the NVIDIA DLSS DLL the build takes: the copy the installer's download cache already holds, else a local
-    copy the player chooses, or their agreement to its download from NVIDIA's repository under NVIDIA's licence; and
-    what the build needs. preset_k: opened from Preset K's row, with its switch on."""
+    copy the player chooses, else the installer downloads it from NVIDIA's repository under NVIDIA's licence, which
+    the dialog says with the licence's address; and what the build needs. preset_k: opened from Preset K's row, with
+    its switch on."""
 
     def __init__(self, window, preset_k=False):
         super().__init__(title='Prepare Helix', content_width=620, content_height=700)
         self.window, self.ctx = window, window.ctx
         self.providers = window.providers
         # The DLSS input: held (the installer's own copy, None: none, 'checking': not looked for yet), chosen (a local
-        # copy the player chose, once its hash is checked), and the read that checks the file chosen last.
-        self.held, self.chosen, self.generation = 'checking', None, 0
+        # copy the player chose, once its hash is checked; checking: while it is), and the read that checks the file
+        # chosen last.
+        self.held, self.chosen, self.checking, self.generation = 'checking', None, False, 0
         self.missing = None  # what the build needs and is not installed; None until checked
         view = Adw.ToolbarView()
         header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
@@ -1670,7 +1835,8 @@ class PrepareDialog(Adw.Dialog):
         self.model_row = action_row('HLX DLSS Model E', model.UPSCALER_ABOUT['hlx-dlss'])
         built.add(self.model_row)
         self.preset_row = plain(Adw.SwitchRow(), 'Also build HLX DLSS Preset K',
-                                'Optional. Sharper, a little slower; its build takes many minutes.')
+                                'Optional. Sharper, a little slower; its build takes ' + model.build_time(['hlx-dlss-k']) +
+                                ' more on a BC-250.')
         self.preset_row.set_active(preset_k)
         self.preset_row.connect('notify::active', lambda *_: self.update_state())
         built.add(self.preset_row)
@@ -1680,15 +1846,14 @@ class PrepareDialog(Adw.Dialog):
         self.held_row = action_row('Looking for a copy on this computer…')
         self.held_row.add_suffix(spinner())
         self.files.add(self.held_row)
+        # Without a copy on this computer: the download Setup makes, under NVIDIA's licence; a local copy is the option.
+        self.download_row = action_row('Downloaded from NVIDIA', None, 'folder-download-symbolic', 'dim')
+        self.download_row.set_visible(False)
+        self.files.add(self.download_row)
         self.local_row = action_row('Use a local copy', 'nvngx_dlss.dll · not chosen')
         self.local_row.add_suffix(button('_Choose…', self.choose, 'flat'))
         self.local_row.set_visible(False)
         self.files.add(self.local_row)
-        # The player's agreement to the download: off until they turn it on, and only asked without a local copy.
-        self.agree_row = plain(Adw.SwitchRow(), 'Download it from NVIDIA')
-        self.agree_row.connect('notify::active', lambda *_: self.update_state())
-        self.agree_row.set_visible(False)
-        self.files.add(self.agree_row)
         page.add(self.files)
         size = model.hlx_archive_size(self.ctx)
         self.needs = group('Needed for the build', 'Preparation takes HelixSR’s official archive' +
@@ -1737,11 +1902,10 @@ class PrepareDialog(Adw.Dialog):
             if digest:
                 self.local_row.set_subtitle('nvngx_dlss.dll' + (' of DLSS ' + found['version'] if found.get('version') else '') +
                                             ' with SHA-256 ' + str(digest)[:16] + '… · not chosen')
-            self.agree_row.set_subtitle('I agree to download ' + named + (' (' + size + ')' if size else '') +
-                                        ' from NVIDIA’s repository under NVIDIA’s licence' +
-                                        (': ' + found['license'] if found.get('license') else '') + '.')
+            self.download_row.set_subtitle('Setup downloads ' + named + (' (' + size + ')' if size else '') +
+                                           ' from NVIDIA’s repository under NVIDIA’s licence' +
+                                           (': ' + found['license'] if found.get('license') else '') + '.')
             self.local_row.set_visible(True)
-            self.agree_row.set_visible(True)
         self.update_state()
 
     def requirements(self, found):
@@ -1778,7 +1942,7 @@ class PrepareDialog(Adw.Dialog):
         """Hash the file the player chose off the window's thread: only NVIDIA's pinned DLL is taken."""
         self.generation += 1
         generation = self.generation
-        self.chosen = None
+        self.chosen, self.checking = None, True
         self.local_row.set_subtitle(path + ' · checking…')
         self.update_state()
         self.window.reader.call(model.dlss_input, self.ctx, path,
@@ -1788,7 +1952,8 @@ class PrepareDialog(Adw.Dialog):
     def file_checked(self, generation, path, found):
         if self.closed or generation != self.generation:
             return
-        self.chosen = found.get('path')
+        self.chosen, self.checking = found.get('path'), False
+        # A file that is not NVIDIA's pinned DLL is not taken: the download stands again, and its row says so.
         self.local_row.set_subtitle(self.chosen or (path + ' · ' + (found.get('error') or 'not NVIDIA’s pinned DLSS DLL')))
         self.update_state()
 
@@ -1800,45 +1965,54 @@ class PrepareDialog(Adw.Dialog):
                     if self.preset_row.get_sensitive() else 'HLX DLSS Model E and Preset K are built already.')
         if self.held == 'checking':
             return 'Looking for NVIDIA’s DLSS DLL on this computer…'
+        if self.checking:
+            return 'Checking the file you chose…'
         if self.missing is None:
             return 'Checking what the build needs…'
         if self.missing:
             return 'Install what the build needs first: ' + ', '.join(self.missing) + '.'
-        if not (self.held or self.chosen or self.agree_row.get_active()):
-            return 'Choose a local copy of NVIDIA’s DLSS DLL, or agree to its download from NVIDIA.'
         return None
+
+    @property
+    def downloading(self):
+        """Neither the installer nor the player has a copy: the installer downloads NVIDIA's DLL (once the looking is
+        over)."""
+        return not self.held and not self.chosen and not self.checking
 
     def update_state(self):
         reason = self.blocked()
         self.prepare_button.set_sensitive(reason is None)
-        # With a local copy nothing is downloaded from NVIDIA: the agreement is not asked for.
-        self.agree_row.set_sensitive(not self.chosen)
+        # With a local copy nothing is downloaded from NVIDIA.
+        self.download_row.set_visible(self.downloading)
         self.hint.set_text(reason or self.plan())
 
-    def plan(self):
-        """What Prepare builds now, in a sentence: what an earlier preparation built is kept, not built again."""
+    def todo(self):
+        """The upscalers Prepare builds now: what an earlier preparation built is kept, not built again."""
         preset_k = self.preset_row.get_active()
-        todo = model.prepare_todo(self.providers, preset_k) if self.providers is not None else \
+        return model.prepare_todo(self.providers, preset_k) if self.providers is not None else \
             ['hlx-dlss', *(['hlx-dlss-k'] if preset_k else [])]
-        return ('Setup builds ' + model.joined(model.UPSCALER_LABELS[name] for name in todo) + '. ' +
-                ('Preset K takes many minutes.' if 'hlx-dlss-k' in todo else 'This takes several minutes.'))
+
+    def plan(self):
+        """What Prepare does now, in a sentence or two: the download from NVIDIA where there is no copy, what is built
+        and about how long that takes."""
+        todo = self.todo()
+        return ' '.join(filter(None, (
+            'Setup ' + ('downloads NVIDIA’s DLSS DLL and ' if self.downloading else '') + 'builds ' +
+            model.joined(model.UPSCALER_LABELS[name] for name in todo) + '.', model.build_sentence(todo))))
 
     def args(self):
-        """install.py hlx's arguments for what is chosen: the installer's own copy needs none; a local copy is named; the
-        download only with the player's agreement."""
-        return model.prepare_args(None if self.held else self.chosen,
-                                  download=not self.held and not self.chosen and self.agree_row.get_active(),
-                                  preset_k=self.preset_row.get_active())
+        """install.py hlx's arguments for what is chosen: a local copy is named; the installer's own copy needs no
+        option, and neither does the download from NVIDIA, which is the installer's default without a copy."""
+        return model.prepare_args(None if self.held else self.chosen, preset_k=self.preset_row.get_active())
 
     def prepare(self):
         if self.blocked() is not None:
             return
-        window, args, preset_k = self.window, self.args(), self.preset_row.get_active()
+        window, args, todo = self.window, self.args(), self.todo()
         self.close()
         window.run('Preparing Helix', [Step('Helix', args)],
-                   working='Preparing Helix for every game. ' + ('Preset K takes many minutes.' if preset_k else
-                                                                 'This takes several minutes.'),
-                   success='Helix is prepared for every game', on_finished=window.helix_changed)
+                   working=' '.join(filter(None, ('Preparing Helix for every game.', model.build_sentence(todo)))),
+                   success='Helix is prepared for every game', on_finished=window.helix_changed, output=True)
 
 
 # ------------------------------------------------------------------------------------------------- system check
@@ -2350,8 +2524,9 @@ class Window(Adw.ApplicationWindow):
             self.split.set_content(self.overview_page())
 
     def check_providers(self):
-        # Dialogs wait for this answer: a check that fails still gives one (FSR 4, which needs no preparation).
-        self.reader.call(model.providers, self.ctx, done=self.providers_checked,
+        # Dialogs wait for this answer: a check that fails still gives one (FSR 4, which needs no preparation). What
+        # HelixSR's build needs is asked in a process of its own (reader.run), which closing Setup ends.
+        self.reader.call(model.providers, self.ctx, self.reader.run, done=self.providers_checked,
                          failed=lambda error: self.providers_checked([model.built_in_provider()]))
 
     def providers_checked(self, providers):
@@ -2451,14 +2626,15 @@ class Window(Adw.ApplicationWindow):
         self.reader.close()
         return False
 
-    def run(self, title, steps, working, success, next_steps=(), on_finished=None):
-        """Run install.py steps in an operation dialog, then read the games they changed again."""
+    def run(self, title, steps, working, success, next_steps=(), on_finished=None, output=False):
+        """Run install.py steps in an operation dialog, then read the games they changed again. output: the installer's
+        output starts open (a preparation, whose lines are its progress)."""
         def finished(results):
             self.release([step.game for step in steps])
             self.changed([step.game for step in steps])
             if on_finished is not None:
                 on_finished(results)
-        OperationDialog(self, title, steps, working, success, next_steps, finished).start()
+        OperationDialog(self, title, steps, working, success, next_steps, finished, output).start()
 
     def quietly(self, steps, success, game, failed_title, then=None):
         """A quick change (pin, track, settings): a toast when it worked, the installer's reason when it did not. Then the
@@ -2611,8 +2787,9 @@ class Window(Adw.ApplicationWindow):
         PrepareDialog(self, preset_k).present(self)
 
     def helix_changed(self, *_):
-        """After Prepare…, Download… or a prepared folder: the upscalers are checked again, so every open dialog follows,
-        and so is the system check, whose Helix row says which of them are ready."""
+        """After Prepare…, Download…, a prepared folder, or an Install, Switch or Update that prepared an upscaler first:
+        the upscalers are checked again, so every open dialog follows, and so is the system check, whose Helix row says
+        which of them are ready."""
         self.check_providers()
         self.check_system()
 

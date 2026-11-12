@@ -5,8 +5,10 @@ and the window module (setup_app.py), which must compile wherever the tests run 
 did not compile). The model decides what each game's page says and which install.py command each choice runs, so these
 tests pin both."""
 import importlib.util, json, os, py_compile, sys, tempfile, unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, patch
+from test_game_install import set_package_file
 from test_update import UpdateFixture, OLD, NEW, m
 
 REPO = Path(__file__).resolve().parents[1]
@@ -41,6 +43,12 @@ def fake_hlx(ready=(), version='3.3.0', size=279494747):
                 raise ValueError('Prepare Helix ' + version + ' once (' + HLX.NAMES[provider] + '): missing /cache/x')
             return {'version': version}, Path('/cache/HelixSR-' + version), {}
     return HLX
+
+
+def needs(*missing):
+    """A run for model.providers: hlx.requirements' answer from a process of its own, with these names missing (none:
+    everything the build needs is installed). No test asks this computer."""
+    return Mock(return_value=Mock(stdout=json.dumps(list(missing)) + '\n', returncode=0))
 
 
 class Words(unittest.TestCase):
@@ -181,7 +189,7 @@ class Words(unittest.TestCase):
 
     def test_providers_follow_the_package_and_preparation(self):
         # The suggested upscaler first, then FSR 4, then the rest in the installer's order; each says how it gets ready.
-        found = model.providers(context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(['hlx-dlss', 'hlx-fsr4']))))
+        found = model.providers(context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(['hlx-dlss', 'hlx-fsr4']))), needs())
         self.assertEqual([(p.id, p.state, p.version) for p in found],
                          [('hlx-dlss', 'ready', '3.3.0'), ('fsr4', 'ready', None), ('hlx-dlss-k', 'unprepared', None),
                           ('hlx-fsr4', 'ready', '3.3.0'), ('hlx-fsr4-full', 'unprepared', None)])
@@ -192,6 +200,9 @@ class Words(unittest.TestCase):
         self.assertEqual([p.about for p in found], [model.UPSCALER_ABOUT[p.id] for p in found])
         self.assertIn('missing', found[2].detail)
         self.assertEqual(found[0].folder, '/cache/HelixSR-3.3.0')
+        # One that is not ready can be made ready here by Install, Switch or Update: nothing its build needs is missing.
+        self.assertEqual([(p.preparable, p.needs, p.local) for p in found],
+                         [(False, (), False), (False, (), False), (True, (), False), (False, (), False), (True, (), False)])
 
         class Helix:
             @staticmethod
@@ -199,20 +210,32 @@ class Words(unittest.TestCase):
                 return dict(state='unbuilt', pinned='2.0.0', folder='/cache/HelixSR-2.0.0', message='Run its setup once.')
         legacy = model.providers(context(REPO / 'packaging', installer=Mock(hlx=None, helixsr=Helix)))
         self.assertEqual([(p.id, p.state) for p in legacy], [('fsr4', 'ready'), ('helixsr', 'unbuilt')])
+        self.assertFalse(legacy[1].preparable)  # HelixSR before HLX is built by its own setup, never by Install
         self.assertEqual(model.provider_action(legacy[1]), ('_Prepare…', None))  # Upscalers says how it is built
 
     def test_this_package_offers_five_upscalers_in_order(self):
         # The real catalog and installer, with nothing prepared (an empty cache): what each needs, never an error.
+        ctx = context(REPO / 'packaging')
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'XDG_CACHE_HOME': temporary, 'HOME': temporary}):
-            found = model.providers(context(REPO / 'packaging'))
+            found, lacking = model.providers(ctx, needs()), model.providers(ctx, needs('wine'))
+            lines = model.prepare_lines(ctx, found, ['hlx-dlss'])
         self.assertEqual([(p.id, p.state, p.get) for p in found],
                          [('hlx-dlss', 'unprepared', 'build'), ('fsr4', 'ready', None), ('hlx-dlss-k', 'unprepared', 'build'),
                           ('hlx-fsr4', 'unprepared', 'download'), ('hlx-fsr4-full', 'unprepared', 'download')])
         self.assertEqual([p.id for p in found if p.suggested], [m.hlx.SUGGESTED])
         self.assertEqual([p.id for p in found if p.optional], ['hlx-dlss-k'])
-        self.assertEqual(model.default_provider(found), 'fsr4')  # as install.py --upscaler auto chooses
+        self.assertEqual([p.have for p in found], [()] * 5)  # an empty cache holds none of the downloads
+        # Install prepares the suggested upscaler first where its build can run; where it cannot, FSR 4. (install.py's
+        # own --upscaler auto takes the suggested one only once it is prepared: Setup always names the upscaler.)
+        self.assertEqual((model.default_provider(found), model.default_provider(lacking)), ('hlx-dlss', 'fsr4'))
         self.assertEqual(m.suggested_upscaler(REPO / 'packaging', Path(temporary)), 'fsr4')
-        self.assertEqual(model.hlx_archive_size(context(REPO / 'packaging')), 'about 280 MB')
+        self.assertEqual(model.hlx_archive_size(ctx), 'about 280 MB')
+        # What that preparation takes, with this package's pins: the downloads and their sizes, NVIDIA's licence, the time.
+        self.assertEqual(lines, [
+            'Downloads HelixSR’s official archive (about 280 MB) and Microsoft’s shader compiler (42 MB) from their GitHub '
+            'releases, and NVIDIA’s DLSS 310.7.0 DLL (59 MB) from NVIDIA’s repository under NVIDIA’s licence (' +
+            m.hlx.NVIDIA_LICENSE + '). Each file is checked by SHA-256.',
+            'Builds HLX DLSS Model E on this computer with networking off. That takes about 10 to 15 minutes on a BC-250.'])
 
     def test_upscaler_names_and_lines_cover_the_installers(self):
         self.assertEqual({name: model.UPSCALER_LABELS[name] for name in m.hlx.NAMES}, m.hlx.NAMES)
@@ -225,16 +248,26 @@ class Words(unittest.TestCase):
         self.assertEqual(model.provider_label({'upscaler': {'name': 'hlx-dlss', 'version': '3.1.0'}}), 'HLX DLSS Model E 3.1.0')
         self.assertEqual(model.provider_label({}), 'FSR 4')
 
-    def test_a_new_installation_starts_on_the_suggested_upscaler_only_when_it_is_ready(self):
+    def test_a_new_installation_starts_on_the_suggested_upscaler_when_it_is_ready_or_can_be_made_ready(self):
         ctx = lambda ready: context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(ready)))
-        self.assertEqual(model.default_provider(model.providers(ctx(['hlx-dlss']))), 'hlx-dlss')
-        # Never one that has to be prepared first, and never another Helix upscaler because it happens to be ready.
-        self.assertEqual(model.default_provider(model.providers(ctx(['hlx-dlss-k', 'hlx-fsr4', 'hlx-fsr4-full']))), 'fsr4')
+        run = needs()
+        self.assertEqual(model.default_provider(model.providers(ctx(['hlx-dlss', 'hlx-dlss-k']), run)), 'hlx-dlss')
+        run.assert_not_called()  # what the build needs is only asked while something is left to build
+        # Not ready, and Install can prepare it on this computer: still the default.
+        self.assertEqual(model.default_provider(model.providers(ctx([]), needs())), 'hlx-dlss')
+        # Its build lacks something here: FSR 4, and never another Helix upscaler because it happens to be ready.
+        self.assertEqual(model.default_provider(model.providers(ctx(['hlx-dlss-k', 'hlx-fsr4', 'hlx-fsr4-full']), needs('wine'))), 'fsr4')
+        self.assertEqual(model.default_provider(model.providers(ctx(['hlx-fsr4']), needs('Python numpy'))), 'fsr4')
+        # A check of the requirements that did not run leaves them to the installer, which checks before it changes a game.
+        broken = Mock(return_value=Mock(stdout='Traceback\n', returncode=1))
+        self.assertEqual(model.default_provider(model.providers(ctx([]), broken)), 'hlx-dlss')
+        self.assertEqual(model.build_needs(ctx([]), Mock(side_effect=OSError('Setup is closing'))), ())
         self.assertEqual(model.default_provider(None), 'fsr4')
         self.assertEqual(model.default_provider([model.built_in_provider()]), 'fsr4')
 
     def test_a_provider_that_is_not_ready_says_how_it_gets_ready(self):
-        found = {p.id: p for p in model.providers(context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(['hlx-fsr4']))))}
+        ctx = context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(['hlx-fsr4'])))
+        found = {p.id: p for p in model.providers(ctx, needs())}
         self.assertEqual({name: model.provider_action(p) for name, p in found.items()},
                          {'hlx-dlss': ('_Prepare…', 'build'), 'fsr4': None, 'hlx-dlss-k': ('_Prepare…', 'build'), 'hlx-fsr4': None,
                           'hlx-fsr4-full': ('_Download…', 'download')})
@@ -244,22 +277,40 @@ class Words(unittest.TestCase):
         self.assertEqual(model.provider_line(found['hlx-fsr4']), model.UPSCALER_ABOUT['hlx-fsr4'])
         self.assertEqual(model.provider_line(found['hlx-fsr4-full']), model.UPSCALER_ABOUT['hlx-fsr4-full'] + ' · not downloaded yet')
         self.assertEqual(model.provider_state(model.Provider('helixsr', 'HelixSR', 'x', state='unbuilt')), 'Not prepared yet')
+        # Install and Switch make these ready themselves: nothing stands in their way.
+        self.assertEqual([name for name, p in found.items() if p.preparable], ['hlx-dlss', 'hlx-dlss-k', 'hlx-fsr4-full'])
+        self.assertEqual([model.cannot_prepare(p) for p in found.values()], [None] * 5)
+        # Where the build lacks something, the row names it and the upscaler cannot be installed; one that comes built can.
+        lacking = {p.id: p for p in model.providers(ctx, needs('wine', 'Python numpy'))}
+        self.assertEqual((lacking['hlx-dlss'].needs, lacking['hlx-dlss-k'].needs, lacking['hlx-fsr4-full'].needs),
+                         (('Wine', 'Python numpy'), ('Wine', 'Python numpy'), ()))
+        self.assertEqual([name for name, p in lacking.items() if p.preparable], ['hlx-fsr4-full'])
+        self.assertEqual(model.provider_line(lacking['hlx-dlss']), model.UPSCALER_ABOUT['hlx-dlss'] +
+                         ' · not built yet; its build needs Wine and Python numpy')
+        self.assertEqual(model.cannot_prepare(lacking['hlx-dlss']), 'HLX DLSS Model E cannot be built on this computer yet: its '
+                         'build needs Wine and Python numpy, from your distribution’s packages. Until then, choose another upscaler.')
+        self.assertEqual(model.cannot_prepare(model.Provider('helixsr', 'HelixSR', 'x', state='unbuilt')),
+                         'HelixSR is not prepared yet: choose Prepare… on its row, or another upscaler.')
 
     def test_prepare_and_download_commands(self):
-        # Prepare Helix: the installer's own copy needs no option; a local copy is named; the download only when agreed.
+        # Prepare Helix: the installer's own copy needs no option, and neither does the download from NVIDIA, which is
+        # install.py's default without a copy (Setup says so before it runs); a local copy is named.
         self.assertEqual(model.prepare_args(), ['hlx'])
         self.assertEqual(model.prepare_args(preset_k=True), ['hlx', '--preset-k'])
         self.assertEqual(model.prepare_args('/in/nvngx_dlss.dll'), ['hlx', '--dlss-input', '/in/nvngx_dlss.dll'])
-        self.assertEqual(model.prepare_args(download=True, preset_k=True), ['hlx', '--download-dlss', '--preset-k'])
-        self.assertEqual(model.prepare_args('/in/nvngx_dlss.dll', download=True), ['hlx', '--dlss-input', '/in/nvngx_dlss.dll'])
+        self.assertEqual(model.prepare_args('/in/nvngx_dlss.dll', True), ['hlx', '--dlss-input', '/in/nvngx_dlss.dll', '--preset-k'])
         self.assertEqual(model.DOWNLOAD_ARGS, ['hlx', '--no-build'])
-        # Every option is one install.py hlx reads, and none is the AMD input HelixSR 3.3.0 no longer takes.
+        # Every option is one install.py reads; none is the agreement install.py no longer needs, nor the AMD input
+        # HelixSR 3.3.0 no longer takes.
         source = (REPO / 'packaging/install.py').read_text()
-        for option in ('--dlss-input', '--download-dlss', '--preset-k', '--no-build'):
+        for option in ('--dlss-input', '--preset-k', '--no-build', '--no-prepare'):
             self.assertIn("'" + option + "'", source)
-        self.assertNotIn('--amd-input', ' '.join(model.prepare_args('/in/x', True, True) + model.DOWNLOAD_ARGS))
+        used = ' '.join(model.prepare_args('/in/x', True) + model.DOWNLOAD_ARGS)
+        self.assertNotIn('--download-dlss', used); self.assertNotIn('--amd-input', used)
+        for name in ('setup_model.py', 'setup_app.py'):
+            self.assertNotIn("'--download-dlss'", (REPO / 'packaging/mfg' / name).read_text(), name)
         ctx = lambda ready: context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(ready)))
-        nothing, model_e, both = (model.providers(ctx(ready)) for ready in ([], ['hlx-dlss'], ['hlx-dlss', 'hlx-dlss-k']))
+        nothing, model_e, both = (model.providers(ctx(ready), needs()) for ready in ([], ['hlx-dlss'], ['hlx-dlss', 'hlx-dlss-k']))
         self.assertEqual(model.prepare_todo(nothing), ['hlx-dlss'])  # Preset K is optional: only when asked for
         self.assertEqual(model.prepare_todo(nothing, preset_k=True), ['hlx-dlss', 'hlx-dlss-k'])
         self.assertEqual((model.prepare_todo(model_e), model.prepare_todo(model_e, True)), ([], ['hlx-dlss-k']))
@@ -269,6 +320,141 @@ class Words(unittest.TestCase):
         self.assertIn('nothing is built and no game is changed', words)
         self.assertEqual((model.megabytes(58977904), model.megabytes(279494747, 10), model.megabytes(None)), ('59 MB', '280 MB', ''))
         self.assertEqual(model.hlx_archive_size(context(REPO / 'packaging', installer=Mock(hlx=None))), '')
+
+    def test_what_is_prepared_first_and_what_it_takes(self):
+        # Install and Switch name one upscaler (install.py prepares it); an update names those its plans defer.
+        ctx = lambda ready: context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(ready)))
+        nothing = model.providers(ctx([]), needs())
+        self.assertEqual(model.prepare_first(nothing, ['hlx-dlss']), dict(names=['hlx-dlss'], build=['hlx-dlss'], args=['hlx']))
+        # Preset K's build includes Model E unless that is built already.
+        self.assertEqual(model.prepare_first(nothing, ['hlx-dlss-k']),
+                         dict(names=['hlx-dlss-k'], build=['hlx-dlss', 'hlx-dlss-k'], args=['hlx', '--preset-k']))
+        model_e = model.providers(ctx(['hlx-dlss']), needs())
+        self.assertEqual(model.prepare_first(model_e, ['hlx-dlss-k'])['build'], ['hlx-dlss-k'])
+        # Only the two that come built: the archive alone, nothing is built.
+        self.assertEqual(model.prepare_first(nothing, {'hlx-fsr4', 'hlx-fsr4-full'}),
+                         dict(names=['hlx-fsr4', 'hlx-fsr4-full'], build=[], args=['hlx', '--no-build']))
+        self.assertEqual(model.prepare_first(nothing, {'hlx-fsr4', 'hlx-dlss-k'})['args'], ['hlx', '--preset-k'])
+        # Ready, FSR 4, nothing named, nothing checked yet: nothing to prepare.
+        for found, names in ((model_e, ['hlx-dlss']), (nothing, ['fsr4']), (nothing, []), (None, ['hlx-dlss'])):
+            self.assertIsNone(model.prepare_first(found, names))
+            self.assertEqual(model.prepare_lines(ctx([]), found, names), [])
+        # Where the build lacks something, only what comes built can be made ready.
+        lacking = model.providers(ctx([]), needs('wine'))
+        self.assertIsNone(model.prepare_first(lacking, ['hlx-dlss', 'hlx-dlss-k']))
+        self.assertEqual(model.prepare_first(lacking, ['hlx-dlss', 'hlx-fsr4']), dict(names=['hlx-fsr4'], build=[], args=['hlx', '--no-build']))
+        # About how long the build takes on a BC-250, by what is built.
+        self.assertEqual([model.build_time(build) for build in (['hlx-dlss'], ['hlx-dlss-k'], ['hlx-dlss', 'hlx-dlss-k'], [], None)],
+                         ['about 10 to 15 minutes', 'about 35 minutes', 'about 45 minutes', '', ''])
+        self.assertEqual(model.build_sentence(['hlx-dlss', 'hlx-dlss-k']), 'The build takes about 45 minutes on a BC-250.')
+        self.assertEqual(model.build_sentence([]), '')
+        # The line above them names the action that prepares, and the upscalers.
+        self.assertEqual(model.prepare_heading(nothing, ['hlx-dlss']), 'Install prepares HLX DLSS Model E first, once for every game')
+        self.assertEqual(model.prepare_heading(nothing, ['hlx-fsr4', 'hlx-fsr4-full'], 'Switch'),
+                         'Switch prepares HLX FSR 4 and HLX FSR 4 Full first, once for every game')
+        # The sentences: every download with its source, NVIDIA's DLL under NVIDIA's licence with the licence's address,
+        # then the build and its time. (The fixture catalog pins no DLSS version, size or compiler.)
+        licence = m.hlx.NVIDIA_LICENSE
+        self.assertEqual(model.prepare_lines(ctx([]), nothing, ['hlx-dlss-k']), [
+            'Downloads HelixSR’s official archive (about 280 MB) and Microsoft’s shader compiler from their GitHub releases, and '
+            'NVIDIA’s DLSS DLL from NVIDIA’s repository under NVIDIA’s licence (' + licence + '). Each file is checked by SHA-256.',
+            'Builds HLX DLSS Model E and HLX DLSS Preset K on this computer with networking off. That takes about 45 minutes on '
+            'a BC-250.'])
+        self.assertEqual(model.prepare_lines(ctx([]), nothing, ['hlx-fsr4']), [
+            'Downloads HelixSR’s official archive (about 280 MB) from its GitHub releases. Each file is checked by SHA-256.',
+            'Nothing is built: HLX FSR 4 comes built in the archive.'])
+        self.assertEqual(model.prepare_lines(ctx([]), nothing, ['hlx-fsr4', 'hlx-fsr4-full'])[1],
+                         'Nothing is built: HLX FSR 4 and HLX FSR 4 Full come built in the archive.')
+        # What this computer holds already is not downloaded again, and NVIDIA's licence is named only for a download.
+        held = [replace(p, have=('archive', 'dlss')) for p in nothing]
+        self.assertEqual(model.prepare_lines(ctx([]), held, ['hlx-dlss']), [
+            'Downloads Microsoft’s shader compiler from its GitHub releases. Each file is checked by SHA-256.',
+            'The build takes the copy of NVIDIA’s DLSS DLL on this computer.',
+            'Builds HLX DLSS Model E on this computer with networking off. That takes about 10 to 15 minutes on a BC-250.'])
+        everything = [replace(p, have=('archive', 'compiler', 'dlss')) for p in nothing]
+        self.assertEqual(model.prepare_lines(ctx([]), everything, ['hlx-dlss'])[0],
+                         'Nothing is downloaded: the files it takes are on this computer already.')
+        self.assertNotIn('NVIDIA’s licence', ' '.join(model.prepare_lines(ctx([]), everything, ['hlx-dlss'])))
+        for lines in (model.prepare_lines(ctx([]), nothing, names) for names in (['hlx-dlss'], ['hlx-dlss-k'], ['hlx-fsr4'])):
+            for line in lines:
+                self.assertFalse('!' in line or '—' in line or 'provider' in line.lower(), line)
+
+    def test_what_this_computer_holds_is_found_without_a_download(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'XDG_CACHE_HOME': str(Path(temporary) / 'cache')}), \
+                patch('urllib.request.urlopen', side_effect=AssertionError('Setup looked on the network')):
+            package = Path(temporary) / 'package'; package.mkdir()
+            data = b'NVIDIA DLSS fixture'
+            digest = hashlib.sha256(data).hexdigest()
+            catalog = json.loads((REPO / 'packaging/dependencies.json').read_text())['hlx']
+            catalog['model_inputs'] = {'dlss': digest, 'dlss_version': '310.7.0'}
+            (package / 'dependencies.json').write_text(json.dumps(dict(
+                inputs={'dlss': dict(url='https://example.invalid/nvngx_dlss.dll', file='nvngx_dlss.dll', sha256=digest,
+                                     size=58977904)}, hlx=catalog)))
+            ctx = context(package)
+            self.assertEqual(model.helix_held(ctx), ())
+            # The archive and the compiler count by their pinned sizes in the installer's cache (sparse files here).
+            work = m.hlx.cache(catalog); work.mkdir(parents=True)
+            for pin in (catalog['archive'], *catalog['compilers'].values()):
+                with (work / pin['file']).open('wb') as stream:
+                    stream.truncate(pin['size'])
+            self.assertEqual(model.helix_held(ctx), ('archive', 'compiler'))
+            self.assertEqual(model.helix_held(ctx, built=False), ('archive',))  # all an upscaler that comes built takes
+            import dependencies
+            held = Path(dependencies.cache_dir()) / 'nvngx_dlss.dll'
+            held.write_bytes(data)
+            self.assertEqual(model.helix_held(ctx), ('archive', 'compiler', 'dlss'))
+            # A download cut short is not the pinned file.
+            (work / catalog['archive']['file']).write_bytes(b'partial')
+            self.assertEqual(model.helix_held(ctx), ('compiler', 'dlss'))
+            # Each upscaler that is not ready carries it, and the sentence leaves out what is held.
+            found = model.providers(ctx, needs())
+            self.assertEqual({p.have for p in found if not p.ready}, {('compiler', 'dlss')})
+            self.assertEqual(model.prepare_lines(ctx, found, ['hlx-dlss']), [
+                'Downloads HelixSR’s official archive (about 280 MB) from its GitHub releases. Each file is checked by SHA-256.',
+                'The build takes the copy of NVIDIA’s DLSS 310.7.0 DLL on this computer.',
+                'Builds HLX DLSS Model E on this computer with networking off. That takes about 10 to 15 minutes on a BC-250.'])
+            pin = model.dlss_pin(ctx)
+            self.assertEqual((pin['name'], pin['size'], pin['version'], pin['license']),
+                             ('NVIDIA’s DLSS 310.7.0 DLL', '59 MB', '310.7.0', m.hlx.NVIDIA_LICENSE))
+
+    def test_a_deferred_helix_upscaler_is_read_from_the_plan(self):
+        reason = 'Prepare Helix 3.3.0 once (HLX DLSS Model E): missing /cache/x'
+        ctx = context(REPO / 'packaging', installer=Mock(hlx=fake_hlx(['hlx-fsr4'])))
+        plan = dict(status='update', deferred=['upscaler'], notes=['Recipe note.', reason])
+        self.assertEqual(model.deferred_upscaler(ctx, {'upscaler': {'name': 'hlx-dlss'}}, plan), 'hlx-dlss')
+        # HelixSR before HLX moves to HLX DLSS Model E with this release, as the installer plans it.
+        self.assertEqual(model.deferred_upscaler(ctx, {'upscaler': {'name': 'helixsr'}}, plan), 'hlx-dlss')
+        # Not a preparation: nothing deferred, another upscaler, one that is prepared, or another reason for the deferral.
+        self.assertIsNone(model.deferred_upscaler(ctx, {'upscaler': {'name': 'hlx-dlss'}}, dict(plan, deferred=[])))
+        self.assertIsNone(model.deferred_upscaler(ctx, {'upscaler': {'name': 'fsr4'}}, plan))
+        self.assertIsNone(model.deferred_upscaler(ctx, {}, plan))
+        self.assertIsNone(model.deferred_upscaler(ctx, {'upscaler': {'name': 'hlx-fsr4'}}, plan))
+        self.assertIsNone(model.deferred_upscaler(ctx, {'upscaler': {'name': 'hlx-dlss'}},
+                                                  dict(plan, notes=['The FSR 4 download is not in the cache.'])))
+        self.assertIsNone(model.deferred_upscaler(context(REPO / 'packaging', installer=Mock(hlx=None)),
+                                                  {'upscaler': {'name': 'hlx-dlss'}}, plan))
+        # The review's line under the game says what waits, in Setup's words.
+        item = model.PlanItem(Path('/games/A.exe'), 'A', 'update', source='freefg-1.3.0', target='freefg-1.4.0', prepare='hlx-dlss')
+        self.assertEqual(model.plan_reason(item, ctx), '1.3.0 → 1.4.0 · HLX DLSS Model E is not prepared yet')
+        item.status = 'running'
+        self.assertEqual(model.plan_reason(item, ctx), '1.3.0 → 1.4.0 · HLX DLSS Model E is not prepared yet · close the game first')
+        item.status, item.reason = 'deferred', reason
+        self.assertEqual(model.plan_reason(item, ctx), 'Nothing to update until HLX DLSS Model E is prepared on this computer')
+        item.prepare = None
+        self.assertEqual(model.plan_reason(item, ctx), reason)  # any other deferral in the installer's words
+
+    def test_a_switch_names_the_games_own_copies_and_elapsed_time_reads_plainly(self):
+        shared = model.Provider('hlx-fsr4', 'HLX FSR 4', 'x')
+        self.assertEqual(model.switch_args('/games/A.exe', shared), ['configure', '/games/A.exe', '--upscaler', 'hlx-fsr4'])
+        # Not ready: the same command, and install.py prepares it first.
+        self.assertEqual(model.switch_args('/games/A.exe', replace(shared, state='unprepared', get='download')),
+                         ['configure', '/games/A.exe', '--upscaler', 'hlx-fsr4'])
+        # Ready only through the game's own checked copies: switched to as it is, the shared copy is not prepared.
+        self.assertEqual(model.switch_args('/games/A.exe', replace(shared, local=True)),
+                         ['configure', '/games/A.exe', '--upscaler', 'hlx-fsr4', '--no-prepare'])
+        self.assertEqual([model.elapsed_words(seconds) for seconds in (0, 45, 60, 125, 3599, 3720)],
+                         ['0 s', '45 s', '1 min 00 s', '2 min 05 s', '59 min 59 s', '1 h 02 min'])
 
     def test_build_requirements_are_the_installers(self):
         ctx = context(REPO / 'packaging')
@@ -712,6 +898,9 @@ class ReviewRegressions(UpdateFixture):
             self.assertEqual([(p.id, p.ready, p.version) for p in found],
                              [('fsr4', True, None), *[(name, True, spec['version']) for name in m.hlx.NAMES]])
             self.assertTrue(all(p.detail == 'Checked files in this game' for p in found[1:]))
+            # Ready through the game's own copies: a switch takes them as they are and prepares no shared copy.
+            self.assertEqual([p.local for p in found], [False, True, True, True, True])
+            self.assertEqual(model.switch_args(self.exe, found[1])[-1], '--no-prepare')
             # As the installer lays a provider out in a game (hlx.layout), file for file.
             library = str(Path(record['upscaler']['target']).parent)
             for name in m.hlx.NAMES:
@@ -745,6 +934,86 @@ class ReviewRegressions(UpdateFixture):
             record['files'] = [x for x in record['files'] if x['path'] != companion]
             self.state_file().write_text(json.dumps(record))
             self.assertFalse(model.game_providers(self.ctx, game, unprepared)[0].ready)
+
+
+class HelixDeferred(UpdateFixture):
+    """An update whose plan defers a Helix upscaler only because the next release's HelixSR is not prepared on this
+    computer: the review's item names the upscaler to prepare first (PlanItem.prepare), read from the real plan. The
+    HelixSR releases are fixture bytes; nothing is downloaded or built."""
+
+    def add_helix(self, package, version):
+        """Make package offer HelixSR version's four upscalers; returns the release folder a preparation of it leaves."""
+        release = self.root / ('HLX-' + version); release.mkdir()
+        files = {'hlx-dlss': {'helixsr.dll': 'DLSS.dll'},
+                 'hlx-dlss-k': {'helixsr.dll': 'K.dll', 'helixsr_modelk_kernels.pak': 'K.pak', 'helixsr_modelk_weights.bin': 'K.bin'},
+                 'hlx-fsr4': {m.DLL: 'FSR.dll', 'amd_fidelityfx_upscaler_dx12.amd.dll': 'AMD.dll'},
+                 'hlx-fsr4-full': {m.DLL: 'FULL.dll', 'amd_fidelityfx_upscaler_dx12.amd.dll': 'AMD.dll'}}
+
+        def pin(name):
+            data = (name + ' of HelixSR ' + version).encode()
+            (release / name).write_bytes(data)
+            return {'source': name, 'sha256': m.digest(data)}
+        spec = {'format': 2, 'version': version, 'folder': release.name, 'archive': {'sha256': m.digest(version.encode())},
+                'model_inputs': {'dlss': m.digest(b'dlss input')}, 'compilers': {}, 'suggested': 'hlx-dlss', 'providers': {
+                    'hlx-dlss': {'api': 'dlss', 'entry': 'helixsr.dll', 'build': 'network', 'log': 'helixsr.log',
+                                 'settings': {'name': 'helixsr.ini'}},
+                    'hlx-dlss-k': {'api': 'dlss', 'entry': 'helixsr.dll', 'build': 'preset-k', 'log': 'helixsr.log'},
+                    'hlx-fsr4': {'api': 'ffx', 'entry': m.DLL, 'log': 'HLX_FSR.log'},
+                    'hlx-fsr4-full': {'api': 'ffx', 'entry': m.DLL, 'log': 'hlx_fsr4.log'}}}
+        for name, names in files.items():
+            spec['providers'][name]['files'] = {target: pin(source) for target, source in names.items()}
+        pins = json.loads((package / 'dependencies.json').read_text()); pins['hlx'] = spec
+        set_package_file(package, 'dependencies.json', json.dumps(pins).encode())
+        set_package_file(package, 'opti/OptiScaler.dll', b'HLX integration')
+        return release
+
+    def setUp(self):
+        super().setUp()
+        cache = patch.dict(os.environ, {'XDG_CACHE_HOME': str(self.root / 'cache')})
+        cache.start(); self.addCleanup(cache.stop)
+        # Release OLD, then release NEW with HLX DLSS Model E of HelixSR 3.3.0 from a prepared folder.
+        m.install(self.package, self.exe, route='opti')
+        self.run_quiet(m.update, self.exe, self.new, helixsr_dir=self.add_helix(self.new, '3.3.0'), upscaler='hlx-dlss')
+        # The release after it pins HelixSR 3.4.0, which nothing has prepared on this computer.
+        self.later = self.newer({'payload/libxess_fg.dll': b'BC250 proxy of the later release'}, name='freefg-1.1.6',
+                                folder='package-later', base=self.new)
+        self.release = self.add_helix(self.later, '3.4.0')
+        self.ctx = context(self.later)
+
+    def test_the_plan_names_the_upscaler_to_prepare_first(self):
+        self.assertEqual(self.record()['upscaler']['name'], 'hlx-dlss')
+        game = model.load_game(self.ctx, self.exe, titles={})
+        item = model.plan_game(self.ctx, game)
+        # Everything else is updated; the upscaler waits, and the item says for which preparation.
+        self.assertEqual((item.status, item.prepare, item.group), ('update', 'hlx-dlss', 'update'))
+        self.assertTrue(any(note.startswith('Prepare Helix 3.4.0 once (HLX DLSS Model E; install.py hlx)') for note in item.notes))
+        self.assertEqual(model.plan_reason(item, self.ctx), '1.1.5 → 1.1.6 · HLX DLSS Model E is not prepared yet')
+        # Upscalers only: nothing else to update, so the game waits for the preparation.
+        only = model.plan_game(self.ctx, game, 'upscaler')
+        self.assertEqual((only.status, only.prepare, only.group), ('deferred', 'hlx-dlss', 'attention'))
+        self.assertEqual(model.plan_reason(only, self.ctx), 'Nothing to update until HLX DLSS Model E is prepared on this computer')
+        # Setup can make it ready here: install.py hlx, then the updates.
+        found = model.providers(self.ctx, needs())
+        self.assertEqual([p.id for p in found if p.preparable], list(m.hlx.NAMES))
+        self.assertEqual(model.prepare_first(found, {item.prepare}), dict(names=['hlx-dlss'], build=['hlx-dlss'], args=['hlx']))
+        # Once it is prepared (the folder install.py hlx leaves, remembered), the plan defers nothing and takes it along.
+        m.hlx.remember(self.later, self.release)
+        ready = model.plan_game(self.ctx, game)
+        self.assertEqual((ready.status, ready.prepare), ('update', None))
+        self.assertFalse(any('Prepare Helix' in note for note in ready.notes))
+        self.assertTrue(any('HLX DLSS Model E' in change for change, _ in ready.changes), ready.changes)
+        self.assertEqual(model.plan_game(self.ctx, game, 'upscaler').status, 'update')
+
+    def test_an_update_without_the_preparation_defers_the_upscaler_as_before(self):
+        # The player declined: the same install.py update as ever. It updates the rest and reports the upscaler deferred.
+        status, _ = self.run_quiet(m.update, self.exe, self.later)
+        self.assertEqual(status, 'partial')
+        record = self.record()
+        self.assertEqual((record['package'], record['upscaler']['version']), ('freefg-1.1.6', '3.3.0'))
+        # Afterwards the review still offers the preparation for the upscaler alone.
+        item = model.plan_game(self.ctx, model.load_game(self.ctx, self.exe, titles={}))
+        self.assertEqual((item.status, item.prepare), ('deferred', 'hlx-dlss'))
+
 
 if __name__ == "__main__":
     unittest.main()
