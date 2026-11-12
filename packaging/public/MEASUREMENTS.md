@@ -38,40 +38,51 @@ in [`docs/data`](https://github.com/daniel-h-0/freefg/tree/5de9a40317ff07511c69c
 
 [Other campaign configurations](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/MEASUREMENTS.md#test-system).
 
-## Checks of the 1.4.0 candidate
+## Checks of 1.4.0
 
 The proxy, the pacing layer and the 93 shader-profile files retain 1.3.0 bytes. The bundled OptiScaler is `4d0c0b9`
 (DLL `22052eb2b4f9b936f9c6ee2bfa161a3dc9cdb6799f801c1999595fc765d579c3`) with the support files of upstream's nightly
-of 11 November 2026. HelixSR is 3.3.0. These checks add no performance measurement to the charts below.
+of 11 November 2026. HelixSR is 3.3.0, pinned as its author published it on 12 November 2026. These checks add no
+performance measurement to the charts below.
 
-- **Tests.** 729 installer tests pass without skips. The release-tool suite passes, with three public-tree exclusions.
-- **Update rehearsals.** On throwaway game folders with the released 1.3.0 package: Update, a second Update, exact
-  Rollback, Update again and Restore pass on a fresh OptiFG setup, a fresh DLSS FG setup and an existing OptiScaler
-  setup; four direct installs with Restore pass. These ran before the last installer changes, which touch only the
-  HelixSR parts.
-- **Helix preparation.** `install.py hlx --preset-k` downloaded HelixSR 3.3.0 and built HLX DLSS Model E and Preset K
-  in 47 minutes on the BC-250, twice with byte-identical results. `install.py hlx --no-build` prepared the two HLX
-  FSR 4 upscalers from the download alone.
+HelixSR's author replaced the 3.3.0 archive on 12 November, with the four upscaler DLLs changed. The preparation and
+the four HLX game starts below were run again with the replaced archive. The TV checks and the captures used the
+archive of 11 November.
+
+- **Tests.** @TESTS@ installer tests pass without skips, @GTK@ of them in a real GTK window. The release-tool suite
+  passes, with three public-tree exclusions.
+- **Update rehearsals.** With the release package, copies of the maintainers' 18 installed games pass Update from
+  1.3.0 with the move to HLX DLSS Model E 3.3.0, exact Rollback, a second Update and Restore. Eight transitions from
+  the released 1.3.0 package pass on synthetic games: both routes, AMD FSR 4 and HLX DLSS, Restore by this package
+  and by 1.3.0.
+- **Preparation on first use.** On a private home folder with an empty download cache, one
+  `install.py install GAME.exe --upscaler hlx-dlss` downloaded HelixSR, the shader compiler and NVIDIA's DLL, built
+  HLX DLSS Model E and installed it in 16 minutes on the BC-250. `configure --upscaler hlx-dlss-k` then built Preset
+  K and switched in 29 minutes. HLX FSR 4 and HLX FSR 4 Full switched in seconds, without a build. Every built file
+  equals its pin. With the archive of 11 November, `install.py hlx --preset-k` built both twice with byte-identical
+  results.
 - **Game starts.** Headless Cyberpunk 2.31 benchmark on a research copy: 1440p, GE-Proton11-11, DLSS Quality and DLSS
-  FG as inputs, installed and switched by this build's installer. One start per row, so the frame rates are not a
+  FG as inputs, installed and switched by FreeFG's own installer. One start per row, so the frame rates are not a
   comparison. Every start completed with this build's shaders on 13 of 13 programs and no GPU faults; the maximum
-  sampled temperature was 82 °C.
+  sampled temperature was 83 °C.
 
-  | Upscaler | Factor | Presents per game frame | Displayed FPS |
-  | --- | --- | --- | --- |
-  | HLX DLSS Model E | 2× | 2.00 | 105.6 |
-  | HLX DLSS Preset K | 2× | 2.00 | 93.0 |
-  | HLX FSR 4 | 2× | 2.00 | 105.2 |
-  | HLX FSR 4 Full | 2× | 2.00 | 96.0 |
-  | AMD FSR 4 RC12 | 2× | 2.00 | 88.6 |
-  | HLX DLSS Model E, MFG Unlocker 1.7.0 | 3× | 3.00 | 104.8 |
+  | Upscaler | Factor | Presents per game frame | Displayed FPS | HelixSR archive |
+  | --- | --- | --- | --- | --- |
+  | HLX DLSS Model E | 2× | 2.00 | 108.5 | 12 November |
+  | HLX DLSS Preset K | 2× | 2.00 | 94.7 | 12 November |
+  | HLX FSR 4 | 2× | 2.00 | 107.4 | 12 November |
+  | HLX FSR 4 Full | 2× | 2.00 | 97.5 | 12 November |
+  | AMD FSR 4 RC12 | 2× | 2.00 | 88.6 | none |
+  | HLX DLSS Model E, MFG Unlocker 1.7.0 | 3× | 3.00 | 104.8 | 11 November |
+
+  With the archive of 11 November the four HLX upscalers completed the same way (105.6, 93.0, 105.2 and 96.0 FPS).
 
 - **Restore.** After installing, switching through all five upscalers and one Rollback, Restore returned every
   original file byte for byte.
 - **OptiScaler.** The seven swapchain probe cases of the GTA Social Club reproduction give the same stages and markers
   as 1.3.0's DLL.
-- **Steam library games on a TV.** LG G5 at 3840×2160 and 120 Hz with HDR output and VRR, the candidate installed
-  over the library copies by its own update and removed again afterwards. The SDK reported the set frame count and
+- **Steam library games on a TV.** LG G5 at 3840×2160 and 120 Hz with HDR output and VRR, a build with the same
+  runtime files and OptiScaler installed over the library copies by its own update and removed again afterwards. The SDK reported the set frame count and
   this build's shaders ran on 13 of 13 programs in every start; no GPU faults, 83 °C at most.
 
   | Game | Upscaler | Factor | Where |
@@ -90,9 +101,10 @@ of 11 November 2026. HelixSR is 3.3.0. These checks add no performance measureme
   are visibly softer at this output size. Twenty-five Cyberpunk benchmark captures, five per upscaler, are all
   coherent frames.
 
-Not checked: the panel itself (the display results are the TV's signal readback and gamescope screenshots), an
-existing setup that keeps its 25 October FidelityFX files, GTA V Enhanced, long sessions, generated-frame quality in
-motion, image quality at 3× and 4×, any perceptual score.
+Not checked: the panel itself (the display results are the TV's signal readback and gamescope screenshots), the
+upscalers of the 12 November archive beyond one headless start each, Setup's window operated by hand, an existing
+setup that keeps its 25 October FidelityFX files, GTA V Enhanced, long sessions, generated-frame quality in motion,
+image quality at 3× and 4×, any perceptual score.
 
 ## Checks of 1.3.0
 

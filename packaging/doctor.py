@@ -267,7 +267,7 @@ def hlx_row(folder):
                      ('that archive' if build and not missing else archive) + ', which ' +
                      ('it comes' if len(download) == 1 else 'they come') + ' built in: nothing is built.')
     if optional:
-        parts.append(' and '.join(optional) + ' is optional and not built: choosing it for a game builds it, about 35 '
+        parts.append(' and '.join(optional) + ' is optional and not built: choosing it for a game builds it, about 30 '
                      'minutes more' + ('.' if not missing else ', once ' + ', '.join(missing) +
                                        (' is' if len(missing) == 1 else ' are') + ' installed.'))
     return ('OK' if not build and not download else 'INFO', 'Helix', ' '.join(parts))

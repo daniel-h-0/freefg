@@ -2189,6 +2189,10 @@ def configurable(exe):
     except (OSError,ValueError) as error:raise ValueError('Install this build first') from error
     if record.get('status')!='installed' or record.get('runtime')!='xemfg':raise ValueError('Install this build first')
 
+def custom_hlx_supported(files,pins):
+    return bool(pins.get('hlx') and files.get('opti/OptiScaler.dll'))
+
+
 def provider_plan(package,root,record,pins,files,prepared=None,selection=None):
     """One selected provider, its files and configuration. Legacy HelixSR advances to its HLX DLSS successor."""
     current=dict(record.get('upscaler') or {})
