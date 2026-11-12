@@ -1,11 +1,12 @@
 # FreeFG
 
 FreeFG speeds up Intel XeSS Frame Generation (XeFG) on the **AMD BC-250** in DirectX 12 games under Proton. It runs
-its own shaders inside Intel's unmodified runtime and paces the output for gamescope and VRR. Upscaling is AMD FSR 4
-or one of HelixSR's upscalers, through OptiScaler.
+Intel's unmodified runtime with its own, faster shaders and paces the output for gamescope and VRR. Upscaling is AMD
+FSR 4 or one of HelixSR's upscalers, through OptiScaler.
 
 The default is **2×**: one generated frame per rendered frame. Generated frames make motion smoother; they do not
-raise the game's simulation rate. 3× and 4× need the separate MFG Unlocker.
+raise the game's simulation rate. [3× and 4×](CONFIGURATION.md#3-and-4-with-mfg-unlocker) need MFG Unlocker, a
+separate tool that FreeFG does not ship.
 
 ![Cyberpunk 2.5 game and output FPS and added frame cost for Intel and FreeFG at 2×, 3× and 4×, in SDR and HDR10.](https://raw.githubusercontent.com/daniel-h-0/freefg/5de9a40317ff07511c69c006bad22b36d3250f03/docs/assets/cyberpunk-helixsr-fps.svg)
 
@@ -56,7 +57,6 @@ On a game's page:
 - **Wiki settings**: OptiScaler settings suggested for the game, shown with their source before you apply any.
   [Wiki settings](CONFIGURATION.md#wiki-settings).
 
-[3× and 4×](CONFIGURATION.md#3-and-4-with-mfg-unlocker) need MFG Unlocker, which FreeFG does not ship.
 [Troubleshooting](TROUBLESHOOTING.md) lists the logs and common problems.
 
 ## Limits
