@@ -27,7 +27,7 @@ def event(kind,**fields):
 def say(text,step=None):
     """print(text): a line that says what a command changed, or with step (game, launcher or setting) a step it leaves to
     the player; with --events also as its changed or step event (Setup's What changed and Your next steps)."""
-    print(text)
+    print(text,flush=True)  # before whatever a child process prints next (a download, HelixSR's build)
     if step:event('step',where=step,text=text.strip())
     else:event('changed',text=text.strip())
 # Exit codes: 0 done (a step left to the user is a step or manual event), 1 failed, 3 refused: nothing was changed for a
