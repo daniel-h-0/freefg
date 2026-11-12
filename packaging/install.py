@@ -2137,16 +2137,29 @@ def chosen_upscaler(package,name=None,helixsr_dir=None):
     return found
 
 
-def prepare_named_upscaler(package,name,dlss=None,download=True):
+def game_holds_upscaler(spec,exe,name):
+    """True when the game's own folder holds the upscaler's current files, as hlx.layout reads them for a switch."""
+    try:
+        root=Path(exe).absolute().parent.resolve();current=json.loads(safe(root,STATE+'/state.json').read_text()).get('upscaler') or {}
+        legacy=current.get('legacy_target') or current.get('target')
+        if not legacy:return False
+        descriptor=spec['providers'][name];base=Path(current.get('library_root') or str(Path(legacy).parent))/'custom'/name/descriptor['api']
+        return all(hlx.sha(hlx.member(root,(base/file).as_posix()).read_bytes())==entry['sha256'] for file,entry in descriptor['files'].items())
+    except (OSError,ValueError,KeyError,TypeError,AttributeError):return False
+
+def prepare_named_upscaler(package,name,dlss=None,download=True,games=(),switch=False):
     """install and configure with a HelixSR upscaler named: when it is not ready on this computer, prepare it first
     (hlx.prepare: HelixSR's archive, and for the two HLX DLSS forms NVIDIA's DLSS DLL and the build), saying so. Does
-    nothing for FSR 4, for auto, for a package without the catalog and for an upscaler that is ready. True when it
-    prepared something."""
+    nothing for FSR 4, for auto, for a package without the catalog, for an upscaler that is ready and for a switch
+    (configure) in games that hold the upscaler's checked files themselves. A running game among games refuses before
+    the preparation, not after it. True when it prepared something."""
     if name=='helixsr':name=hlx.SUGGESTED
     spec=hlx.catalog(package) if name in hlx.NAMES else None
     if not spec or not (Path(package)/'opti/OptiScaler.dll').is_file():return False
     try:hlx.find(package,name);return False
     except (OSError,ValueError):pass
+    if switch and games and all(game_holds_upscaler(spec,exe,name) for exe in games):return False
+    for exe in games:idle(Path(exe).absolute().parent.resolve())
     build=bool(hlx.built(spec,name))
     say(hlx.NAMES[name]+' is not ready on this computer yet. Preparing it first: '+
         ('HelixSR’s archive is downloaded and the upscaler is built here, which takes '+('many' if name in hlx.OPTIONAL else 'several')+' minutes.'
@@ -3495,9 +3508,9 @@ def main():
     if args.component!='all' and args.command not in ('plan','update'):parser.error('--component applies to plan and update')
     if args.command in ('install','configure') and not args.no_prepare and not args.helixsr:
         # A HelixSR upscaler named on the command line (Setup always names one) is made ready first.
-        try:prepare_named_upscaler(Path(__file__).resolve().parent,args.upscaler,args.dlss_input,not args.no_download_dlss)
+        try:prepare_named_upscaler(Path(__file__).resolve().parent,args.upscaler,args.dlss_input,not args.no_download_dlss,args.exe,args.command=='configure')
         except (OSError,ValueError,subprocess.SubprocessError) as error:
-            print(str(error),file=sys.stderr);return EXIT_REFUSED if isinstance(error,hlx.Busy) else EXIT_FAILED
+            print(str(error),file=sys.stderr);return EXIT_REFUSED if isinstance(error,(hlx.Busy,Refusal)) else EXIT_FAILED
     if args.command in ('plan','update') and any(getattr(args,key) is not None for key in ('upscaler','factor','resolution','percent','limit','downscale','upscale')):
         parser.error('Update preserves settings and provider selection; use configure for those changes')
     risk_values=args.accept_anticheat_risk

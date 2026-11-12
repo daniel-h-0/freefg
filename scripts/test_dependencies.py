@@ -302,6 +302,23 @@ class PrepareTests(unittest.TestCase):
         self.assertFalse((cache/'payload/fsr4').exists())
         self.assertFalse((cache/self.pins['inputs']['fsr4']['file']).exists())
 
+    def test_a_long_download_prints_its_progress(self):
+        data = bytes(range(256)) * 8192  # 2 MiB: two reads
+        source = self.root/'upstream/big.bin'
+        source.write_bytes(data)
+        item = dict(file='big.bin', url=source.as_uri(), sha256=sha(data), size=len(data))
+        cache = self.root/'progress-cache'
+        cache.mkdir()
+        out = io.StringIO()
+        with patch.object(d, 'PROGRESS_FROM', 1), contextlib.redirect_stdout(out):
+            d.download(item, cache)
+        self.assertEqual(out.getvalue().splitlines(), ['Downloading big.bin from upstream…', 'big.bin: 50% of 2 MB', 'big.bin: 100% of 2 MB'])
+        (cache/'big.bin').unlink()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):  # below the threshold: the one line as before
+            d.download(item, cache)
+        self.assertEqual(out.getvalue().splitlines(), ['Downloading big.bin from upstream…'])
+
     def test_download_size_is_checked(self):
         self.pins['inputs']['patcher']['size'] += 1
         self.write_pins()

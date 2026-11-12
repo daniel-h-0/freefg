@@ -227,7 +227,7 @@ class SandboxTests(unittest.TestCase):
         self.assertNotIn('--dev-bind',command);self.assertIn(['--dev','/dev'],[command[i:i+2] for i in range(len(command))])
         pairs=[command[i:i+3] for i in range(len(command)) if command[i] in ('--tmpfs','--bind','--ro-bind','--setenv')]
         env={value[1]:value[2] for value in pairs if value[0]=='--setenv'}
-        self.assertEqual(sorted(env),['HELIXSR_SETUP_JOBS','HOME','LANG','PATH','PYTHONDONTWRITEBYTECODE','TMPDIR','WINEDEBUG','XDG_CACHE_HOME'])
+        self.assertEqual(sorted(env),['HELIXSR_SETUP_JOBS','HOME','LANG','PATH','PYTHONDONTWRITEBYTECODE','PYTHONUNBUFFERED','TMPDIR','WINEDEBUG','XDG_CACHE_HOME'])
         self.assertEqual((env['HOME'],env['PATH'],env['TMPDIR']),(str(home),'/usr/bin','/tmp'))
         mounts=[value if value[0]!='--tmpfs' else value[:2] for value in pairs if value[0]!='--setenv']
         # The home folder emptied, then only the input inside it (read-only) and staging (writable) seen again.
@@ -292,6 +292,37 @@ class OnDemand(unittest.TestCase):
     def test_a_local_copy_and_no_download(self):
         self.m.prepare_named_upscaler(self.package,'hlx-dlss',Path('/x/nvngx_dlss.dll'),False)
         hlx.prepare.assert_called_once_with(self.package,Path('/x/nvngx_dlss.dll'),report=self.m.say,preset_k=False,build=True,fetch_dlss=False)
+
+    def game(self,name=None):
+        """A game folder with an installation record; with name, that upscaler's files in its own custom folder."""
+        root=self.package/('game-'+(name or 'none'));(root/self.m.STATE).mkdir(parents=True);(root/'Game.exe').write_bytes(b'')
+        (root/self.m.STATE/'state.json').write_text(json.dumps({'upscaler':{'name':'fsr4','target':'OptiScaler/fsr.dll'}}))
+        if name:
+            descriptor=self.spec['providers'][name];base=root/'OptiScaler/custom'/name/descriptor['api'];base.mkdir(parents=True)
+            data={'fsr.dll':ARCHIVE['HLX-FSR4/fsr.dll'],'amd.dll':ARCHIVE['helixsr-scaler/OptiScaler/amd.dll']}
+            for file in descriptor['files']:(base/file).write_bytes(data[file])
+        return root/'Game.exe'
+
+    def test_a_switch_in_games_that_hold_the_files_prepares_nothing(self):
+        held,other=self.game('hlx-fsr4'),self.game()
+        self.assertFalse(self.m.prepare_named_upscaler(self.package,'hlx-fsr4',games=[held],switch=True));hlx.prepare.assert_not_called()
+        # An installation, a second game without the files, or a changed file: prepared as before.
+        self.assertTrue(self.m.prepare_named_upscaler(self.package,'hlx-fsr4',games=[held]))
+        self.assertTrue(self.m.prepare_named_upscaler(self.package,'hlx-fsr4',games=[held,other],switch=True))
+        (held.parent/'OptiScaler/custom/hlx-fsr4/ffx/fsr.dll').write_bytes(b'changed')
+        self.assertTrue(self.m.prepare_named_upscaler(self.package,'hlx-fsr4',games=[held],switch=True))
+        self.assertEqual(hlx.prepare.call_count,3)
+
+    def test_a_running_game_refuses_before_the_preparation(self):
+        exe=self.game()
+        with patch.object(self.m,'idle',side_effect=self.m.GameRunningError('Close the game before installing, updating or restoring')) as idle:
+            with self.assertRaises(self.m.Refusal):self.m.prepare_named_upscaler(self.package,'hlx-dlss',games=[exe])
+            idle.assert_called_once_with(exe.parent.resolve())
+        hlx.prepare.assert_not_called();self.say.assert_not_called()
+        # An upscaler that is ready checks nothing here: the installation makes its own check.
+        hlx.find.side_effect=None;hlx.find.return_value=(self.spec,self.package,{})
+        with patch.object(self.m,'idle') as idle:
+            self.assertFalse(self.m.prepare_named_upscaler(self.package,'hlx-dlss',games=[exe]));idle.assert_not_called()
 
     def test_a_package_without_optiscaler_prepares_nothing(self):
         (self.package/'opti/OptiScaler.dll').unlink()

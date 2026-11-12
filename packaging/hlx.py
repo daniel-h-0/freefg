@@ -237,7 +237,7 @@ def sandbox(staging, readable=(), environ=None, home=None, uid=None):
     command += ['--bind', str(staging), str(staging), '--chdir', str(staging)]
     for key, value in dict(PATH=environ.get('PATH') or '/usr/local/bin:/usr/bin:/bin', HOME=str(home), LANG='C.UTF-8',
                            TMPDIR='/tmp', XDG_CACHE_HOME=str(staging / 'cache'), PYTHONDONTWRITEBYTECODE='1',
-                           HELIXSR_SETUP_JOBS='4', WINEDEBUG='-all').items():
+                           PYTHONUNBUFFERED='1', HELIXSR_SETUP_JOBS='4', WINEDEBUG='-all').items():
         command += ['--setenv', key, value]
     return command + ['--']
 

@@ -31,6 +31,7 @@ FORMAT = 2
 # helper is not among them: the installer asks for it when it places it.
 DEFAULT_GROUPS = ('payload', 'runtime')
 DOWNLOAD_LIMIT = 512 * 1024 * 1024
+PROGRESS_FROM = 32 * 1024 * 1024   # downloads of this size and more print their progress
 # What a download can raise that means "this source did not deliver": URLError/HTTPError, TLS (ssl.SSLError), resets,
 # timeouts and other socket errors (all OSError), and malformed or truncated HTTP (HTTPException, IncompleteRead).
 NETWORK_ERRORS = (OSError, http.client.HTTPException)
@@ -108,7 +109,8 @@ def download(item, cache):
             except NETWORK_ERRORS as error:
                 raise unreachable(error) from error
             with response:
-                size = 0
+                size = shown = 0
+                total = item.get('size') if isinstance(item.get('size'), int) and item.get('size') >= PROGRESS_FROM else 0
                 while True:
                     # Only the network reads are wrapped: a failing cache write (a full disk) stays an OSError.
                     try:
@@ -118,6 +120,10 @@ def download(item, cache):
                     if not data:
                         break
                     size += len(data)
+                    if total and min(size * 10 // total, 10) > shown:
+                        # A long download says how far it is, a line per tenth (Setup shows the installer's last line).
+                        shown = min(size * 10 // total, 10)
+                        print(f'{item["file"]}: {shown * 10}% of {round(total / 1e6)} MB', flush=True)
                     if size > DOWNLOAD_LIMIT:
                         raise ValueError('Dependency exceeds download size limit')
                     output.write(data)
