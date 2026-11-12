@@ -193,8 +193,9 @@ class Doctor(unittest.TestCase):
                                                                                             package=package)})
 
 
-def fake_hlx(ready):
-    """An hlx module for the Helix row: HelixSR's four upscalers, those in ready prepared on this computer."""
+def fake_hlx(ready, missing=()):
+    """An hlx module for the Helix row: HelixSR's four upscalers, those in ready prepared on this computer; missing: what
+    building HLX DLSS needs and this computer lacks (hlx.requirements)."""
     module = types.ModuleType('hlx')
     module.NAMES = {'hlx-dlss': 'HLX DLSS Model E', 'hlx-dlss-k': 'HLX DLSS Preset K', 'hlx-fsr4': 'HLX FSR 4',
                     'hlx-fsr4-full': 'HLX FSR 4 Full'}
@@ -204,6 +205,7 @@ def fake_hlx(ready):
             'providers': {'hlx-dlss': {'build': 'network'}, 'hlx-dlss-k': {'build': 'preset-k'}, 'hlx-fsr4': {}, 'hlx-fsr4-full': {}}}
     module.catalog = lambda package: spec
     module.built = lambda spec, provider: spec['providers'][provider].get('build')
+    module.requirements = lambda: list(missing)
 
     def find(package, provider, explicit=None):
         if provider not in ready:
@@ -214,7 +216,8 @@ def fake_hlx(ready):
 
 
 class HelixRow(unittest.TestCase):
-    """The system check's row for HelixSR's four upscalers: which are ready, the suggested one, and what the rest need."""
+    """The system check's row for HelixSR's four upscalers: which are ready, the suggested one, and how the rest get ready:
+    Install prepares one on first use, so the row never tells the user to prepare anything first."""
     ALL = ['hlx-dlss', 'hlx-dlss-k', 'hlx-fsr4', 'hlx-fsr4-full']
 
     def setUp(self):
@@ -226,55 +229,83 @@ class HelixRow(unittest.TestCase):
         self.package = Path(self.tmp.name)
         (self.package / 'dependencies.json').write_text(json.dumps({'hlx': {'format': 2}}))
 
-    def row(self, ready):
-        with patch.dict(sys.modules, {'hlx': fake_hlx(ready)}):
+    def row(self, ready, missing=()):
+        with patch.dict(sys.modules, {'hlx': fake_hlx(ready, missing)}):
             return self.doctor.helixsr_row(self.package / 'home', self.package)
 
     def test_everything_ready(self):
-        level, item, text = self.row(self.ALL)
+        level, item, text = self.row(self.ALL, missing=['wine'])  # what a build would need no longer matters
         self.assertEqual((level, item), ('OK', 'Helix'))
         self.assertTrue(text.startswith('ready: HLX DLSS Model E (suggested), HLX DLSS Preset K, HLX FSR 4, HLX FSR 4 Full (optional'))
         self.assertIn('HelixSR 3.3.0, a separate project by lonewolf0622', text)
-        for word in ('Prepare', 'Download', 'not built'):
+        for word in ('prepares', 'downloaded', 'not built', 'wine'):
             self.assertNotIn(word, text)
 
     def test_preset_k_is_optional(self):
-        # Not built is not a problem: the row stays OK and says how to build it.
+        # Not built is not a problem: the row stays OK and says how it gets built.
         level, _, text = self.row(['hlx-dlss', 'hlx-fsr4', 'hlx-fsr4-full'])
         self.assertEqual(level, 'OK')
-        self.assertIn('HLX DLSS Preset K is optional and not built', text)
-        self.assertIn('install.py hlx --preset-k', text)
-        self.assertNotIn('Prepare HLX DLSS', text)
-        self.assertNotIn('Download HLX', text)
+        self.assertIn('HLX DLSS Preset K is optional and not built: choosing it for a game builds it, about 35 minutes more.', text)
+        self.assertNotIn('Install prepares', text)
+        self.assertNotIn('downloaded on first use', text)
+        # Where its build cannot run, the row names what is missing; still nothing to worry about.
+        level, _, text = self.row(['hlx-dlss', 'hlx-fsr4', 'hlx-fsr4-full'], missing=['wine', 'Python numpy'])
+        self.assertEqual(level, 'OK')
+        self.assertIn('about 35 minutes more, once wine, Python numpy are installed.', text)
 
-    def test_the_suggested_upscaler_is_prepared_once(self):
+    def test_install_prepares_the_suggested_upscaler_on_first_use(self):
         level, _, text = self.row(['hlx-fsr4', 'hlx-fsr4-full'])
         self.assertEqual(level, 'INFO')  # never a warning: FSR 4 needs none of it
         self.assertTrue(text.startswith('ready: HLX FSR 4, HLX FSR 4 Full ('))
-        self.assertIn('Prepare HLX DLSS Model E (suggested) once', text)
-        self.assertIn('install.py hlx (built on this computer from NVIDIA\'s DLSS DLL); until then a new installation takes FSR 4.', text)
+        self.assertIn('Install prepares HLX DLSS Model E (suggested) on first use, once for every game', text)
+        self.assertIn('it downloads HelixSR\'s official archive (about 280 MB) and NVIDIA\'s DLSS DLL (from NVIDIA\'s repository, '
+                      'under NVIDIA\'s licence) and builds the upscaler on this computer, about 10 to 15 minutes on a BC-250', text)
+        self.assertIn('Nothing has to be prepared first (Setup\'s Install, or install.py install GAME.exe --upscaler hlx-dlss).', text)
         self.assertIn('HLX DLSS Preset K is optional', text)
-        self.assertNotIn('Download HLX', text)
+        # The row no longer sends the user to prepare anything, and a new installation no longer falls back to FSR 4.
+        for words in ('Prepare in Setup', 'install.py hlx', 'takes FSR 4', 'downloaded on first use'):
+            self.assertNotIn(words, text)
 
-    def test_the_two_that_come_built_are_downloaded_once(self):
+    def test_a_build_that_cannot_run_here_names_what_is_missing(self):
+        level, _, text = self.row(['hlx-fsr4', 'hlx-fsr4-full'], missing=['bwrap', 'Python numpy'])
+        self.assertEqual(level, 'INFO')  # still no warning: FSR 4 and the two that come built need none of it
+        self.assertIn('HLX DLSS Model E (suggested) cannot be built on this computer yet: its build needs bwrap, Python numpy. '
+                      'Until they are installed, a new installation takes FSR 4.', text)
+        self.assertNotIn('Install prepares', text)
+        level, _, text = self.row([], missing=['wine'])
+        self.assertIn('its build needs wine. Until that is installed, a new installation takes FSR 4.', text)
+        # The two that come built are still downloaded on first use, with the archive's size named here.
+        self.assertIn('HLX FSR 4 and HLX FSR 4 Full are downloaded on first use with HelixSR\'s official archive (about 280 MB), '
+                      'which they come built in: nothing is built.', text)
+        # A check of the requirements that fails leaves them to install.py, which checks before it builds.
+        broken = fake_hlx([])
+        broken.requirements = lambda: (_ for _ in ()).throw(RuntimeError('no numpy check'))
+        with patch.dict(sys.modules, {'hlx': broken}):
+            _, _, text = self.doctor.helixsr_row(self.package / 'home', self.package)
+        self.assertIn('Install prepares HLX DLSS Model E (suggested) on first use', text)
+
+    def test_the_two_that_come_built_are_downloaded_on_first_use(self):
         level, _, text = self.row(['hlx-dlss'])
         self.assertEqual(level, 'INFO')
-        self.assertIn('Download HLX FSR 4 and HLX FSR 4 Full once', text)
-        self.assertIn('install.py hlx --no-build (they come built in HelixSR\'s official archive, about 280 MB)', text)
-        self.assertNotIn('Prepare HLX DLSS Model E', text)
+        self.assertIn('HLX FSR 4 and HLX FSR 4 Full are downloaded on first use with HelixSR\'s official archive (about 280 MB), '
+                      'which they come built in: nothing is built.', text)
+        self.assertNotIn('Install prepares', text)
         level, _, text = self.row(['hlx-dlss', 'hlx-fsr4'])
         self.assertEqual(level, 'INFO')
-        self.assertIn('Download HLX FSR 4 Full once', text)
-        self.assertIn('(it comes built in HelixSR\'s official archive', text)
+        self.assertIn('HLX FSR 4 Full is downloaded on first use with HelixSR\'s official archive (about 280 MB), which it comes '
+                      'built in', text)
 
     def test_nothing_prepared(self):
         level, item, text = self.row([])
         self.assertEqual((level, item), ('INFO', 'Helix'))
         self.assertTrue(text.startswith('none is ready on this computer ('))
-        for words in ('Prepare HLX DLSS Model E (suggested) once', 'Download HLX FSR 4 and HLX FSR 4 Full once',
+        for words in ('Install prepares HLX DLSS Model E (suggested) on first use',
+                      'HLX FSR 4 and HLX FSR 4 Full are downloaded on first use with that archive',
                       'HLX DLSS Preset K is optional and not built'):
             self.assertIn(words, text)
+        self.assertEqual(text.count('280 MB'), 1)  # the archive is one download, named once
         self.assertTrue(text.isascii())  # the check prints to any terminal
+        self.assertNotIn('!', text)
 
     def test_the_row_is_part_of_the_check_and_never_a_warning(self):
         with patch.dict(sys.modules, {'hlx': fake_hlx([])}):
@@ -294,7 +325,8 @@ class HelixRow(unittest.TestCase):
         self.assertIn('Setup tools', rows)
 
     def test_this_package_with_nothing_prepared(self):
-        # The real catalog and hlx.py, on an empty cache: every upscaler named once, by what it needs.
+        # The real catalog and hlx.py, on an empty cache: every upscaler named once, by how it gets ready. What the
+        # build needs is whatever this computer has (hlx.requirements is asked for real, and never fails the row).
         import os
         packaging = DOCTOR.parent
         with patch.dict(os.environ, {'XDG_CACHE_HOME': self.tmp.name, 'HOME': self.tmp.name}), \
@@ -304,6 +336,8 @@ class HelixRow(unittest.TestCase):
         self.assertEqual((level, item), ('INFO', 'Helix'))
         for name in ('HLX DLSS Model E (suggested)', 'HLX DLSS Preset K', 'HLX FSR 4 and HLX FSR 4 Full'):
             self.assertEqual(text.count(name), 1, name)
+        self.assertTrue('Install prepares HLX DLSS Model E (suggested) on first use' in text or
+                        'cannot be built on this computer yet: its build needs' in text)
 
 
 if __name__ == '__main__':
