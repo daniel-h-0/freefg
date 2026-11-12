@@ -245,13 +245,13 @@ class HelixRow(unittest.TestCase):
         # Not built is not a problem: the row stays OK and says how it gets built.
         level, _, text = self.row(['hlx-dlss', 'hlx-fsr4', 'hlx-fsr4-full'])
         self.assertEqual(level, 'OK')
-        self.assertIn('HLX DLSS Preset K is optional and not built: choosing it for a game builds it, about 35 minutes more.', text)
+        self.assertIn('HLX DLSS Preset K is optional and not built: choosing it for a game builds it, about 30 minutes more.', text)
         self.assertNotIn('Install prepares', text)
         self.assertNotIn('downloaded on first use', text)
         # Where its build cannot run, the row names what is missing; still nothing to worry about.
         level, _, text = self.row(['hlx-dlss', 'hlx-fsr4', 'hlx-fsr4-full'], missing=['wine', 'Python numpy'])
         self.assertEqual(level, 'OK')
-        self.assertIn('about 35 minutes more, once wine, Python numpy are installed.', text)
+        self.assertIn('about 30 minutes more, once wine, Python numpy are installed.', text)
 
     def test_install_prepares_the_suggested_upscaler_on_first_use(self):
         level, _, text = self.row(['hlx-fsr4', 'hlx-fsr4-full'])
@@ -259,7 +259,7 @@ class HelixRow(unittest.TestCase):
         self.assertTrue(text.startswith('ready: HLX FSR 4, HLX FSR 4 Full ('))
         self.assertIn('Install prepares HLX DLSS Model E (suggested) on first use, once for every game', text)
         self.assertIn('it downloads HelixSR\'s official archive (about 280 MB) and NVIDIA\'s DLSS DLL (from NVIDIA\'s repository, '
-                      'under NVIDIA\'s licence) and builds the upscaler on this computer, about 10 to 15 minutes on a BC-250', text)
+                      'under NVIDIA\'s licence) and builds the upscaler on this computer, about 15 minutes on a BC-250', text)
         self.assertIn('Nothing has to be prepared first (Setup\'s Install, or install.py install GAME.exe --upscaler hlx-dlss).', text)
         self.assertIn('HLX DLSS Preset K is optional', text)
         # The row no longer sends the user to prepare anything, and a new installation no longer falls back to FSR 4.

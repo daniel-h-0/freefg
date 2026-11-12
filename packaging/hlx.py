@@ -298,12 +298,13 @@ def _reuse(spec, release, previous, provider):
     return True
 
 
-def prepare(package, dlss=None, wine='wine', download=None, report=print, preset_k=False, build=True, fetch_dlss=False):
+def prepare(package, dlss=None, wine='wine', download=None, report=print, preset_k=False, build=True, fetch_dlss=False,
+            progress=None):
     """Download, check and unpack the official archive, then (build) run upstream's build-only Python entry point for
     HLX DLSS Model E and, with preset_k, Preset K; never its game setup script. Network access is disabled for builds.
     What an earlier preparation built is kept, not built again. report prints the lines that say what was prepared
-    (install.py: with its event). Returns the prepared folder; a Preset K that did not build leaves the rest prepared
-    and raises."""
+    (install.py: with its event); progress, when given, prints the lines on the way instead. Returns the prepared
+    folder; a Preset K that did not build leaves the rest prepared and raises."""
     spec = catalog(package)
     if not spec:raise ValueError('This package has no HLX catalog')
     if download is None:
@@ -325,7 +326,7 @@ def prepare(package, dlss=None, wine='wine', download=None, report=print, preset
         if fetch_dlss and not dlss:
             try:dlss_input(package)
             except ValueError:
-                report('Downloading NVIDIA’s DLSS DLL from NVIDIA’s repository, under NVIDIA’s licence: ' + NVIDIA_LICENSE)
+                (progress or report)('Downloading NVIDIA’s DLSS DLL from NVIDIA’s repository, under NVIDIA’s licence: ' + NVIDIA_LICENSE)
         dlss = dlss_input(package, dlss, fetch_dlss, download)
     # Rebuild into a fresh folder; interrupted output never replaces the last qualified preparation.
     descriptor=os.open(work/'.prepare.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
@@ -338,7 +339,7 @@ def prepare(package, dlss=None, wine='wine', download=None, report=print, preset
         try:archive = Path(download(spec['archive'], work))
         except ValueError as error:
             # HelixSR's author can replace a release's archive under the same name; this release pins one file.
-            if 'mismatch' not in str(error):raise
+            if not getattr(error, 'pin_mismatch', False):raise
             raise ValueError('HelixSR’s download is not the file this FreeFG release was checked with (' + str(error) + '). Its author may '
                              'have replaced the ' + spec['version'] + ' archive since. FreeFG installs only the build it checked: look for '
                              'a newer FreeFG release, and use AMD FSR 4 until then.') from error

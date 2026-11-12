@@ -260,7 +260,7 @@ def hlx_row(folder):
     elif build:
         parts.append('Install prepares ' + ' and '.join(build) + ' on first use, once for every game: it downloads ' +
                      archive + ' and NVIDIA\'s DLSS DLL (from NVIDIA\'s repository, under NVIDIA\'s licence) and builds the '
-                     'upscaler on this computer, about 10 to 15 minutes on a BC-250. Nothing has to be prepared first '
+                     'upscaler on this computer, about 15 minutes on a BC-250. Nothing has to be prepared first '
                      '(Setup\'s Install, or install.py install GAME.exe --upscaler ' + hlx.SUGGESTED + ').')
     if download:
         parts.append(' and '.join(download) + (' is' if len(download) == 1 else ' are') + ' downloaded on first use with ' +

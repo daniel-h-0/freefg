@@ -70,7 +70,9 @@ OptiScaler writes `OptiScaler.log` with `LogToFile=true` under `[Log]` in `OptiS
 | `An existing XeSSMFG folder …` | Another mod, or a test build of this project from before its public release, has that folder. Restore it with its own installer first. |
 | Setup opens Zenity dialogs instead of its window, or its window misbehaves | The window needs PyGObject, GTK 4 and libadwaita 1.5 or newer (`python-gobject gtk4 libadwaita` on Arch-based systems). Started from a terminal, Setup prints what is missing. `FREEFG_SETUP_UI=zenity ./Start-freefg.sh` selects the dialogs. |
 | **System Check** warns about `Pacing layer` | The Vulkan loader cannot load FreeFG's layer. Either the system's glibc is older than 2.34, or the line names the loader's reason. Presents are not paced and the layer's wave sizes are not applied. Frame generation still runs. |
-| Setup does not find an HLX upscaler | Download or prepare HelixSR 3.3.0 once (**Upscalers…**), select a matching prepared folder with `--helixsr`, or reuse the checked files that a game already has ([upscalers](CONFIGURATION.md#upscalers)). |
+| An HLX upscaler is not ready | Install and Switch prepare it first. **Upscalers…** prepares ahead, `--helixsr` selects a matching prepared folder, and a game's own checked files serve that game ([preparation](CONFIGURATION.md#preparation)). |
+| `Building HLX DLSS requires …` | Install the tools the line names (Wine, bubblewrap, Python numpy) from your distribution's packages, or choose HLX FSR 4, HLX FSR 4 Full or AMD FSR 4, which need no build. |
+| `HelixSR’s download is not the file this FreeFG release was checked with …` | HelixSR's author replaced the 3.3.0 archive after this FreeFG release. Look for a newer FreeFG release. Upscalers that are already prepared keep working, and AMD FSR 4 needs no download. |
 
 ## Shader cache
 

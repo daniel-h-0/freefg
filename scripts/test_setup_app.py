@@ -235,7 +235,7 @@ class Words(unittest.TestCase):
             'Downloads HelixSR’s official archive (about 280 MB) and Microsoft’s shader compiler (42 MB) from their GitHub '
             'releases, and NVIDIA’s DLSS 310.7.0 DLL (59 MB) from NVIDIA’s repository under NVIDIA’s licence (' +
             m.hlx.NVIDIA_LICENSE + '). Each file is checked by SHA-256.',
-            'Builds HLX DLSS Model E on this computer with networking off. That takes about 10 to 15 minutes on a BC-250.'])
+            'Builds HLX DLSS Model E on this computer with networking off. That takes about 15 minutes on a BC-250.'])
 
     def test_upscaler_names_and_lines_cover_the_installers(self):
         self.assertEqual({name: model.UPSCALER_LABELS[name] for name in m.hlx.NAMES}, m.hlx.NAMES)
@@ -345,7 +345,7 @@ class Words(unittest.TestCase):
         self.assertEqual(model.prepare_first(lacking, ['hlx-dlss', 'hlx-fsr4']), dict(names=['hlx-fsr4'], build=[], args=['hlx', '--no-build']))
         # About how long the build takes on a BC-250, by what is built.
         self.assertEqual([model.build_time(build) for build in (['hlx-dlss'], ['hlx-dlss-k'], ['hlx-dlss', 'hlx-dlss-k'], [], None)],
-                         ['about 10 to 15 minutes', 'about 35 minutes', 'about 45 minutes', '', ''])
+                         ['about 15 minutes', 'about 30 minutes', 'about 45 minutes', '', ''])
         self.assertEqual(model.build_sentence(['hlx-dlss', 'hlx-dlss-k']), 'The build takes about 45 minutes on a BC-250.')
         self.assertEqual(model.build_sentence([]), '')
         # The line above them names the action that prepares, and the upscalers.
@@ -370,7 +370,7 @@ class Words(unittest.TestCase):
         self.assertEqual(model.prepare_lines(ctx([]), held, ['hlx-dlss']), [
             'Downloads Microsoft’s shader compiler from its GitHub releases. Each file is checked by SHA-256.',
             'The build takes the copy of NVIDIA’s DLSS DLL on this computer.',
-            'Builds HLX DLSS Model E on this computer with networking off. That takes about 10 to 15 minutes on a BC-250.'])
+            'Builds HLX DLSS Model E on this computer with networking off. That takes about 15 minutes on a BC-250.'])
         everything = [replace(p, have=('archive', 'compiler', 'dlss')) for p in nothing]
         self.assertEqual(model.prepare_lines(ctx([]), everything, ['hlx-dlss'])[0],
                          'Nothing is downloaded: the files it takes are on this computer already.')
@@ -413,7 +413,7 @@ class Words(unittest.TestCase):
             self.assertEqual(model.prepare_lines(ctx, found, ['hlx-dlss']), [
                 'Downloads HelixSR’s official archive (about 280 MB) from its GitHub releases. Each file is checked by SHA-256.',
                 'The build takes the copy of NVIDIA’s DLSS 310.7.0 DLL on this computer.',
-                'Builds HLX DLSS Model E on this computer with networking off. That takes about 10 to 15 minutes on a BC-250.'])
+                'Builds HLX DLSS Model E on this computer with networking off. That takes about 15 minutes on a BC-250.'])
             pin = model.dlss_pin(ctx)
             self.assertEqual((pin['name'], pin['size'], pin['version'], pin['license']),
                              ('NVIDIA’s DLSS 310.7.0 DLL', '59 MB', '310.7.0', m.hlx.NVIDIA_LICENSE))

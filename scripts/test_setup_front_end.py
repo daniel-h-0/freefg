@@ -542,7 +542,7 @@ class SetupFrontEnd(unittest.TestCase):
         for words in ('Downloads HelixSR’s official archive (about 280 MB) and Microsoft’s shader compiler from their GitHub '
                       'releases, and NVIDIA’s DLSS DLL from NVIDIA’s repository under NVIDIA’s licence '
                       '(https://github.com/NVIDIA/DLSS/blob/main/LICENSE.txt). Each file is checked by SHA-256.',
-                      'Builds HLX DLSS Model E on this computer with networking off. That takes about 10 to 15 minutes on a BC-250.',
+                      'Builds HLX DLSS Model E on this computer with networking off. That takes about 15 minutes on a BC-250.',
                       'No game is changed until it is ready.'):
             self.assertIn(words, text)
         # No other question about the preparation: no agreement, no NVIDIA input list, no Preset K question.
@@ -551,7 +551,7 @@ class SetupFrontEnd(unittest.TestCase):
         self.assertFalse(any('I agree' in a for c in calls for a in c))
         self.assertFalse(any('--download-dlss' in r or 'hlx' in r[3:4] for r in runs))
         # While it runs, the progress window says what is prepared first and about how long the build takes.
-        self.assertEqual(self.progress(), ['Preparing HLX DLSS Model E, then installing. The build takes about 10 to 15 minutes on '
+        self.assertEqual(self.progress(), ['Preparing HLX DLSS Model E, then installing. The build takes about 15 minutes on '
                                            'a BC-250.'])
         # One that comes built: the archive alone, nothing from NVIDIA, nothing built.
         calls, runs = self.scripted([*start, (0, 'hlx-fsr4'), (0, ''), (0, ''), (0, ''), (1, '')], self.hlx_installer())
@@ -605,7 +605,7 @@ class SetupFrontEnd(unittest.TestCase):
         self.assertIn('then switches:', text)
         self.assertIn('NVIDIA’s DLSS DLL from NVIDIA’s repository under NVIDIA’s licence (https://github.com/NVIDIA/DLSS/blob/main/'
                       'LICENSE.txt)', text)
-        self.assertEqual(self.progress(), ['Preparing HLX DLSS Model E, then switching. The build takes about 10 to 15 minutes on '
+        self.assertEqual(self.progress(), ['Preparing HLX DLSS Model E, then switching. The build takes about 15 minutes on '
                                            'a BC-250.'])
         self.assertFalse(any('I agree' in a or 'Download from NVIDIA' in a for c in calls for a in c))
         # Other ways…: a local copy of NVIDIA's DLL stays an option. It is checked, then named to install.py, which
@@ -640,12 +640,12 @@ class SetupFrontEnd(unittest.TestCase):
     def test_preset_k_is_built_when_it_is_the_upscaler_chosen(self):
         game = self.dir / 'game'; game.mkdir(); (game / 'Game.exe').write_bytes(b'')
         start = [(0, 'Add games'), (0, str(game / 'Game.exe')), (0, 'Upscaler'), (0, 'hlx-dlss-k')]
-        # Model E built already: Preset K alone, about 35 minutes.
+        # Model E built already: Preset K alone, about 30 minutes.
         calls, runs = self.scripted([*start, (0, ''), (0, ''), (1, '')], self.hlx_installer(['hlx-dlss'], held='/cache/nvngx_dlss.dll'))
         self.assertEqual([r[3:] for r in runs], [['configure', str(game / 'Game.exe'), '--upscaler', 'hlx-dlss-k']])
         text, _ = self.confirmation(calls, 'Prepare and switch')
-        self.assertIn('Builds HLX DLSS Preset K on this computer with networking off. That takes about 35 minutes on a BC-250.', text)
-        self.assertEqual(self.progress(), ['Preparing HLX DLSS Preset K, then switching. The build takes about 35 minutes on a BC-250.'])
+        self.assertIn('Builds HLX DLSS Preset K on this computer with networking off. That takes about 30 minutes on a BC-250.', text)
+        self.assertEqual(self.progress(), ['Preparing HLX DLSS Preset K, then switching. The build takes about 30 minutes on a BC-250.'])
         # Nothing built yet: Model E first, then Preset K, about 45 minutes. No separate question about Preset K.
         calls, runs = self.scripted([*start, (0, ''), (0, ''), (1, '')], self.hlx_installer())
         text, _ = self.confirmation(calls, 'Prepare and switch')
@@ -720,10 +720,10 @@ class SetupFrontEnd(unittest.TestCase):
         self.assertIn('--extra-button=Update without it', call); self.assertIn('--cancel-label=Back', call)
         self.assertTrue(text.startswith('The plan defers HLX DLSS Model E: this release’s HelixSR is not prepared on this computer yet.'))
         for words in ('Setup shows the plan again before it updates', 'NVIDIA’s DLSS DLL from NVIDIA’s repository under NVIDIA’s '
-                      'licence (https://github.com/NVIDIA/DLSS/blob/main/LICENSE.txt)', 'about 10 to 15 minutes on a BC-250',
+                      'licence (https://github.com/NVIDIA/DLSS/blob/main/LICENSE.txt)', 'about 15 minutes on a BC-250',
                       'separate project by lonewolf0622'):
             self.assertIn(words, text)
-        self.assertEqual(self.progress()[0], 'Preparing HLX DLSS Model E for every game. The build takes about 10 to 15 minutes on '
+        self.assertEqual(self.progress()[0], 'Preparing HLX DLSS Model E for every game. The build takes about 15 minutes on '
                                              'a BC-250.')
         # Declined: the update as before, with the upscaler deferred as the plan says.
         calls, runs = self.scripted([*add, (0, 'Update all'), (0, ''), (1, 'Update without it'), (0, ''), (0, ''), (1, '')],

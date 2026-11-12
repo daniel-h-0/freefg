@@ -176,7 +176,7 @@ def archive_size(installer):
 
 # About how long HelixSR's build takes on a BC-250, by what is built: Model E, Preset K after it, or both
 # (setup_model.BUILD_TIME says the same).
-BUILD_TIME={('hlx-dlss',):'about 10 to 15 minutes',('hlx-dlss-k',):'about 35 minutes',('hlx-dlss','hlx-dlss-k'):'about 45 minutes'}
+BUILD_TIME={('hlx-dlss',):'about 15 minutes',('hlx-dlss-k',):'about 30 minutes',('hlx-dlss','hlx-dlss-k'):'about 45 minutes'}
 
 def prepare_build(installer,names):
     """The Helix upscalers install.py builds to make names ready (hlx.prepare): Model E, also for Preset K, and Preset K
@@ -186,7 +186,7 @@ def prepare_build(installer,names):
     return [name for name in hlx.NAMES if hlx.built(spec,name) and (name not in hlx.OPTIONAL or name in names) and not helix_ready(installer,name)]
 
 def build_sentence(installer,names):
-    """'The build takes about 10 to 15 minutes on a BC-250.' for what making names ready builds ('' when nothing is)."""
+    """'The build takes about 15 minutes on a BC-250.' for what making names ready builds ('' when nothing is)."""
     time=BUILD_TIME.get(tuple(prepare_build(installer,names)))
     return 'The build takes '+time+' on a BC-250.' if time else ''
 

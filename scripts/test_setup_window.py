@@ -1099,7 +1099,7 @@ class HelixUpscalers(WindowFixture):
             for words in ('Downloads HelixSR’s official archive (about 280 MB) and Microsoft’s shader compiler (42 MB) from their '
                           'GitHub releases', 'NVIDIA’s DLSS 310.7.0 DLL from NVIDIA’s repository under NVIDIA’s licence (' +
                           m.hlx.NVIDIA_LICENSE + ')', 'Builds HLX DLSS Model E on this computer with networking off',
-                          'about 10 to 15 minutes on a BC-250'):
+                          'about 15 minutes on a BC-250'):
                 self.assertIn(words, said)
             self.assertTrue(said.endswith('\nKeep the game and its launcher closed until it is done.'))
             self.assertEqual(dialog.hint.get_text(), 'Setup checks again that the game and its launcher are closed, then installs.')
@@ -1108,7 +1108,7 @@ class HelixUpscalers(WindowFixture):
             step, how = self.installed(window, dialog)
             self.assertEqual(step.args, ['install', str(self.other), '--route', 'auto', '--fg-input', 'auto', '--upscaler', 'hlx-dlss'])
             self.assertEqual(how['working'], 'Preparing HLX DLSS Model E, then installing FreeFG into Fixture game. The build '
-                             'takes about 10 to 15 minutes on a BC-250.')
+                             'takes about 15 minutes on a BC-250.')
             self.assertEqual((how['output'], how['on_finished']), (True, window.helix_changed))
             yield lambda: window.get_visible_dialog() is None
             dialog = yield from self.install_dialog(window, game)
@@ -1304,7 +1304,7 @@ class HelixUpscalers(WindowFixture):
             self.assertEqual(dialog.prepare_row.get_title(), 'Switch prepares HLX DLSS Model E first, once for every game')
             said = dialog.prepare_row.get_subtitle()
             for words in ('NVIDIA’s DLSS 310.7.0 DLL from NVIDIA’s repository under NVIDIA’s licence (' + m.hlx.NVIDIA_LICENSE + ')',
-                          'Builds HLX DLSS Model E on this computer', 'about 10 to 15 minutes on a BC-250',
+                          'Builds HLX DLSS Model E on this computer', 'about 15 minutes on a BC-250',
                           'Keep the game closed until it is done.'):
                 self.assertIn(words, said)
             dialog.choose('fsr4')  # the current one: nothing to switch, nothing to say
@@ -1313,7 +1313,7 @@ class HelixUpscalers(WindowFixture):
             step, how = switched(dialog)
             self.assertEqual(step.args, ['configure', str(self.exe), '--upscaler', 'hlx-dlss'])
             self.assertEqual(how['working'], f'Preparing HLX DLSS Model E, then switching {game.title} to it. The build takes '
-                             'about 10 to 15 minutes on a BC-250.')
+                             'about 15 minutes on a BC-250.')
             self.assertEqual((how['output'], how['on_finished']), (True, window.helix_changed))
             yield lambda: window.get_visible_dialog() is None
             # Ready only through the game's own checked copies: switched to as they are, nothing is prepared.
@@ -1380,7 +1380,7 @@ class HelixUpscalers(WindowFixture):
             self.assertTrue(dialog.prepare_switch.get_active())
             said = dialog.prepare_switch.get_subtitle()
             for words in ('HelixSR’s official archive (about 280 MB)', 'NVIDIA’s DLSS 310.7.0 DLL from NVIDIA’s repository under '
-                          'NVIDIA’s licence (' + m.hlx.NVIDIA_LICENSE + ')', 'about 10 to 15 minutes on a BC-250'):
+                          'NVIDIA’s licence (' + m.hlx.NVIDIA_LICENSE + ')', 'about 15 minutes on a BC-250'):
                 self.assertIn(words, said)
             self.assertTrue(any(isinstance(found, Gtk.Label) and 'lonewolf0622' in found.get_label() for found in descendants(first)))
             self.assertEqual(rows(dialog.page)['A'].get_subtitle(), '1.1.4 → 1.1.5 · HLX DLSS Model E is not prepared yet')
@@ -1392,7 +1392,7 @@ class HelixUpscalers(WindowFixture):
             self.assertEqual(steps, [('Prepare HLX DLSS Model E', ['hlx'], True),
                                      ('A', ['update', str(games['A'].exe)], False), ('B', ['update', str(games['B'].exe)], False),
                                      ('C', ['update', str(games['C'].exe), *digest('C')], False)])
-            self.assertEqual(how['working'], 'Preparing HLX DLSS Model E, then updating 3 games. The build takes about 10 to 15 '
+            self.assertEqual(how['working'], 'Preparing HLX DLSS Model E, then updating 3 games. The build takes about 15 '
                              'minutes on a BC-250.')
             self.assertEqual((how['success'], how['output'], how['on_finished']), ('3 games updated', True, window.helix_changed))
             yield lambda: window.get_visible_dialog() is None
@@ -1415,7 +1415,7 @@ class HelixUpscalers(WindowFixture):
             steps, how = updated(window, dialog)
             self.assertEqual(steps, [('Prepare HLX DLSS Model E', ['hlx'], True), ('B', ['update', str(games['B'].exe)], False)])
             self.assertEqual((how['working'], how['success']), ('Preparing HLX DLSS Model E, then updating B. The build takes about '
-                                                                '10 to 15 minutes on a BC-250.', 'B is updated'))
+                                                                '15 minutes on a BC-250.', 'B is updated'))
             yield lambda: window.get_visible_dialog() is None
             # Only upscalers that come built are deferred: the archive alone. A Preset K installation among them: its build.
             plans.update(A=('update', 'hlx-fsr4'), B=('deferred', 'hlx-fsr4-full'))
@@ -1510,11 +1510,11 @@ class HelixUpscalers(WindowFixture):
             # Preset K is optional and off unless asked for.
             self.assertFalse(dialog.preset_row.get_active())
             self.assertIn('Optional', dialog.preset_row.get_subtitle())
-            self.assertIn('about 35 minutes more on a BC-250', dialog.preset_row.get_subtitle())
+            self.assertIn('about 30 minutes more on a BC-250', dialog.preset_row.get_subtitle())
             self.assertIsNone(dialog.blocked())
             self.assertTrue(dialog.prepare_button.get_sensitive())
             self.assertEqual(dialog.args(), ['hlx'])
-            self.assertEqual(dialog.hint.get_text(), 'Setup builds HLX DLSS Model E. The build takes about 10 to 15 minutes on a '
+            self.assertEqual(dialog.hint.get_text(), 'Setup builds HLX DLSS Model E. The build takes about 15 minutes on a '
                              'BC-250.')
             dialog.preset_row.set_active(True)
             self.assertEqual(dialog.args(), ['hlx', '--preset-k'])
@@ -1557,7 +1557,7 @@ class HelixUpscalers(WindowFixture):
             self.assertTrue(dialog.prepare_button.get_sensitive())
             self.assertEqual(dialog.args(), ['hlx'])
             self.assertEqual(dialog.hint.get_text(), 'Setup downloads NVIDIA’s DLSS DLL and builds HLX DLSS Model E. The build '
-                             'takes about 10 to 15 minutes on a BC-250.')
+                             'takes about 15 minutes on a BC-250.')
             dialog.preset_row.set_active(True)
             self.assertEqual(dialog.args(), ['hlx', '--preset-k'])
             dialog.preset_row.set_active(False)
@@ -1576,12 +1576,12 @@ class HelixUpscalers(WindowFixture):
             self.assertEqual(dialog.local_row.get_subtitle(), '/in/nvngx_dlss.dll')
             self.assertFalse(dialog.download_row.get_visible())
             self.assertEqual(dialog.args(), ['hlx', '--dlss-input', '/in/nvngx_dlss.dll'])
-            self.assertEqual(dialog.hint.get_text(), 'Setup builds HLX DLSS Model E. The build takes about 10 to 15 minutes on a '
+            self.assertEqual(dialog.hint.get_text(), 'Setup builds HLX DLSS Model E. The build takes about 15 minutes on a '
                              'BC-250.')
             with patch.object(window, 'run') as run:
                 dialog.prepare()
                 self.assertEqual(run.call_args.args[1][0].args, ['hlx', '--dlss-input', '/in/nvngx_dlss.dll'])
-                self.assertIn('about 10 to 15 minutes', run.call_args.kwargs['working'])
+                self.assertIn('about 15 minutes', run.call_args.kwargs['working'])
         self.drive(script)
 
     def test_prepare_names_what_the_build_needs_and_what_is_built_already(self):

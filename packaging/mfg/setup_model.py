@@ -1050,17 +1050,17 @@ def prepare_todo(found, preset_k=False):
 
 
 # About how long HelixSR's build takes on a BC-250, by what is built: Model E, Preset K after it, or both.
-BUILD_TIME = {('hlx-dlss',): 'about 10 to 15 minutes', ('hlx-dlss-k',): 'about 35 minutes',
+BUILD_TIME = {('hlx-dlss',): 'about 15 minutes', ('hlx-dlss-k',): 'about 30 minutes',
               ('hlx-dlss', 'hlx-dlss-k'): 'about 45 minutes'}
 
 
 def build_time(build):
-    """'about 10 to 15 minutes': about how long building these Helix upscalers takes on a BC-250 ('' for none)."""
+    """'about 15 minutes': about how long building these Helix upscalers takes on a BC-250 ('' for none)."""
     return BUILD_TIME.get(tuple(name for name in ('hlx-dlss', 'hlx-dlss-k') if name in (build or ())), '')
 
 
 def build_sentence(build):
-    """'The build takes about 10 to 15 minutes on a BC-250.' for these Helix upscalers ('' when none is built)."""
+    """'The build takes about 15 minutes on a BC-250.' for these Helix upscalers ('' when none is built)."""
     return 'The build takes ' + build_time(build) + ' on a BC-250.' if build_time(build) else ''
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """Local, reversible installation of the experimental BC250 game add-on."""
-import argparse,collections,configparser,contextlib,contextvars,fcntl,functools,hashlib,json,os,re,shutil,stat,struct,subprocess,sys,tempfile,time,uuid
+import argparse,collections,configparser,contextlib,contextvars,fcntl,functools,hashlib,io,json,os,re,shutil,stat,struct,subprocess,sys,tempfile,time,uuid
 from pathlib import Path
 
 # This file imports its sibling modules by name (doctor, launcher_config, which imports steam_config and vendor). An
@@ -2147,30 +2147,47 @@ def game_holds_upscaler(spec,exe,name):
         return all(hlx.sha(hlx.member(root,(base/file).as_posix()).read_bytes())==entry['sha256'] for file,entry in descriptor['files'].items())
     except (OSError,ValueError,KeyError,TypeError,AttributeError):return False
 
-def prepare_named_upscaler(package,name,dlss=None,download=True,games=(),switch=False):
-    """install and configure with a HelixSR upscaler named: when it is not ready on this computer, prepare it first
-    (hlx.prepare: HelixSR's archive, and for the two HLX DLSS forms NVIDIA's DLSS DLL and the build), saying so. Does
-    nothing for FSR 4, for auto, for a package without the catalog, for an upscaler that is ready and for a switch
-    (configure) in games that hold the upscaler's checked files themselves. A running game among games refuses before
-    the preparation, not after it. True when it prepared something."""
+def bundles_optiscaler(package):
+    """A package that installs HelixSR upscalers carries OptiScaler (a source checkout does not)."""
+    return (Path(package)/'opti/OptiScaler.dll').is_file()
+
+def unprepared_upscaler(package,name,games=(),switch=False):
+    """The HelixSR upscaler (its id) that install or configure has to prepare before it can use it; None for FSR 4, for
+    auto, for a package without the catalog, for an upscaler that is ready and for a switch (configure) in games that
+    hold the upscaler's checked files themselves."""
     if name=='helixsr':name=hlx.SUGGESTED
     spec=hlx.catalog(package) if name in hlx.NAMES else None
-    if not spec or not (Path(package)/'opti/OptiScaler.dll').is_file():return False
-    try:hlx.find(package,name);return False
+    if not spec or not bundles_optiscaler(package):return None
+    try:hlx.find(package,name);return None
     except (OSError,ValueError):pass
-    if switch and games and all(game_holds_upscaler(spec,exe,name) for exe in games):return False
+    if switch and games and all(game_holds_upscaler(spec,exe,name) for exe in games):return None
+    return name
+
+def note(text):
+    """A line that says what a command is doing, not what it changed: printed at once, never an event."""
+    print(text,flush=True)
+
+def prepare_named_upscaler(package,name,dlss=None,download=True,games=(),switch=False):
+    """install and configure with a HelixSR upscaler named: when it is not ready on this computer (unprepared_upscaler),
+    prepare it first (hlx.prepare: HelixSR's archive, and for the two HLX DLSS forms NVIDIA's DLSS DLL and the build),
+    saying so. A running game among games refuses before the preparation, not after it. What was prepared is one
+    changed line; the lines on the way are notes. True when it prepared something."""
+    name=unprepared_upscaler(package,name,games,switch)
+    if not name:return False
     for exe in games:idle(Path(exe).absolute().parent.resolve())
-    build=bool(hlx.built(spec,name))
-    say(hlx.NAMES[name]+' is not ready on this computer yet. Preparing it first: '+
-        ('HelixSR’s archive is downloaded and the upscaler is built here, which takes '+('many' if name in hlx.OPTIONAL else 'several')+' minutes.'
-         if build else 'HelixSR’s archive is downloaded and checked; nothing is built.'))
-    hlx.prepare(package,dlss,report=say,preset_k=name in hlx.OPTIONAL,build=build,fetch_dlss=download)
+    build=bool(hlx.built(hlx.catalog(package),name))
+    note(hlx.NAMES[name]+' is not ready on this computer yet. Preparing it first: '+
+         ('HelixSR’s archive is downloaded and the upscaler is built here, which takes '+('many' if name in hlx.OPTIONAL else 'several')+' minutes.'
+          if build else 'HelixSR’s archive is downloaded and checked; nothing is built.'))
+    hlx.prepare(package,dlss,report=say,progress=note,preset_k=name in hlx.OPTIONAL,build=build,fetch_dlss=download)
     return True
 
-
-def custom_hlx_supported(files,pins):
-    return bool(pins.get('hlx') and files.get('opti/OptiScaler.dll'))
-
+def configurable(exe):
+    """What configure refuses first, before anything is prepared for it: a running game, no installation of this build."""
+    root=exe.parent.resolve();idle(root)
+    try:record=json.loads(safe(root,STATE+'/state.json').read_text())
+    except (OSError,ValueError) as error:raise ValueError('Install this build first') from error
+    if record.get('status')!='installed' or record.get('runtime')!='xemfg':raise ValueError('Install this build first')
 
 def provider_plan(package,root,record,pins,files,prepared=None,selection=None):
     """One selected provider, its files and configuration. Legacy HelixSR advances to its HLX DLSS successor."""
@@ -3506,11 +3523,6 @@ def main():
         except (OSError,ValueError,subprocess.SubprocessError) as error:
             print(str(error),file=sys.stderr);return EXIT_REFUSED if isinstance(error,hlx.Busy) else EXIT_FAILED
     if args.component!='all' and args.command not in ('plan','update'):parser.error('--component applies to plan and update')
-    if args.command in ('install','configure') and not args.no_prepare and not args.helixsr:
-        # A HelixSR upscaler named on the command line (Setup always names one) is made ready first.
-        try:prepare_named_upscaler(Path(__file__).resolve().parent,args.upscaler,args.dlss_input,not args.no_download_dlss,args.exe,args.command=='configure')
-        except (OSError,ValueError,subprocess.SubprocessError) as error:
-            print(str(error),file=sys.stderr);return EXIT_REFUSED if isinstance(error,(hlx.Busy,Refusal)) else EXIT_FAILED
     if args.command in ('plan','update') and any(getattr(args,key) is not None for key in ('upscaler','factor','resolution','percent','limit','downscale','upscale')):
         parser.error('Update preserves settings and provider selection; use configure for those changes')
     risk_values=args.accept_anticheat_risk
@@ -3545,6 +3557,15 @@ def main():
     elif args.all and args.command!='check':parser.error('--all applies to check, plan and update')
     if not games:parser.error('choose at least one game executable')
     failed=refused=False;outcomes=[];plans=[]
+    # A HelixSR upscaler named for install or configure (Setup always names one) is made ready first, once, after the
+    # game's own refusals: a game that cannot be installed or switched starts no download and no build.
+    prepares=args.command in ('install','configure') and not args.no_prepare and not args.helixsr;unprepared={}
+    def prepare_for(exe,switch=False):
+        package=Path(__file__).resolve().parent
+        if args.upscaler in unprepared:raise unprepared[args.upscaler]  # it failed for an earlier game of this command
+        try:prepare_named_upscaler(package,args.upscaler,args.dlss_input,not args.no_download_dlss,[exe],switch)
+        except GameRunningError:raise
+        except (OSError,ValueError,subprocess.SubprocessError) as error:unprepared[args.upscaler]=error;raise
     if args.expect_plan:
         # What runs is what plan showed: every game's plan, as plan makes it, before any game changes.
         for exe in games:
@@ -3579,7 +3600,10 @@ def main():
             elif args.command=='register':register_installation(exe.absolute())
             elif args.command=='wiki-plan':print(json.dumps(wiki_settings_plan(Path(__file__).resolve().parent,exe.absolute()),indent=2))
             elif args.command=='wiki-apply':apply_wiki_settings(exe.absolute(),args.wiki_setting,args.wiki_confirm,expected=args.wiki_plan_digest)
-            elif args.command=='configure':configure(exe.absolute(),args.factor,args.resolution,args.percent,args.limit,args.downscale,args.upscale,
+            elif args.command=='configure':
+                if prepares and unprepared_upscaler(Path(__file__).resolve().parent,args.upscaler,[exe.absolute()],True):
+                    configurable(exe.absolute());prepare_for(exe.absolute(),True)
+                configure(exe.absolute(),args.factor,args.resolution,args.percent,args.limit,args.downscale,args.upscale,
                                                      upscaler=chosen_upscaler(Path(__file__).resolve().parent,'auto',args.helixsr.absolute() if args.helixsr else None)
                                                               if args.upscaler=='auto' else args.upscaler,
                                                      helixsr_dir=args.helixsr.absolute() if args.helixsr else None)
@@ -3617,6 +3641,13 @@ def main():
                     if risk and verdict is not None:
                         found=compat_verdict(Path(__file__).resolve().parent,exe.absolute(),None,None,None,accepted,risk)
                         verdict=found[0] if found else None
+                if prepares and args.command=='install' and unprepared_upscaler(Path(__file__).resolve().parent,args.upscaler):
+                    # The installation's own checks first, as a silent preview with FSR 4 (which is installed beside every
+                    # HelixSR upscaler): what refuses or fails there does so before the download and the build.
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        install(Path(__file__).resolve().parent,exe.absolute(),True,route,fg_input,dlss_helper=args.dlss_helper,upscaler='fsr4',
+                                accept=accepted,verdict=verdict,accept_risk=risk)
+                    prepare_for(exe.absolute())
                 install(Path(__file__).resolve().parent,exe.absolute(),args.command=='preview',route,fg_input,dlss_helper=args.dlss_helper,
                         upscaler=chosen_upscaler(Path(__file__).resolve().parent,args.upscaler,args.helixsr.absolute() if args.helixsr else None),
                         helixsr_dir=args.helixsr.absolute() if args.helixsr else None,accept=accepted,verdict=verdict,
@@ -3643,7 +3674,7 @@ def refusal(error):
     """Whether error refused the command before anything changed, for a reason the user resolves (EXIT_REFUSED): a
     Refusal (a game or launcher running, another installer at work), a compatibility refusal (compat.Refused), the library
     index held by another process."""
-    return isinstance(error,(Refusal,freefg_library.Busy,getattr(sys.modules.get('compat'),'Refused',Refusal)))
+    return isinstance(error,(Refusal,freefg_library.Busy,hlx.Busy,getattr(sys.modules.get('compat'),'Refused',Refusal)))
 
 class Unbroken:
     """A text stream (sys.stdout, sys.stderr) whose write errors are dropped, and with them its later output: a reader

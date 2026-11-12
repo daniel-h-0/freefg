@@ -1397,8 +1397,9 @@ class UpdateDialog(Adw.Dialog):
             names = self.offer['names']
             count = sum(1 for item in items if item.prepare in names and item.status in ('update', 'deferred'))
             first = group('Before updating', f'{count} game{"s use" if count != 1 else " uses"} an upscaler that this '
-                          'release’s HelixSR makes ready once on this computer. Turned off, that upscaler is left as it is '
-                          'and the rest is updated.')
+                          'release’s HelixSR makes ready once on this computer. Setup prepares it, then updates '
+                          'those games with their upscaler included, without showing this review again. Turned off, that '
+                          'upscaler is left as it is and the rest is updated.')
             self.prepare_switch = plain(Adw.SwitchRow(), 'Prepare ' + model.joined(model.UPSCALER_LABELS[n] for n in names) +
                                         ' first', '\n'.join(model.prepare_lines(ctx, self.window.providers, names)))
             self.prepare_switch.set_active(self.prepare_wanted)
