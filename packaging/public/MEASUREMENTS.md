@@ -70,10 +70,29 @@ of 11 November 2026. HelixSR is 3.3.0. These checks add no performance measureme
   original file byte for byte.
 - **OptiScaler.** The seven swapchain probe cases of the GTA Social Club reproduction give the same stages and markers
   as 1.3.0's DLL.
+- **Steam library games on a TV.** LG G5 at 3840×2160 and 120 Hz with HDR output and VRR, the candidate installed
+  over the library copies by its own update and removed again afterwards. The SDK reported the set frame count and
+  this build's shaders ran on 13 of 13 programs in every start; no GPU faults, 83 °C at most.
 
-Not checked: a start of a Steam library game, a picture on a display, CONTROL Resonant (upstream removed its
-`FGPreserveSwapChain=false` fix), an existing setup that keeps its 25 October FidelityFX files, HDR10, 4×, image
-quality.
+  | Game | Upscaler | Factor | Where |
+  | --- | --- | --- | --- |
+  | Echo Point Nova (OptiFG) | HLX DLSS 3.1.0 kept | 2× | main menu |
+  | Echo Point Nova | HLX DLSS Model E 3.3.0 | 2×, 3×, 4× with MFG Unlocker 1.7.0 | main menu |
+  | CONTROL Resonant (DLSS FG, HDR) | HLX DLSS Model E 3.3.0 | 3×, 2×, 4× with MFG Unlocker 1.7.0 | start screens |
+  | CONTROL Resonant | HLX DLSS Model E 3.3.0 | 3× | gameplay from a save, standing, about 50 s |
+  | CONTROL Resonant | each of the five upscalers | 2× | the same gameplay scene |
+
+  The TV reported PQ and followed VRR in CONTROL's gameplay (80.6 Hz at the readback). Upstream's removal of
+  CONTROL's `FGPreserveSwapChain=false` fix showed no effect.
+- **Captures.** CONTROL's standing scene at 3840×2160 from a 2560×1440 render gives a clean picture with each of the
+  five upscalers, with small differences between them. With generated-frame scaling off, eight captures of that scene
+  are equally sharp, so generated frames carry the detail of real ones there; with a 1080p limit the generated frames
+  are visibly softer at this output size. Twenty-five Cyberpunk benchmark captures, five per upscaler, are all
+  coherent frames.
+
+Not checked: the panel itself (the display results are the TV's signal readback and gamescope screenshots), an
+existing setup that keeps its 25 October FidelityFX files, GTA V Enhanced, long sessions, generated-frame quality in
+motion, image quality at 3× and 4×, any perceptual score.
 
 ## Checks of 1.3.0
 
