@@ -31,6 +31,7 @@ FORMAT = 2
 # helper is not among them: the installer asks for it when it places it.
 DEFAULT_GROUPS = ('payload', 'runtime')
 DOWNLOAD_LIMIT = 512 * 1024 * 1024
+PROGRESS_FROM = 32 * 1024 * 1024   # downloads of this size and more print their progress
 # What a download can raise that means "this source did not deliver": URLError/HTTPError, TLS (ssl.SSLError), resets,
 # timeouts and other socket errors (all OSError), and malformed or truncated HTTP (HTTPException, IncompleteRead).
 NETWORK_ERRORS = (OSError, http.client.HTTPException)
@@ -86,6 +87,11 @@ def cached(item, cache):
     return dest.is_file() and not dest.is_symlink() and sha(dest) == item['sha256']
 
 
+class PinMismatch(ValueError):
+    """A download that is not the pinned file (its size or its hash): upstream replaced it, or it arrived damaged."""
+    pin_mismatch = True
+
+
 def download(item, cache):
     """The pinned download in the cache, fetched when missing or different."""
     dest = cache/item['file']
@@ -108,7 +114,12 @@ def download(item, cache):
             except NETWORK_ERRORS as error:
                 raise unreachable(error) from error
             with response:
-                size = 0
+                # A file of another size is not the pinned one: say so before its body is read (a replaced 280 MB archive).
+                declared = str(getattr(response, 'headers', None) and response.headers.get('Content-Length') or '')
+                if 'size' in item and declared.isdigit() and int(declared) != item['size']:
+                    raise PinMismatch('Download size mismatch: ' + item['file'])
+                size = shown = 0
+                total = item.get('size') if isinstance(item.get('size'), int) and item.get('size') >= PROGRESS_FROM else 0
                 while True:
                     # Only the network reads are wrapped: a failing cache write (a full disk) stays an OSError.
                     try:
@@ -118,14 +129,18 @@ def download(item, cache):
                     if not data:
                         break
                     size += len(data)
+                    if total and min(size * 10 // total, 10) > shown:
+                        # A long download says how far it is, a line per tenth (Setup shows the installer's last line).
+                        shown = min(size * 10 // total, 10)
+                        print(f'{item["file"]}: {shown * 10}% of {round(total / 1e6)} MB', flush=True)
                     if size > DOWNLOAD_LIMIT:
                         raise ValueError('Dependency exceeds download size limit')
                     output.write(data)
             output.flush()
             if 'size' in item and size != item['size']:
-                raise ValueError('Download size mismatch: ' + item['file'])
+                raise PinMismatch('Download size mismatch: ' + item['file'])
             if sha(temporary) != item['sha256']:
-                raise ValueError('Download checksum mismatch: ' + item['file'])
+                raise PinMismatch('Download checksum mismatch: ' + item['file'])
             os.replace(temporary, dest)
         finally:
             temporary.unlink(missing_ok=True)

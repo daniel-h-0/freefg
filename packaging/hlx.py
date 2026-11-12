@@ -237,7 +237,7 @@ def sandbox(staging, readable=(), environ=None, home=None, uid=None):
     command += ['--bind', str(staging), str(staging), '--chdir', str(staging)]
     for key, value in dict(PATH=environ.get('PATH') or '/usr/local/bin:/usr/bin:/bin', HOME=str(home), LANG='C.UTF-8',
                            TMPDIR='/tmp', XDG_CACHE_HOME=str(staging / 'cache'), PYTHONDONTWRITEBYTECODE='1',
-                           HELIXSR_SETUP_JOBS='4', WINEDEBUG='-all').items():
+                           PYTHONUNBUFFERED='1', HELIXSR_SETUP_JOBS='4', WINEDEBUG='-all').items():
         command += ['--setenv', key, value]
     return command + ['--']
 
@@ -254,8 +254,8 @@ def requirements(which=shutil.which):
 
 def dlss_input(package, explicit=None, fetch=False, download=None):
     """NVIDIA's DLSS DLL that HLX DLSS is built from, as a local file with the pinned SHA-256: the file given, else the
-    copy this installer's download cache already holds (the DLSS input helper of an earlier installation), else, only
-    with fetch (the user agreed to the download), the pinned file from NVIDIA's own repository."""
+    copy this installer's download cache already holds (the DLSS input helper of an earlier installation), else, with
+    fetch, the pinned file from NVIDIA's own repository."""
     spec = catalog(package)
     wanted = spec['model_inputs']['dlss']
     named = 'NVIDIA’s DLSS ' + spec['model_inputs']['dlss_version'] + ' DLL' if spec['model_inputs'].get('dlss_version') \
@@ -275,8 +275,8 @@ def dlss_input(package, explicit=None, fetch=False, download=None):
             Path(dependencies.cache_dir()).mkdir(parents=True, exist_ok=True)
             return Path((download or dependencies.download)(pin, Path(dependencies.cache_dir())))
     raise ValueError('HLX DLSS is built on this computer from ' + named + ' (SHA-256 ' + wanted + '). Give a local copy '
-                     '(install.py hlx --dlss-input FILE), or agree to its download from NVIDIA’s repository under '
-                     'NVIDIA’s licence (install.py hlx --download-dlss; ' + NVIDIA_LICENSE + ').')
+                     '(--dlss-input FILE), or leave out --no-download-dlss so that it is downloaded from NVIDIA’s '
+                     'repository under NVIDIA’s licence (' + NVIDIA_LICENSE + ').')
 
 
 def _reuse(spec, release, previous, provider):
@@ -298,12 +298,13 @@ def _reuse(spec, release, previous, provider):
     return True
 
 
-def prepare(package, dlss=None, wine='wine', download=None, report=print, preset_k=False, build=True, fetch_dlss=False):
+def prepare(package, dlss=None, wine='wine', download=None, report=print, preset_k=False, build=True, fetch_dlss=False,
+            progress=None):
     """Download, check and unpack the official archive, then (build) run upstream's build-only Python entry point for
     HLX DLSS Model E and, with preset_k, Preset K; never its game setup script. Network access is disabled for builds.
     What an earlier preparation built is kept, not built again. report prints the lines that say what was prepared
-    (install.py: with its event). Returns the prepared folder; a Preset K that did not build leaves the rest prepared
-    and raises."""
+    (install.py: with its event); progress, when given, prints the lines on the way instead. Returns the prepared
+    folder; a Preset K that did not build leaves the rest prepared and raises."""
     spec = catalog(package)
     if not spec:raise ValueError('This package has no HLX catalog')
     if download is None:
@@ -322,6 +323,10 @@ def prepare(package, dlss=None, wine='wine', download=None, report=print, preset
     if todo:
         missing = requirements()
         if missing:raise ValueError('Building HLX DLSS requires ' + ', '.join(missing))
+        if fetch_dlss and not dlss:
+            try:dlss_input(package)
+            except ValueError:
+                (progress or report)('Downloading NVIDIA’s DLSS DLL from NVIDIA’s repository, under NVIDIA’s licence: ' + NVIDIA_LICENSE)
         dlss = dlss_input(package, dlss, fetch_dlss, download)
     # Rebuild into a fresh folder; interrupted output never replaces the last qualified preparation.
     descriptor=os.open(work/'.prepare.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
@@ -331,7 +336,13 @@ def prepare(package, dlss=None, wine='wine', download=None, report=print, preset
     staging=None
     try:
         staging = Path(tempfile.mkdtemp(prefix='.prepare-', dir=work))
-        archive = Path(download(spec['archive'], work))
+        try:archive = Path(download(spec['archive'], work))
+        except ValueError as error:
+            # HelixSR's author can replace a release's archive under the same name; this release pins one file.
+            if not getattr(error, 'pin_mismatch', False):raise
+            raise ValueError('HelixSR’s download is not the file this FreeFG release was checked with (' + str(error) + '). Its author may '
+                             'have replaced the ' + spec['version'] + ' archive since. FreeFG installs only the build it checked: look for '
+                             'a newer FreeFG release, and use AMD FSR 4 until then.') from error
         unpack(archive, staging, spec['folder'])
         release = staging / spec['folder']
         for name in sorted(have):

@@ -4,17 +4,24 @@ One summary per release. [Measurements](MEASUREMENTS.md) has each release's chec
 to 1.1.6 have longer notes in the
 [changelog at 1.1.6](https://github.com/daniel-h-0/freefg/blob/5de9a40317ff07511c69c006bad22b36d3250f03/packaging/public/CHANGELOG.md).
 
-## 1.4.0 candidate
+## 1.4.0 – 2026-11-12
 
 - **HelixSR 3.3.0.** Its four upscalers are separate choices beside AMD FSR 4: HLX DLSS Model E, HLX DLSS Preset K,
   HLX FSR 4 and HLX FSR 4 Full. A game switches between them, and Rollback returns to the one before.
-  - HLX DLSS Model E is the suggested upscaler. A new installation takes it when it is prepared on the computer and
-    AMD FSR 4 otherwise (`--upscaler auto`, the default).
-  - HLX DLSS is built on the computer from NVIDIA's DLSS 310.7.0 DLL. No AMD driver file is needed any more. The DLL
-    is a local copy or, when you agree, a download from NVIDIA's repository (`--download-dlss`). Preset K is an
-    optional second build.
-  - HLX FSR 4 and HLX FSR 4 Full come built in HelixSR's download (`install.py hlx --no-build`).
+  - HLX DLSS Model E is the suggested upscaler. Setup preselects it when it is ready or the computer can build it.
+    On the command line, `--upscaler auto` (the default) takes it only when it is ready, and AMD FSR 4 otherwise.
+  - HLX DLSS is built on the computer from NVIDIA's DLSS 310.7.0 DLL. No AMD driver file is needed any more. Preset K
+    is an optional, longer build. HLX FSR 4 and HLX FSR 4 Full come built in HelixSR's download.
   - An installed HLX 3.1.0 or HelixSR 2.0.0 upscaler stays as it is until 3.3.0 is prepared.
+  - The pinned archive is the one HelixSR published on 12 November 2026.
+- **Preparation on first use.** Install and Switch prepare an HLX upscaler that is not on the computer yet, then
+  continue: HelixSR's archive is downloaded and, for HLX DLSS, the network is built. Setup says beforehand what is
+  downloaded and built, and its update review offers to prepare a newer HelixSR first.
+  - `install.py install` and `configure` do the same for an upscaler named with `--upscaler`. `--no-prepare` keeps
+    the earlier refusal.
+  - The build uses a local copy of NVIDIA's DLL when there is one. Otherwise FreeFG downloads it from NVIDIA's
+    repository, under NVIDIA's licence. `--dlss-input FILE` names a copy; `--no-download-dlss` refuses the download.
+  - A download that differs from its pin, as after an archive replaced upstream, is refused with that reason.
 - **OptiScaler** is the fork's build `4d0c0b9` on upstream master of 11 November 2026, with that day's nightly support
   files (AMD's FSR SDK 2.4.0). A fresh setup gets the SDK's Vulkan loader, upscaler and frame-generation DLLs in place
   of `amd_fidelityfx_vk.dll`. An update replaces a fresh setup's support files and removes that one. OptiScaler's

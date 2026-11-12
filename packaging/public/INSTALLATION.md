@@ -10,9 +10,10 @@ compatibility. Neither changes a file or downloads anything.
 2. Choose **Add a Game** and pick an installed Steam or Heroic game, or **Choose a Game Executable…** for any other
    game. Many Unreal games render from an `.exe` under `Binaries/Win64`.
 3. On the game's page, read the verdict and choose **Install…**. Keep **Automatic** or choose an [input](#inputs),
-   and choose an [upscaler](CONFIGURATION.md#upscalers).
+   and choose an [upscaler](CONFIGURATION.md#upscalers). **Before installing** lists what Setup downloads and builds
+   first for an HLX upscaler that is not on the computer yet.
 4. Turn on each item under **Needs your OK** that you accept, then choose **Install**. Close the game and its
-   launcher when Setup asks.
+   launcher when Setup asks, and keep them closed until it is done.
 5. Reopen the launcher. In the game, follow the steps that Setup listed under **After installing**.
 
 Use borderless or windowed mode: XeFG does not interpolate in exclusive fullscreen. The first start after an install
@@ -100,7 +101,9 @@ python3 install.py restore GAME.exe      # restore the original installation
 
 `install` accepts an [input](#inputs) option,
 `--upscaler auto|fsr4|hlx-dlss|hlx-dlss-k|hlx-fsr4|hlx-fsr4-full` ([upscalers](CONFIGURATION.md#upscalers)) and
-`--dlss-helper auto|no|yes`. `--help` lists every option.
+`--dlss-helper auto|no|yes`. A named HLX upscaler is [prepared first](CONFIGURATION.md#preparation) when it is not
+ready, which downloads and can build for many minutes; `--no-prepare` refuses instead, and `auto` never prepares one.
+`--help` lists every option.
 
 ## Updates and recovery
 
@@ -119,7 +122,9 @@ An update covers FreeFG and Intel's runtime, the game's upscaler, the OptiScaler
 that FreeFG owns. It keeps your additions and the original backups.
 
 - **Upscalers only** in the review leaves the FreeFG core as it is. The command line has `--component core|upscaler`.
-- An upscaler that is not prepared is deferred. A managed binary that changed blocks the update of its game.
+- When a release brings a newer HelixSR, the review's **Before updating** switch prepares it first and then updates
+  (`install.py hlx`, then `update`). Turned off, that upscaler is left as it is and the rest is updated.
+- A managed binary that changed blocks the update of its game.
 - `--loader winmm.dll` on `plan` or `update` moves the OptiScaler loader and its Wine override together. A name that
   another file uses is refused.
 - If an update is interrupted, choose **Finish Update** or **Undo Update…** on the game's page (`update` or

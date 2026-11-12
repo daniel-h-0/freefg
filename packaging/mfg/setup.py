@@ -57,8 +57,9 @@ def wait_closed(installer,selected,launchers):
 
 # The upscaler choice (install.py --upscaler). HelixSR is a separate project by lonewolf0622. A package with its catalog
 # (dependencies.json "hlx") offers HelixSR's four upscalers beside FSR 4: one line about each (setup_model.UPSCALER_ABOUT
-# says the same). The suggested one is listed first and is the default of a new installation once it is ready on this
-# computer; until then the default is FSR 4, which needs no preparation.
+# says the same). The suggested one is listed first and is the default of a new installation when it is ready on this
+# computer or install.py can make it ready there first (it prepares a HelixSR upscaler named to it); where its build
+# cannot run, the default is FSR 4, which needs no preparation.
 UPSCALER_ABOUT={'fsr4':'AMD FSR 4, BC-250 build: built in, always ready',
                 'hlx-dlss':'DLSS Model E network, built on this computer',
                 'hlx-dlss-k':'DLSS 4 Preset K network: sharper, a little slower; optional long build',
@@ -71,17 +72,41 @@ UPSCALER_ROWS=['FSR 4','Default: the BC-250 build of AMD FSR 4, downloaded by ch
 HELIXSR_ABOUT=('HelixSR is a separate project by lonewolf0622 (github.com/lonewolf0622/HelixSR), under its own licence (the '
                'HelixSR Freeware License). Its upscalers run DLSS and FSR 4 networks as compute shaders. This package ships none of it.')
 
+def question(text,ok,cancel,extra=None,width=760):
+    """A question with its two buttons and, with extra, a third: True for ok, the extra button's label for that one, None
+    when the user goes back or closes it."""
+    result=subprocess.run(['zenity','--question','--title='+NAME,'--width='+str(width),'--ok-label='+ok,'--cancel-label='+cancel,
+                           *(['--extra-button='+extra] if extra else []),'--text='+text],text=True,capture_output=True)
+    if not result.returncode:return True
+    return extra if extra and (result.stdout or '').strip()==extra else None
+
+def run_installer(args,text,output):
+    """Run install.py with args under a pulsating progress window and write what it prints to the file output. The window
+    shows text and, under it, the installer's last line as it arrives: a download or a build of many minutes is seen to
+    be running. Nothing ends the command for taking long. Returns its exit status."""
+    with output.open('w') as stream:
+        process=subprocess.Popen([sys.executable,'-u',str(ROOT/'install.py'),*args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                                 text=True,encoding='utf-8',errors='replace')
+        progress=subprocess.Popen(['zenity','--progress','--pulsate','--no-cancel','--auto-close','--width=720','--title='+NAME,'--text='+text],
+                                  stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        for line in process.stdout or ():
+            stream.write(line);stream.flush()
+            if not line.strip():continue
+            # zenity reads a line that starts with # as the window's new text (\n in it as a line break; the characters
+            # of its markup are left out of the installer's line).
+            shown=''.join(' ' if c in '<>&' else c for c in line.strip()[:160]).replace('\\','\\\\')
+            try:progress.stdin.write(('# '+text+'\\n'+shown+'\n').encode());progress.stdin.flush()
+            except (OSError,ValueError):pass
+        result=process.wait()
+        try:progress.communicate(b'100\n',timeout=10)
+        except (subprocess.TimeoutExpired,OSError,ValueError):progress.terminate();progress.wait()
+    return result
+
 def run_and_show(args,text):
     """Run install.py with args under a progress window, then show what it printed."""
     with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
         output=Path(temporary)/'result.txt'
-        with output.open('w') as stream:
-            process=subprocess.Popen([sys.executable,'-u',str(ROOT/'install.py'),*args],stdout=stream,stderr=subprocess.STDOUT)
-            progress=subprocess.Popen(['zenity','--progress','--pulsate','--no-cancel','--auto-close','--title='+NAME,'--text='+text],
-                                      stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-            process.wait()
-            try:progress.communicate(b'100\n',timeout=10)
-            except (subprocess.TimeoutExpired,BrokenPipeError):progress.terminate();progress.wait()
+        run_installer(args,text,output)
         dialog('--text-info','--width=1000','--height=520','--filename='+str(output))
 
 def helixsr_ready(installer):
@@ -108,100 +133,182 @@ def helixsr_ready(installer):
         dialog('--text-info','--width=1000','--height=520','--filename='+str(note))
     return False
 
+def helix_ready(installer,name):
+    """Whether a Helix upscaler is ready on this computer (hlx.find hashes the prepared files)."""
+    try:installer.hlx.find(ROOT,name);return True
+    except (OSError,ValueError):return False
+
+def build_missing(installer):
+    """What building HLX DLSS needs and this computer lacks (hlx.requirements' names); [] also when that cannot be asked:
+    install.py checks again before it changes a game, and says what is missing."""
+    try:return list(installer.hlx.requirements())
+    except Exception:return []  # noqa: BLE001
+
 def upscalers(installer):
-    """[(id, name, state, about, ready)] of the upscalers a package with HelixSR's catalog offers: the suggested one first
-    and marked, then FSR 4, then the others (hlx.NAMES' order). state says where each stands on this computer (hlx.find
-    hashes the prepared files): Ready, or what it still needs."""
-    hlx=installer.hlx;spec=hlx.catalog(ROOT);rows=[]
+    """[(id, name, state, about, ready, preparable)] of the upscalers a package with HelixSR's catalog offers: the
+    suggested one first and marked, then FSR 4, then the others (hlx.NAMES' order). state says where each stands on this
+    computer: Ready, or what it still needs (and what its build lacks here). preparable: not ready, and install.py can
+    make it ready before it changes a game: one that comes built always, one that is built when nothing its build needs
+    is missing."""
+    hlx=installer.hlx;spec=hlx.catalog(ROOT);rows=[];missing=None
     for name,label in hlx.NAMES.items():
-        try:hlx.find(ROOT,name);ready=True
-        except (OSError,ValueError):ready=False
-        state='Ready' if ready else 'Not built yet' if hlx.built(spec,name) else 'Not downloaded yet'
-        rows.append((name,label+(' (suggested)' if name==hlx.SUGGESTED else ''),state,UPSCALER_ABOUT.get(name,label),ready))
+        ready=helix_ready(installer,name);built=bool(hlx.built(spec,name));lacks=[]
+        if built and not ready:
+            missing=build_missing(installer) if missing is None else missing;lacks=missing
+        state='Ready' if ready else ('Not built yet' if built else 'Not downloaded yet')+('; its build needs '+', '.join(lacks) if lacks else '')
+        rows.append((name,label+(' (suggested)' if name==hlx.SUGGESTED else ''),state,UPSCALER_ABOUT.get(name,label),ready,not ready and not lacks))
     first=[row for row in rows if row[0]==hlx.SUGGESTED]
-    return first+[('fsr4','FSR 4','Ready',UPSCALER_ABOUT['fsr4'],True)]+[row for row in rows if row not in first]
+    return first+[('fsr4','FSR 4','Ready',UPSCALER_ABOUT['fsr4'],True,False)]+[row for row in rows if row not in first]
+
+def megabytes(size,step=1):
+    """'59 MB' for a size in bytes, rounded to step megabytes; '' without a size."""
+    return str(round(size/(step*1e6))*step)+' MB' if isinstance(size,(int,float)) and size>0 else ''
+
+def joined(names):
+    """'A', 'A and B', 'A, B and C'."""
+    names=[str(n) for n in names]
+    return ' and '.join(names) if len(names)<3 else ', '.join(names[:-1])+' and '+names[-1]
 
 def archive_size(installer):
-    """'about 280 MB': the size of HelixSR's official archive as the package pins it."""
-    return 'about '+str(round(installer.hlx.catalog(ROOT)['archive']['size']/1e7)*10)+' MB'
+    """'about 280 MB': the size of HelixSR's official archive as the package pins it ('' when it pins none)."""
+    size=megabytes((installer.hlx.catalog(ROOT).get('archive') or {}).get('size'),10)
+    return 'about '+size if size else ''
 
-def prepare_choices(installer,provider):
-    """install.py hlx's options for Prepare Helix, or None when the user goes back: what the build needs is installed;
-    the NVIDIA DLSS DLL it takes is the copy the installer's download cache holds, else a local copy the user chooses
-    (--dlss-input), else their agreement to its download from NVIDIA's repository under NVIDIA's licence
-    (--download-dlss); and the optional Preset K is built when it was chosen or the user asks for it (--preset-k). The
-    last dialog names what is built and the DLSS input it is built from, before anything runs."""
-    hlx=installer.hlx
-    missing=hlx.requirements()
-    if missing:
-        dialog('--error','--width=680','--text=Building HLX DLSS needs '+', '.join(missing)+' on this computer. Install '+
-               ('it' if len(missing)==1 else 'them')+' with your distribution’s package manager, then choose Prepare Helix again.\n'
-               'FSR 4, HLX FSR 4 and HLX FSR 4 Full need none of it.');return None
-    args=[]
-    try:held=hlx.dlss_input(ROOT);source='the copy this installer already holds, '+str(held)
-    except (OSError,ValueError):held=None
-    if held is None:
-        choice=dialog('--list','--width=820','--height=260','--column=NVIDIA DLSS input','--column=Description',
-            'Use a local copy','Choose nvngx_dlss.dll on this computer; Setup checks it by SHA-256',
-            'Download from NVIDIA','I agree to download NVIDIA’s DLSS DLL from NVIDIA’s repository under NVIDIA’s licence',
-            '--text=HLX DLSS is built on this computer from NVIDIA’s DLSS DLL (nvngx_dlss.dll). Setup never uploads it.\n'
-            'NVIDIA’s licence: '+hlx.NVIDIA_LICENSE)
-        if choice=='Use a local copy':
-            dlss=dialog('--file-selection','--title=NVIDIA’s DLSS DLL (nvngx_dlss.dll)')
-            if not dlss:return None
-            try:hlx.dlss_input(ROOT,dlss)
-            except (OSError,ValueError) as error:dialog('--error','--width=680','--text='+str(error));return None
-            args+=['--dlss-input',dlss];source='your local copy, '+dlss
-        elif choice=='Download from NVIDIA':args+=['--download-dlss'];source='downloaded from NVIDIA’s repository under NVIDIA’s licence'
-        else:return None
-    if provider=='hlx-dlss-k':args+=['--preset-k']
-    else:
-        try:hlx.find(ROOT,'hlx-dlss-k')
-        except (OSError,ValueError):
-            # Optional, and off unless the user asks for it: closing the question leaves Preset K out.
-            if dialog('--question','--default-cancel','--width=680','--ok-label=Also build Preset K','--cancel-label=Model E only',
-                      '--text=Also build HLX DLSS Preset K? It is optional: sharper, a little slower, and its build takes many minutes.') is not None:
-                args+=['--preset-k']
-    if dialog('--question','--width=720','--ok-label=Prepare','--cancel-label=Back',
-              '--text=Prepare Helix builds '+('HLX DLSS Model E and Preset K (what is built already is kept)' if '--preset-k' in args else 'HLX DLSS Model E')+
-              ' on this computer, once for every game. No game is changed and the built model files stay on this computer.\n\n'
-              'NVIDIA DLSS input: '+source+'.\n\nThis takes '+('many' if '--preset-k' in args else 'several')+' minutes.') is None:return None
-    return args
+# About how long HelixSR's build takes on a BC-250, by what is built: Model E, Preset K after it, or both
+# (setup_model.BUILD_TIME says the same).
+BUILD_TIME={('hlx-dlss',):'about 15 minutes',('hlx-dlss-k',):'about 30 minutes',('hlx-dlss','hlx-dlss-k'):'about 45 minutes'}
 
-def hlx_ready(installer,provider,installed=False):
-    """install.py's extra options ([]: none) once the Helix upscaler chosen is ready on this computer, None when the user
-    goes back or it did not become ready. One that is not ready is made ready first, once for every game: built on this
-    computer (Prepare Helix: HLX DLSS Model E and Preset K), or downloaded with HelixSR's official archive (HLX FSR 4
-    and HLX FSR 4 Full come built in it: install.py hlx --no-build)."""
+def prepare_build(installer,names):
+    """The Helix upscalers install.py builds to make names ready (hlx.prepare): Model E, also for Preset K, and Preset K
+    when it is among them; what is built already is kept. [] when all of names come built."""
+    hlx=installer.hlx;spec=hlx.catalog(ROOT)
+    if not any(hlx.built(spec,name) for name in names):return []
+    return [name for name in hlx.NAMES if hlx.built(spec,name) and (name not in hlx.OPTIONAL or name in names) and not helix_ready(installer,name)]
+
+def build_sentence(installer,names):
+    """'The build takes about 15 minutes on a BC-250.' for what making names ready builds ('' when nothing is)."""
+    time=BUILD_TIME.get(tuple(prepare_build(installer,names)))
+    return 'The build takes '+time+' on a BC-250.' if time else ''
+
+def prepare_lines(installer,names):
+    """What install.py does first for Helix upscalers that are not ready, a sentence per line, as Setup's window says it
+    (setup_model.prepare_lines): what is downloaded and from where (NVIDIA's DLSS DLL under NVIDIA's licence, unless a
+    copy is on this computer), then what is built here and about how long that takes on a BC-250. A download counts as
+    held by its pinned size in the installer's cache (install.py checks its hash)."""
+    hlx=installer.hlx;spec=hlx.catalog(ROOT);build=prepare_build(installer,names);held=None
+    def cached(pin):
+        try:return (hlx.cache(spec)/pin['file']).stat().st_size==pin['size']
+        except (OSError,ValueError,KeyError,TypeError,AttributeError):return False
+    def sized(what,size):return what+(' ('+size+')' if size else '')
+    github=[] if cached(spec.get('archive')) else [sized('HelixSR’s official archive',archive_size(installer))]
+    version=(spec.get('model_inputs') or {}).get('dlss_version');named='NVIDIA’s DLSS '+(version+' ' if version else '')+'DLL'
+    if build:
+        compilers=[pin for pin in (spec.get('compilers') or {}).values() if isinstance(pin,dict)]
+        if not (compilers and all(cached(pin) for pin in compilers)):
+            github.append(sized('Microsoft’s shader compiler',megabytes(sum(pin.get('size') or 0 for pin in compilers))))
+        try:held=hlx.dlss_input(ROOT)
+        except Exception:held=None  # noqa: BLE001 - no copy on this computer: install.py downloads it
+    downloads=[joined(github)+' from '+('their' if len(github)>1 else 'its')+' GitHub releases'] if github else []
+    if build and held is None:
+        try:
+            pins=json.loads((ROOT/'dependencies.json').read_text()).get('inputs') or {}
+            size=megabytes(next((pin.get('size') for pin in pins.values() if pin.get('sha256')==spec['model_inputs']['dlss']),None))
+        except (OSError,ValueError,KeyError,TypeError,AttributeError):size=''
+        downloads.append(sized(named,size)+' from NVIDIA’s repository under NVIDIA’s licence ('+hlx.NVIDIA_LICENSE+')')
+    lines=['Downloads '+', and '.join(downloads)+'. Each file is checked by SHA-256.' if downloads else
+           'Nothing is downloaded: the files it takes are on this computer already.']
+    if build:
+        if held is not None:lines.append('The build takes the copy of '+named+' on this computer.')
+        lines.append('Builds '+joined(hlx.NAMES[name] for name in build)+' on this computer with networking off. That takes '+
+                     BUILD_TIME[tuple(build)]+' on a BC-250.')
+    else:lines.append('Nothing is built: '+joined(hlx.NAMES[name] for name in names)+(' comes' if len(names)==1 else ' come')+' built in the archive.')
+    return lines
+
+def prepare_first(installer,names):
+    """(the Helix upscalers among names that install.py hlx can make ready on this computer, its arguments for them), None
+    when none can be: those that come built always (hlx --no-build when only they are named), those that are built when
+    nothing their build needs is missing (--preset-k when Preset K is among them)."""
+    hlx=installer.hlx;spec=hlx.catalog(ROOT)
+    built=[name for name in names if hlx.built(spec,name)]
+    if built and build_missing(installer):built=[]
+    can=[name for name in names if name in built or not hlx.built(spec,name)]
+    if not can:return None
+    return can,(['hlx',*(['--preset-k'] if any(name in hlx.OPTIONAL for name in built) else [])] if built else ['hlx','--no-build'])
+
+def other_ways(installer,provider,installed,local):
+    """install.py's extra options for a Helix upscaler made ready another way than install.py's own preparation, None when
+    the user goes back: the selected games' own checked copies (installed: --no-prepare), a release folder prepared
+    before (--helixsr), or (local) install.py's preparation from a local copy of NVIDIA's DLSS DLL instead of its
+    download (--dlss-input)."""
     hlx=installer.hlx
-    try:hlx.find(ROOT,provider);return []
-    except (OSError,ValueError):pass
-    name=hlx.NAMES[provider];built=bool(hlx.built(hlx.catalog(ROOT),provider))
     choice=dialog('--list','--width=900','--height=290','--column=Action','--column=Description',
-        *(['Use game copies','Reuse checked provider files already owned by the selected games'] if installed else []),
+        *(['Use game copies','Reuse the checked upscaler files the selected games already hold'] if installed else []),
         'Use prepared folder','Select a HelixSR release folder already prepared on this computer',
-        *(['Prepare Helix','Build '+name+' on this computer from NVIDIA’s DLSS DLL; takes '+
-           ('many' if provider=='hlx-dlss-k' else 'several')+' minutes'] if built else
-          ['Download HelixSR','Download HelixSR’s official archive ('+archive_size(installer)+') from its GitHub releases; '+
-           name+' comes built in it']),
-        '--text='+name+' is not ready on this computer yet. HelixSR’s upscalers are made ready once for every game; no game is '
-        'changed. Built model files stay on this computer.')
-    if choice=='Use game copies':return []
+        *(['Use a local copy of NVIDIA’s DLL','Build from nvngx_dlss.dll on this computer instead of its download; Setup checks it by SHA-256'] if local else []),
+        '--text=Other ways to make '+hlx.NAMES[provider]+' ready. Built model files stay on this computer.')
+    if choice=='Use game copies':return ['--no-prepare']
     if choice=='Use prepared folder':
         folder=dialog('--file-selection','--directory','--title=Prepared HelixSR release folder')
         if not folder:return None
         try:hlx.find(ROOT,provider,folder);return ['--helixsr',folder]
         except (OSError,ValueError) as error:dialog('--error','--text='+str(error));return None
-    if choice=='Prepare Helix':
-        args=prepare_choices(installer,provider)
-        if args is None:return None
-        run_and_show(['hlx',*args],'Preparing Helix for every game. '+('Preset K takes many minutes.' if '--preset-k' in args else
-                                                                      'This takes several minutes.'))
-    elif choice=='Download HelixSR':
-        run_and_show(['hlx','--no-build'],'Downloading HelixSR’s official archive from its GitHub releases.')
-    else:return None
-    try:hlx.find(ROOT,provider);return []
-    except (OSError,ValueError):return None
+    if choice=='Use a local copy of NVIDIA’s DLL':
+        dlss=dialog('--file-selection','--title=NVIDIA’s DLSS DLL (nvngx_dlss.dll)')
+        if not dlss:return None
+        try:hlx.dlss_input(ROOT,dlss)
+        except (OSError,ValueError) as error:dialog('--error','--width=680','--text='+str(error));return None
+        return ['--dlss-input',dlss]
+    return None
+
+def hlx_ready(installer,provider,installed=False):
+    """install.py's extra options ([]: none) for the Helix upscaler chosen, None when the user goes back. One that is
+    ready needs none. One that is not ready is prepared by install.py itself, before it changes a game and once for
+    every game (install and configure with a HelixSR upscaler named): one confirmation says what that downloads, what is
+    built on this computer and about how long it takes. Its Other ways… lead to the games' own copies, a prepared folder
+    or a local copy of NVIDIA's DLSS DLL (other_ways). Where the build cannot run on this computer, the confirmation
+    names what is missing and offers the other ways alone."""
+    hlx=installer.hlx
+    if helix_ready(installer,provider):return []
+    name=hlx.NAMES[provider];built=bool(hlx.built(hlx.catalog(ROOT),provider))
+    missing=build_missing(installer) if built else []
+    if missing:
+        answer=question(name+' cannot be built on this computer yet: its build needs '+', '.join(missing)+'. Install '+
+                        ('it' if len(missing)==1 else 'them')+' with your distribution’s package manager, then choose '+name+' again.\n'
+                        'FSR 4, HLX FSR 4 and HLX FSR 4 Full need none of it.','Other ways…','Back')
+        return other_ways(installer,provider,installed,False) if answer is True else None
+    try:hlx.dlss_input(ROOT);held=True
+    except Exception:held=False  # noqa: BLE001
+    answer=question(name+' is not ready on this computer yet. Setup prepares it first, once for every game, then '+
+                    ('switches' if installed else 'installs')+':\n\n'+'\n'.join(prepare_lines(installer,[provider]))+
+                    '\n\nNo game is changed until it is ready.','Prepare and '+('switch' if installed else 'install'),'Back','Other ways…')
+    if answer is True:return []
+    return other_ways(installer,provider,installed,built and not held) if answer else None
+
+def preparing(installer,extra):
+    """The Helix upscaler (its id) that install.py prepares before a command with these options changes a game: one named
+    with --upscaler that is not ready, unless a prepared folder or the games' own copies serve it. None otherwise."""
+    if not installer or not hasattr(installer,'hlx') or '--upscaler' not in extra or '--helixsr' in extra or '--no-prepare' in extra:return None
+    name=extra[extra.index('--upscaler')+1]
+    return name if name in installer.hlx.NAMES and not helix_ready(installer,name) else None
+
+def deferred_helix(installer,games,component='all',refresh=False):
+    """The Helix upscalers (ids) the update plans of games defer only because this release's HelixSR is not prepared on
+    this computer. Read from the plans themselves, not from their wording (install.game_plan: the deferred list names
+    the upscaler, the installation's one is a Helix upscaler, and hlx.find's reason for it is among the plan's notes)."""
+    found=[]
+    if not installer or not hasattr(installer,'game_plan') or not hasattr(installer,'hlx') or not installer.hlx.catalog(ROOT):return found
+    for exe in games:
+        try:
+            exe=Path(exe).absolute();plan=installer.game_plan(ROOT,exe,component,None,None,refresh)
+            if 'upscaler' not in (plan.get('deferred') or []):continue
+            record=json.loads(installer.safe(exe.parent.resolve(),installer.STATE+'/state.json').read_text())
+            name=(record.get('upscaler') or {}).get('name');name='hlx-dlss' if name=='helixsr' else name
+            if name not in installer.hlx.NAMES or name in found:continue
+            try:installer.hlx.find(ROOT,name)
+            except (OSError,ValueError) as error:
+                if str(error) in (plan.get('notes') or []):found.append(name)
+        except Exception:continue  # noqa: BLE001 - a game whose plan cannot be read says so in the plan shown
+    return [name for name in installer.hlx.NAMES if name in found]
 
 
 def select_library(installer,selected):
@@ -224,12 +331,13 @@ def select_library(installer,selected):
 
 
 def choose_upscaler(installer,text,installed=False):
-    """install.py arguments for the upscaler the user picks, or None (cancelled, or the one picked is not ready yet). A new
-    installation (installed False) starts on the suggested upscaler when it is ready on this computer, else on FSR 4:
-    never on one that has to be prepared first."""
+    """install.py arguments for the upscaler the user picks, or None (cancelled, or the one picked cannot be made ready
+    here). A new installation (installed False) starts on the suggested upscaler when it is ready on this computer or
+    install.py can make it ready there first, else on FSR 4. One picked that is not ready gets one confirmation of what
+    its preparation takes (hlx_ready)."""
     if hasattr(installer,'hlx') and bool(installer.hlx.catalog(ROOT)):
         rows=upscalers(installer)
-        default=None if installed else next((row[0] for row in rows if row[0]==installer.hlx.SUGGESTED and row[4]),'fsr4')
+        default=None if installed else next((row[0] for row in rows if row[0]==installer.hlx.SUGGESTED and (row[4] or row[5])),'fsr4')
         choice=dialog('--list','--radiolist','--width=1100','--height=360','--hide-column=2','--print-column=2',
             '--column=Use','--column=ID','--column=Upscaler','--column=On this computer','--column=About',
             *[value for row in rows for value in ('TRUE' if row[0]==default else 'FALSE',*row[:4])],'--text='+text)
@@ -345,11 +453,31 @@ def update_candidates(installer,selected):
     return sorted({Path(p).absolute() for p in [*found,*selected]})
 
 def show_text(command,selected):
-    """Run install.py command on the selected games and show its output (Check system, Check)."""
+    """Run install.py command on the selected games and show its output (Check system, Check, an update's plan)."""
     with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
         output=Path(temporary)/'result.txt'
         with output.open('w') as stream:subprocess.run([sys.executable,'-u',str(ROOT/'install.py'),*command,*map(str,selected)],stdout=stream,stderr=subprocess.STDOUT)
         dialog('--text-info','--width=1000','--height=600','--filename='+str(output))
+
+def prepare_before_update(installer,games,scope,action):
+    """After an update's plan was shown: where it defers a Helix upscaler only because this release's HelixSR is not
+    prepared on this computer and install.py hlx can make it ready here, offer to prepare it first (the default
+    button), then show the plan again. False when the user goes back; True to go on to the plan's confirmation, with the
+    upscaler prepared or, when the user declined that, deferred as the plan says."""
+    try:
+        waiting=deferred_helix(installer,games,'upscaler' if action=='Update upscalers' else 'all',action=='Refresh recipe')
+        first=prepare_first(installer,waiting) if waiting else None
+    except Exception:first=None  # noqa: BLE001 - the plan shown stands as it is
+    if not first:return True
+    names,args=first;labels=joined(installer.hlx.NAMES[name] for name in names)
+    answer=question('The plan defers '+labels+': this release’s HelixSR is not prepared on this computer yet.\n\n'
+                    'Prepare first, once for every game, then update with it? Setup shows the plan again before it updates.\n\n'+
+                    '\n'.join(prepare_lines(installer,names))+'\n\n'+HELIXSR_ABOUT,'Prepare first','Back','Update without it',width=800)
+    if answer is None:return False
+    if answer is True:
+        run_and_show(args,' '.join(filter(None,('Preparing '+labels+' for every game.',build_sentence(installer,names)))))
+        show_text(['plan',*scope],games)
+    return True
 
 def install_choices(installer,games,risk=False):
     """The Install dialogs for games (input, upscaler, steps, soft refusals, confirmation): the install.py arguments, or
@@ -373,7 +501,8 @@ def install_choices(installer,games,risk=False):
     source={'OptiFG':'upscaler','DLSS FG':'dlssg','FSR 3.1 FG':'fsrfg','FSR 3.0 FG':'fsrfg30'}
     if not route:return None
     extra=['--route','auto','--fg-input','auto'] if route.startswith('Automatic') else ['--route','native'] if route=='Native XeSS FG' else ['--route','opti','--fg-input',source[route]]
-    upscaler=choose_upscaler(installer,'Choose the upscaler for these games. Frame generation is XeFG with each of them. Upscaler switches it later.\n'+HELIXSR_ABOUT)
+    upscaler=choose_upscaler(installer,'Choose the upscaler for these games. Frame generation is XeFG with each of them; Upscaler switches it later.\n'
+                             'Install prepares one that is not ready yet, once for every game, and says first what that takes.\n'+HELIXSR_ABOUT)
     if not upscaler:return None
     extra+=upscaler
     # An explicit input changes the verdicts (the user's choice wins; refusals that rest on detection alone become
@@ -471,6 +600,7 @@ def main():
             games=selected if action in ('Update selected','Refresh recipe') else update_candidates(installer,selected)
             if not games:dialog('--info','--text=No game with '+NAME+' installed was found in Steam, Heroic or Lutris. Add games to choose them.');continue
             show_text(['plan',*update_scope],games)
+            if not prepare_before_update(installer,games,update_scope,action):continue
             if dialog('--question','--width=640','--ok-label=Update','--cancel-label=Back',
                       '--text=Apply the displayed update plan?\nFreeFG, the selected upscaler, OptiScaler and owned launcher fields may change.\n'
                       'Your settings and original backups are retained. Rollback undoes the latest update or provider switch.\n'
@@ -482,7 +612,8 @@ def main():
                  'Update all':'update','Update upscalers':'update','Update selected':'update','Refresh recipe':'update','Rollback':'rollback','Register':'register','Pin':'pin','Unpin':'unpin'}[action]
         extra=update_scope
         if action=='Upscaler':
-            extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed):\n'+HELIXSR_ABOUT,installed=True)
+            extra=choose_upscaler(installer,'Close the selected games first. Switch them to this upscaler (each must be installed).\n'
+                                  'Upscaler prepares one that is not ready yet, once for every game, and says first what that takes.\n'+HELIXSR_ABOUT,installed=True)
             if not extra:continue
         if action=='Settings':
             selected_settings=dialog('--forms','--width=620','--separator=|',
@@ -520,14 +651,13 @@ def main():
             if extra is None:continue
             extra+=['--accept-anticheat-risk='+str(picked[0]),'--confirm-anticheat-risk',picked[1]]
         if command not in ('status','register','pin','unpin','update') and not wait_closed(installer,games,command in ['install','restore']):continue
+        # A Helix upscaler that is not ready: install.py prepares it first, which the progress window says with its time.
+        first=preparing(installer,extra) if command in ('install','configure') else None
+        working='Working. First setup may download dependencies.' if not first else ' '.join(filter(None,(
+            'Preparing '+installer.hlx.NAMES[first]+', then '+('installing' if command=='install' else 'switching')+'.',build_sentence(installer,[first]))))
         with tempfile.TemporaryDirectory(prefix='bc250-xefg-setup-') as temporary:
             output=Path(temporary)/'result.txt'
-            with output.open('w') as stream:
-                process=subprocess.Popen([sys.executable,'-u',str(ROOT/'install.py'),command,*map(str,games),*extra],stdout=stream,stderr=subprocess.STDOUT)
-                progress=subprocess.Popen(['zenity','--progress','--pulsate','--no-cancel','--auto-close','--title='+NAME,'--text=Working. First setup may download dependencies.'],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-                result=process.wait()
-                try:progress.communicate(b'100\n',timeout=10)
-                except (subprocess.TimeoutExpired,BrokenPipeError):progress.terminate();progress.wait()
+            result=run_installer([command,*map(str,games),*extra],working,output)
             # 3: refused before anything changed (a game or launcher still running, a refusal); 1: something failed.
             if result==3:
                 with output.open('a') as stream:stream.write('\nNothing was changed in the games named above: close them (and their launchers) or do what their message says, then try again.\n')

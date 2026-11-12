@@ -43,14 +43,16 @@ GitHub's privacy terms govern those requests.
 
 ## HelixSR (optional)
 
-[HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project. On request (Setup's
-**Upscalers…**, or `install.py hlx`), FreeFG downloads by pinned hash:
+[HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR), by lonewolf0622, is a separate project. FreeFG downloads
+the files below by pinned hash when you install or switch to an HLX upscaler that is not prepared yet, or prepare
+one ahead (Setup's **Upscalers…**, `install.py hlx`). Setup lists them before it starts. With AMD FSR 4 none of them
+is downloaded.
 
 | File | When | Source | SHA-256 | Bytes |
 | --- | --- | --- | --- | --- |
-| HelixSR 3.3.0, its complete official release archive | Download or Prepare Helix, when it is not cached | https://github.com/lonewolf0622/HelixSR/releases/download/v3.3.0/HelixSR-3.3.0.zip | `4d87481061db0f499112041b38da5aebfc86e7f9ca3c7b1894258f20452d9045` | 279,494,747 |
+| HelixSR 3.3.0, its complete official release archive | the first use of any HLX upscaler, when it is not cached | https://github.com/lonewolf0622/HelixSR/releases/download/v3.3.0/HelixSR-3.3.0.zip | `7d6c0a4adeb5237004fc6fbe211d39705d62d49f23c51cc8f4ea987281d0a56b` | 279,492,763 |
 | Microsoft's DirectX Shader Compiler 1.9.2607 | a build of HLX DLSS, when it is not cached | https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip | `a1dfb116ba3eeae6a1582291b53a8e7bf65ad760676bd3194685c8f7367cd241` | 41,625,275 |
-| NVIDIA's DLSS 310.7.0 DLL, the pinned file listed above | a build of HLX DLSS, only when no local copy is given or cached and you agreed to the download | as above | as above | 58,977,904 |
+| NVIDIA's DLSS 310.7.0 DLL, the pinned file listed above | a build of HLX DLSS, when no local copy is given or cached (`--no-download-dlss` refuses the download) | as above | as above | 58,977,904 |
 
 If HelixSR's author replaces a release's archive in place, FreeFG refuses the changed file until a FreeFG release
 pins it.

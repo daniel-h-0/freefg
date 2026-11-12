@@ -136,11 +136,11 @@ Its licence permits free use and redistribution of the complete, unmodified offi
 prohibits modification and reverse engineering. Network files built from NVIDIA's DLSS DLL remain NVIDIA's and must
 not be shared. The licence permits configuration through `helixsr.ini`.
 
-FreeFG ships no HelixSR files or locally built model data. On request it downloads and verifies the complete official
-archive and a shader compiler. Prepare Helix runs its unchanged build-only Python entry point in an isolated writable
-staging directory with networking disabled. The model input is NVIDIA's DLSS DLL as a local file: one the user
-selects, or the copy FreeFG's download cache already holds; FreeFG downloads it from NVIDIA's repository for this
-purpose only when the user agrees to that (`install.py hlx --download-dlss`, or the switch in Setup). It does not run
+FreeFG ships no HelixSR files or locally built model data. When the user installs or switches to an HLX upscaler, or
+prepares one, it downloads and verifies the complete official archive and a shader compiler. Prepare Helix runs its unchanged build-only Python entry point in an isolated writable
+staging directory with networking disabled. The model input is NVIDIA's DLSS DLL: a local file the user selects,
+the copy FreeFG's download cache already holds, or else a download from NVIDIA's repository under NVIDIA's licence,
+which Setup names before it starts (`--no-download-dlss` refuses it). It does not run
 Helix's game installer. FreeFG verifies complete prepared hashes, copies the selected provider into the user's games
 and keeps Helix's own frame generation off. Restore removes the owned copies.
 

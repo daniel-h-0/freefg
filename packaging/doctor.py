@@ -226,10 +226,13 @@ def layer_row(package=None, glibc=None, load=layer_load):
 
 def hlx_row(folder):
     """(level, item, text) for HelixSR's optional upscalers in a package with their catalog (hlx.py): which are ready on
-    this computer, the suggested one marked, and what each of the others needs once. HLX DLSS Model E is prepared (built
-    on this computer from NVIDIA's DLSS DLL), HLX FSR 4 and HLX FSR 4 Full are downloaded (they come built in HelixSR's
-    official archive), and Preset K is optional. INFO while one of the first three is not ready, never WARN: FSR 4 needs
-    none of them. Hashes the prepared files; downloads nothing."""
+    this computer, the suggested one marked, and how each of the others gets ready. Nothing has to be prepared ahead:
+    Install (and install.py install or configure with the upscaler named) prepares one that is not ready on its first
+    use, once for every game. HLX DLSS Model E is built on this computer from NVIDIA's DLSS DLL, so the row names what
+    that build needs and this computer lacks (hlx.requirements): until it is there, a new installation takes FSR 4. HLX
+    FSR 4 and HLX FSR 4 Full come built in HelixSR's official archive, and Preset K is an optional longer build. INFO
+    while one of the first three is not ready, never WARN: FSR 4 needs none of them. Hashes the prepared files;
+    downloads nothing."""
     import hlx
     spec = hlx.catalog(folder)
     ready, build, download, optional = [], [], [], []
@@ -242,18 +245,31 @@ def hlx_row(folder):
             (optional if provider in hlx.OPTIONAL else build if hlx.built(spec, provider) else download).append(label)
     credit = 'optional upscalers of HelixSR ' + str(spec['version']) + ', a separate project by lonewolf0622 under its own licence'
     parts = [('ready: ' + ', '.join(ready) if ready else 'none is ready on this computer') + ' (' + credit + ').']
-    if build:
-        parts.append('Prepare ' + ' and '.join(build) + ' once: Prepare in Setup\'s Upscalers, or install.py hlx (built on this '
-                     'computer from NVIDIA\'s DLSS DLL)' + ('; until then a new installation takes FSR 4.' if
-                                                           any('(suggested)' in label for label in build) else '.'))
+    size = spec['archive'].get('size')
+    archive = 'HelixSR\'s official archive' + (' (about ' + str(round(size / 1e7) * 10) + ' MB)' if size else '')
+    missing = []
+    if build or optional:
+        try:
+            missing = list(hlx.requirements())
+        except Exception:  # noqa: BLE001 - install.py checks again before it builds, and says what is missing
+            missing = []
+    if build and missing:
+        parts.append(' and '.join(build) + ' cannot be built on this computer yet: its build needs ' + ', '.join(missing) +
+                     '. Until ' + ('that is' if len(missing) == 1 else 'they are') + ' installed, a new installation takes '
+                     'FSR 4.')
+    elif build:
+        parts.append('Install prepares ' + ' and '.join(build) + ' on first use, once for every game: it downloads ' +
+                     archive + ' and NVIDIA\'s DLSS DLL (from NVIDIA\'s repository, under NVIDIA\'s licence) and builds the '
+                     'upscaler on this computer, about 15 minutes on a BC-250. Nothing has to be prepared first '
+                     '(Setup\'s Install, or install.py install GAME.exe --upscaler ' + hlx.SUGGESTED + ').')
     if download:
-        size = spec['archive'].get('size')
-        parts.append('Download ' + ' and '.join(download) + ' once: Download in Setup\'s Upscalers, or install.py hlx --no-build '
-                     '(' + ('it comes' if len(download) == 1 else 'they come') + ' built in HelixSR\'s official archive' +
-                     (', about ' + str(round(size / 1e7) * 10) + ' MB' if size else '') + ').')
+        parts.append(' and '.join(download) + (' is' if len(download) == 1 else ' are') + ' downloaded on first use with ' +
+                     ('that archive' if build and not missing else archive) + ', which ' +
+                     ('it comes' if len(download) == 1 else 'they come') + ' built in: nothing is built.')
     if optional:
-        parts.append(' and '.join(optional) + ' is optional and not built: Prepare in Setup\'s Upscalers, or install.py hlx '
-                     '--preset-k (a long build).')
+        parts.append(' and '.join(optional) + ' is optional and not built: choosing it for a game builds it, about 30 '
+                     'minutes more' + ('.' if not missing else ', once ' + ', '.join(missing) +
+                                       (' is' if len(missing) == 1 else ' are') + ' installed.'))
     return ('OK' if not build and not download else 'INFO', 'Helix', ' '.join(parts))
 
 

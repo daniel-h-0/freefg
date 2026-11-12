@@ -9,37 +9,53 @@ Each game uses one upscaler. Frame generation is XeFG with each of them.
 
 | Upscaler | `--upscaler` | What it is | Before first use |
 | --- | --- | --- | --- |
-| **HLX DLSS Model E** (suggested) | `hlx-dlss` | The DLSS Model E network as compute shaders. | Built once on your computer. |
-| **HLX DLSS Preset K** | `hlx-dlss-k` | The DLSS 4 Preset K network. Sharper than Model E and a little slower. | An optional second build that takes many minutes. |
+| **HLX DLSS Model E** (suggested) | `hlx-dlss` | The DLSS Model E network as compute shaders. | HelixSR's download and a build of about 15 minutes. |
+| **HLX DLSS Preset K** | `hlx-dlss-k` | The DLSS 4 Preset K network. Sharper than Model E and a little slower. | The download, Model E's build and a second build of about 30 minutes. |
 | **HLX FSR 4** | `hlx-fsr4` | HelixSR's fast FSR 4-class upscaler. | HelixSR's download. |
 | **HLX FSR 4 Full** | `hlx-fsr4-full` | The full FSR 4.1.2 network on HelixSR's kernels. Sharper and slower than HLX FSR 4. | HelixSR's download. |
 | **FSR 4** | `fsr4` | AMD FSR 4, BC-250 build. | Nothing. |
 
 The four HLX upscalers belong to [HelixSR 3.3.0](https://github.com/lonewolf0622/HelixSR), a separate project by
-lonewolf0622. A new installation takes HLX DLSS Model E when it is prepared on your computer and AMD FSR 4 otherwise
-(`--upscaler auto`, the default). AMD FSR 4 stays installed beside an HLX upscaler.
+lonewolf0622. AMD FSR 4 stays installed beside an HLX upscaler.
+
+Setup preselects HLX DLSS Model E for a new installation when it is ready or the computer can build it, and AMD
+FSR 4 otherwise. On the command line, `--upscaler auto` (the default) takes Model E only when it is ready.
 
 ### Preparation
 
-**Upscalers…** in the menu makes the HLX upscalers ready once, for every game.
+An HLX upscaler is made ready once per computer, for every game. Setup's **Install** and **Switch** do that first
+when the chosen upscaler is not ready, and say beforehand what they download and build. `install.py install` and
+`configure` do the same for an upscaler named with `--upscaler`. Times are for a BC-250.
+
+| Step | Applies to | What happens |
+| --- | --- | --- |
+| Download | every HLX upscaler | HelixSR's official archive (about 280 MB), checked by SHA-256. HLX FSR 4 and HLX FSR 4 Full come built in it. |
+| Build | HLX DLSS Model E, Preset K | Built from NVIDIA's DLSS 310.7.0 DLL with networking disabled. Needs Wine, bubblewrap and Python numpy; without them Setup preselects AMD FSR 4 and names what is missing. |
+
+The build takes NVIDIA's DLL from your computer when a copy is there: one you select, or the one FreeFG downloaded
+earlier as its DLSS input helper. Otherwise FreeFG downloads it (59 MB) from NVIDIA's repository, under NVIDIA's
+licence. FreeFG distributes neither the DLL nor built model data.
+[Downloads and terms](PRIVACY.md#helixsr-optional).
+
+**Upscalers…** in the menu prepares ahead of an installation, or from your own files:
 
 | Button | Result |
 | --- | --- |
-| **Download…** | Fetches and checks HelixSR's official archive (about 280 MB). HLX FSR 4 and HLX FSR 4 Full come built in it. |
-| **Prepare…** | Also builds HLX DLSS Model E from NVIDIA's DLSS 310.7.0 DLL. The build runs on your computer with networking disabled and needs Wine, bubblewrap and Python numpy. **Also build HLX DLSS Preset K** in that dialog adds Preset K. |
+| **Download…** | Only the archive: HLX FSR 4 and HLX FSR 4 Full. |
+| **Prepare…** | The archive and the build of HLX DLSS Model E. **Also build HLX DLSS Preset K** adds Preset K. **Use a local copy** builds from your own `nvngx_dlss.dll`. |
 | **Choose…** | Takes a HelixSR 3.3.0 release folder that is already prepared (`--helixsr /path/to/HelixSR-3.3.0`). An upscaler's files must all match the pinned build. |
 
-The build takes NVIDIA's DLL from your computer: a copy you select, or the one FreeFG downloaded earlier as its DLSS
-input helper. Without a copy, Setup asks before it downloads the DLL from NVIDIA's repository. FreeFG distributes
-neither the DLL nor built model data. [Downloads and terms](PRIVACY.md#helixsr-optional).
-
 ```sh
-python3 install.py hlx                           # download HelixSR and build Model E from a local DLSS DLL
-python3 install.py hlx --dlss-input /path/to/nvngx_dlss.dll
-python3 install.py hlx --download-dlss           # agree to the download of NVIDIA's DLL when none is local
+python3 install.py hlx                           # download HelixSR and build Model E
 python3 install.py hlx --preset-k                # also build Preset K
 python3 install.py hlx --no-build                # only the download: HLX FSR 4 and HLX FSR 4 Full
+python3 install.py hlx --dlss-input /path/to/nvngx_dlss.dll   # build from your own copy of NVIDIA's DLL
+python3 install.py hlx --no-download-dlss        # never download NVIDIA's DLL: stop when no copy is on the computer
+python3 install.py install GAME.exe --upscaler hlx-dlss --no-prepare   # refuse instead of preparing
 ```
+
+FreeFG pins one HelixSR archive by hash. If HelixSR's author replaces the 3.3.0 archive, the download is refused
+until a FreeFG release pins the new file; upscalers that are already prepared or installed keep working.
 
 ### Switching
 
@@ -52,8 +68,9 @@ python3 install.py configure GAME.exe --upscaler fsr4
 ```
 
 - `--upscaler helixsr` is an alias of `hlx-dlss`.
-- An update moves an earlier HLX or HelixSR 2.0.0 installation to 3.3.0 once that upscaler is prepared. Until then
-  the installation stays as it is.
+- **Switch** prepares an HLX upscaler that is not ready first, as Install does.
+- An update moves an earlier HLX or HelixSR 2.0.0 installation to 3.3.0 once that upscaler is prepared. Setup's
+  update review offers to prepare it first; until then the installation stays as it is.
 - A game that already holds an upscaler's current files can use them without the preparation cache.
 
 ### DeepReuse

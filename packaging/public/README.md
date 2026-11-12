@@ -33,7 +33,8 @@ driver with a dedicated compute queue needs. A game with anti-cheat is refused u
    Desktop Mode.
 2. Choose **Add a Game** and pick the game or its `.exe`.
 3. On the game's page choose **Install…**. Keep the suggested input and upscaler, or choose others. Close the game
-   and its launcher when asked.
+   and its launcher when asked. The first time, Setup prepares the suggested upscaler before it installs: a download
+   and a build of about 15 minutes, once for every game.
 4. In the game, turn on the frame-generation input that Setup names.
 
 [Installation](INSTALLATION.md) covers the inputs, the command line and other launchers.
@@ -50,8 +51,8 @@ original files back. Close the game first, and its launcher when Setup asks.
 
 On a game's page:
 
-- **Upscaler**: AMD FSR 4 or one of HelixSR's four upscalers. HLX DLSS Model E is the suggested one and is built once
-  on your computer. [Upscalers](CONFIGURATION.md#upscalers).
+- **Upscaler**: AMD FSR 4 or one of HelixSR's four upscalers. HLX DLSS Model E is the suggested one. Setup downloads
+  and builds an HLX upscaler the first time a game uses it. [Upscalers](CONFIGURATION.md#upscalers).
 - **Generated-frame size**: generate at a lower resolution to save GPU time.
   [Scaling](CONFIGURATION.md#generated-frame-scaling).
 - **Wiki settings**: OptiScaler settings suggested for the game, shown with their source before you apply any.

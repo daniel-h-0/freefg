@@ -702,7 +702,9 @@ def integrity(ctx, game):
 @dataclass
 class PlanItem:
     """One game in the update review: install.update_plan's status (or Setup's running, unavailable, failed), its reason,
-    the releases, the changes (line, detail lines) and notes, the plan's own lines, and its digest (plan_digest)."""
+    the releases, the changes (line, detail lines) and notes, the plan's own lines, its digest (plan_digest), and
+    prepare: the Helix upscaler (its id) the plan defers only because this release's HelixSR is not prepared on this
+    computer (deferred_upscaler), None for any other plan."""
     exe: Path
     title: str
     status: str
@@ -713,6 +715,7 @@ class PlanItem:
     notes: list = field(default_factory=list)
     lines: list = field(default_factory=list)
     digest: str = None
+    prepare: str = None
 
     @property
     def group(self):
@@ -749,6 +752,7 @@ def plan_game(ctx, game, component='all', refresh=False):
     item = PlanItem(game.exe, game.title, plan['status'], plan.get('reason') or '', plan.get('source'), plan.get('target'))
     item.lines = installer.plan_lines(plan)
     item.digest = plan_digest(ctx, plan)
+    item.prepare = deferred_upscaler(ctx, record, plan)
     if plan['status'] == 'update':
         item.changes, item.notes = split_plan(item.lines)
         try:
@@ -758,13 +762,34 @@ def plan_game(ctx, game, component='all', refresh=False):
     return item
 
 
+def deferred_upscaler(ctx, record, plan):
+    """The Helix upscaler (its id) an update plan defers only because this release's HelixSR is not prepared on this
+    computer, None for any other plan. Read from the plan and the installer, not from its wording: the plan's deferred
+    list names the upscaler, this package offers the installation's one (HelixSR before HLX moves to HLX DLSS Model E,
+    as install.provider_plan moves it), hlx.find says it is not prepared, and that reason is the one the plan notes."""
+    if 'upscaler' not in (plan.get('deferred') or []):
+        return None
+    name = ((record or {}).get('upscaler') or {}).get('name')
+    name = 'hlx-dlss' if name == 'helixsr' else name
+    if name not in ((hlx_catalog(ctx) or {}).get('providers') or {}):
+        return None
+    try:
+        ctx.installer.hlx.find(ctx.root, name)
+    except (OSError, ValueError) as error:
+        return name if str(error) in (plan.get('notes') or []) else None
+    return None
+
+
 def plan_reason(item, ctx):
     """The line under a game in the update review, in Setup's words where the installer's name its commands."""
+    waiting = ' · ' + UPSCALER_LABELS.get(item.prepare, 'its upscaler') + ' is not prepared yet' if item.prepare else ''
     if item.status in ('update', 'running'):
         # A recipe refresh (or an upscaler repair) can change a game without changing its release.
         line = version(item.source) + ' → ' + version(item.target) if item.source != item.target else \
             'Changes within ' + version(item.target)
-        return line + (' · close the game first' if item.status == 'running' else '')
+        return line + waiting + (' · close the game first' if item.status == 'running' else '')
+    if item.status == 'deferred' and item.prepare:
+        return 'Nothing to update until ' + UPSCALER_LABELS.get(item.prepare, 'its upscaler') + ' is prepared on this computer'
     if item.status == 'current':
         return 'Up to date (' + version(item.target or item.source) + ')'
     if item.status == 'pinned':
@@ -806,9 +831,12 @@ UPSCALER_ABOUT = {'fsr4': 'AMD FSR 4, BC-250 build: built in, always ready',
 class Provider:
     """An upscaler Setup offers. state: 'ready'; 'unprepared' (a Helix upscaler that is not ready on this computer); for
     HelixSR before HLX, 'missing', 'unknown' or 'unbuilt' (helixsr.find). get: how a Helix upscaler becomes ready:
-    'build' (Prepare…: built on this computer from NVIDIA's DLSS DLL, install.py hlx) or 'download' (Download…: it comes
-    built in HelixSR's official archive, install.py hlx --no-build); None for the others. suggested: the one a new
-    installation starts with when it is ready; optional: hlx.OPTIONAL."""
+    'build' (built on this computer from NVIDIA's DLSS DLL, install.py hlx) or 'download' (it comes built in HelixSR's
+    official archive, install.py hlx --no-build); None for the others. suggested: the one a new installation starts
+    with; optional: hlx.OPTIONAL. For one that is not ready: needs, what its build needs and this computer lacks
+    (HLX_NEEDS' names; empty for one that comes built), and have, what its preparation takes that this computer holds
+    already (helix_held). local: ready through checked copies in the game itself (game_providers), whatever the shared
+    preparation holds."""
     id: str
     label: str
     about: str
@@ -819,10 +847,20 @@ class Provider:
     get: str = None
     suggested: bool = False
     optional: bool = False
+    needs: tuple = ()
+    have: tuple = ()
+    local: bool = False
 
     @property
     def ready(self):
         return self.state == 'ready'
+
+    @property
+    def preparable(self):
+        """Not ready, and Install, Switch and Update can make it ready on this computer first (install.py prepares a
+        named HelixSR upscaler): one that comes built always, one that is built when nothing its build needs is missing.
+        HelixSR before HLX is built by its own setup, never here."""
+        return not self.ready and self.get in ('build', 'download') and not self.needs
 
 
 def hlx_catalog(ctx):
@@ -840,10 +878,12 @@ def built_in_provider():
     return Provider('fsr4', UPSCALER_LABELS['fsr4'], UPSCALER_ABOUT['fsr4'], detail='Built in')
 
 
-def providers(ctx):
+def providers(ctx, run=subprocess.run):
     """The upscalers this package installs, each with whether it is ready on this computer: the suggested Helix upscaler
-    first, then FSR 4, then the other Helix upscalers as hlx.NAMES orders them. Helix preparation is checked by hashing
-    the prepared files (hlx.find): call it off the window's thread."""
+    first, then FSR 4, then the other Helix upscalers as hlx.NAMES orders them. One that is not ready also says whether
+    it can be made ready here (Provider.preparable): what its build lacks (build_needs, asked through run in a process of
+    its own) and what of its downloads this computer holds (helix_held). Helix preparation is checked by hashing the
+    prepared files (hlx.find): call it off the window's thread."""
     installer = ctx.installer
     catalog = hlx_catalog(ctx)
     if catalog:
@@ -857,6 +897,10 @@ def providers(ctx):
                                       'Ready: ' + label + ' ' + spec['version'], spec['version'], str(folder), **common))
             except (OSError, ValueError) as error:
                 found.append(Provider(name, label, UPSCALER_ABOUT.get(name, label), 'unprepared', str(error), **common))
+        if any(not p.ready for p in found):
+            built = any(p.get == 'build' and not p.ready for p in found)
+            have, needs = helix_held(ctx, built), build_needs(ctx, run) if built else ()
+            found = [p if p.ready else replace(p, have=have, needs=needs if p.get == 'build' else ()) for p in found]
         return [*[p for p in found if p.suggested], built_in_provider(), *[p for p in found if not p.suggested]]
     out = [built_in_provider()]
     helixsr = getattr(installer, 'helixsr', None)
@@ -873,9 +917,10 @@ def providers(ctx):
 
 
 def default_provider(found):
-    """The upscaler a new installation starts with: the suggested one when it is ready on this computer, else FSR 4.
-    Never one that has to be prepared first (install.suggested_upscaler chooses the same for --upscaler auto)."""
-    return next((p.id for p in found or [] if p.suggested and p.ready), 'fsr4')
+    """The upscaler a new installation starts with: the suggested one when it is ready on this computer or Install can
+    make it ready here first (Provider.preparable), else FSR 4, which nothing has to prepare. (install.py's own
+    --upscaler auto takes the suggested one only when it is ready: Setup always names the upscaler.)"""
+    return next((p.id for p in found or [] if p.suggested and (p.ready or p.preparable)), 'fsr4')
 
 
 def provider_state(provider):
@@ -886,8 +931,12 @@ def provider_state(provider):
 
 
 def provider_line(provider):
-    """A provider's row under its name where an upscaler is chosen: what it is and, until it is ready, what it needs."""
-    return provider.about if provider.ready else provider.about + ' · ' + provider_state(provider).lower()
+    """A provider's row under its name where an upscaler is chosen: what it is and, until it is ready, what it needs
+    (and what its build lacks on this computer)."""
+    if provider.ready:
+        return provider.about
+    return provider.about + ' · ' + provider_state(provider).lower() + \
+        ('; its build needs ' + joined(provider.needs) if provider.needs else '')
 
 
 def provider_action(provider):
@@ -897,6 +946,18 @@ def provider_action(provider):
     if provider.ready:
         return None
     return ('_Download…', 'download') if provider.get == 'download' else ('_Prepare…', provider.get)
+
+
+def cannot_prepare(provider):
+    """Why an upscaler that is not ready cannot be installed or switched to yet, in a sentence; None for one that is
+    ready or that Setup makes ready first (Provider.preparable)."""
+    if provider.ready or provider.preparable:
+        return None
+    if provider.needs:
+        return (provider.label + ' cannot be built on this computer yet: its build needs ' + joined(provider.needs) +
+                ', from your distribution’s packages. Until then, choose another upscaler.')
+    return (provider.label + ' is ' + provider_state(provider).lower() + ': choose ' +
+            provider_action(provider)[0].replace('_', '') + ' on its row, or another upscaler.')
 
 
 def megabytes(size, step=1):
@@ -918,12 +979,11 @@ def download_words(ctx):
             'nothing is built and no game is changed.')
 
 
-def dlss_input(ctx, chosen=None):
-    """The NVIDIA DLSS DLL that HLX DLSS is built from, as Prepare Helix would take it: dict(path: the local copy
-    (chosen, else the one this installer's download cache already holds), None when there is none; error: why chosen
-    is not it; sha256: the pinned file's; version: its DLSS version ('310.7.0'); size: its download ('59 MB'); license: NVIDIA's licence for it). Hashes the
-    file (hlx.dlss_input): call it off the window's thread. Downloads nothing."""
-    hlx, catalog = ctx.installer.hlx, hlx_catalog(ctx) or {}
+def dlss_pin(ctx):
+    """NVIDIA's DLSS DLL that HLX DLSS is built from, as this package pins it: dict(sha256; version: its DLSS version
+    ('310.7.0'); size: its download ('59 MB'); license: NVIDIA's licence for it; name: how Setup names it). Reads the
+    package's pins only."""
+    hlx, catalog = getattr(ctx.installer, 'hlx', None), hlx_catalog(ctx) or {}
     wanted = (catalog.get('model_inputs') or {}).get('dlss')
     pins = {}
     try:
@@ -931,23 +991,52 @@ def dlss_input(ctx, chosen=None):
     except (OSError, ValueError, AttributeError):
         pass
     pin = next((item for item in pins.values() if isinstance(item, dict) and item.get('sha256') == wanted), {})
-    out = dict(path=None, error=None, sha256=wanted, size=megabytes(pin.get('size')),
-               version=(catalog.get('model_inputs') or {}).get('dlss_version') or '',
-               license=getattr(hlx, 'NVIDIA_LICENSE', ''))
+    version_ = (catalog.get('model_inputs') or {}).get('dlss_version') or ''
+    return dict(sha256=wanted, size=megabytes(pin.get('size')), version=version_,
+                license=getattr(hlx, 'NVIDIA_LICENSE', ''), name='NVIDIA’s DLSS ' + (version_ + ' ' if version_ else '') + 'DLL')
+
+
+def dlss_input(ctx, chosen=None):
+    """The NVIDIA DLSS DLL that HLX DLSS is built from, as Prepare Helix would take it: dlss_pin's facts and path: the
+    local copy (chosen, else the one this installer's download cache already holds), None when there is none; error: why
+    chosen is not it. Hashes the file (hlx.dlss_input): call it off the window's thread. Downloads nothing."""
+    out = dict(dlss_pin(ctx), path=None, error=None)
     try:
-        out['path'] = str(hlx.dlss_input(ctx.root, chosen))
+        out['path'] = str(ctx.installer.hlx.dlss_input(ctx.root, chosen))
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         # Without a chosen file this only says that the installer holds no copy (or builds no HLX DLSS).
         out['error'] = str(error) if chosen else None
     return out
 
 
-def prepare_args(dlss=None, download=False, preset_k=False):
+def helix_held(ctx, built=True):
+    """What a Helix preparation downloads that this computer holds already, as a tuple of 'archive' (HelixSR's official
+    archive), 'compiler' (Microsoft's shader compiler) and 'dlss' (NVIDIA's DLSS DLL); the last two only for built (an
+    upscaler that is built here). The archive and the compiler count by their pinned size in the installer's cache (the
+    installer checks their hashes before it uses them); the DLL is hashed (dlss_input): call it off the window's
+    thread."""
+    hlx, catalog = getattr(ctx.installer, 'hlx', None), hlx_catalog(ctx) or {}
+
+    def cached(pin):
+        try:
+            return (hlx.cache(catalog) / pin['file']).stat().st_size == pin['size']
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return False
+    held = ['archive'] if cached(catalog.get('archive')) else []
+    if built:
+        compilers = list((catalog.get('compilers') or {}).values())
+        if compilers and all(cached(pin) for pin in compilers):
+            held.append('compiler')
+        if dlss_input(ctx)['path']:
+            held.append('dlss')
+    return tuple(held)
+
+
+def prepare_args(dlss=None, preset_k=False):
     """install.py hlx's arguments for Prepare Helix. dlss: a local copy of NVIDIA's DLSS DLL the user chose (None: the
-    copy the installer's download cache holds); download: the user agreed to its download from NVIDIA's repository
-    under NVIDIA's licence (only without a local copy); preset_k: also build the optional Preset K."""
-    return ['hlx', *(['--dlss-input', str(dlss)] if dlss else ['--download-dlss'] if download else []),
-            *(['--preset-k'] if preset_k else [])]
+    copy the installer's download cache holds, else the installer downloads it from NVIDIA's repository under NVIDIA's
+    licence, which Setup says before it runs); preset_k: also build the optional Preset K."""
+    return ['hlx', *(['--dlss-input', str(dlss)] if dlss else []), *(['--preset-k'] if preset_k else [])]
 
 
 # HelixSR's official archive alone: HLX FSR 4 and HLX FSR 4 Full come built in it (nothing is built).
@@ -958,6 +1047,84 @@ def prepare_todo(found, preset_k=False):
     """The ids of the Helix upscalers Prepare Helix would build now: HLX DLSS Model E and, with preset_k, the optional
     ones, where they are not built already (hlx.prepare keeps what an earlier preparation built)."""
     return [p.id for p in found or [] if p.get == 'build' and not p.ready and (preset_k or not p.optional)]
+
+
+# About how long HelixSR's build takes on a BC-250, by what is built: Model E, Preset K after it, or both.
+BUILD_TIME = {('hlx-dlss',): 'about 15 minutes', ('hlx-dlss-k',): 'about 30 minutes',
+              ('hlx-dlss', 'hlx-dlss-k'): 'about 45 minutes'}
+
+
+def build_time(build):
+    """'about 15 minutes': about how long building these Helix upscalers takes on a BC-250 ('' for none)."""
+    return BUILD_TIME.get(tuple(name for name in ('hlx-dlss', 'hlx-dlss-k') if name in (build or ())), '')
+
+
+def build_sentence(build):
+    """'The build takes about 15 minutes on a BC-250.' for these Helix upscalers ('' when none is built)."""
+    return 'The build takes ' + build_time(build) + ' on a BC-250.' if build_time(build) else ''
+
+
+def prepare_first(found, names):
+    """What making the Helix upscalers named ready takes before a game changes, as install.py does it for an upscaler
+    named to install or configure (and install.py hlx for an update): dict(names: those of them Setup can make ready
+    here (Provider.preparable), in Setup's order; build: the upscalers built for them (Model E also for Preset K, unless
+    it is built already); args: install.py hlx's arguments that prepare them). None when none of them can be."""
+    can = [p for p in found or [] if p.id in set(names or ()) and p.preparable]
+    if not can:
+        return None
+    built = [p for p in can if p.get == 'build']
+    preset_k = any(p.optional for p in built)
+    return dict(names=[p.id for p in can], build=prepare_todo(found, preset_k) if built else [],
+                args=prepare_args(preset_k=preset_k) if built else list(DOWNLOAD_ARGS))
+
+
+def prepare_lines(ctx, found, names):
+    """What preparing the Helix upscalers named does first, a sentence per line, in both front ends: what is downloaded
+    and from where (NVIDIA's DLSS DLL under NVIDIA's licence, unless a copy is on this computer), then what is built
+    here and about how long that takes on a BC-250. [] when none of them can be made ready here (prepare_first)."""
+    todo = prepare_first(found, names)
+    if not todo:
+        return []
+    chosen = [p for p in found if p.id in todo['names']]
+    held, catalog, dlss = set(chosen[0].have), hlx_catalog(ctx) or {}, dlss_pin(ctx)
+
+    def sized(what, size):
+        return what + (' (' + size + ')' if size else '')
+    github = [] if 'archive' in held else [sized('HelixSR’s official archive', hlx_archive_size(ctx))]
+    if todo['build'] and 'compiler' not in held:
+        sizes = [pin.get('size') for pin in (catalog.get('compilers') or {}).values() if isinstance(pin, dict)]
+        github.append(sized('Microsoft’s shader compiler', megabytes(sum(s for s in sizes if isinstance(s, (int, float))))))
+    downloads = [joined(github) + ' from ' + ('their' if len(github) > 1 else 'its') + ' GitHub releases'] if github else []
+    if todo['build'] and 'dlss' not in held:
+        downloads.append(sized(dlss['name'], dlss['size']) + ' from NVIDIA’s repository under NVIDIA’s licence' +
+                         (' (' + dlss['license'] + ')' if dlss['license'] else ''))
+    lines = ['Downloads ' + ', and '.join(downloads) + '. Each file is checked by SHA-256.' if downloads else
+             'Nothing is downloaded: the files it takes are on this computer already.']
+    if todo['build']:
+        if 'dlss' in held:
+            lines.append('The build takes the copy of ' + dlss['name'] + ' on this computer.')
+        lines.append('Builds ' + joined(UPSCALER_LABELS[name] for name in todo['build']) + ' on this computer with '
+                     'networking off. That takes ' + build_time(todo['build']) + ' on a BC-250.')
+    else:
+        lines.append('Nothing is built: ' + joined(p.label for p in chosen) +
+                     (' comes' if len(chosen) == 1 else ' come') + ' built in the archive.')
+    return lines
+
+
+def prepare_heading(found, names, action='Install'):
+    """'Install prepares HLX DLSS Model E first, once for every game': the line above prepare_lines, for the action that
+    does it (Install, Switch, Update)."""
+    todo = prepare_first(found, names) or dict(names=[])
+    return action + ' prepares ' + joined(UPSCALER_LABELS[name] for name in todo['names']) + ' first, once for every game'
+
+
+def build_needs(ctx, run=subprocess.run):
+    """What building HLX DLSS needs and this computer lacks, in Setup's names (hlx_requirements), as a tuple. () also
+    when the check did not run: the installer checks again before it changes a game, and says what is missing."""
+    try:
+        return tuple(what for what, present, _ in hlx_requirements(ctx, run) if not present)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ()
 
 
 def game_providers(ctx, game, prepared):
@@ -990,8 +1157,15 @@ def game_providers(ctx, game, prepared):
         except (OSError, ValueError):
             continue
         result[i] = replace(provider, state='ready', version=catalog['version'],
-                            detail='Checked files in this game', folder=None)
+                            detail='Checked files in this game', folder=None, local=True)
     return result
+
+
+def switch_args(exe, provider):
+    """install.py configure's arguments that switch the game of exe to an upscaler. One that is not ready is prepared by
+    the installer first; one that is ready only through the game's own checked copies (Provider.local) is switched to
+    as it is, without preparing the shared copy (--no-prepare)."""
+    return ['configure', str(exe), '--upscaler', provider.id, *(['--no-prepare'] if provider.local else [])]
 
 
 def wiki_settings_plan(ctx, game):
@@ -1076,6 +1250,16 @@ def system_summary(rows, name):
 
 
 # ----------------------------------------------------------------------------------------------- results
+def elapsed_words(seconds):
+    """'45 s', '2 min 05 s', '1 h 02 min': how long an operation has run."""
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return str(seconds) + ' s'
+    if seconds < 3600:
+        return f'{seconds // 60} min {seconds % 60:02d} s'
+    return f'{seconds // 3600} h {seconds % 3600 // 60:02d} min'
+
+
 def failure_reason(lines):
     """The installer's reason for a failed command: its last error line ([(stream, line)], stream 'err' or 'out')."""
     errors = [line for stream, line in lines if stream == 'err' and line.strip()]
