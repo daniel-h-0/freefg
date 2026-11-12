@@ -75,7 +75,7 @@ The bundled GPL-3.0 DLL is built from fork commit `4d0c0b9798e07332a0a8a86a7dfa5
 upstream `7479cb294cd66d4d02c2a452f6f6294ade6a11ff` (11 November 2026). Its SHA-256 is
 `22052eb2b4f9b936f9c6ee2bfa161a3dc9cdb6799f801c1999595fc765d579c3`.
 
-The [fork release `bc250-4d0c0b9`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-4d0c0b9) provides the
+The [fork release `bc250-4d0c0b9-r1`](https://github.com/daniel-h-0/OptiScaler/releases/tag/bc250-4d0c0b9-r1) provides the
 DLL and matching recursive source archive. `SOURCE.md` identifies the source companion and build route. Available submodules are bundled; Intel's XeSS SDK is a separately fetched, pinned input.
 
 The fork retains loader-first Streamline locking, automatic menu saving, Linux cross-build support, independent

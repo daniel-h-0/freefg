@@ -9,7 +9,7 @@ reserved.
 
 ## Build and provenance
 
-This index covers DLL `22052eb2…`, source `4d0c0b97` (fork tag `bc250-4d0c0b9`), which merges upstream master of
+This index covers DLL `22052eb2…`, source `4d0c0b97` (fork tag `bc250-4d0c0b9-r1`), which merges upstream master of
 11 November 2026. Its dependency records and source changes were checked against the October 29 audit. The compiled
 third-party folders, the submodule pins and the static libraries remain the same. One compiled file is new with its
 own licence: OptiScaler's plugin API header.
