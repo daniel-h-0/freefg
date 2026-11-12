@@ -41,9 +41,9 @@ driver with a dedicated compute queue needs. A game with anti-cheat is refused u
 
 ## Update and remove
 
-Extract the new release, then choose **Update…** on a game's page or **Update All Games…** in the menu. **Rollback**
-undoes the last update, upscaler switch, recipe refresh or wiki settings. **Restore** puts the game's original files
-back. Close the game first, and its launcher when Setup asks.
+Extract the new release, then choose **Update…** on a game's page or **Update All Games…** in the menu.
+**Roll Back…** undoes the last update, upscaler switch, recipe refresh or wiki settings. **Restore…** puts the game's
+original files back. Close the game first, and its launcher when Setup asks.
 [Updates and recovery](INSTALLATION.md#updates-and-recovery).
 
 ## Configure
@@ -64,7 +64,7 @@ On a game's page:
 - Tested on one BC-250 under Proton. Other GPUs and Flatpak launchers are untested.
 - By default, generated frames differ slightly from Intel's. `BC250_XEFG_EXACT=1` turns that off; the output then
   matched Intel's in every test. Scaling also changes the generated image.
-  [Output differences](ARCHITECTURE.md#fp16-forms-approximate-output-by-default).
+  [Output differences](ARCHITECTURE.md#fp16-forms).
 - Image quality at 3× and 4× and end-to-end latency have not been measured.
 - Only the first XeFG context in a game is accelerated. If Intel's runtime does something FreeFG does not recognise,
   FreeFG steps aside or the game ends.

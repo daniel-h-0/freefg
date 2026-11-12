@@ -97,7 +97,7 @@ if you breach the licence.
 - FreeFG does not ship Intel's runtime. The installer downloads it, unmodified, from Intel's public repository (or
   takes the identical copy from OptiScaler's nightly archive), and you use it under Intel's licence.
 - While the runtime runs, FreeFG changes how part of its GPU work is carried out.
-  [ARCHITECTURE.md](ARCHITECTURE.md#what-is-changed-at-run-time) lists the changes.
+  [Architecture](ARCHITECTURE.md#run-time-changes) lists the changes.
 - Intel has not given this project permission to do this. This project cannot tell you whether that change is compatible
   with Intel's licence. Decide for yourself whether to use FreeFG.
 - `BC250_XEFG_DISABLE=1` runs Intel's own shaders.

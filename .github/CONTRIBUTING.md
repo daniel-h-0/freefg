@@ -1,18 +1,21 @@
 <!-- Copy of packaging/public/CONTRIBUTING.md for this folder of the repository, written by release/export_tree.py --public with its links adjusted; edit packaging/public/CONTRIBUTING.md instead. -->
 # Contributing to FreeFG
 
-Use [GitHub issues](https://github.com/daniel-h-0/freefg/issues) for bugs and game reports.
-Send vulnerabilities and private rights-holder concerns through [SECURITY.md](../packaging/public/SECURITY.md).
+Use [GitHub issues](https://github.com/daniel-h-0/freefg/issues) for bugs and game reports. Vulnerabilities and private
+concerns of rights holders go through [Security](../packaging/public/SECURITY.md).
 
 ## Reporting a problem
 
-Include the game/store/version, FreeFG version, Proton/Mesa/kernel/gamescope versions, resolution, HDR/VRR state,
-upscaler and FG input/factor. Describe what you saw and how to reproduce it.
+Start with `python3 install.py check GAME.exe --report` and add:
 
-Start with `python3 install.py check GAME.exe --report`. For runtime or pacing problems, also include relevant
-`BC250-MFG.log`, `BC250-XeFG-fast.log` and `BC250_PACE` lines ([log guide](../packaging/public/TROUBLESHOOTING.md#logs)).
-Review reports and logs before posting: raw logs can contain paths and user names. Do not attach game files, saves,
-shader caches, runtime/GPU dumps or account data.
+- the game, its store and version, and the FreeFG version;
+- the Proton, Mesa, kernel and gamescope versions;
+- resolution, HDR and VRR state, upscaler, frame-generation input and factor;
+- what you saw and how to reproduce it.
+
+For runtime or pacing problems, include the relevant lines of `BC250-MFG.log` and `BC250-XeFG-fast.log` and the
+`BC250_PACE` lines ([logs](../packaging/public/TROUBLESHOOTING.md#logs)). Read reports and logs before posting: raw logs can contain
+paths and user names. Do not attach game files, saves, shader caches, runtime or GPU dumps or account data.
 
 ## Game recipes
 
@@ -21,23 +24,23 @@ A recipe supplies a game's input, settings and launch options. Submit working an
 
 ### Reporting a game
 
-Run `python3 install.py check '/path/to/Game.exe' --report` after play. Record gameplay duration, number of starts,
-observed output/game-frame ratio and whether Restore worked. The redacted report helps, but cannot prove visual quality
-or stable pacing by itself.
+Run `python3 install.py check '/path/to/Game.exe' --report` after playing. Add how long you played, how many times
+the game started, the ratio of output frames to game frames you observed and whether Restore worked. The report alone
+cannot show image quality or steady pacing.
 
 ### Community and verified recipes
 
 Community recipes live in `research/recipes/community/`, one JSON file per game. A maintainer reviews them before
 Setup applies them as **Community-reported on BC-250**. Maintainer-tested recipes use the UI label **Verified on
-BC-250**; the compatibility table records what was actually tested. Existing curated entries include partial checks
-and known failures, so that label is not a blanket gameplay guarantee.
+BC-250**; the compatibility table records what was tested. Some verified entries rest on partial checks or list
+known failures, so the label does not mean that all of a game was tested.
 
-For a new working community recipe, provide at least 10 minutes of gameplay, three successful starts and a checked
-Restore. At 2×, the observed ratio should be approximately 2.0; the validator's threshold is 1.95. Describe how you
-measured it, test VRR behavior when available, and separate menu checks from gameplay. Maintainer verification should
-include repeated starts, generated-frame confirmation and before/after file and launcher checks.
+A new community recipe needs at least 10 minutes of gameplay, three successful starts and a checked Restore. At 2×
+the observed ratio should be about 2.0; the validator's threshold is 1.95. Say how you measured it, test VRR where you
+can and keep menu checks apart from gameplay. A maintainer's verification adds repeated starts, confirmation of
+generated frames and file and launcher comparisons before and after.
 
-### What a recipe may set
+### Allowed settings
 
 The [community schema](https://github.com/daniel-h-0/freefg/blob/main/research/recipes/community/README.md) and `check_community()` in
 `research/recipes/build_recipes.py` are the reference. They permit supported FG inputs, DX12 launch switches,
@@ -45,9 +48,9 @@ readable OptiScaler keys and specific game-setting edits. They reject installer-
 spoofing/Reflex/quality overrides and conflicts with OptiScaler's own game fix. Game FG inputs need an enabling setting
 or a clear manual step.
 
-A recipe must identify the game reliably and cite reports, not quote other sources. Record failed inputs in
-`known_problems`. Entries with an `input` exclude that input from detection-based candidates, as wiki vetoes do;
-explicit user choices and applicable recipe routes take precedence. This is not a general installation block.
+A recipe must identify its game reliably and cite reports instead of quoting other sources. Record failed inputs in
+`known_problems`. An entry with an `input` removes that input from the candidates detection proposes, as a wiki veto
+does. A user's explicit choice and an applicable recipe route still take precedence, and installation is not blocked.
 
 ## Clean-room rules
 
@@ -68,8 +71,8 @@ explicit user choices and applicable recipe routes take precedence. This is not 
    compile recipe; document the output tests in the pull request.
 7. **Pass the content checks.** The assembled package must pass `release/check_intel_free.py check` with no allowance.
 
-If a contribution may rely on prohibited material, ask about the proposed scope before submitting it; do not attach
-or describe the material itself.
+If a contribution may rely on prohibited material, ask about its scope before submitting it. Do not attach or
+describe the material itself.
 
 ## Code changes
 
